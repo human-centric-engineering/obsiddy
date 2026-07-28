@@ -1,6 +1,27 @@
-# Sunrise - build production apps faster
+# Obsiddy — an agentic second brain
 
-A production-ready Next.js 16 starter template designed for rapid application development with AI assistance — now with a complete AI agent orchestration layer baked in.
+Capture thoughts as they happen, keep track of projects and goals across week / month / year / life horizons, and let background agents surface the connections between them.
+
+Obsiddy is a **framework-tier module built on [Sunrise](https://github.com/human-centric-engineering/sunrise)** — designed to be installed into other Sunrise-based projects, not just this one. Everything Obsiddy owns lives under the reserved `/framework` tier (`lib/framework/obsiddy/`, `prisma/schema/framework-obsiddy.prisma`, `framework_obsiddy_*` tables, `.context/framework/obsiddy/`), so Sunrise upgrades merge cleanly underneath it.
+
+**Status: planning.** No Obsiddy code has been written yet. The full implementation plan — data model, agents, workflows, sharing, boards, Obsidian sync, and a four-release delivery sequence — is at [`.context/framework/obsiddy/plan.md`](./.context/framework/obsiddy/plan.md).
+
+## Staying current with Sunrise
+
+This repository is a clone of Sunrise with full history, not a GitHub fork — so its visibility can be changed at any time. Sunrise is wired as `upstream`:
+
+```bash
+git fetch upstream
+git merge upstream/main
+```
+
+Pushing to `upstream` is disabled locally. To contribute a change back to Sunrise, push a branch to the Sunrise repository directly and open a PR there.
+
+---
+
+# Sunrise — the platform underneath
+
+Everything below documents the Sunrise template Obsiddy is built on.
 
 ## Why Sunrise?
 

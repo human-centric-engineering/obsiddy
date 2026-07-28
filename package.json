@@ -1,7 +1,7 @@
 {
-  "name": "sunrise",
-  "version": "0.7.0",
-  "description": "A production-ready Next.js starter template designed for rapid application development with AI assistance.",
+  "name": "obsiddy",
+  "version": "0.1.0",
+  "description": "Obsiddy — an agentic second brain and planner: thought capture, projects, goals, background connection-finding. A framework-tier module built on Sunrise.",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -43,7 +43,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/human-centric-engineering/sunrise.git"
+    "url": "git+https://github.com/human-centric-engineering/obsiddy.git"
   },
   "keywords": [
     "nextjs",
