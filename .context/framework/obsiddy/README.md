@@ -23,10 +23,11 @@ Namespaced _inside_ the tier, never at its root — so a project already running
 
 ## Contents
 
-| File                         | What it is                                                                                                                                                             |
-| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`plan.md`](./plan.md)       | The full implementation plan — data model, migrations, API, agents, workflows, prioritisation, lifecycle, boards, sharing, Obsidian sync, phasing, verification, risks |
-| [`install.md`](./install.md) | How a host Sunrise project installs Obsiddy — tier directories, one-line seam registrations, env vars, migration, verification. Kept current by every phase            |
+| File                                   | What it is                                                                                                                                                             |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`plan.md`](./plan.md)                 | The full implementation plan — data model, migrations, API, agents, workflows, prioritisation, lifecycle, boards, sharing, Obsidian sync, phasing, verification, risks |
+| [`install.md`](./install.md)           | How a host Sunrise project installs Obsiddy — tier directories, one-line seam registrations, env vars, migration, verification. Kept current by every phase            |
+| [`sunrise-asks.md`](./sunrise-asks.md) | What Obsiddy needs from upstream Sunrise — missing seams, core files a fork is forced to edit, platform gaps. Every row also gets an issue on the Sunrise repo         |
 
 `plan.md` is the working copy that travels with the code. It is not auto-synced with any copy held outside the repository.
 
