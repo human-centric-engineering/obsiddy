@@ -33,19 +33,29 @@ Namespaced _inside_ the tier, never at its root — so a project already running
 
 ## Status
 
-**Release 1, phases 0–1 complete** — the tier is wired and the data model exists. There are no routes, agents or UI yet: nothing reads or writes these tables except `ensureObsiddySpace()`.
+**Release 1, phases 0–2 complete** — the tier is wired, the data model exists, and every core type has an owner-scoped CRUD API. There is no UI, no search and no agent layer yet.
 
-| Wired                                   | Where                                                                    |
-| --------------------------------------- | ------------------------------------------------------------------------ |
-| Boot (dynamic import → `initLeafApp()`) | `lib/app/bootstrap.ts` → `lib/framework/obsiddy/index.ts`                |
-| Env schema                              | `lib/app/env.ts` merges `obsiddyEnvSchema` (currently empty)             |
-| Lint boundary                           | `lib/app/eslint.config.mjs` spreads `lib/framework/eslint.config.mjs`    |
-| Protected route                         | `/obsiddy` in `lib/app/protected-routes.ts`                              |
-| Drift probes                            | `lib/app/db-drift.ts` → `registerObsiddyDriftProbes()` (six, B1 + B3–B7) |
-| Schema                                  | 18 models in `prisma/schema/framework-obsiddy.prisma`                    |
-| Migration                               | `20260728222816_add_second_brain` — hand-edited, **never regenerate it** |
-| Space service                           | `lib/framework/obsiddy/services/space.ts`                                |
+| Wired                                   | Where                                                                       |
+| --------------------------------------- | --------------------------------------------------------------------------- |
+| Boot (dynamic import → `initLeafApp()`) | `lib/app/bootstrap.ts` → `lib/framework/obsiddy/index.ts`                   |
+| Env schema                              | `lib/app/env.ts` merges `obsiddyEnvSchema` (currently empty)                |
+| Lint boundary                           | `lib/app/eslint.config.mjs` spreads `lib/framework/eslint.config.mjs`       |
+| Protected route                         | `/obsiddy` in `lib/app/protected-routes.ts`                                 |
+| Drift probes                            | `lib/app/db-drift.ts` → `registerObsiddyDriftProbes()` (six, B1 + B3–B7)    |
+| Schema                                  | 18 models in `prisma/schema/framework-obsiddy.prisma`                       |
+| Migrations                              | `add_second_brain`, `obsiddy_space_cascade` — hand-edited, never regenerate |
+| Repo layer                              | `lib/framework/obsiddy/repo/*` — `OwnerScope`, 7 entity repos               |
+| Services                                | `lib/framework/obsiddy/services/*` — resources, slug, events, space         |
+| API                                     | `app/api/v1/obsiddy/**` — 20 route files over 7 types                       |
 
-The migration carries six Postgres objects Prisma cannot model (Group B): the hand-written GDPR-cascade FK, the HNSW vector index, two `GENERATED ALWAYS` tsvector columns and their GIN indexes. `npm run db:drift-check` after **every** `migrate dev` — that is the only thing standing between the build and a silently dropped index.
+## The isolation contract (D5)
 
-Next: **phase 2** (`repo/*` with `OwnerScope`, services, validations, CRUD routes — verified by cross-user isolation tests). **Phase 0b** (upstreaming two seams to Sunrise) is a separate PR against the template and is tracked in [`sunrise-asks.md`](./sunrise-asks.md).
+Everything in the brain is an **owner query**. `OwnerScope` is a branded type minted only from a verified session id, every repo function takes one, and three boundaries keep it honest:
+
+1. `repo/**` may not import `access/**` (cross-user resolution, Release 2).
+2. Nothing in the tier except `repo/**` may import Prisma at all.
+3. Every create/update/delete targets `{ id, userId }` together, so another user's id matches no row — **404, never 403**, because a 403 confirms the row exists.
+
+Proven by `npm run smoke:obsiddy-isolation` against a real database: 27 assertions covering cross-user reads, writes, archive, restore, delete, dedupe and the erasure cascade.
+
+Next: **phase 3** (the priority engine — `manualBoost`, snooze presets, `/obsiddy/today`, `/obsiddy/inbox` and ETags, verified by a ~40-case table test on the pure scorer). **Phase 0b** (upstreaming two seams to Sunrise) is a separate PR against the template and is tracked in [`sunrise-asks.md`](./sunrise-asks.md).

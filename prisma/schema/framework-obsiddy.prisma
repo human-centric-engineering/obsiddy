@@ -67,6 +67,26 @@ model ObsiddySpace {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Back-relations for the D1 cascade. Every scoped table hangs off this row,
+  // so `DELETE FROM "user"` removes the space and the space removes the brain.
+  areas          ObsiddyArea[]
+  goals          ObsiddyGoal[]
+  projects       ObsiddyProject[]
+  tasks          ObsiddyTask[]
+  thoughts       ObsiddyThought[]
+  links          ObsiddyLink[]
+  embeddings     ObsiddyEmbedding[]
+  boards         ObsiddyBoard[]
+  boardCards     ObsiddyBoardCard[]
+  tags           ObsiddyTag[]
+  taskTags       ObsiddyTaskTag[]
+  checklistItems ObsiddyChecklistItem[]
+  entities       ObsiddyEntity[]
+  documents      ObsiddyDocument[]
+  timeBlocks     ObsiddyTimeBlock[]
+  reviews        ObsiddyReview[]
+  events         ObsiddyEvent[]
+
   @@map("framework_obsiddy_space")
 }
 
@@ -105,6 +125,10 @@ model ObsiddyArea {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  /// D1: the cascade path. Erasing a user removes the space row, which
+  /// removes every row here. Verified by scripts/smoke/obsiddy-isolation.ts.
+  space ObsiddySpace @relation(fields: [userId], references: [userId], onDelete: Cascade)
 
   @@unique([userId, slug])
   @@index([userId, archivedAt])
@@ -148,6 +172,10 @@ model ObsiddyGoal {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  /// D1: the cascade path. Erasing a user removes the space row, which
+  /// removes every row here. Verified by scripts/smoke/obsiddy-isolation.ts.
+  space ObsiddySpace @relation(fields: [userId], references: [userId], onDelete: Cascade)
 
   @@index([userId, horizon, status])
   @@index([userId, archivedAt])
@@ -193,6 +221,10 @@ model ObsiddyProject {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  /// D1: the cascade path. Erasing a user removes the space row, which
+  /// removes every row here. Verified by scripts/smoke/obsiddy-isolation.ts.
+  space ObsiddySpace @relation(fields: [userId], references: [userId], onDelete: Cascade)
 
   @@unique([userId, slug])
   @@index([userId, status])
@@ -286,6 +318,10 @@ model ObsiddyTask {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  /// D1: the cascade path. Erasing a user removes the space row, which
+  /// removes every row here. Verified by scripts/smoke/obsiddy-isolation.ts.
+  space ObsiddySpace @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
   @@index([userId, status])
   @@index([userId, archivedAt])
   @@index([userId, visibility])
@@ -328,6 +364,10 @@ model ObsiddyThought {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  /// D1: the cascade path. Erasing a user removes the space row, which
+  /// removes every row here. Verified by scripts/smoke/obsiddy-isolation.ts.
+  space ObsiddySpace @relation(fields: [userId], references: [userId], onDelete: Cascade)
 
   @@unique([userId, externalId])
   @@index([userId, status, createdAt])
@@ -372,6 +412,10 @@ model ObsiddyLink {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  /// D1: the cascade path. Erasing a user removes the space row, which
+  /// removes every row here. Verified by scripts/smoke/obsiddy-isolation.ts.
+  space ObsiddySpace @relation(fields: [userId], references: [userId], onDelete: Cascade)
 
   @@unique([userId, sourceType, sourceId, targetType, targetId, kind])
   @@index([userId, status])
@@ -426,6 +470,10 @@ model ObsiddyEmbedding {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  /// D1: the cascade path. Erasing a user removes the space row, which
+  /// removes every row here. Verified by scripts/smoke/obsiddy-isolation.ts.
+  space ObsiddySpace @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
   @@unique([userId, entityType, entityId, chunkIndex])
   @@index([userId, entityType])
   @@index([userId, contentHash])
@@ -466,6 +514,10 @@ model ObsiddyBoard {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  /// D1: the cascade path. Erasing a user removes the space row, which
+  /// removes every row here. Verified by scripts/smoke/obsiddy-isolation.ts.
+  space ObsiddySpace @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
   @@unique([userId, slug])
   @@index([userId, archivedAt])
   @@index([userId, visibility])
@@ -488,6 +540,10 @@ model ObsiddyBoardCard {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  /// D1: the cascade path. Erasing a user removes the space row, which
+  /// removes every row here. Verified by scripts/smoke/obsiddy-isolation.ts.
+  space ObsiddySpace @relation(fields: [userId], references: [userId], onDelete: Cascade)
 
   @@unique([boardId, taskId])
   @@index([userId])
@@ -512,6 +568,10 @@ model ObsiddyTag {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  /// D1: the cascade path. Erasing a user removes the space row, which
+  /// removes every row here. Verified by scripts/smoke/obsiddy-isolation.ts.
+  space ObsiddySpace @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
   @@unique([userId, slug])
   @@map("framework_obsiddy_tag")
 }
@@ -527,6 +587,10 @@ model ObsiddyTaskTag {
   tag  ObsiddyTag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
+
+  /// D1: the cascade path. Erasing a user removes the space row, which
+  /// removes every row here. Verified by scripts/smoke/obsiddy-isolation.ts.
+  space ObsiddySpace @relation(fields: [userId], references: [userId], onDelete: Cascade)
 
   @@unique([taskId, tagId])
   @@index([userId])
@@ -551,6 +615,10 @@ model ObsiddyChecklistItem {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  /// D1: the cascade path. Erasing a user removes the space row, which
+  /// removes every row here. Verified by scripts/smoke/obsiddy-isolation.ts.
+  space ObsiddySpace @relation(fields: [userId], references: [userId], onDelete: Cascade)
 
   @@index([taskId, position])
   @@index([userId])
@@ -592,6 +660,10 @@ model ObsiddyEntity {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  /// D1: the cascade path. Erasing a user removes the space row, which
+  /// removes every row here. Verified by scripts/smoke/obsiddy-isolation.ts.
+  space ObsiddySpace @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
   @@unique([userId, slug])
   @@index([userId, kind, status])
   @@index([userId, archivedAt])
@@ -631,6 +703,10 @@ model ObsiddyDocument {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  /// D1: the cascade path. Erasing a user removes the space row, which
+  /// removes every row here. Verified by scripts/smoke/obsiddy-isolation.ts.
+  space ObsiddySpace @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
   @@index([userId, status])
   @@index([userId, fileHash])
   @@index([userId, archivedAt])
@@ -663,6 +739,10 @@ model ObsiddyTimeBlock {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  /// D1: the cascade path. Erasing a user removes the space row, which
+  /// removes every row here. Verified by scripts/smoke/obsiddy-isolation.ts.
+  space ObsiddySpace @relation(fields: [userId], references: [userId], onDelete: Cascade)
 
   @@index([userId, startAt])
   @@index([taskId])
@@ -704,6 +784,10 @@ model ObsiddyReview {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  /// D1: the cascade path. Erasing a user removes the space row, which
+  /// removes every row here. Verified by scripts/smoke/obsiddy-isolation.ts.
+  space ObsiddySpace @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
   @@index([userId, horizon, generatedAt(sort: Desc)])
   @@index([userId, archivedAt])
   @@index([userId, visibility])
@@ -730,6 +814,10 @@ model ObsiddyEvent {
   metadata Json?
 
   createdAt DateTime @default(now())
+
+  /// D1: the cascade path. Erasing a user removes the space row, which
+  /// removes every row here. Verified by scripts/smoke/obsiddy-isolation.ts.
+  space ObsiddySpace @relation(fields: [userId], references: [userId], onDelete: Cascade)
 
   @@index([userId, kind, createdAt(sort: Desc)])
   @@index([userId, createdAt(sort: Desc)])

@@ -1,0 +1,115 @@
+/**
+ * Goal repo — owner-scoped reads and writes over `framework_obsiddy_goal`.
+ *
+ * Goals form a tree across five horizons (life → year → quarter → month →
+ * week). The self-relation is `SetNull`, so deleting a parent orphans its
+ * children rather than destroying them — losing a year's sub-goals because you
+ * deleted the year is not a recoverable mistake.
+ */
+
+import { prisma } from '@/lib/db/client';
+import {
+  liveOwnerWhere,
+  ownerWhere,
+  type OwnerScope,
+} from '@/lib/framework/obsiddy/repo/owner-scope';
+import {
+  nullOnMiss,
+  pageArgs,
+  type ListOptions,
+  type WithoutOwner,
+} from '@/lib/framework/obsiddy/repo/shared';
+import type { ObsiddyGoal, Prisma } from '@prisma/client';
+
+export interface GoalFilters {
+  horizon?: string;
+  status?: string;
+  areaId?: string;
+  /** `null` selects roots; a string selects one parent's children. */
+  parentGoalId?: string | null;
+}
+
+export type GoalCreateData = WithoutOwner<Prisma.ObsiddyGoalUncheckedCreateInput>;
+export type GoalUpdateData = WithoutOwner<Prisma.ObsiddyGoalUncheckedUpdateInput>;
+
+function goalWhere(
+  scope: OwnerScope,
+  filters: GoalFilters = {},
+  includeArchived = false
+): Prisma.ObsiddyGoalWhereInput {
+  return {
+    ...liveOwnerWhere(scope, includeArchived),
+    ...(filters.horizon ? { horizon: filters.horizon } : {}),
+    ...(filters.status ? { status: filters.status } : {}),
+    ...(filters.areaId ? { areaId: filters.areaId } : {}),
+    ...(filters.parentGoalId !== undefined ? { parentGoalId: filters.parentGoalId } : {}),
+  };
+}
+
+/**
+ * Flat list. The nested tree that `GET /obsiddy/goals` returns is assembled in
+ * the service layer from this one query — nesting in SQL would mean either a
+ * recursive CTE or N+1 reads, and a person's goal tree is small enough that
+ * neither is worth it.
+ */
+export async function listGoals(
+  scope: OwnerScope,
+  filters: GoalFilters = {},
+  options: ListOptions = {}
+): Promise<ObsiddyGoal[]> {
+  return prisma.obsiddyGoal.findMany({
+    where: goalWhere(scope, filters, options.includeArchived),
+    orderBy: [{ targetDate: 'asc' }, { createdAt: 'asc' }],
+    ...pageArgs(options),
+  });
+}
+
+export async function countGoals(
+  scope: OwnerScope,
+  filters: GoalFilters = {},
+  includeArchived = false
+): Promise<number> {
+  return prisma.obsiddyGoal.count({ where: goalWhere(scope, filters, includeArchived) });
+}
+
+export async function findGoal(scope: OwnerScope, id: string): Promise<ObsiddyGoal | null> {
+  return prisma.obsiddyGoal.findFirst({ where: { ...ownerWhere(scope), id } });
+}
+
+export async function createGoal(scope: OwnerScope, data: GoalCreateData): Promise<ObsiddyGoal> {
+  return prisma.obsiddyGoal.create({ data: { ...data, ...ownerWhere(scope) } });
+}
+
+export async function updateGoal(
+  scope: OwnerScope,
+  id: string,
+  data: GoalUpdateData
+): Promise<ObsiddyGoal | null> {
+  return nullOnMiss(() => prisma.obsiddyGoal.update({ where: { id, ...ownerWhere(scope) }, data }));
+}
+
+export async function archiveGoal(
+  scope: OwnerScope,
+  id: string,
+  reason = 'manual'
+): Promise<ObsiddyGoal | null> {
+  return nullOnMiss(() =>
+    prisma.obsiddyGoal.update({
+      where: { id, ...ownerWhere(scope) },
+      data: { archivedAt: new Date(), archivedReason: reason, indexedHash: null },
+    })
+  );
+}
+
+export async function restoreGoal(scope: OwnerScope, id: string): Promise<ObsiddyGoal | null> {
+  return nullOnMiss(() =>
+    prisma.obsiddyGoal.update({
+      where: { id, ...ownerWhere(scope) },
+      data: { archivedAt: null, archivedReason: null, indexedHash: null },
+    })
+  );
+}
+
+export async function deleteGoal(scope: OwnerScope, id: string): Promise<ObsiddyGoal | null> {
+  return nullOnMiss(() => prisma.obsiddyGoal.delete({ where: { id, ...ownerWhere(scope) } }));
+}

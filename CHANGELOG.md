@@ -45,6 +45,25 @@ release process.
 - **`ensureObsiddySpace()`** (`lib/framework/obsiddy/services/space.ts`) —
   idempotent, race-safe first-use creation of a user's space, plus
   `getObsiddySpace()` and `findSpaceByInboxToken()`.
+- **Obsiddy repo layer and CRUD API** (Release 1, phase 2) —
+  `lib/framework/obsiddy/repo/*` with the branded `OwnerScope` type, seven
+  entity repos, `lib/framework/obsiddy/services/*` (resource descriptors, slug
+  resolution, activity events) and 20 route files under
+  `app/api/v1/obsiddy/**` covering tasks, projects, goals, areas, thoughts,
+  entities and time blocks. `DELETE` archives; `?permanent=true` destroys.
+- **`scripts/smoke/obsiddy-isolation.ts`** (`npm run smoke:obsiddy-isolation`) —
+  proves cross-user isolation and the erasure cascade against a real database.
+
+### Fixed
+
+- **Obsiddy erasure cascade was incomplete** (`20260728232937_obsiddy_space_cascade`).
+  The phase-1 migration gave every scoped table a plain `userId` column with no
+  FK, so deleting a user removed only the `ObsiddySpace` row and left every
+  task, thought, project and event behind — personal data surviving an erasure
+  that reported success. Every scoped table now has a real FK to
+  `framework_obsiddy_space("userId") ON DELETE CASCADE`, and the migration
+  deletes rows already orphaned by its absence. Found by the isolation smoke
+  script against a real database; no mocked test could have caught it.
 
 ## [0.7.0] — 2026-07-09
 

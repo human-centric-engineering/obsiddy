@@ -12,10 +12,10 @@ step ever needs you to edit a Sunrise-owned file, that is a bug in Obsiddy —
 open an issue rather than making the edit, because you'd be re-making it on
 every upgrade.
 
-> **Status: phases 0–1.** The tier scaffold and the data model exist —
-> §§1–3 and 5 are real and installable today. Steps still marked _(phase N)_
-> are listed so the checklist grows in place rather than being reconstructed
-> later. This file is updated by every phase.
+> **Status: phases 0–2.** The tier scaffold, the data model and the CRUD API
+> exist — §§1–3 and 5 are real and installable today. Steps still marked
+> _(phase N)_ are listed so the checklist grows in place rather than being
+> reconstructed later. This file is updated by every phase.
 
 ---
 
@@ -37,15 +37,17 @@ _(phase 5)_ and `@dnd-kit/core` + `@dnd-kit/sortable` _(phase 5b)_.
 All four live under paths Sunrise reserves and never writes to, so they merge
 cleanly on upgrade:
 
-| Copy                                                  | To                                                                        |
-| ----------------------------------------------------- | ------------------------------------------------------------------------- |
-| `lib/framework/obsiddy/**`                            | same path                                                                 |
-| `lib/framework/eslint.config.mjs`                     | same path — **merge** if your project already runs another framework tier |
-| `prisma/schema/framework-obsiddy.prisma`              | same path                                                                 |
-| `prisma/seeds/framework-obsiddy/**`                   | same path _(phase 6)_                                                     |
-| `.context/framework/obsiddy/**`                       | same path                                                                 |
-| `app/(protected)/obsiddy/**`, `app/api/v1/obsiddy/**` | same paths _(phases 2, 5)_                                                |
-| `components/obsiddy/**`                               | same path _(phase 5)_                                                     |
+| Copy                                     | To                                                                        |
+| ---------------------------------------- | ------------------------------------------------------------------------- |
+| `lib/framework/obsiddy/**`               | same path                                                                 |
+| `lib/framework/eslint.config.mjs`        | same path — **merge** if your project already runs another framework tier |
+| `prisma/schema/framework-obsiddy.prisma` | same path                                                                 |
+| `prisma/seeds/framework-obsiddy/**`      | same path _(phase 6)_                                                     |
+| `.context/framework/obsiddy/**`          | same path                                                                 |
+| `app/api/v1/obsiddy/**`                  | same path — 20 route files, each 2 lines                                  |
+| `app/(protected)/obsiddy/**`             | same path _(phase 5)_                                                     |
+| `scripts/smoke/obsiddy-isolation.ts`     | same path, plus the `smoke:obsiddy-isolation` entry in `package.json`     |
+| `components/obsiddy/**`                  | same path _(phase 5)_                                                     |
 
 If your project already has a framework tier (`lib/framework/daybreak/`, say),
 Obsiddy sits beside it as a sibling — nothing goes in `lib/framework/` itself
@@ -173,14 +175,17 @@ entry to `components/layouts/protected-nav.tsx` by hand.
 ## 3. Migrate
 
 ```bash
-npm run db:migrate:deploy    # applies 20260728222816_add_second_brain
+npm run db:migrate:deploy    # applies both Obsiddy migrations
 npm run db:drift-check       # MUST be green before you go further
 npm run db:seed              # applies prisma/seeds/framework-obsiddy/* (phase 6)
 ```
 
-That migration creates 18 `framework_obsiddy_*` tables plus six objects Prisma
-cannot model, grouped as **Group B** at the foot of the file (mirroring the
-Sunrise baseline's Group A convention).
+Two migrations:
+
+| Migration                              | What                                                                                                                                                                                                         |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `20260728222816_add_second_brain`      | 18 `framework_obsiddy_*` tables plus six objects Prisma cannot model, grouped as **Group B** at the foot of the file (mirroring the Sunrise baseline's Group A convention)                                   |
+| `20260728232937_obsiddy_space_cascade` | The D1 cascade: a real FK from every scoped table to `framework_obsiddy_space("userId") ON DELETE CASCADE`, so erasing a user removes the whole brain. Also deletes any rows already orphaned by its absence |
 
 **It is hand-edited, and re-generating it will destroy things.** Two rules:
 
@@ -208,6 +213,11 @@ Sunrise baseline's Group A convention).
 Requires PostgreSQL with `pgvector` — the migration's `CREATE EXTENSION IF NOT
 EXISTS "vector"` is idempotent, so it succeeds whether or not the Sunrise
 baseline already created it.
+
+**Consequence of the cascade FK:** a brain row cannot exist without a space
+row, so `ensureObsiddySpace(userId)` must run before a user's first write. Call
+it at the top of any flow that could be someone's first interaction — first page
+load, first capture, first agent turn. It is idempotent and race-safe.
 
 ---
 

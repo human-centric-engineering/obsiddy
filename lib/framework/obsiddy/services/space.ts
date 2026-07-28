@@ -17,7 +17,11 @@
 
 import { randomBytes } from 'node:crypto';
 
-import { prisma } from '@/lib/db/client';
+import {
+  createSpace,
+  findSpaceByToken,
+  findSpaceByUserId,
+} from '@/lib/framework/obsiddy/repo/space';
 import { logger } from '@/lib/logging';
 import type { ObsiddySpace } from '@prisma/client';
 
@@ -50,13 +54,11 @@ export async function ensureObsiddySpace(userId: string): Promise<ObsiddySpace> 
     throw new Error('ensureObsiddySpace: userId is required');
   }
 
-  const existing = await prisma.obsiddySpace.findUnique({ where: { userId } });
+  const existing = await findSpaceByUserId(userId);
   if (existing) return existing;
 
   try {
-    const created = await prisma.obsiddySpace.create({
-      data: { userId, inboxToken: generateInboxToken() },
-    });
+    const created = await createSpace({ userId, inboxToken: generateInboxToken() });
 
     // Defaults for timezone, weights and retention live in code, not in this
     // row — a new scorer factor or retention window must not need a backfill.
@@ -69,7 +71,7 @@ export async function ensureObsiddySpace(userId: string): Promise<ObsiddySpace> 
   } catch (error) {
     // Lost the race — the other request created it. Any other failure rethrows.
     if (isUniqueConstraintViolation(error)) {
-      const raced = await prisma.obsiddySpace.findUnique({ where: { userId } });
+      const raced = await findSpaceByUserId(userId);
       if (raced) return raced;
     }
     throw error;
@@ -82,7 +84,7 @@ export async function ensureObsiddySpace(userId: string): Promise<ObsiddySpace> 
  */
 export async function getObsiddySpace(userId: string): Promise<ObsiddySpace | null> {
   if (!userId) return null;
-  return prisma.obsiddySpace.findUnique({ where: { userId } });
+  return findSpaceByUserId(userId);
 }
 
 /**
@@ -94,7 +96,7 @@ export async function getObsiddySpace(userId: string): Promise<ObsiddySpace | nu
  */
 export async function findSpaceByInboxToken(inboxToken: string): Promise<ObsiddySpace | null> {
   if (!inboxToken) return null;
-  return prisma.obsiddySpace.findUnique({ where: { inboxToken } });
+  return findSpaceByToken(inboxToken);
 }
 
 /** Prisma's unique-constraint error code, without importing the runtime namespace. */
