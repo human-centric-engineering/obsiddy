@@ -29,6 +29,11 @@ import {
 /**
  * Asserts a column exists **and** is `GENERATED ALWAYS`.
  *
+ * Local until Sunrise ships it — proposed upstream as
+ * https://github.com/human-centric-engineering/sunrise/issues/481, since core's
+ * own A1 probe has the same blind spot. Delete this and import
+ * `generatedColumnExists` from `@/lib/db/drift-probes` once that lands.
+ *
  * `columnExists` from the platform would pass on a plain `tsvector` column,
  * which is the shape a careless migration would leave behind: the column is
  * still there, nothing errors, and it silently stops being populated — so
