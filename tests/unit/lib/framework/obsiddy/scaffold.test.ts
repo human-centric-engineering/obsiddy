@@ -1,0 +1,98 @@
+/**
+ * Tests: the Obsiddy framework-tier scaffold (Release 1, phase 0).
+ *
+ * Phase 0 ships no models, routes or UI — what it does ship is the wiring that
+ * every later phase hangs off, and the portability guarantees that wiring is
+ * supposed to preserve. Those are what this file locks in:
+ *
+ *   1. `initApp()` boots the tier, and the tier delegates to the leaf hook —
+ *      the chain Sunrise → Obsiddy → leaf fork, in that order.
+ *   2. The boot import stays **dynamic**. A static `@/lib/framework/...`
+ *      specifier in lib/app/bootstrap.ts is resolved at `next build` and breaks
+ *      the build of any project that hasn't installed the tier — the single
+ *      most expensive mistake available in this file, and invisible until
+ *      someone else installs Obsiddy.
+ *   3. A fresh install boots with no Obsiddy environment variables set.
+ *
+ * @see lib/framework/obsiddy/index.ts · lib/app/bootstrap.ts · lib/app/leaf-bootstrap.ts
+ * @see .context/framework/obsiddy/install.md
+ */
+
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+const { initLeafApp } = vi.hoisted(() => ({ initLeafApp: vi.fn() }));
+
+vi.mock('@/lib/app/leaf-bootstrap', () => ({ initLeafApp }));
+vi.mock('@/lib/logging', () => ({
+  logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
+}));
+
+import { initApp } from '@/lib/app/bootstrap';
+import { initObsiddy } from '@/lib/framework/obsiddy';
+import { obsiddyEnvSchema } from '@/lib/framework/obsiddy/env';
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
+
+describe('Obsiddy framework-tier boot', () => {
+  it('initObsiddy delegates to the leaf boot hook', async () => {
+    await initObsiddy();
+
+    expect(initLeafApp).toHaveBeenCalledTimes(1);
+  });
+
+  it('initApp boots Obsiddy, reaching the leaf hook through the tier', async () => {
+    // The whole chain: instrumentation calls initApp → initObsiddy →
+    // initLeafApp. Asserting the far end proves the dynamic import resolves at
+    // runtime, not just that the module exists.
+    await expect(initApp()).resolves.toBeUndefined();
+
+    expect(initLeafApp).toHaveBeenCalledTimes(1);
+  });
+
+  it('is idempotent — a second boot does not throw or double-register', async () => {
+    // instrumentation.ts runs once per server process, but a process restart or
+    // a re-import must not leave the tier half-booted; phase 0 registers
+    // nothing, and later phases must keep this true.
+    await initObsiddy();
+    await expect(initObsiddy()).resolves.toBeUndefined();
+
+    expect(initLeafApp).toHaveBeenCalledTimes(2);
+  });
+
+  it('lib/app/bootstrap.ts imports the tier dynamically, never statically', () => {
+    // Source-level assertion on purpose: a static import would still pass every
+    // behavioural test above while breaking `next build` for any project
+    // without lib/framework/. Nothing observable at runtime distinguishes the
+    // two, so the file itself is the only place to catch it.
+    const source = readFileSync(join(process.cwd(), 'lib/app/bootstrap.ts'), 'utf8');
+
+    const statements = source
+      .split('\n')
+      .filter((line) => /^\s*import\s/.test(line) && !/^\s*import\s*\(/.test(line));
+
+    expect(statements.filter((line) => line.includes('@/lib/framework'))).toEqual([]);
+    expect(source).toContain("await import('@/lib/framework/obsiddy')");
+  });
+});
+
+describe('obsiddyEnvSchema', () => {
+  it('accepts an environment with no Obsiddy variables set', () => {
+    // Obsiddy installs feature-by-feature across phases. A required variable
+    // would turn "I haven't reached that phase yet" into a startup crash for
+    // every host, because lib/env.ts parses this schema fail-fast at boot.
+    expect(obsiddyEnvSchema.safeParse({}).success).toBe(true);
+  });
+
+  it('declares only OBSIDDY_-prefixed keys', () => {
+    // lib/env.ts rejects any app key colliding with a core one; the prefix is
+    // what keeps that from ever happening.
+    const keys = Object.keys(obsiddyEnvSchema.shape);
+
+    expect(keys.filter((key) => !key.startsWith('OBSIDDY_'))).toEqual([]);
+  });
+});

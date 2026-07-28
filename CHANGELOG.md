@@ -16,6 +16,22 @@ release process.
 
 ## [Unreleased]
 
+### Added
+
+- **Obsiddy framework-tier scaffold** (Release 1, phase 0) — the reserved
+  `/framework` tier is now occupied by Obsiddy: `lib/framework/obsiddy/` with
+  `initObsiddy()` and `obsiddyEnvSchema`, the tier import boundary in
+  `lib/framework/eslint.config.mjs` (including the D5 owner/shared repo rule),
+  an empty `prisma/schema/framework-obsiddy.prisma`, and
+  `.context/framework/obsiddy/install.md`. Wired through four Sunrise seams —
+  `bootstrap.ts` (dynamic import), `env.ts`, `eslint.config.mjs`,
+  `protected-routes.ts` (`/obsiddy`) — with **zero Sunrise-owned files
+  modified**.
+- **`lib/app/leaf-bootstrap.ts`** — new boot seam Obsiddy re-exposes to the leaf
+  forks built on it, so a leaf fork and Obsiddy don't contend over
+  `lib/app/bootstrap.ts`. Ships empty; called by `initObsiddy()` after Obsiddy's
+  own registrations, so a leaf fork can override them.
+
 ## [0.7.0] — 2026-07-09
 
 > **Alpha release.** Ninth tagged Sunrise release. **MINOR bump** — adds new

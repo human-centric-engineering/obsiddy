@@ -1,0 +1,26 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Obsiddy — framework-tier schema
+//
+// `prisma.config.ts` points Prisma at the `prisma/schema` folder, so every
+// `*.prisma` file in it is part of one schema. `framework-*.prisma` is the
+// filename glob Sunrise reserves for a framework tier: Sunrise core never
+// creates a file matching it, so this file merges cleanly on upgrade.
+//
+// Rules for everything added below (see .context/framework/obsiddy/plan.md):
+//
+//   - Every table is `@@map("framework_obsiddy_<name>")`. The prefix is what
+//     keeps Obsiddy's tables from colliding with a host project's own.
+//   - Every model carries `userId` and a `@@index([userId, …])` leading with
+//     `userId` — D1. `ObsiddySpace` is the one satellite table holding a
+//     hand-written FK to `"user"("id") ON DELETE CASCADE`; every other model
+//     cascades from it, so GDPR erasure is transitive and no column is ever
+//     added to `User`.
+//   - The hand-written FK, the pgvector column, the HNSW index and the BM25
+//     index are invisible to Prisma. Each needs a drift probe registered in
+//     `lib/app/db-drift.ts`, or a later `migrate dev` will silently drop it.
+//     Run `npm run db:drift-check` after every `migrate dev` — non-negotiable.
+//
+// Models land in phase 1. This file is intentionally empty until then: it
+// exists from phase 0 so the schema glob, the migration path and the install
+// checklist are proven before there is anything to lose.
+// ─────────────────────────────────────────────────────────────────────────────
