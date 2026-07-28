@@ -33,14 +33,19 @@ Namespaced _inside_ the tier, never at its root — so a project already running
 
 ## Status
 
-**Release 1, phase 0 complete** — framework-tier scaffold only. `initObsiddy()` registers nothing yet and there are no models, routes or UI.
+**Release 1, phases 0–1 complete** — the tier is wired and the data model exists. There are no routes, agents or UI yet: nothing reads or writes these tables except `ensureObsiddySpace()`.
 
-| Wired                                   | Where                                                                  |
-| --------------------------------------- | ---------------------------------------------------------------------- |
-| Boot (dynamic import → `initLeafApp()`) | `lib/app/bootstrap.ts` → `lib/framework/obsiddy/index.ts`              |
-| Env schema                              | `lib/app/env.ts` merges `obsiddyEnvSchema` (currently empty)           |
-| Lint boundary                           | `lib/app/eslint.config.mjs` spreads `lib/framework/eslint.config.mjs`  |
-| Protected route                         | `/obsiddy` in `lib/app/protected-routes.ts`                            |
-| Schema file                             | `prisma/schema/framework-obsiddy.prisma` — comments only until phase 1 |
+| Wired                                   | Where                                                                    |
+| --------------------------------------- | ------------------------------------------------------------------------ |
+| Boot (dynamic import → `initLeafApp()`) | `lib/app/bootstrap.ts` → `lib/framework/obsiddy/index.ts`                |
+| Env schema                              | `lib/app/env.ts` merges `obsiddyEnvSchema` (currently empty)             |
+| Lint boundary                           | `lib/app/eslint.config.mjs` spreads `lib/framework/eslint.config.mjs`    |
+| Protected route                         | `/obsiddy` in `lib/app/protected-routes.ts`                              |
+| Drift probes                            | `lib/app/db-drift.ts` → `registerObsiddyDriftProbes()` (six, B1 + B3–B7) |
+| Schema                                  | 18 models in `prisma/schema/framework-obsiddy.prisma`                    |
+| Migration                               | `20260728222816_add_second_brain` — hand-edited, **never regenerate it** |
+| Space service                           | `lib/framework/obsiddy/services/space.ts`                                |
 
-Next: **phase 0b** (upstream `lib/app/maintenance-tasks.ts` and `lib/app/protected-nav.ts` to Sunrise — a separate PR against the template), then **phase 1** (schema, hand-edited migration, six drift probes, `ensureObsiddySpace()`).
+The migration carries six Postgres objects Prisma cannot model (Group B): the hand-written GDPR-cascade FK, the HNSW vector index, two `GENERATED ALWAYS` tsvector columns and their GIN indexes. `npm run db:drift-check` after **every** `migrate dev` — that is the only thing standing between the build and a silently dropped index.
+
+Next: **phase 2** (`repo/*` with `OwnerScope`, services, validations, CRUD routes — verified by cross-user isolation tests). **Phase 0b** (upstreaming two seams to Sunrise) is a separate PR against the template and is tracked in [`sunrise-asks.md`](./sunrise-asks.md).

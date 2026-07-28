@@ -31,6 +31,20 @@ release process.
   forks built on it, so a leaf fork and Obsiddy don't contend over
   `lib/app/bootstrap.ts`. Ships empty; called by `initObsiddy()` after Obsiddy's
   own registrations, so a leaf fork can override them.
+- **Obsiddy data model** (Release 1, phase 1) — 18 `framework_obsiddy_*` models
+  in `prisma/schema/framework-obsiddy.prisma` and the hand-edited migration
+  `20260728222816_add_second_brain`. One satellite table (`ObsiddySpace`) with a
+  hand-written `ON DELETE CASCADE` FK to `user`, one polymorphic edge table and
+  one polymorphic `vector(1536)` embedding table, so the whole brain cascades on
+  erasure and there is a single HNSW index to maintain.
+- **`registerObsiddyDriftProbes()`** (`lib/framework/obsiddy/db-drift.ts`) — six
+  probes over the Postgres objects Prisma cannot model, registered from
+  `lib/app/db-drift.ts`. The two `GENERATED` probes assert `is_generated`, not
+  just column existence, so a column silently recreated as a plain `tsvector`
+  fails the check instead of never being populated.
+- **`ensureObsiddySpace()`** (`lib/framework/obsiddy/services/space.ts`) —
+  idempotent, race-safe first-use creation of a user's space, plus
+  `getObsiddySpace()` and `findSpaceByInboxToken()`.
 
 ## [0.7.0] — 2026-07-09
 

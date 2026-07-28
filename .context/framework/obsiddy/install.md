@@ -12,9 +12,10 @@ step ever needs you to edit a Sunrise-owned file, that is a bug in Obsiddy —
 open an issue rather than making the edit, because you'd be re-making it on
 every upgrade.
 
-> **Status: phase 0.** Only the scaffold exists. The steps marked _(phase N)_
-> are not installable yet — they're listed so the checklist grows in place
-> rather than being reconstructed later. This file is updated by every phase.
+> **Status: phases 0–1.** The tier scaffold and the data model exist —
+> §§1–3 and 5 are real and installable today. Steps still marked _(phase N)_
+> are listed so the checklist grows in place rather than being reconstructed
+> later. This file is updated by every phase.
 
 ---
 
@@ -127,18 +128,27 @@ Edge redirect-to-login only; per-resource authorisation stays in the route
 handlers. Public share links live under `/s/*` and must **not** be listed
 _(Release 2)_.
 
-### 2.5 Drift probes — `lib/app/db-drift.ts` _(phase 1)_
+### 2.5 Drift probes — `lib/app/db-drift.ts`
 
 ```ts
+import { registerObsiddyDriftProbes } from '@/lib/framework/obsiddy/db-drift';
+
 export function registerAppDriftProbes(): void {
   registerObsiddyDriftProbes();
 }
 ```
 
-Six probes cover the objects Prisma cannot see: the hand-written
-`ObsiddySpace → user` FK, the `vector(1536)` column, the HNSW index and the
-BM25 index among them. Without these, a later `migrate dev` can silently drop
-one — a dropped HNSW index degrades to a sequential scan with no error.
+Six probes (B1, B3–B7) cover the Postgres objects Prisma cannot see: the
+hand-written `framework_obsiddy_space → user` FK **with its `ON DELETE CASCADE`
+asserted**, the HNSW vector index, two `GENERATED ALWAYS` tsvector columns and
+their GIN indexes. Without them a later `migrate dev` can drop one silently — a
+dropped HNSW index doesn't error, it just turns vector search into a sequential
+scan whose only symptom is latency that grows with the corpus.
+
+The `GENERATED` probes assert `is_generated = 'ALWAYS'`, not merely that the
+column exists: a migration that recreated it as a plain `tsvector` would leave
+a column that is never populated, so search would quietly return nothing for
+every row written afterwards.
 
 ### 2.6 Capabilities — `lib/app/capabilities.ts` _(phase 6)_
 
@@ -160,17 +170,44 @@ entry to `components/layouts/protected-nav.tsx` by hand.
 
 ---
 
-## 3. Migrate _(phase 1)_
+## 3. Migrate
 
 ```bash
-npm run db:migrate:deploy    # applies the hand-edited Obsiddy migration
+npm run db:migrate:deploy    # applies 20260728222816_add_second_brain
 npm run db:drift-check       # MUST be green before you go further
 npm run db:seed              # applies prisma/seeds/framework-obsiddy/* (phase 6)
 ```
 
-The Obsiddy migration is **hand-edited**, not generated: it creates the pgvector
-column, the HNSW and BM25 indexes and the satellite FK, none of which Prisma
-emits on its own. Re-generating it will drop those objects.
+That migration creates 18 `framework_obsiddy_*` tables plus six objects Prisma
+cannot model, grouped as **Group B** at the foot of the file (mirroring the
+Sunrise baseline's Group A convention).
+
+**It is hand-edited, and re-generating it will destroy things.** Two rules:
+
+1. **Never regenerate this migration.** `prisma migrate dev --create-only`
+   produced it; four statements were then deleted from the top, because Prisma
+   reads the _Sunrise baseline's_ own unmodellable objects as drift and emits
+   drops for them:
+
+   ```sql
+   DROP INDEX "idx_ai_knowledge_chunk_search_vector";   -- baseline A2
+   DROP INDEX "idx_knowledge_embedding";                -- baseline A3
+   DROP INDEX "idx_message_embedding";                  -- baseline A4
+   ALTER TABLE "ai_knowledge_chunk" ALTER COLUMN "searchVector" DROP DEFAULT;
+   ```
+
+   Applying those degrades **Sunrise's own** knowledge and message search to
+   sequential scans. This is not hypothetical: it happened upstream and went
+   unnoticed for seven weeks.
+
+2. **Inspect every future `migrate dev` in this project the same way.** Prisma
+   re-emits drops for all of Group A _and_ Group B on every schema diff.
+   `npm run db:drift-check` after each one is the backstop, and it is the reason
+   the probes exist.
+
+Requires PostgreSQL with `pgvector` — the migration's `CREATE EXTENSION IF NOT
+EXISTS "vector"` is idempotent, so it succeeds whether or not the Sunrise
+baseline already created it.
 
 ---
 
