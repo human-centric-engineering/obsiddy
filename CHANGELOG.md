@@ -56,8 +56,83 @@ release process.
   and the erasure cascade against a real database. Namespaced and kept out of
   `scripts/smoke/` because `CUSTOMIZATION.md` §7 reserves the unprefixed script
   names, `smoke:*` included, for the platform.
+- **Obsiddy priority engine** (Release 1, phase 3) —
+  `lib/framework/obsiddy/priority/score.ts` is a pure, I/O-free function over
+  six weighted factors (urgency, goal alignment, project momentum, area balance,
+  effort fit, staleness) plus an additive `manualBoost`, so `+1` provably
+  outranks every unboosted task and `-1` provably sinks below them. An expired
+  boost reads as `0` at evaluation time rather than being lazily zeroed, so
+  behaviour never depends on whether a background job has run.
+  `priority/reprioritise.ts` gathers the inputs in a fixed number of batched
+  queries and persists `priorityScore` + `priorityFactors`; `rescoreTask()`
+  narrows that to one row and runs on every task mutation, so a pin takes effect
+  immediately instead of at 3am.
+- **Obsiddy snooze** (`lib/framework/obsiddy/services/snooze.ts`) — `snoozeItem`
+  / `unsnoozeItem` over tasks, thoughts and projects, with presets
+  (`later_today`, `tomorrow`, `next_week`, `next_month`) resolved server-side in
+  `ObsiddySpace.timezone` rather than by the caller. `snoozeCount` counts the
+  gesture and is never decremented, and is never an input to the scorer. Exposed
+  as `POST /api/v1/obsiddy/{tasks,thoughts,projects}/[id]/snooze` and
+  `.../unsnooze`.
+- **`lib/framework/obsiddy/time/zoned.ts`** — wall-clock arithmetic in the
+  user's zone (`wallClockAt`, `instantAtWallClock`, `startOfZonedDay`,
+  `startOfZonedWeek`, `addZonedDays`, `addZonedMonths`, `timeOfDayAt`), built on
+  `Intl` with no new dependency. Days are 23 or 25 hours long twice a year, and
+  every scheduling phrase in Obsiddy resolves through here rather than through
+  server time.
+- **`GET /api/v1/obsiddy/today`** — the dashboard's only fetch: ranked tasks
+  enriched with project and area, today's time blocks, inbox count, goals at
+  risk, unreviewed connections, the latest review and this week's remaining
+  capacity, in a fixed number of queries regardless of task count. ETag'd.
+- **`GET /api/v1/obsiddy/inbox`** — captured thoughts with their suggested links
+  and the strongest suggested project, resolved in two batched queries. ETag'd.
+- **`GET` / `PATCH /api/v1/obsiddy/space`** — the caller's effective settings
+  with defaults resolved, plus `customised` flags. `inboxToken` is deliberately
+  never included. Backed by Zod schemas for the three previously unvalidated
+  `Json` columns (`priorityWeightsSchema` — which requires the weights to sum to
+  1 — `energyProfileSchema`, `retentionPolicySchema`) and by
+  `lib/framework/obsiddy/settings.ts`, whose resolvers safe-parse those columns
+  and fall back to documented defaults rather than letting a malformed blob
+  write `NaN` into every score.
+
+- **`scripts/framework/obsiddy/smoke-priority.ts`**
+  (`npm run framework:obsiddy:smoke-priority`) — exercises the ranking, snooze
+  and aggregate paths against a real database: the space bootstrap, the batched
+  score write, `sumMinutesByArea`'s raw SQL, a real indexed
+  `ORDER BY priorityScore`, preset resolution in `Pacific/Auckland`, and that
+  none of the new surfaces leak across users.
+
+
+### Security
+
+- **`Cache-Control: private, no-cache` on Obsiddy's per-user read endpoints**
+  (`lib/framework/obsiddy/api/cache.ts`, applied by `/obsiddy/today`,
+  `/obsiddy/inbox` and `/obsiddy/space`). Sunrise sets no cache directive on
+  `/api/v1/**`, and a response carrying an `ETag` with no freshness information
+  is heuristically cacheable (RFC 9111 §4.2.2) — so a shared proxy could store
+  one person's dashboard and serve it to the next caller. `no-cache` rather than
+  `no-store`, so the browser may still keep a copy and revalidate, which is what
+  the ETag exists for. The 304 carries the directive too. A project-wide default
+  is upstream
+  [#487](https://github.com/human-centric-engineering/sunrise/issues/487).
 
 ### Fixed
+
+- **Obsiddy's first write by any new user returned a 500.**
+  `ensureObsiddySpace()` existed and was tested but was called from nowhere,
+  while `20260728232937_obsiddy_space_cascade` gave every scoped table a real FK
+  to `framework_obsiddy_space("userId")`. A user who had never had a space row
+  therefore hit a foreign-key violation on the first thing they did. The space
+  bootstrap now wraps `create` on every resource descriptor — the layer the HTTP
+  routes and the phase-6 capabilities share — so it cannot be forgotten by a new
+  entry point.
+
+### Removed
+
+- **`updateSpace()`** (`lib/framework/obsiddy/repo/space.ts`) — replaced by
+  `updateSpaceSettings()`, which takes the patch in domain terms and translates
+  a `null` Json column into `Prisma.DbNull`. Added and removed within the same
+  unreleased cycle; no released version exposed it.
 
 - **Obsiddy erasure cascade was incomplete** (`20260728232937_obsiddy_space_cascade`).
   The phase-1 migration gave every scoped table a plain `userId` column with no

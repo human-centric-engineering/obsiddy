@@ -108,6 +108,18 @@ vi.mock('@/lib/framework/obsiddy/services/slug', () => ({
   resolveSlugOnUpdate: vi.fn(),
 }));
 
+// The two phase-3 wrappers around the descriptors. Mocked at the boundary like
+// every other collaborator: what matters here is that they are invoked for the
+// right operations, not what they do — `services/space.test.ts` and
+// `priority/reprioritise.test.ts` own that.
+vi.mock('@/lib/framework/obsiddy/services/space', () => ({
+  ensureObsiddySpace: vi.fn(),
+}));
+
+vi.mock('@/lib/framework/obsiddy/priority/reprioritise', () => ({
+  rescoreTask: vi.fn(),
+}));
+
 import * as areas from '@/lib/framework/obsiddy/repo/areas';
 import * as entities from '@/lib/framework/obsiddy/repo/entities';
 import * as goals from '@/lib/framework/obsiddy/repo/goals';
@@ -116,7 +128,9 @@ import * as projects from '@/lib/framework/obsiddy/repo/projects';
 import * as tasks from '@/lib/framework/obsiddy/repo/tasks';
 import * as thoughts from '@/lib/framework/obsiddy/repo/thoughts';
 import * as timeBlocks from '@/lib/framework/obsiddy/repo/time-blocks';
+import { rescoreTask } from '@/lib/framework/obsiddy/priority/reprioritise';
 import { eventKindForUpdate, recordObsiddyEvent } from '@/lib/framework/obsiddy/services/events';
+import { ensureObsiddySpace } from '@/lib/framework/obsiddy/services/space';
 import {
   areaResource,
   entityResource,
@@ -1734,5 +1748,111 @@ describe('remove() — event recorded with the caller-supplied id, timeBlock sta
     expect(timeBlocks.deleteTimeBlock).toHaveBeenCalledWith(scope, 'tb_1');
     expect(result).toBe(deleted);
     expect(recordObsiddyEvent).not.toHaveBeenCalled();
+  });
+});
+
+describe('withSpaceBootstrap — the FK the whole brain hangs off (phase 3)', () => {
+  it.each([
+    ['task', () => taskResource.create(scope, { title: 'x' } as unknown as TaskCreate)],
+    ['project', () => projectResource.create(scope, { name: 'x' } as unknown as ProjectCreate)],
+    [
+      'goal',
+      () => goalResource.create(scope, { title: 'x', horizon: 'week' } as unknown as GoalCreate),
+    ],
+    ['area', () => areaResource.create(scope, { name: 'x' })],
+    ['thought', () => thoughtResource.create(scope, { content: 'x' } as unknown as ThoughtCreate)],
+    ['entity', () => entityResource.create(scope, { name: 'x' } as unknown as EntityCreate)],
+    [
+      'time-block',
+      () =>
+        timeBlockResource.create(scope, {
+          startAt: new Date(),
+          endAt: new Date(),
+        } as unknown as TimeBlockCreate),
+    ],
+  ])('ensures the space before creating a %s', async (_name, create) => {
+    // Arrange: every scoped table has a real FK to
+    // framework_obsiddy_space("userId"), so a create by a user who has never
+    // had a space row fails in Postgres — as a 500 on the first thing a new
+    // user does, not as a validation error.
+    vi.mocked(resolveUniqueSlug).mockResolvedValue('x');
+
+    // Act
+    await create();
+
+    // Assert
+    expect(ensureObsiddySpace).toHaveBeenCalledWith('user_x');
+  });
+
+  it('does not bootstrap on read, update, archive or delete', async () => {
+    // Arrange: those all target a row that already exists, and a row cannot
+    // exist without the space its FK points at. Calling here would be a wasted
+    // query on every request.
+    vi.mocked(tasks.findTask).mockResolvedValue(fakeTask({ id: 'task_1' }));
+    vi.mocked(tasks.updateTask).mockResolvedValue(fakeTask({ id: 'task_1' }));
+    vi.mocked(tasks.archiveTask).mockResolvedValue(fakeTask({ id: 'task_1' }));
+    vi.mocked(tasks.deleteTask).mockResolvedValue(fakeTask({ id: 'task_1' }));
+
+    // Act
+    await taskResource.get(scope, 'task_1');
+    await taskResource.update(scope, 'task_1', {});
+    await taskResource.archive?.(scope, 'task_1', 'manual');
+    await taskResource.remove(scope, 'task_1');
+
+    // Assert
+    expect(ensureObsiddySpace).not.toHaveBeenCalled();
+  });
+});
+
+describe('withTaskRescore — a pin takes effect now, not at 3am (phase 3)', () => {
+  it('rescores a task the moment it is created', async () => {
+    // Arrange
+    vi.mocked(tasks.createTask).mockResolvedValue(fakeTask({ id: 'task_new' }));
+
+    // Act
+    await taskResource.create(scope, { title: 'x' } as unknown as TaskCreate);
+
+    // Assert: without this the task lands with priorityScore 0 and sorts to
+    // the bottom of a list ordered by that column until the nightly pass.
+    expect(rescoreTask).toHaveBeenCalledWith(scope, 'task_new');
+  });
+
+  it('rescores a task the moment it is updated', async () => {
+    // Arrange: setting or clearing manualBoost is the case the plan names — a
+    // pin that waits for the nightly job is a bug report (§10).
+    vi.mocked(tasks.findTask).mockResolvedValue(fakeTask({ id: 'task_1' }));
+    vi.mocked(tasks.updateTask).mockResolvedValue(fakeTask({ id: 'task_1' }));
+
+    // Act
+    await taskResource.update(scope, 'task_1', { manualBoost: 1 });
+
+    // Assert
+    expect(rescoreTask).toHaveBeenCalledWith(scope, 'task_1');
+  });
+
+  it('does not rescore when the update matched no row', async () => {
+    // Arrange: another user's id, or a typo. Both return null.
+    vi.mocked(tasks.findTask).mockResolvedValue(null);
+
+    // Act
+    const result = await taskResource.update(scope, 'task_other', {});
+
+    // Assert
+    expect(result).toBeNull();
+    expect(rescoreTask).not.toHaveBeenCalled();
+  });
+
+  it('leaves the other resources alone', async () => {
+    // Arrange: only tasks carry priorityScore. Changing a project moves its
+    // tasks too, but rescoring a whole subtree on every edit is the nightly
+    // pass's job, not this one's.
+    vi.mocked(resolveUniqueSlug).mockResolvedValue('acme');
+    vi.mocked(projects.createProject).mockResolvedValue(fakeProject({ id: 'proj_1' }));
+
+    // Act
+    await projectResource.create(scope, { name: 'Acme' } as unknown as ProjectCreate);
+
+    // Assert
+    expect(rescoreTask).not.toHaveBeenCalled();
   });
 });

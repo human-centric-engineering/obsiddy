@@ -24,19 +24,28 @@ vi.mock('@/lib/db/client', () => ({
     obsiddySpace: {
       findUnique: vi.fn(),
       create: vi.fn(),
+      update: vi.fn(),
     },
   },
 }));
 
 import { prisma } from '@/lib/db/client';
 import {
+  DEFAULT_ENERGY_PROFILE,
+  DEFAULT_PRIORITY_WEIGHTS,
+  DEFAULT_RETENTION_POLICY,
+} from '@/lib/framework/obsiddy/settings';
+import {
   ensureObsiddySpace,
+  getObsiddySettings,
   getObsiddySpace,
   findSpaceByInboxToken,
+  updateObsiddySettings,
 } from '@/lib/framework/obsiddy/services/space';
 
 const findUnique = vi.mocked(prisma.obsiddySpace.findUnique);
 const create = vi.mocked(prisma.obsiddySpace.create);
+const update = vi.mocked(prisma.obsiddySpace.update);
 
 /** Minimal row shape — the service only ever passes it through. */
 function spaceRow(overrides: Record<string, unknown> = {}) {
@@ -184,5 +193,136 @@ describe('findSpaceByInboxToken', () => {
     // Guards against a malformed address resolving to "the first space".
     expect(await findSpaceByInboxToken('')).toBeNull();
     expect(findUnique).not.toHaveBeenCalled();
+  });
+});
+
+describe('getObsiddySettings (phase 3)', () => {
+  it('resolves the three Json columns to their defaults when nothing is customised', async () => {
+    // Arrange: a settings screen rendering raw nulls would show empty weight
+    // boxes and imply the scorer has no opinion, which is false.
+    findUnique.mockResolvedValue(
+      spaceRow({
+        priorityWeights: null,
+        energyProfile: null,
+        retentionPolicy: null,
+        weeklyCapacityMinutes: 2400,
+      })
+    );
+
+    // Act
+    const settings = await getObsiddySettings('user_a');
+
+    // Assert
+    expect(settings.priorityWeights).toEqual(DEFAULT_PRIORITY_WEIGHTS);
+    expect(settings.energyProfile).toEqual(DEFAULT_ENERGY_PROFILE);
+    expect(settings.retentionPolicy).toEqual(DEFAULT_RETENTION_POLICY);
+    expect(settings.customised).toEqual({
+      priorityWeights: false,
+      energyProfile: false,
+      retentionPolicy: false,
+    });
+  });
+
+  it('flags which values are the user’s own', async () => {
+    // Arrange: "customised" is what lets the UI offer "reset to defaults" only
+    // where there is something to reset.
+    const custom = { ...DEFAULT_PRIORITY_WEIGHTS, urgency: 0.2, goalAlignment: 0.35 };
+    findUnique.mockResolvedValue(
+      spaceRow({ priorityWeights: custom, energyProfile: null, retentionPolicy: null })
+    );
+
+    // Act
+    const settings = await getObsiddySettings('user_a');
+
+    // Assert
+    expect(settings.priorityWeights).toEqual(custom);
+    expect(settings.customised.priorityWeights).toBe(true);
+    expect(settings.customised.energyProfile).toBe(false);
+  });
+
+  it('never returns the inbox token', async () => {
+    // Arrange: it routes email into this brain, so it is a bearer credential —
+    // and a settings read is exactly what ends up in a log or a bug report.
+    findUnique.mockResolvedValue(spaceRow({ inboxToken: 'secret-token' }));
+
+    // Act
+    const settings = await getObsiddySettings('user_a');
+
+    // Assert
+    expect(JSON.stringify(settings)).not.toContain('secret-token');
+    expect(settings).not.toHaveProperty('inboxToken');
+  });
+
+  it('creates the space on first read', async () => {
+    // Arrange: a settings or dashboard read is usually a new user's first
+    // authenticated request, so this is where the FK cascade gets its root row.
+    findUnique.mockResolvedValueOnce(null);
+    create.mockResolvedValue(spaceRow());
+
+    // Act
+    await getObsiddySettings('user_a');
+
+    // Assert
+    expect(create).toHaveBeenCalled();
+  });
+});
+
+describe('updateObsiddySettings (phase 3)', () => {
+  beforeEach(() => {
+    findUnique.mockResolvedValue(spaceRow());
+  });
+
+  it('writes only the fields that were sent', async () => {
+    // Arrange: a PATCH omitting a key must leave it alone, not null it.
+    update.mockResolvedValue(spaceRow({ timezone: 'Europe/London' }));
+
+    // Act
+    await updateObsiddySettings('user_a', { timezone: 'Europe/London' });
+
+    // Assert
+    expect(update).toHaveBeenCalledWith({
+      where: { userId: 'user_a' },
+      data: { timezone: 'Europe/London' },
+    });
+  });
+
+  it('translates an explicit null into a real SQL NULL', async () => {
+    // Arrange: "put the weights back how they were" is a genuinely useful
+    // action, and Prisma refuses a bare null on a nullable Json column — it
+    // wants DbNull, which is also what makes `customised` read false again.
+    update.mockResolvedValue(spaceRow({ priorityWeights: null }));
+
+    // Act
+    await updateObsiddySettings('user_a', { priorityWeights: null });
+
+    // Assert
+    const data = update.mock.calls[0]?.[0]?.data as Record<string, unknown>;
+    expect(data.priorityWeights).not.toBeNull();
+    expect(String(data.priorityWeights)).toContain('DbNull');
+  });
+
+  it('returns the resolved settings, not the raw row', async () => {
+    // Arrange
+    update.mockResolvedValue(spaceRow({ workStyle: 'exploratory', priorityWeights: null }));
+
+    // Act
+    const settings = await updateObsiddySettings('user_a', { workStyle: 'exploratory' });
+
+    // Assert: the caller gets what is now in force, so the UI needs no second
+    // request to re-read what it just saved.
+    expect(settings.workStyle).toBe('exploratory');
+    expect(settings.priorityWeights).toEqual(DEFAULT_PRIORITY_WEIGHTS);
+  });
+
+  it('ensures the space before writing', async () => {
+    // A PATCH can arrive before any read has happened — an API key, a
+    // deep-linked settings page.
+    findUnique.mockResolvedValueOnce(null);
+    create.mockResolvedValue(spaceRow());
+    update.mockResolvedValue(spaceRow());
+
+    await updateObsiddySettings('user_a', { workStyle: 'structured' });
+
+    expect(create).toHaveBeenCalled();
   });
 });

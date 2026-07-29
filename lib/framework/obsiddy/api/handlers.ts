@@ -30,7 +30,12 @@ import { validateQueryParams, validateRequestBody } from '@/lib/api/validation';
 import { withAuth } from '@/lib/auth/guards';
 import { ownerScope } from '@/lib/framework/obsiddy/repo/owner-scope';
 import type { ObsiddyResource } from '@/lib/framework/obsiddy/services/resources';
-import { archiveSchema } from '@/lib/framework/obsiddy/validations';
+import {
+  snoozeItem,
+  unsnoozeItem,
+  type SnoozableType,
+} from '@/lib/framework/obsiddy/services/snooze';
+import { archiveSchema, snoozeSchema } from '@/lib/framework/obsiddy/validations';
 
 /** A handler on a collection route — no dynamic segment to await. */
 type CollectionHandler = (request: NextRequest) => Promise<Response>;
@@ -162,6 +167,53 @@ export function createRestoreHandler<TCreate, TUpdate, TQuery>(
     log.info('Obsiddy restored', { resource: resource.name, id });
 
     return successResponse(restored);
+  });
+
+  return { POST };
+}
+
+/**
+ * `POST /obsiddy/<plural>/[id]/snooze` and `.../unsnooze`.
+ *
+ * A pair rather than a `PATCH` of the underlying column, because the gesture
+ * carries behaviour the column does not: a preset resolves in the user's zone,
+ * `snoozeCount` increments, and an event is logged. Exposing the raw field
+ * instead would let a caller move the date without any of that happening, and
+ * the chronic-snooze signal — the most interesting thing here — would quietly
+ * undercount.
+ */
+export function createSnoozeHandlers(type: SnoozableType): {
+  POST: ItemHandler;
+} {
+  const POST = withAuth<{ id: string }>(async (request, session, { params }) => {
+    const log = await getRouteLogger(request);
+    const scope = ownerScope(session.user.id);
+    const { id } = await params;
+
+    const body = await validateRequestBody(request, snoozeSchema);
+    const result = await snoozeItem(scope, type, id, body);
+    if (!result) throw new NotFoundError(`${type} not found`);
+
+    log.info('Obsiddy snoozed', { type, id, preset: body.preset ?? 'custom' });
+
+    return successResponse(result);
+  });
+
+  return { POST };
+}
+
+export function createUnsnoozeHandlers(type: SnoozableType): { POST: ItemHandler } {
+  const POST = withAuth<{ id: string }>(async (request, session, { params }) => {
+    const log = await getRouteLogger(request);
+    const scope = ownerScope(session.user.id);
+    const { id } = await params;
+
+    const result = await unsnoozeItem(scope, type, id);
+    if (!result) throw new NotFoundError(`${type} not found`);
+
+    log.info('Obsiddy unsnoozed', { type, id });
+
+    return successResponse(result);
   });
 
   return { POST };

@@ -21,7 +21,19 @@ import {
   createSpace,
   findSpaceByToken,
   findSpaceByUserId,
+  updateSpaceSettings,
 } from '@/lib/framework/obsiddy/repo/space';
+import {
+  resolveEnergyProfile,
+  resolvePriorityWeights,
+  resolveRetentionPolicy,
+} from '@/lib/framework/obsiddy/settings';
+import type {
+  EnergyProfile,
+  PriorityWeights,
+  RetentionPolicy,
+  UpdateSpaceInput,
+} from '@/lib/framework/obsiddy/validations';
 import { logger } from '@/lib/logging';
 import type { ObsiddySpace } from '@prisma/client';
 
@@ -97,6 +109,89 @@ export async function getObsiddySpace(userId: string): Promise<ObsiddySpace | nu
 export async function findSpaceByInboxToken(inboxToken: string): Promise<ObsiddySpace | null> {
   if (!inboxToken) return null;
   return findSpaceByToken(inboxToken);
+}
+
+/**
+ * The settings payload `GET /obsiddy/space` returns.
+ *
+ * It carries the **effective** settings, not the raw columns: the three `Json`
+ * columns are null until someone customises them, and a settings screen that
+ * rendered nulls would show empty weight boxes and imply the scorer has no
+ * opinion. Resolving here means the client sees what is actually in force, and
+ * `customised` tells it which values are the user's own.
+ *
+ * `inboxToken` is deliberately **absent**. It is a bearer credential that routes
+ * email into this brain (§17 risk 8), and a general settings read is exactly the
+ * kind of response that ends up in a log, a cache or a bug report. It gets its
+ * own endpoint when email capture lands in phase 9.
+ */
+export interface ObsiddySettings {
+  timezone: string;
+  weeklyCapacityMinutes: number;
+  workStyle: string;
+  priorityWeights: PriorityWeights;
+  energyProfile: EnergyProfile;
+  retentionPolicy: RetentionPolicy;
+  /** Which of the three Json columns hold the user's own values rather than defaults. */
+  customised: { priorityWeights: boolean; energyProfile: boolean; retentionPolicy: boolean };
+}
+
+/**
+ * Read the caller's settings, creating the space on first use.
+ *
+ * This is the natural "first page load" hook the plan asks for — a settings or
+ * dashboard read is usually a new user's first authenticated request, and doing
+ * the bootstrap here means their first write already has the space its FK needs.
+ */
+export async function getObsiddySettings(userId: string): Promise<ObsiddySettings> {
+  return toSettings(await ensureObsiddySpace(userId));
+}
+
+/**
+ * Apply a settings patch.
+ *
+ * Passing `null` for one of the `Json` columns resets it to the defaults, which
+ * is a genuinely useful action ("put the weights back how they were") and needs
+ * no separate endpoint. Omitting a key leaves it untouched.
+ */
+export async function updateObsiddySettings(
+  userId: string,
+  input: UpdateSpaceInput
+): Promise<ObsiddySettings> {
+  await ensureObsiddySpace(userId);
+
+  // Strip `undefined` so an omitted key stays untouched rather than being
+  // nulled. The assertion is sound and confined: only keys whose value is
+  // `undefined` are removed, and a key can only hold `undefined` if it was
+  // optional in `UpdateSpaceInput`, so the result still satisfies the type —
+  // something `Object.fromEntries` cannot express. This is not an assertion on
+  // external data (CLAUDE.md): `input` has already been through Zod. Mirrors
+  // `definedOnly` in `services/resources.ts`.
+  const data = Object.fromEntries(
+    Object.entries(input).filter(([, value]) => value !== undefined)
+  ) as UpdateSpaceInput;
+
+  const updated = await updateSpaceSettings(userId, data);
+
+  logger.info('Obsiddy settings updated', { userId, fields: Object.keys(data) });
+
+  return toSettings(updated);
+}
+
+function toSettings(space: ObsiddySpace): ObsiddySettings {
+  return {
+    timezone: space.timezone,
+    weeklyCapacityMinutes: space.weeklyCapacityMinutes,
+    workStyle: space.workStyle,
+    priorityWeights: resolvePriorityWeights(space.priorityWeights),
+    energyProfile: resolveEnergyProfile(space.energyProfile),
+    retentionPolicy: resolveRetentionPolicy(space.retentionPolicy),
+    customised: {
+      priorityWeights: space.priorityWeights !== null,
+      energyProfile: space.energyProfile !== null,
+      retentionPolicy: space.retentionPolicy !== null,
+    },
+  };
 }
 
 /** Prisma's unique-constraint error code, without importing the runtime namespace. */

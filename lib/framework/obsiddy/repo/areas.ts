@@ -44,6 +44,13 @@ export async function findArea(scope: OwnerScope, id: string): Promise<ObsiddyAr
   return prisma.obsiddyArea.findFirst({ where: { ...ownerWhere(scope), id } });
 }
 
+/** Batched lookup for the scorer's project → area walk. See `findProjectsByIds`. */
+export async function findAreasByIds(scope: OwnerScope, ids: string[]): Promise<ObsiddyArea[]> {
+  if (ids.length === 0) return [];
+
+  return prisma.obsiddyArea.findMany({ where: { ...ownerWhere(scope), id: { in: ids } } });
+}
+
 export async function findAreaBySlug(scope: OwnerScope, slug: string): Promise<ObsiddyArea | null> {
   return prisma.obsiddyArea.findFirst({ where: { ...ownerWhere(scope), slug } });
 }
