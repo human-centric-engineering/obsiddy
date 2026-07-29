@@ -51,8 +51,11 @@ release process.
   resolution, activity events) and 20 route files under
   `app/api/v1/obsiddy/**` covering tasks, projects, goals, areas, thoughts,
   entities and time blocks. `DELETE` archives; `?permanent=true` destroys.
-- **`scripts/smoke/obsiddy-isolation.ts`** (`npm run smoke:obsiddy-isolation`) —
-  proves cross-user isolation and the erasure cascade against a real database.
+- **`scripts/framework/obsiddy/smoke-isolation.ts`**
+  (`npm run framework:obsiddy:smoke-isolation`) — proves cross-user isolation
+  and the erasure cascade against a real database. Namespaced and kept out of
+  `scripts/smoke/` because `CUSTOMIZATION.md` §7 reserves the unprefixed script
+  names, `smoke:*` included, for the platform.
 
 ### Fixed
 

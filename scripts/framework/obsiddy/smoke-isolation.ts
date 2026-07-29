@@ -16,8 +16,15 @@
  * them (and, via cascade, everything they own) on every path.
  *
  * Run with:
- *   npm run smoke:obsiddy-isolation
- *   npx tsx --env-file=.env.local scripts/smoke/obsiddy-isolation.ts
+ *   npm run framework:obsiddy:smoke-isolation
+ *   npx tsx --env-file=.env.local scripts/framework/obsiddy/smoke-isolation.ts
+ *
+ * Lives under `scripts/framework/obsiddy/` rather than Sunrise's own
+ * `scripts/smoke/`, and takes a namespaced script name: `CUSTOMIZATION.md` §7
+ * reserves the unprefixed names — `smoke:*` among them — for the platform, so a
+ * fork entry in that block is a merge conflict waiting for the next upstream
+ * smoke script. §7 only names the leaf tier's `app:*`; the framework tier has
+ * no reserved namespace yet, which is Sunrise ask #12 in sunrise-asks.md.
  */
 
 import { prisma } from '@/lib/db/client';
@@ -58,7 +65,7 @@ async function createUser(label: string): Promise<string> {
 
 async function main(): Promise<void> {
   if (!(await dbReachable())) {
-    console.log('smoke:obsiddy-isolation skipped — no database reachable.');
+    console.log('framework:obsiddy:smoke-isolation skipped — no database reachable.');
     return;
   }
 
@@ -190,7 +197,7 @@ async function main(): Promise<void> {
       "B's data survives A's erasure"
     );
 
-    console.log('\nsmoke:obsiddy-isolation passed');
+    console.log('\nframework:obsiddy:smoke-isolation passed');
   } finally {
     for (const id of [userA, userB]) {
       if (id) await prisma.user.delete({ where: { id } }).catch(() => undefined);
@@ -200,7 +207,7 @@ async function main(): Promise<void> {
 }
 
 main().catch((error: unknown) => {
-  console.error('smoke:obsiddy-isolation FAILED');
+  console.error('framework:obsiddy:smoke-isolation FAILED');
   console.error(error);
   process.exit(1);
 });

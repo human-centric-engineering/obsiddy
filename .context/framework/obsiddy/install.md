@@ -6,8 +6,10 @@ and adding a handful of one-line registrations to that project's own `lib/app/*`
 seams.
 
 The design constraint behind this file: **Obsiddy touches zero Sunrise-owned
-files.** Every step below is either a new file inside a reserved tier, or one
-line inside a file Sunrise ships empty for exactly this purpose. If a future
+files, with one unavoidable exception.** Every step below is either a new file
+inside a reserved tier, or one line inside a file Sunrise ships empty for
+exactly this purpose. The exception is a single namespaced `package.json` script
+entry (§1) — npm has no include mechanism, so no seam can exist. If any _other_
 step ever needs you to edit a Sunrise-owned file, that is a bug in Obsiddy —
 open an issue rather than making the edit, because you'd be re-making it on
 every upgrade.
@@ -34,8 +36,8 @@ _(phase 5)_ and `@dnd-kit/core` + `@dnd-kit/sortable` _(phase 5b)_.
 
 ## 1. Copy the tier directories
 
-All four live under paths Sunrise reserves and never writes to, so they merge
-cleanly on upgrade:
+Every one lives under a path Sunrise reserves and never writes to, so they
+merge cleanly on upgrade:
 
 | Copy                                     | To                                                                        |
 | ---------------------------------------- | ------------------------------------------------------------------------- |
@@ -46,8 +48,25 @@ cleanly on upgrade:
 | `.context/framework/obsiddy/**`          | same path                                                                 |
 | `app/api/v1/obsiddy/**`                  | same path — 20 route files, each 2 lines                                  |
 | `app/(protected)/obsiddy/**`             | same path _(phase 5)_                                                     |
-| `scripts/smoke/obsiddy-isolation.ts`     | same path, plus the `smoke:obsiddy-isolation` entry in `package.json`     |
+| `scripts/framework/obsiddy/**`           | same path — plus one `package.json` script line, below                    |
 | `components/obsiddy/**`                  | same path _(phase 5)_                                                     |
+
+**The one `package.json` line.** The isolation smoke script needs an entry, and
+`package.json` is the single file Obsiddy cannot avoid touching — npm has no
+include mechanism. Add it as the **last** entry in `scripts`, after `prepare`:
+
+```jsonc
+"framework:obsiddy:smoke-isolation": "tsx --env-file=.env.local scripts/framework/obsiddy/smoke-isolation.ts"
+```
+
+Namespaced, and deliberately not in the `smoke:*` block:
+[`CUSTOMIZATION.md`](../../../CUSTOMIZATION.md) §7 reserves the unprefixed
+script names — `smoke:*` among them — for the platform, so a fork entry there
+conflicts the next time upstream adds a smoke script. §7 only names the leaf
+tier's `app:*`; the framework tier has no reserved namespace yet, which is ask
+#12 in [`sunrise-asks.md`](./sunrise-asks.md). `framework:<tier>:*` is the shape
+proposed there, and appending after `prepare` keeps the diff in a region
+upstream never edits either way.
 
 If your project already has a framework tier (`lib/framework/daybreak/`, say),
 Obsiddy sits beside it as a sibling — nothing goes in `lib/framework/` itself

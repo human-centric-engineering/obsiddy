@@ -56,6 +56,6 @@ Everything in the brain is an **owner query**. `OwnerScope` is a branded type mi
 2. Nothing in the tier except `repo/**` may import Prisma at all.
 3. Every create/update/delete targets `{ id, userId }` together, so another user's id matches no row — **404, never 403**, because a 403 confirms the row exists.
 
-Proven by `npm run smoke:obsiddy-isolation` against a real database: 27 assertions covering cross-user reads, writes, archive, restore, delete, dedupe and the erasure cascade.
+Proven by `npm run framework:obsiddy:smoke-isolation` against a real database: 27 assertions covering cross-user reads, writes, archive, restore, delete, dedupe and the erasure cascade.
 
 Next: **phase 3** (the priority engine — `manualBoost`, snooze presets, `/obsiddy/today`, `/obsiddy/inbox` and ETags, verified by a ~40-case table test on the pure scorer). **Phase 0b** (upstreaming two seams to Sunrise) is a separate PR against the template and is tracked in [`sunrise-asks.md`](./sunrise-asks.md).
