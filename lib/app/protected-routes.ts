@@ -21,4 +21,10 @@
  * Boundary-clean: a plain string array (no imports), safe to import at the
  * proxy runtime.
  */
-export const appProtectedRoutes: string[] = [];
+export const appProtectedRoutes: string[] = [
+  // Obsiddy — the whole second brain is behind auth. Per-resource
+  // authorisation still happens in the route handlers; this is only the edge
+  // redirect-to-login gate. Public share links live under `/s/*` (Release 2)
+  // and are deliberately NOT listed here.
+  '/obsiddy',
+];

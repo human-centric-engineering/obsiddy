@@ -16,6 +16,58 @@ release process.
 
 ## [Unreleased]
 
+### Added
+
+- **Obsiddy framework-tier scaffold** (Release 1, phase 0) — the reserved
+  `/framework` tier is now occupied by Obsiddy: `lib/framework/obsiddy/` with
+  `initObsiddy()` and `obsiddyEnvSchema`, the tier import boundary in
+  `lib/framework/eslint.config.mjs` (including the D5 owner/shared repo rule),
+  an empty `prisma/schema/framework-obsiddy.prisma`, and
+  `.context/framework/obsiddy/install.md`. Wired through four Sunrise seams —
+  `bootstrap.ts` (dynamic import), `env.ts`, `eslint.config.mjs`,
+  `protected-routes.ts` (`/obsiddy`) — with **zero Sunrise-owned files
+  modified**.
+- **`lib/app/leaf-bootstrap.ts`** — new boot seam Obsiddy re-exposes to the leaf
+  forks built on it, so a leaf fork and Obsiddy don't contend over
+  `lib/app/bootstrap.ts`. Ships empty; called by `initObsiddy()` after Obsiddy's
+  own registrations, so a leaf fork can override them.
+- **Obsiddy data model** (Release 1, phase 1) — 18 `framework_obsiddy_*` models
+  in `prisma/schema/framework-obsiddy.prisma` and the hand-edited migration
+  `20260728222816_add_second_brain`. One satellite table (`ObsiddySpace`) with a
+  hand-written `ON DELETE CASCADE` FK to `user`, one polymorphic edge table and
+  one polymorphic `vector(1536)` embedding table, so the whole brain cascades on
+  erasure and there is a single HNSW index to maintain.
+- **`registerObsiddyDriftProbes()`** (`lib/framework/obsiddy/db-drift.ts`) — six
+  probes over the Postgres objects Prisma cannot model, registered from
+  `lib/app/db-drift.ts`. The two `GENERATED` probes assert `is_generated`, not
+  just column existence, so a column silently recreated as a plain `tsvector`
+  fails the check instead of never being populated.
+- **`ensureObsiddySpace()`** (`lib/framework/obsiddy/services/space.ts`) —
+  idempotent, race-safe first-use creation of a user's space, plus
+  `getObsiddySpace()` and `findSpaceByInboxToken()`.
+- **Obsiddy repo layer and CRUD API** (Release 1, phase 2) —
+  `lib/framework/obsiddy/repo/*` with the branded `OwnerScope` type, seven
+  entity repos, `lib/framework/obsiddy/services/*` (resource descriptors, slug
+  resolution, activity events) and 20 route files under
+  `app/api/v1/obsiddy/**` covering tasks, projects, goals, areas, thoughts,
+  entities and time blocks. `DELETE` archives; `?permanent=true` destroys.
+- **`scripts/framework/obsiddy/smoke-isolation.ts`**
+  (`npm run framework:obsiddy:smoke-isolation`) — proves cross-user isolation
+  and the erasure cascade against a real database. Namespaced and kept out of
+  `scripts/smoke/` because `CUSTOMIZATION.md` §7 reserves the unprefixed script
+  names, `smoke:*` included, for the platform.
+
+### Fixed
+
+- **Obsiddy erasure cascade was incomplete** (`20260728232937_obsiddy_space_cascade`).
+  The phase-1 migration gave every scoped table a plain `userId` column with no
+  FK, so deleting a user removed only the `ObsiddySpace` row and left every
+  task, thought, project and event behind — personal data surviving an erasure
+  that reported success. Every scoped table now has a real FK to
+  `framework_obsiddy_space("userId") ON DELETE CASCADE`, and the migration
+  deletes rows already orphaned by its absence. Found by the isolation smoke
+  script against a real database; no mocked test could have caught it.
+
 ## [0.7.0] — 2026-07-09
 
 > **Alpha release.** Ninth tagged Sunrise release. **MINOR bump** — adds new

@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { obsiddyEnvSchema } from '@/lib/framework/obsiddy/env';
+
 /**
  * App-defined server environment variables.
  *
@@ -12,6 +14,12 @@ import { z } from 'zod';
  * vars; server-side only. Extend, e.g.:
  *   `export const appEnvSchema = z.object({ STRIPE_SECRET_KEY: z.string().min(1) });`
  *
+ * Obsiddy declares its own variables in `lib/framework/obsiddy/env.ts` and this
+ * file merges them — the one-line host wiring from
+ * `.context/framework/obsiddy/install.md`. Unlike the boot seam, this import is
+ * necessarily static (the schema is read during a synchronous module-load
+ * parse), so removing the Obsiddy tier means removing this line too.
+ *
  * Full guide: CUSTOMIZATION.md §4 · .context/environment/overview.md
  */
-export const appEnvSchema = z.object({});
+export const appEnvSchema = z.object({}).merge(obsiddyEnvSchema);

@@ -39,7 +39,8 @@
     "smoke:vision": "tsx --env-file=.env.local scripts/smoke/vision.ts",
     "smoke:erasure": "tsx --env-file=.env.local scripts/smoke/erasure.ts",
     "postinstall": "prisma generate",
-    "prepare": "husky"
+    "prepare": "husky",
+    "framework:obsiddy:smoke-isolation": "tsx --env-file=.env.local scripts/framework/obsiddy/smoke-isolation.ts"
   },
   "repository": {
     "type": "git",

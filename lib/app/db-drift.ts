@@ -38,6 +38,11 @@
  *
  * Full guide: CUSTOMIZATION.md §5 · .context/database/prisma-unmodelled-objects.md
  */
+import { registerObsiddyDriftProbes } from '@/lib/framework/obsiddy/db-drift';
+
 export function registerAppDriftProbes(): void {
-  // No app drift probes by default.
+  // Obsiddy's six unmodellable objects (the hand-written GDPR-cascade FK, the
+  // HNSW index, two GENERATED tsvector columns and their GIN indexes). One line
+  // per the install guide — the probes themselves live in the framework tier.
+  registerObsiddyDriftProbes();
 }

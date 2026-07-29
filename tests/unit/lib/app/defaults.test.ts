@@ -10,6 +10,12 @@
  * the no-op contract (a stray default registration would silently apply to
  * every install).
  *
+ * FORK NOTE (Obsiddy): this fork fills two of these seams — the ESLint config
+ * (spreads the framework tier) and `initApp` (boots Obsiddy). Their assertions
+ * below are adjusted accordingly; every other seam still has to be a no-op, and
+ * that is what this file is now protecting. The Obsiddy boot chain itself is
+ * covered by tests/unit/lib/framework/obsiddy/scaffold.test.ts.
+ *
  * @see lib/app/rate-limit.ts · lib/app/capabilities.ts · lib/app/admin-nav.ts
  */
 
@@ -23,6 +29,7 @@ import { emailOverrides } from '@/lib/app/emails';
 import { initApp } from '@/lib/app/bootstrap';
 import { initAppKnowledgeAccessContributors } from '@/lib/app/knowledge-access-contributors';
 import appEslintConfig from '@/lib/app/eslint.config.mjs';
+import frameworkEslintConfig from '@/lib/framework/eslint.config.mjs';
 import { getEffectiveRateLimitPolicy, RATE_LIMIT_POLICY } from '@/lib/security/rate-limit-policy';
 import { getRegisteredNavSections, __resetNavRegistryForTests } from '@/lib/admin-nav/registry';
 
@@ -77,11 +84,14 @@ describe('lib/app/ bootstrap defaults are no-ops', () => {
     expect(emailOverrides).toEqual({});
   });
 
-  it('initApp does no boot work by default (resolves to undefined)', async () => {
-    // The real default is an empty async fn; forks fill it. A stray default
-    // would run one-time work on every install boot. (The instrumentation
-    // wiring — that register() calls this in all envs, isolated in try/catch —
-    // is covered by tests/unit/instrumentation.test.ts.)
+  it('initApp boots the framework tier and resolves to undefined', async () => {
+    // FORK NOTE (Obsiddy): vanilla Sunrise ships an empty async fn here and
+    // this test locks that in; Obsiddy fills it to boot its tier. What still
+    // matters — and is asserted — is that the boot chain resolves cleanly with
+    // no return value, since instrumentation.ts awaits it inside a try/catch
+    // and a rejection would leave the tier half-booted. The chain itself is
+    // covered by tests/unit/lib/framework/obsiddy/scaffold.test.ts, and the
+    // instrumentation wiring by tests/unit/instrumentation.test.ts.
     await expect(initApp()).resolves.toBeUndefined();
   });
 
@@ -94,11 +104,13 @@ describe('lib/app/ bootstrap defaults are no-ops', () => {
     expect(initAppKnowledgeAccessContributors()).toBeUndefined();
   });
 
-  it('the ESLint config seam is an empty array by default', () => {
-    // A stray flat-config block here would silently apply lint rules to every
-    // fork (the root eslint.config.mjs spreads this array last). Forks fill it;
-    // vanilla Sunrise ships it empty. The root spread itself is exercised by
-    // every `npm run lint` run.
-    expect(appEslintConfig).toEqual([]);
+  it('the ESLint config seam spreads the framework tier and nothing else', () => {
+    // FORK NOTE (Obsiddy): vanilla Sunrise asserts `toEqual([])` here — the
+    // seam ships empty and forks fill it. Obsiddy fills it with exactly one
+    // thing: the framework tier's config, spread FIRST so any later leaf block
+    // still wins for its own paths. Asserting identity with the tier array
+    // (rather than a shape) keeps the original test's intent — a stray block
+    // added straight to the leaf seam still fails.
+    expect(appEslintConfig).toEqual(frameworkEslintConfig);
   });
 });

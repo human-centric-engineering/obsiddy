@@ -24,5 +24,11 @@
  * Full guide: CUSTOMIZATION.md §4 · the reserved `/framework` fork tier.
  */
 export async function initApp(): Promise<void> {
-  // No app boot work by default.
+  // Obsiddy framework tier. The import MUST stay dynamic: a static
+  // `@/lib/framework/...` specifier is resolved at `next build` and breaks the
+  // build of any project that hasn't installed the tier. Obsiddy's own boot
+  // then delegates to `initLeafApp()` in `lib/app/leaf-bootstrap.ts`, which is
+  // where a project built on Obsiddy hooks startup.
+  const { initObsiddy } = await import('@/lib/framework/obsiddy');
+  await initObsiddy();
 }
