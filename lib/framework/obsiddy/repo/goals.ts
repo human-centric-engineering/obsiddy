@@ -27,6 +27,12 @@ export interface GoalFilters {
   areaId?: string;
   /** `null` selects roots; a string selects one parent's children. */
   parentGoalId?: string | null;
+  /**
+   * Goals whose target date falls at or before this instant — the "at risk"
+   * read on the dashboard. Goals with no target date are excluded: a goal
+   * nobody put a date on cannot be behind one.
+   */
+  targetBefore?: Date;
 }
 
 export type GoalCreateData = WithoutOwner<Prisma.ObsiddyGoalUncheckedCreateInput>;
@@ -43,6 +49,7 @@ function goalWhere(
     ...(filters.status ? { status: filters.status } : {}),
     ...(filters.areaId ? { areaId: filters.areaId } : {}),
     ...(filters.parentGoalId !== undefined ? { parentGoalId: filters.parentGoalId } : {}),
+    ...(filters.targetBefore ? { targetDate: { not: null, lte: filters.targetBefore } } : {}),
   };
 }
 
@@ -70,6 +77,13 @@ export async function countGoals(
   includeArchived = false
 ): Promise<number> {
   return prisma.obsiddyGoal.count({ where: goalWhere(scope, filters, includeArchived) });
+}
+
+/** Batched lookup for the scorer's project → goal walk. See `findProjectsByIds`. */
+export async function findGoalsByIds(scope: OwnerScope, ids: string[]): Promise<ObsiddyGoal[]> {
+  if (ids.length === 0) return [];
+
+  return prisma.obsiddyGoal.findMany({ where: { ...ownerWhere(scope), id: { in: ids } } });
 }
 
 export async function findGoal(scope: OwnerScope, id: string): Promise<ObsiddyGoal | null> {

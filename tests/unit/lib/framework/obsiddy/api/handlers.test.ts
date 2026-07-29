@@ -31,11 +31,19 @@ vi.mock('@/lib/auth/guards', () => ({
     },
 }));
 
+vi.mock('@/lib/framework/obsiddy/services/snooze', () => ({
+  snoozeItem: vi.fn(),
+  unsnoozeItem: vi.fn(),
+}));
+
 import {
   createCollectionHandlers,
   createItemHandlers,
   createRestoreHandler,
+  createSnoozeHandlers,
+  createUnsnoozeHandlers,
 } from '@/lib/framework/obsiddy/api/handlers';
+import { snoozeItem, unsnoozeItem } from '@/lib/framework/obsiddy/services/snooze';
 import type { ObsiddyResource } from '@/lib/framework/obsiddy/services/resources';
 import {
   createTaskSchema,
@@ -317,6 +325,146 @@ describe('restore handler', () => {
       req('http://x/api/v1/obsiddy/tasks/task_b/restore'),
       SESSION_A,
       params('task_b')
+    );
+
+    expect(response.status).toBe(404);
+  });
+});
+
+describe('snooze handlers (phase 3)', () => {
+  it('scopes the snooze to the session user and forwards the preset', async () => {
+    // Arrange
+    vi.mocked(snoozeItem).mockResolvedValue({
+      id: 'task_1',
+      snoozedUntil: new Date('2026-07-30T21:00:00Z'),
+      snoozeCount: 1,
+    });
+    const { POST } = createSnoozeHandlers('task');
+
+    // Act
+    const response = await invoke(
+      POST,
+      req('http://x/api/v1/obsiddy/tasks/task_1/snooze', { preset: 'tomorrow' }),
+      SESSION_A,
+      params('task_1')
+    );
+
+    // Assert
+    expect(response.status).toBe(200);
+    expect(vi.mocked(snoozeItem).mock.calls[0]?.[0]).toMatchObject({ userId: 'user_a' });
+    expect(vi.mocked(snoozeItem).mock.calls[0]?.[3]).toEqual({ preset: 'tomorrow' });
+  });
+
+  it('accepts an explicit date', async () => {
+    vi.mocked(snoozeItem).mockResolvedValue({
+      id: 'task_1',
+      snoozedUntil: new Date('2026-09-01T00:00:00Z'),
+      snoozeCount: 1,
+    });
+    const { POST } = createSnoozeHandlers('task');
+
+    const response = await invoke(
+      POST,
+      req('http://x/api/v1/obsiddy/tasks/task_1/snooze', { until: '2026-09-01T00:00:00.000Z' }),
+      SESSION_A,
+      params('task_1')
+    );
+
+    expect(response.status).toBe(200);
+  });
+
+  it('rejects a body carrying both a preset and a date', async () => {
+    // Arrange: two different instants in one request — resolving one and
+    // ignoring the other would silently snooze to a date nobody asked for.
+    const { POST } = createSnoozeHandlers('task');
+
+    // Act
+    const response = await invoke(
+      POST,
+      req('http://x/api/v1/obsiddy/tasks/task_1/snooze', {
+        preset: 'tomorrow',
+        until: '2026-09-01T00:00:00.000Z',
+      }),
+      SESSION_A,
+      params('task_1')
+    );
+
+    // Assert
+    expect(response.status).toBe(400);
+    expect(snoozeItem).not.toHaveBeenCalled();
+  });
+
+  it('rejects an empty body', async () => {
+    const { POST } = createSnoozeHandlers('task');
+
+    const response = await invoke(
+      POST,
+      req('http://x/api/v1/obsiddy/tasks/task_1/snooze', {}),
+      SESSION_A,
+      params('task_1')
+    );
+
+    expect(response.status).toBe(400);
+  });
+
+  it('rejects an unknown preset rather than falling back to a default', async () => {
+    const { POST } = createSnoozeHandlers('task');
+
+    const response = await invoke(
+      POST,
+      req('http://x/api/v1/obsiddy/tasks/task_1/snooze', { preset: 'someday' }),
+      SESSION_A,
+      params('task_1')
+    );
+
+    expect(response.status).toBe(400);
+  });
+
+  it("404s when the row isn't the caller's", async () => {
+    // Arrange: same contract as every other item handler — missing and
+    // not-yours are indistinguishable.
+    vi.mocked(snoozeItem).mockResolvedValue(null);
+    const { POST } = createSnoozeHandlers('task');
+
+    // Act
+    const response = await invoke(
+      POST,
+      req('http://x/api/v1/obsiddy/tasks/task_b/snooze', { preset: 'tomorrow' }),
+      SESSION_A,
+      params('task_b')
+    );
+
+    // Assert
+    expect(response.status).toBe(404);
+  });
+});
+
+describe('unsnooze handlers (phase 3)', () => {
+  it('scopes the unsnooze to the session user', async () => {
+    vi.mocked(unsnoozeItem).mockResolvedValue({ id: 'th_1' });
+    const { POST } = createUnsnoozeHandlers('thought');
+
+    const response = await invoke(
+      POST,
+      req('http://x/api/v1/obsiddy/thoughts/th_1/unsnooze'),
+      SESSION_A,
+      params('th_1')
+    );
+
+    expect(response.status).toBe(200);
+    expect(vi.mocked(unsnoozeItem).mock.calls[0]?.[0]).toMatchObject({ userId: 'user_a' });
+    expect(vi.mocked(unsnoozeItem).mock.calls[0]?.[1]).toBe('thought');
+  });
+
+  it("404s when the row isn't the caller's", async () => {
+    vi.mocked(unsnoozeItem).mockResolvedValue(null);
+    const { POST } = createUnsnoozeHandlers('project');
+
+    const response = await invoke(
+      POST,
+      req('http://x/api/v1/obsiddy/projects/proj_b/unsnooze'),
+      SESSION_A,
+      params('proj_b')
     );
 
     expect(response.status).toBe(404);

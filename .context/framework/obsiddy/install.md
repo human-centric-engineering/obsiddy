@@ -14,10 +14,10 @@ step ever needs you to edit a Sunrise-owned file, that is a bug in Obsiddy —
 open an issue rather than making the edit, because you'd be re-making it on
 every upgrade.
 
-> **Status: phases 0–2.** The tier scaffold, the data model and the CRUD API
-> exist — §§1–3 and 5 are real and installable today. Steps still marked
-> _(phase N)_ are listed so the checklist grows in place rather than being
-> reconstructed later. This file is updated by every phase.
+> **Status: phases 0–3.** The tier scaffold, the data model, the CRUD API and
+> the priority engine exist — §§1–3 and 5 are real and installable today. Steps
+> still marked _(phase N)_ are listed so the checklist grows in place rather
+> than being reconstructed later. This file is updated by every phase.
 
 ---
 
@@ -46,17 +46,19 @@ merge cleanly on upgrade:
 | `prisma/schema/framework-obsiddy.prisma` | same path                                                                 |
 | `prisma/seeds/framework-obsiddy/**`      | same path _(phase 6)_                                                     |
 | `.context/framework/obsiddy/**`          | same path                                                                 |
-| `app/api/v1/obsiddy/**`                  | same path — 20 route files, each 2 lines                                  |
+| `app/api/v1/obsiddy/**`                  | same path — 29 route files, each 2 lines                                  |
 | `app/(protected)/obsiddy/**`             | same path _(phase 5)_                                                     |
 | `scripts/framework/obsiddy/**`           | same path — plus one `package.json` script line, below                    |
 | `components/obsiddy/**`                  | same path _(phase 5)_                                                     |
 
-**The one `package.json` line.** The isolation smoke script needs an entry, and
+**The `package.json` lines.** The smoke scripts need entries, and
 `package.json` is the single file Obsiddy cannot avoid touching — npm has no
-include mechanism. Add it as the **last** entry in `scripts`, after `prepare`:
+include mechanism. Add them as the **last** entries in `scripts`, after
+`prepare`:
 
 ```jsonc
-"framework:obsiddy:smoke-isolation": "tsx --env-file=.env.local scripts/framework/obsiddy/smoke-isolation.ts"
+"framework:obsiddy:smoke-isolation": "tsx --env-file=.env.local scripts/framework/obsiddy/smoke-isolation.ts",
+"framework:obsiddy:smoke-priority": "tsx --env-file=.env.local scripts/framework/obsiddy/smoke-priority.ts"
 ```
 
 Namespaced, and deliberately not in the `smoke:*` block:
@@ -251,15 +253,32 @@ load, first capture, first agent turn. It is idempotent and race-safe.
   briefings) silently never runs and looks broken. See
   `.context/orchestration/scheduling.md`.
 
+  Ranking degrades gracefully in the meantime rather than breaking: task scores
+  are rewritten on every mutation, so anything the user touches is current. What
+  a missing tick costs is the scores that move on their own — a project going
+  quiet, a week rolling over, a `manualBoost` expiring — which stay stale until
+  that task is next edited. The full nightly pass lands in phase 7.
+
 ---
 
 ## 5. Verify
 
 ```bash
-npm run validate         # type-check + lint + format
-npm run db:drift-check   # phase 1 onward
+npm run validate                            # type-check + lint + format
+npm run db:drift-check                      # phase 1 onward
 npm run test
+npm run framework:obsiddy:smoke-isolation   # cross-user isolation + erasure cascade
+npm run framework:obsiddy:smoke-priority    # ranking, snooze and the aggregates
 ```
+
+**Run both smoke scripts against a real database.** The unit suite mocks Prisma
+at the module boundary, so it verifies the shape of every query and nothing
+about whether Postgres accepts it. That gap has already cost one shipped bug:
+the phase-2 migration added a foreign key from every scoped table to
+`framework_obsiddy_space`, nothing called `ensureObsiddySpace()`, and every new
+user's first write returned a 500 — under a completely green test suite. Both
+scripts skip cleanly (exit 0) when no database is reachable, and clean up after
+themselves on every path.
 
 **Two Sunrise tests will fail, and they're supposed to.** Both assert that a
 `lib/app/*` seam ships empty — the vanilla contract — so filling the seam, which

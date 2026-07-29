@@ -70,6 +70,22 @@ export async function findProject(scope: OwnerScope, id: string): Promise<Obsidd
   return prisma.obsiddyProject.findFirst({ where: { ...ownerWhere(scope), id } });
 }
 
+/**
+ * Batched lookup for the scorer's task → project walk.
+ *
+ * One query for every project referenced by a batch of tasks, rather than one
+ * per task — the same N+1 rule CLAUDE.md applies to the client applies here,
+ * where a reprioritise pass would otherwise issue a query per row.
+ */
+export async function findProjectsByIds(
+  scope: OwnerScope,
+  ids: string[]
+): Promise<ObsiddyProject[]> {
+  if (ids.length === 0) return [];
+
+  return prisma.obsiddyProject.findMany({ where: { ...ownerWhere(scope), id: { in: ids } } });
+}
+
 /** Slug lookup is still owner-scoped — slugs are unique per user, not globally. */
 export async function findProjectBySlug(
   scope: OwnerScope,

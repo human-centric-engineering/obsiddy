@@ -281,3 +281,180 @@ export const archiveSchema = z
     reason: z.enum(['manual', 'aged_out', 'project_closed']).default('manual'),
   })
   .strict();
+
+// ─── Snooze ──────────────────────────────────────────────────────────────────
+
+/**
+ * Presets first, date picker second (§10).
+ *
+ * The preset is resolved server-side against `ObsiddySpace.timezone`, not by the
+ * client. A browser sending its own idea of "tomorrow 9am" would make the same
+ * gesture behave differently from the phone, the iOS Shortcut and the agent —
+ * and a task that unsnoozes at 2am because one caller was in UTC is exactly the
+ * small wrongness the plan calls out.
+ */
+export const SNOOZE_PRESETS = ['later_today', 'tomorrow', 'next_week', 'next_month'] as const;
+
+export const snoozeSchema = z
+  .object({
+    preset: z.enum(SNOOZE_PRESETS).optional(),
+    /** The "pick a date" escape hatch. Mutually exclusive with `preset`. */
+    until: z.coerce.date().optional(),
+  })
+  .strict()
+  .refine((input) => (input.preset === undefined) !== (input.until === undefined), {
+    message: 'Provide exactly one of preset or until',
+    path: ['preset'],
+  });
+
+export type SnoozeInput = z.infer<typeof snoozeSchema>;
+
+// ─── Space settings ──────────────────────────────────────────────────────────
+
+/**
+ * The six scorer factors, in the order they appear in the plan's formula.
+ *
+ * One const array drives the Zod schema, the defaults table, the
+ * `priorityFactors` payload and (later) the settings UI — so adding a seventh
+ * factor is one edit here rather than four that drift.
+ */
+export const PRIORITY_FACTORS = [
+  'urgency',
+  'goalAlignment',
+  'projectMomentum',
+  'areaBalance',
+  'effortFit',
+  'staleness',
+] as const;
+
+export type PriorityFactor = (typeof PRIORITY_FACTORS)[number];
+
+const weightSchema = z.number().min(0).max(1);
+
+/**
+ * Scorer weights.
+ *
+ * **They must sum to 1.** `base` is a weighted average and the plan guarantees
+ * it lands in `[0, 1]`, which is the whole reason a `manualBoost` of `+1`
+ * provably outranks every unboosted task (§10). Weights summing to 1.4 would
+ * quietly break that guarantee — and the symptom would be a pin that doesn't
+ * pin, months later. A small epsilon absorbs float representation, nothing more.
+ *
+ * `resolvePriorityWeights()` normalises defensively on read as well, so a row
+ * hand-edited in the database can't break the invariant either.
+ */
+export const priorityWeightsSchema = z
+  .object({
+    urgency: weightSchema,
+    goalAlignment: weightSchema,
+    projectMomentum: weightSchema,
+    areaBalance: weightSchema,
+    effortFit: weightSchema,
+    staleness: weightSchema,
+  })
+  .strict()
+  .refine(
+    (weights) => Math.abs(PRIORITY_FACTORS.reduce((sum, key) => sum + weights[key], 0) - 1) < 1e-6,
+    { message: 'Weights must sum to 1' }
+  );
+
+export type PriorityWeights = z.infer<typeof priorityWeightsSchema>;
+
+/**
+ * Which energy level you have when. Feeds `effortFit`: a `high`-energy task
+ * scheduled into your `low`-energy evening fits worse than it looks on paper.
+ *
+ * Three coarse bands rather than 24 hourly values — the extra precision would be
+ * invented, since nobody can honestly fill in an hourly profile.
+ */
+export const energyProfileSchema = z
+  .object({
+    morning: z.enum(ENERGY_LEVELS),
+    afternoon: z.enum(ENERGY_LEVELS),
+    evening: z.enum(ENERGY_LEVELS),
+  })
+  .strict();
+
+export type EnergyProfile = z.infer<typeof energyProfileSchema>;
+
+/** Days, always. A window measured in anything else invites a unit bug. */
+const retentionDaysSchema = z.number().int().positive().max(36_500);
+
+/**
+ * Retention windows (§11). Enforced in phase 8; validated and settable now
+ * because the column exists from the first migration and an unvalidated `Json`
+ * column is a boundary nobody is guarding.
+ */
+export const retentionPolicySchema = z
+  .object({
+    inboxThoughtDays: retentionDaysSchema,
+    completedTaskDays: retentionDaysSchema,
+    closedProjectDays: retentionDaysSchema,
+    reviewDays: retentionDaysSchema,
+    staleEntityDays: retentionDaysSchema,
+    suggestedLinkDays: retentionDaysSchema,
+    eventDays: retentionDaysSchema,
+    planTimeBlockDays: retentionDaysSchema,
+  })
+  .strict();
+
+export type RetentionPolicy = z.infer<typeof retentionPolicySchema>;
+
+/**
+ * IANA zone names, checked against the runtime's own database rather than a
+ * curated list — `lib/utils/timezones.ts` is a UI picker, not an allowlist, and
+ * rejecting a zone it happens not to list would be wrong.
+ */
+const timezoneSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(64)
+  .refine(isValidTimezone, { message: 'Unknown IANA time zone' });
+
+/**
+ * Fixed-offset forms `Intl` accepts but we do not: `+13:00`, `-05:00`,
+ * `UTC+13`, `GMT-5`.
+ *
+ * ECMA-402 treats these as valid time zones, and they would work — every preset
+ * would resolve to a real instant. What they cannot do is answer "when does
+ * daylight saving end here", so a user who stored one would silently drift an
+ * hour twice a year on every snooze, every retention window and every weekly
+ * capacity boundary. That is precisely the class of small wrongness this whole
+ * area of the code exists to avoid, and it is invisible for six months.
+ *
+ * Bare `UTC` and `GMT` are fine: they are real zones that genuinely never shift.
+ */
+const OFFSET_TIMEZONE = /^[+-]|^(?:UTC|GMT)[+-]/i;
+
+function isValidTimezone(value: string): boolean {
+  if (OFFSET_TIMEZONE.test(value)) return false;
+
+  try {
+    new Intl.DateTimeFormat('en-GB', { timeZone: value });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * `PATCH /obsiddy/space`.
+ *
+ * `inboxToken` is deliberately absent: it is a bearer credential that routes
+ * email into this brain (§17 risk 8), so it rotates through its own endpoint
+ * with its own confirmation, never as a field in a settings save.
+ */
+export const updateSpaceSchema = z
+  .object({
+    timezone: timezoneSchema,
+    weeklyCapacityMinutes: z.number().int().min(0).max(10_080),
+    workStyle: z.enum(WORK_STYLES),
+    priorityWeights: priorityWeightsSchema.nullish(),
+    energyProfile: energyProfileSchema.nullish(),
+    retentionPolicy: retentionPolicySchema.nullish(),
+  })
+  .partial()
+  .strict();
+
+export type UpdateSpaceInput = z.infer<typeof updateSpaceSchema>;

@@ -27,8 +27,10 @@ import * as projects from '@/lib/framework/obsiddy/repo/projects';
 import * as tasks from '@/lib/framework/obsiddy/repo/tasks';
 import * as thoughts from '@/lib/framework/obsiddy/repo/thoughts';
 import * as timeBlocks from '@/lib/framework/obsiddy/repo/time-blocks';
+import { rescoreTask } from '@/lib/framework/obsiddy/priority/reprioritise';
 import { eventKindForUpdate, recordObsiddyEvent } from '@/lib/framework/obsiddy/services/events';
 import { resolveSlugOnUpdate, resolveUniqueSlug } from '@/lib/framework/obsiddy/services/slug';
+import { ensureObsiddySpace } from '@/lib/framework/obsiddy/services/space';
 import {
   createAreaSchema,
   createEntitySchema,
@@ -98,7 +100,7 @@ function definedOnly<T extends object>(input: T): T {
 
 // ─── Tasks ───────────────────────────────────────────────────────────────────
 
-export const taskResource: ObsiddyResource<
+const taskResourceOps: ObsiddyResource<
   z.infer<typeof createTaskSchema>,
   z.infer<typeof updateTaskSchema>,
   z.infer<typeof taskListQuerySchema>
@@ -194,7 +196,7 @@ async function touchProject(scope: OwnerScope, projectId: string): Promise<void>
 
 // ─── Projects ────────────────────────────────────────────────────────────────
 
-export const projectResource: ObsiddyResource<
+const projectResourceOps: ObsiddyResource<
   z.infer<typeof createProjectSchema>,
   z.infer<typeof updateProjectSchema>,
   z.infer<typeof projectListQuerySchema>
@@ -299,7 +301,7 @@ export const projectResource: ObsiddyResource<
 
 // ─── Goals ───────────────────────────────────────────────────────────────────
 
-export const goalResource: ObsiddyResource<
+const goalResourceOps: ObsiddyResource<
   z.infer<typeof createGoalSchema>,
   z.infer<typeof updateGoalSchema>,
   z.infer<typeof goalListQuerySchema>
@@ -370,7 +372,7 @@ export const goalResource: ObsiddyResource<
 
 // ─── Areas ───────────────────────────────────────────────────────────────────
 
-export const areaResource: ObsiddyResource<
+const areaResourceOps: ObsiddyResource<
   z.infer<typeof createAreaSchema>,
   z.infer<typeof updateAreaSchema>,
   z.infer<typeof obsiddyListQuerySchema>
@@ -443,7 +445,7 @@ export const areaResource: ObsiddyResource<
 
 // ─── Thoughts ────────────────────────────────────────────────────────────────
 
-export const thoughtResource: ObsiddyResource<
+const thoughtResourceOps: ObsiddyResource<
   z.infer<typeof createThoughtSchema>,
   z.infer<typeof updateThoughtSchema>,
   z.infer<typeof thoughtListQuerySchema>
@@ -523,7 +525,7 @@ export const thoughtResource: ObsiddyResource<
 
 // ─── Entities ────────────────────────────────────────────────────────────────
 
-export const entityResource: ObsiddyResource<
+const entityResourceOps: ObsiddyResource<
   z.infer<typeof createEntitySchema>,
   z.infer<typeof updateEntitySchema>,
   z.infer<typeof entityListQuerySchema>
@@ -618,7 +620,7 @@ export const entityResource: ObsiddyResource<
 
 // ─── Time blocks ─────────────────────────────────────────────────────────────
 
-export const timeBlockResource: ObsiddyResource<
+const timeBlockResourceOps: ObsiddyResource<
   z.infer<typeof createTimeBlockSchema>,
   z.infer<typeof updateTimeBlockSchema>,
   z.infer<typeof timeBlockListQuerySchema>
@@ -647,3 +649,87 @@ export const timeBlockResource: ObsiddyResource<
   // days rather than archived (§11). DELETE is therefore a real delete.
   remove: (scope, id) => timeBlocks.deleteTimeBlock(scope, id),
 };
+
+// ─── Space bootstrap ─────────────────────────────────────────────────────────
+
+/**
+ * Guarantee the user's `ObsiddySpace` exists before their first write.
+ *
+ * **Every scoped table has a real FK to `framework_obsiddy_space("userId")`**
+ * (the D1 cascade), so a create by a user who has never had a space row does not
+ * fail validation — it fails in Postgres, as a foreign-key violation, and
+ * surfaces as a 500 on the very first thing a new user does.
+ *
+ * It is wrapped here rather than in the route factory on purpose. This is the
+ * layer the HTTP routes and the phase-6 capabilities share, so a capability that
+ * captures a thought gets the same guarantee without anyone remembering to add
+ * it — which is the whole reason the descriptors exist (§3: handlers stay thin,
+ * capabilities call the same functions the routes do).
+ *
+ * Only `create` is wrapped. Every other operation targets a row that already
+ * exists, and a row cannot exist without the space that its FK points at.
+ */
+function withSpaceBootstrap<TCreate, TUpdate, TQuery>(
+  resource: ObsiddyResource<TCreate, TUpdate, TQuery>
+): ObsiddyResource<TCreate, TUpdate, TQuery> {
+  return {
+    ...resource,
+    async create(scope, input) {
+      await ensureObsiddySpace(scope.userId);
+      return resource.create(scope, input);
+    },
+  };
+}
+
+/**
+ * Rescore the task a mutation touched, before the response is returned.
+ *
+ * A pin that takes until the nightly pass to take effect is a bug report (§10),
+ * and the same goes for a due date or an estimate. One task, one scoring pass —
+ * cheap enough to pay for inline.
+ *
+ * Changing a *project* likewise moves every one of its tasks (via
+ * `projectMomentum`), but rescoring a whole subtree on every keystroke-sized
+ * edit is not; that stays with the nightly pass, which is where the plan puts
+ * the debounced subtree case.
+ */
+function withTaskRescore<TCreate, TUpdate, TQuery>(
+  resource: ObsiddyResource<TCreate, TUpdate, TQuery>
+): ObsiddyResource<TCreate, TUpdate, TQuery> {
+  return {
+    ...resource,
+
+    async create(scope, input) {
+      const created = await resource.create(scope, input);
+      await rescoreIfIdentifiable(scope, created);
+      return created;
+    },
+
+    async update(scope, id, input) {
+      const updated = await resource.update(scope, id, input);
+      if (updated) await rescoreTask(scope, id);
+      return updated;
+    },
+  };
+}
+
+async function rescoreIfIdentifiable(scope: OwnerScope, row: unknown): Promise<void> {
+  if (typeof row === 'object' && row !== null && 'id' in row && typeof row.id === 'string') {
+    await rescoreTask(scope, row.id);
+  }
+}
+
+/**
+ * The descriptors the routes and capabilities actually import.
+ *
+ * Listing the wrappers in one place is deliberate: "which types bootstrap a
+ * space?" and "which types rescore?" are answered by reading eight lines, not by
+ * grepping seven object literals.
+ */
+export const taskResource = withTaskRescore(withSpaceBootstrap(taskResourceOps));
+export const projectResource = withSpaceBootstrap(projectResourceOps);
+export const goalResource = withSpaceBootstrap(goalResourceOps);
+export const areaResource = withSpaceBootstrap(areaResourceOps);
+export const thoughtResource = withSpaceBootstrap(thoughtResourceOps);
+export const entityResource = withSpaceBootstrap(entityResourceOps);
+export const timeBlockResource = withSpaceBootstrap(timeBlockResourceOps);
