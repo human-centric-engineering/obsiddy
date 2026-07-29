@@ -18,6 +18,7 @@ import { describe, it, expect } from 'vitest';
 
 import {
   activeManualBoost,
+  readFactorFlag,
   scoreTask,
   type ScorableTask,
   type ScoreInput,
@@ -535,5 +536,41 @@ describe('activeManualBoost', () => {
     expect(activeManualBoost({ manualBoost: 0, manualBoostExpiresAt: daysFromNow(5) }, NOW)).toBe(
       0
     );
+  });
+});
+
+describe('readFactorFlag', () => {
+  it('reads a true flag out of a stored blob', () => {
+    expect(readFactorFlag({ deferred: true }, 'deferred')).toBe(true);
+  });
+
+  it('reads a false flag as false', () => {
+    expect(readFactorFlag({ deferred: false }, 'deferred')).toBe(false);
+  });
+
+  it('treats a never-scored task as false rather than throwing', () => {
+    // `priorityFactors` is null until the first pass writes it, which is the
+    // state of every task the moment it is created.
+    expect(readFactorFlag(null, 'deferred')).toBe(false);
+    expect(readFactorFlag(undefined, 'returnedFromSnooze')).toBe(false);
+  });
+
+  it('treats a missing key as false', () => {
+    expect(readFactorFlag({ base: 0.4 }, 'deferred')).toBe(false);
+  });
+
+  it('survives a blob that is not an object', () => {
+    // A hand edit, a restore from an older shape, a migration that wrote a
+    // string. None of these should take a user's dashboard down.
+    expect(readFactorFlag('nonsense', 'deferred')).toBe(false);
+    expect(readFactorFlag(42, 'deferred')).toBe(false);
+    expect(readFactorFlag([{ deferred: true }], 'deferred')).toBe(false);
+  });
+
+  it('requires a real boolean, not a truthy value', () => {
+    // A stored `"true"` string means the writer changed shape, and guessing
+    // that it meant `true` would hide the drift rather than surface it.
+    expect(readFactorFlag({ deferred: 'true' }, 'deferred')).toBe(false);
+    expect(readFactorFlag({ deferred: 1 }, 'deferred')).toBe(false);
   });
 });

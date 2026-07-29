@@ -164,6 +164,26 @@ export interface PriorityResult {
 }
 
 /**
+ * Read one boolean out of a stored `priorityFactors` blob.
+ *
+ * The column is `Json?`, so what comes back is whatever was last written —
+ * including `null` for a task that has never been scored, and anything at all
+ * after a hand edit or a restore from an older shape. Both readers of this
+ * column (the reprioritise pass asking "was this deferred last time?" and
+ * `/today` asking "is this back from snooze?") need the same guard, and it lives
+ * here because this module owns what the blob contains. Two hand-rolled copies
+ * would eventually disagree about what a malformed blob means.
+ *
+ * A guard rather than a Zod schema on purpose: this reads one boolean from data
+ * we wrote ourselves, and anything unrecognised is simply "no".
+ */
+export function readFactorFlag(factors: unknown, key: keyof PriorityFactors): boolean {
+  if (typeof factors !== 'object' || factors === null || Array.isArray(factors)) return false;
+
+  return (factors as Record<string, unknown>)[key] === true;
+}
+
+/**
  * Score one task.
  *
  * Evaluation order is fixed and load-bearing: **defer check → base → boost**.

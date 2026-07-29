@@ -102,6 +102,20 @@ release process.
   `ORDER BY priorityScore`, preset resolution in `Pacific/Auckland`, and that
   none of the new surfaces leak across users.
 
+
+### Security
+
+- **`Cache-Control: private, no-cache` on Obsiddy's per-user read endpoints**
+  (`lib/framework/obsiddy/api/cache.ts`, applied by `/obsiddy/today`,
+  `/obsiddy/inbox` and `/obsiddy/space`). Sunrise sets no cache directive on
+  `/api/v1/**`, and a response carrying an `ETag` with no freshness information
+  is heuristically cacheable (RFC 9111 §4.2.2) — so a shared proxy could store
+  one person's dashboard and serve it to the next caller. `no-cache` rather than
+  `no-store`, so the browser may still keep a copy and revalidate, which is what
+  the ETag exists for. The 304 carries the directive too. A project-wide default
+  is upstream
+  [#487](https://github.com/human-centric-engineering/sunrise/issues/487).
+
 ### Fixed
 
 - **Obsiddy's first write by any new user returned a 500.**

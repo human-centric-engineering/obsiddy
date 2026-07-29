@@ -34,6 +34,7 @@ import {
 import { listTimeBlocks, sumMinutesByArea } from '@/lib/framework/obsiddy/repo/time-blocks';
 import { largestFreeGapMinutes } from '@/lib/framework/obsiddy/priority/free-gap';
 import {
+  readFactorFlag,
   scoreTask,
   type PriorityResult,
   type ScorableArea,
@@ -41,6 +42,7 @@ import {
   type ScorableProject,
 } from '@/lib/framework/obsiddy/priority/score';
 import { resolveEnergyProfile, resolvePriorityWeights } from '@/lib/framework/obsiddy/settings';
+import type { EnergyProfile, PriorityWeights } from '@/lib/framework/obsiddy/validations';
 import { getObsiddySpace } from '@/lib/framework/obsiddy/services/space';
 import { endOfZonedDay, startOfZonedWeek, timeOfDayAt } from '@/lib/framework/obsiddy/time/zoned';
 import { logger } from '@/lib/logging';
@@ -229,10 +231,18 @@ function alignmentRank(goal: ScorableGoal, now: Date): number {
   return missed ? base * 0.7 : base;
 }
 
+/** Everything the batch shares that is not per-task. Typed so the scorer's
+ *  `energyNow` union survives the hop and needs no cast at the call site. */
+interface SharedScoringInputs {
+  now: Date;
+  weights: PriorityWeights;
+  energyNow: EnergyProfile[keyof EnergyProfile];
+}
+
 function scoreOne(
   task: TaskScoringRow,
   context: ScoringContext,
-  shared: { now: Date; weights: ReturnType<typeof resolvePriorityWeights>; energyNow: string }
+  shared: SharedScoringInputs
 ): PriorityResult {
   const project = task.projectId ? (context.projectsById.get(task.projectId) ?? null) : null;
   const area = project?.areaId ? (context.areasById.get(project.areaId) ?? null) : null;
@@ -250,27 +260,9 @@ function scoreOne(
       : null,
     area,
     largestFreeGapMinutes: context.largestFreeGap,
-    // The narrowing keeps the pure scorer's input honest without importing the
-    // energy union here; the value came from a Zod-validated profile.
-    energyNow: shared.energyNow as 'low' | 'medium' | 'high',
-    returnedFromSnooze: wasDeferredLastPass(task.priorityFactors) && !currentlyDeferred,
+    energyNow: shared.energyNow,
+    returnedFromSnooze: readFactorFlag(task.priorityFactors, 'deferred') && !currentlyDeferred,
   });
-}
-
-/**
- * Did the previous pass see this task as deferred?
- *
- * That transition — deferred last time, live now — is the whole definition of
- * "back from snooze", and reading it from the stored factors means no extra
- * column and no background job has to have run for the flag to be right.
- *
- * A hand-written guard rather than a Zod schema: this reads one boolean from a
- * blob we wrote ourselves, and anything unrecognised is simply "no".
- */
-function wasDeferredLastPass(factors: Prisma.JsonValue): boolean {
-  if (typeof factors !== 'object' || factors === null || Array.isArray(factors)) return false;
-
-  return (factors as Record<string, unknown>).deferred === true;
 }
 
 function unique(values: Array<string | null>): string[] {

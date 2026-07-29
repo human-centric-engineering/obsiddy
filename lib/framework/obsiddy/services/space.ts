@@ -160,6 +160,13 @@ export async function updateObsiddySettings(
 ): Promise<ObsiddySettings> {
   await ensureObsiddySpace(userId);
 
+  // Strip `undefined` so an omitted key stays untouched rather than being
+  // nulled. The assertion is sound and confined: only keys whose value is
+  // `undefined` are removed, and a key can only hold `undefined` if it was
+  // optional in `UpdateSpaceInput`, so the result still satisfies the type —
+  // something `Object.fromEntries` cannot express. This is not an assertion on
+  // external data (CLAUDE.md): `input` has already been through Zod. Mirrors
+  // `definedOnly` in `services/resources.ts`.
   const data = Object.fromEntries(
     Object.entries(input).filter(([, value]) => value !== undefined)
   ) as UpdateSpaceInput;

@@ -12,6 +12,7 @@ import { checkConditional, computeETag } from '@/lib/api/etag';
 import { successResponse } from '@/lib/api/responses';
 import { validateQueryParams } from '@/lib/api/validation';
 import { withAuth } from '@/lib/auth/guards';
+import { privateCacheHeaders, withPrivateCache } from '@/lib/framework/obsiddy/api/cache';
 import { ownerScope } from '@/lib/framework/obsiddy/repo/owner-scope';
 import { buildInbox } from '@/lib/framework/obsiddy/services/inbox';
 import { obsiddyListQuerySchema } from '@/lib/framework/obsiddy/validations';
@@ -29,15 +30,13 @@ export const GET = withAuth(async (request, session) => {
   const etag = computeETag(comparable);
 
   const notModified = checkConditional(request, etag);
-  if (notModified) return notModified;
+  if (notModified) return withPrivateCache(notModified);
 
   log.info('Obsiddy inbox', { count: payload.items.length, total: payload.total });
 
   return successResponse(
     payload,
     { total: payload.total, count: payload.items.length },
-    {
-      headers: { ETag: etag },
-    }
+    { headers: privateCacheHeaders(etag) }
   );
 });

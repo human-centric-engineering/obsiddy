@@ -21,6 +21,7 @@ import type { OwnerScope } from '@/lib/framework/obsiddy/repo/owner-scope';
 import { findProjectsByIds } from '@/lib/framework/obsiddy/repo/projects';
 import { findLatestReview } from '@/lib/framework/obsiddy/repo/reviews';
 import { countTasks, listTasks } from '@/lib/framework/obsiddy/repo/tasks';
+import { readFactorFlag } from '@/lib/framework/obsiddy/priority/score';
 import { countThoughts } from '@/lib/framework/obsiddy/repo/thoughts';
 import { listTimeBlocks, sumMinutesByArea } from '@/lib/framework/obsiddy/repo/time-blocks';
 import { getObsiddySettings } from '@/lib/framework/obsiddy/services/space';
@@ -43,6 +44,10 @@ const TIME_BLOCK_LIMIT = 200;
 
 /** How far ahead a goal's target date counts as "at risk". */
 const GOAL_RISK_WINDOW_DAYS = 7;
+
+/** Goals shown as at risk. Its own cap — a person can be behind on more goals
+ *  than they can have tasks on a dashboard, and the two are unrelated. */
+const GOAL_LIMIT = 20;
 
 /** Statuses that are finished business and never belong on a dashboard. */
 const CLOSED_TASK_STATUSES = ['done', 'dropped'];
@@ -128,7 +133,7 @@ export async function buildToday(scope: OwnerScope, now = new Date()): Promise<T
         status: 'active',
         targetBefore: addZonedDays(now, GOAL_RISK_WINDOW_DAYS, timezone),
       },
-      { take: TASK_LIMIT }
+      { take: GOAL_LIMIT }
     ),
     countUnreviewedLinks(scope, now),
     listUnreviewedLinks(scope, UNREVIEWED_LINK_LIMIT, now),
@@ -174,7 +179,7 @@ export async function buildToday(scope: OwnerScope, now = new Date()): Promise<T
       };
     }),
     returnedFromSnooze: tasks
-      .filter((task) => hasReturnedFromSnooze(task.priorityFactors))
+      .filter((task) => readFactorFlag(task.priorityFactors, 'returnedFromSnooze'))
       .map((task) => task.id),
     timeBlocks,
     inboxCount,
@@ -203,19 +208,6 @@ export async function buildToday(scope: OwnerScope, now = new Date()): Promise<T
       remainingMinutes: Math.max(0, settings.weeklyCapacityMinutes - plannedMinutesThisWeek),
     },
   };
-}
-
-/**
- * Read the flag the scorer set, rather than recomputing it.
- *
- * The scorer is the only thing that knows a task was deferred on the previous
- * pass and is not now; deriving it a second time here would be a second
- * definition of "back from snooze", and the two would eventually disagree.
- */
-function hasReturnedFromSnooze(factors: unknown): boolean {
-  if (typeof factors !== 'object' || factors === null || Array.isArray(factors)) return false;
-
-  return (factors as Record<string, unknown>).returnedFromSnooze === true;
 }
 
 function uniqueIds(values: Array<string | null>): string[] {
