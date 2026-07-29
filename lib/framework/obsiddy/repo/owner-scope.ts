@@ -72,13 +72,24 @@ export function ownerScope(userId: string): OwnerScope {
 }
 
 /**
- * The mandatory filter fragment. Spread it FIRST in every `where`, so a
- * later key can never overwrite `userId`:
+ * The mandatory filter fragment.
+ *
+ * **In a `where`, spread it first and follow it only with literal keys** —
+ * that reads as "scoped, then filtered", and is what every repo here does:
  *
  *   where: { ...ownerWhere(scope), status: 'todo' }   // correct
- *   where: { status: 'todo', ...ownerWhere(scope) }   // also correct, but the
- *                                                     // first form reads as
- *                                                     // "scoped, then filtered"
+ *
+ * **In `data`, spread it LAST**, because the last spread wins and the scope
+ * must beat anything the caller sent:
+ *
+ *   data: { ...input, ...ownerWhere(scope) }          // correct — scope wins
+ *
+ * The rule is therefore "the scope is the spread that wins", not a fixed
+ * position. Never spread a caller-supplied object *after* `ownerWhere` in a
+ * `where` — `{ ...ownerWhere(scope), ...filters }` lets a `userId` key in
+ * `filters` replace the scope, which is precisely the leak this type exists to
+ * prevent. (No repo does this today; the `WithoutOwner` type and the `.strict()`
+ * route schemas are the two other things standing in the way.)
  */
 export function ownerWhere(scope: OwnerScope): { userId: string } {
   return { userId: scope.userId };

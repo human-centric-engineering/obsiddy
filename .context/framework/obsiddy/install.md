@@ -261,14 +261,23 @@ npm run db:drift-check   # phase 1 onward
 npm run test
 ```
 
-**One Sunrise test will fail, and it's supposed to.**
-`tests/unit/lib/app/defaults.test.ts` asserts every `lib/app/*` seam ships
-empty — the vanilla contract. Filling the ESLint seam (§2.3) breaks the
-`toEqual([])` assertion. Adjust that one assertion to your project's reality
-rather than deleting the test: the rest of the file is still protecting you
-against a stray registration in the seams you have _not_ filled. Obsiddy's own
-copy asserts identity with the framework tier array, so a block added straight
-to the leaf seam still fails.
+**Two Sunrise tests will fail, and they're supposed to.** Both assert that a
+`lib/app/*` seam ships empty — the vanilla contract — so filling the seam, which
+is the entire point of the seam, breaks them. This is upstream
+[#480](https://github.com/human-centric-engineering/sunrise/issues/480); until it
+lands, adjust the assertion rather than deleting the test, so the rest of each
+file still protects you against a stray registration in the seams you have _not_
+filled.
+
+| Test                                     | Broken by                       | Adjust to                                                         |
+| ---------------------------------------- | ------------------------------- | ----------------------------------------------------------------- |
+| `tests/unit/lib/app/defaults.test.ts`    | the ESLint seam (§2.3)          | identity with the framework-tier config array                     |
+| `tests/unit/lib/db/drift-probes.test.ts` | the drift-probe scaffold (§2.5) | identity with what `registerObsiddyDriftProbes()` alone registers |
+
+Assert **identity with the thing your tier owns**, not a literal list — that way
+a probe or block added straight to the leaf seam still fails, which is the
+intent the original test was protecting. Obsiddy's own copies of both do this;
+copy them.
 
 Then, the check that actually proves portability:
 
