@@ -62,12 +62,12 @@ npm run lint                     # eslint . (cached)
 npm run lint:fix                 # eslint --fix — safe auto-fix
 npm run format                   # prettier --write — safe auto-fix
 npm run format:check             # prettier --check
-npx vitest run                   # full suite, single pass
-npx vitest run --coverage        # + coverage/coverage-summary.json
+npx vitest run                   # full suite, single pass — ~4 min, the arbiter
+npx vitest run --coverage        # + coverage/coverage-summary.json — ~39 min
 npm run db:drift-check           # ONLY if the branch touched prisma/
 ```
 
-Two gotchas that will otherwise cost you a run:
+Three gotchas that will otherwise cost you a run:
 
 - **Use `npx vitest run`, not `npm run test`.** `"test": "vitest"` can enter watch
   mode and hang. Same for coverage: `npx vitest run --coverage` over
@@ -77,6 +77,13 @@ Two gotchas that will otherwise cost you a run:
   tsvector/GIN index, a hand-written FK); this is a **stop and report**, see
   [Repo boundaries](#repo-boundaries--never-edit-these-to-pass-a-gate) · `2`
   skipped, local DB unreachable — record it, do not fail the run on it.
+
+- **A failing `--coverage` run writes no coverage report.** Vitest exits before
+  generating it, so you get the failures _and_ an empty `coverage/` — the worst of
+  both. Get gate 1 green first, then measure coverage; and prefer scoping the
+  coverage run to the branch's own suites (`npx vitest run --coverage <dirs>`),
+  which takes seconds rather than 39 minutes and reports the same per-file numbers
+  for the files you care about.
 
 Coverage thresholds are **80%** on lines, branches, functions and statements
 (`vitest.config.ts`), per-file data in `coverage/coverage-summary.json`.
@@ -247,6 +254,22 @@ add one for internal work. Known flake: full-suite runs occasionally fail 1–5
 admin/orchestration UI tests on `waitFor` timeouts that pass in isolation. Re-run
 the failing file alone (`npx vitest run <path>`) before treating it as real; if it
 passes, note it as a flake, don't "fix" it.
+
+**But isolation is not proof, and this is the trap that has already cost a
+retracted upstream bug report.** Every timeout-shaped failure in this repo is
+load-sensitive, and a re-run started in the shadow of a long job inherits that
+load — a quiet shell is not an idle machine. `--coverage` is the usual culprit:
+it costs **10× wall-clock** here (2340s vs 219s for the same suite), so the
+minutes after a coverage run are the _worst_ time to judge a flake. Before
+concluding "reproduces in isolation, therefore real":
+
+- Wait for every background job to finish, then re-run — not immediately after.
+- Prefer a **full suite without `--coverage`** as the arbiter. It is ~4 minutes
+  and it is the run that matters; a green full suite outranks a red single file.
+- Treat a failure that is _only_ `Test timed out in Nms` as load-suspect by
+  default, whatever the file. Real logic breaks assert something specific.
+- Never file upstream, or attribute a failure to the fork point, on the strength
+  of consecutive reproductions inside one loaded window.
 
 **2 · `/test-coverage branch`.** This scopes coverage to the branch diff against
 `origin/main` — the right lens here; leave the whole-project mode alone. For
