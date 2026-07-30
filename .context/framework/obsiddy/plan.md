@@ -723,6 +723,17 @@ Two ordering mechanisms exist, but they never apply to the same board. That sepa
 
 - **`wipLimit` per column.** Capping `doing` is the one genuinely valuable kanban idea: it stops you starting six things. Exceeding it flags the column rather than blocking the drop — a hard block just teaches people to lie to the tool.
 - **Aging indicators.** A card sitting in `doing` for eleven days should look wrong. Compute from the `ObsiddyEvent` timestamp of the last status change; no new column.
+
+  _Phase 5 note — built differently, deliberately._ `ObsiddyEvent` records `updated`
+  without recording **which field** changed, so there is no way to tell a status move
+  from an edited note; and reading every card's event history would undo the board's
+  one-query-per-concern batching. The board therefore reports `updatedAt` — how long
+  since the card was touched at all — and the UI says exactly that: "untouched 11d",
+  never "in this column 11 days". Same signal for the case that matters (a card nobody
+  has moved), without asserting something the data cannot support. Recording a
+  `{ statusFrom, statusTo }` payload on the `updated` event would close the gap for
+  cards changed from that point on; it is worth doing when something else needs it.
+
 - **Swimlanes** by project, area or **client entity** — "show me the board for Acme" is the same query plus one filter, free now that `ObsiddyEntity` exists (§1).
 
 ### Card content
@@ -1072,7 +1083,10 @@ Phase 19 is 5–7 days and is the first thing in the whole plan that can fail in
    8e. **Capture channels and export hardening.** Record 10 seconds of speech, assert a `ObsiddyThought` lands with `source: 'voice'` and the transcript populated, and that **no audio file is retained**. Photograph text, assert extraction. An `AiApiKey` scoped to `obsiddy` can POST `/obsiddy/capture` and **cannot** reach `/obsiddy/tasks` or any admin route; a revoked key 401s immediately. **CSV export neutralises leading `=`, `+`, `-` and `@`** via `csvEscape` — the formula-injection case, tested explicitly.
    8d. **Platform wiring (§7).** From an MCP client authenticated with user A's key, `obsiddy_search` returns only A's rows and **never B's** — this is the same isolation invariant as the HTTP path but a completely separate entry point, so it needs its own test. An MCP key scoped to `obsiddy-companion` cannot dispatch a capability that agent isn't bound to. The `obsiddy-core` profile's guardrails appear in every agent's resolved prompt (`resolveEffectivePrompt`). A `judge_call` step resolves `obsiddy-judge` rather than failing on a missing agent. The eval dataset runs green against the seeded triage prompt, and a deliberately degraded prompt makes it fail — an eval that can't fail is measuring nothing. Obsiddy agents and workflows survive an export → wipe → import round trip via the existing backup exporter.
    8c. **Boards.** Dragging a card between columns changes `status` and nothing else; dragging to a column top sets `manualBoost` _with_ an expiry. Explicit-board reorder survives a renormalisation pass with the same visual order. A `wipLimit` breach flags but does not block. **Sharing a filter-backed board then creating a matching task makes that task visible to the grantee** — assert it, because it's the leak the design deliberately accepts; then assert the snapshot path does _not_ do this. A shared board exposes no `notes` when `includeTaskDetail` is off, and no `priorityScore` ever. CSV export opens in Trello's importer with lists and labels intact. **Export of a shared-in board is refused.** Keyboard-only: focus a card, move it across columns, save — no mouse.
-   8b. **Entities and documents.** Upload one file per supported format (PDF, DOCX, EPUB, CSV, HTML, MD, TXT) and assert each reaches `status: 'ready'` with `chunkCount > 0`; assert a re-upload of the same bytes dedupes on `fileHash`; assert a document is findable by _meaning_ rather than exact wording. Create two entities, link a project to both, and assert `GET /obsiddy/entities/[id]` returns only that entity's linked items — and that user B's entities never appear. Assert entities are **absent** from `score.ts` inputs (a neglected client must not inflate task scores). Assert `/obsiddy/graph?focus=…&depth=1` respects the node cap and excludes archived items.
+   8b. **Entities and documents.** _(Phase 5 note: the entity assertion below now
+   targets `GET /obsiddy/entities/[id]/view`. The generic `[id]` handler stays bare —
+   threading `?include=` through `createItemHandlers` would push page-shaped concerns
+   into the one factory that guarantees the isolation rules for twenty routes.)_ Upload one file per supported format (PDF, DOCX, EPUB, CSV, HTML, MD, TXT) and assert each reaches `status: 'ready'` with `chunkCount > 0`; assert a re-upload of the same bytes dedupes on `fileHash`; assert a document is findable by _meaning_ rather than exact wording. Create two entities, link a project to both, and assert `GET /obsiddy/entities/[id]` returns only that entity's linked items — and that user B's entities never appear. Assert entities are **absent** from `score.ts` inputs (a neglected client must not inflate task scores). Assert `/obsiddy/graph?focus=…&depth=1` respects the node cap and excludes archived items.
 9. Inbound: `curl -u $POSTMARK_INBOUND_USER:$POSTMARK_INBOUND_PASS` a Postmark-shaped body; assert a thought lands and a replay of the same `MessageID` dedupes.
 10. Schedules: set a cron to `* * * * *`, let the dev ticker fire, assert `AiWorkflowExecution.userId` equals the schedule creator and a `ObsiddyReview` appears.
 11. PWA: DevTools → Application → Manifest → Installability; Android share sheet → `/obsiddy/capture` prefilled.

@@ -231,17 +231,62 @@ lands upstream, the connection sweep and retention pass need one line added to
 `lib/orchestration/maintenance/run-tick.ts` — the single documented exception to
 the zero-core-file rule, and a temporary one.
 
-### 2.11 Nav — `lib/app/protected-nav.ts` _(phase 5)_
+### 2.11 Nav — `lib/app/protected-nav.ts` _(phase 5, **required now**)_
 
-Requires the `protected-nav` seam (Sunrise phase 0b). Until it lands, add one
-entry to `components/layouts/protected-nav.tsx` by hand.
+Requires the `protected-nav` seam (Sunrise phase 0b, [#473]). Until it lands, add
+one entry to the `navItems` array in `components/layouts/protected-nav.tsx`:
+
+```tsx
+{ href: '/obsiddy', label: 'Obsiddy', icon: Brain, adminOnly: false },
+```
+
+**This is the only Sunrise-owned file Obsiddy edits.** It is commented in place
+with what to delete when the seam lands. Everything else — the admin nav, the
+rate-limit sub-caps, the drift probes, the boot hook — goes through a
+`lib/app/` seam.
+
+[#473]: https://github.com/human-centric-engineering/sunrise/issues/473
+
+### 2.12 The UI — files a host copies _(phase 5)_
+
+Obsiddy's user-facing surfaces are tier-owned files under paths a host project
+copies wholesale. None of them is a Sunrise file, and none needs registering:
+
+| What          | Path                                                   |
+| ------------- | ------------------------------------------------------ |
+| Pages         | `app/(protected)/obsiddy/**`                           |
+| API routes    | `app/api/v1/obsiddy/**`                                |
+| Admin page    | `app/admin/obsiddy/**`                                 |
+| Components    | `components/obsiddy/**`                                |
+| Library       | `lib/framework/obsiddy/**`                             |
+| Schema        | `prisma/schema/framework-obsiddy.prisma`               |
+| Migrations    | `prisma/migrations/*obsiddy*` and `*add_second_brain*` |
+| Docs          | `.context/framework/obsiddy/**`                        |
+| Smoke scripts | `scripts/framework/obsiddy/**`                         |
+
+That list is also the **removal list** for the portability check: the app must
+still build with all of it deleted, which is what proves the tier is a guest
+rather than a dependency. Phase 0's version of this check named only
+`lib/framework/` — that was correct when the tier had no routes, and is not any
+more.
+
+Three npm dependencies arrive with the UI:
+
+```bash
+npm install d3-force @dnd-kit/core @dnd-kit/sortable
+npm install -D @types/d3-force
+```
+
+`d3-force` lays out the graph (`@xyflow/react` renders it but expects
+coordinates); the two `@dnd-kit` packages drive the board and are the reason the
+board is operable by keyboard at all.
 
 ---
 
 ## 3. Migrate
 
 ```bash
-npm run db:migrate:deploy    # applies all three Obsiddy migrations
+npm run db:migrate:deploy    # applies all six Obsiddy migrations
 npm run db:drift-check       # MUST be green before you go further
 npm run db:seed              # applies prisma/seeds/framework-obsiddy/* (phase 6)
 ```
