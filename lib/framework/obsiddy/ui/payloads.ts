@@ -300,3 +300,63 @@ export const taskSchema = z.object({
 });
 
 export type TaskWire = z.infer<typeof taskSchema>;
+
+// ─── Detail views (`/view` endpoints) ────────────────────────────────────────
+
+/**
+ * One end of a connection, resolved.
+ *
+ * `title: null` means the row the link points at no longer exists — a normal state
+ * for a polymorphic edge table with no foreign keys (D2), rendered inertly rather
+ * than hidden. `archivedAt` set with a title present is a different fact: the item
+ * is still there, just archived.
+ */
+export const linkEndpointSchema = z.object({
+  type: z.string(),
+  id: z.string(),
+  title: z.string().nullable(),
+  subtitle: z.string().nullable(),
+  archivedAt: isoDate.nullable(),
+});
+
+/** A connection reduced to the end the viewing page is not. */
+export const relatedItemSchema = z.object({
+  linkId: z.string(),
+  kind: z.string(),
+  status: z.string(),
+  origin: z.string(),
+  strength: z.number().nullable(),
+  rationale: z.string().nullable(),
+  direction: z.enum(['outgoing', 'incoming']),
+  endpoint: linkEndpointSchema,
+});
+
+export type RelatedItemWire = z.infer<typeof relatedItemSchema>;
+
+export const projectViewSchema = z.object({
+  project: projectSchema,
+  area: areaSchema.nullable(),
+  tasks: z.array(taskSchema),
+  openTaskCount: z.number(),
+  totalTaskCount: z.number(),
+  related: z.array(relatedItemSchema),
+});
+
+export type ProjectViewWire = z.infer<typeof projectViewSchema>;
+
+export const entityViewSchema = z.object({
+  entity: entitySchema,
+  related: z.array(relatedItemSchema),
+});
+
+export type EntityViewWire = z.infer<typeof entityViewSchema>;
+
+export const taskViewSchema = z.object({
+  task: taskSchema,
+  project: projectSchema.nullable(),
+  area: areaSchema.nullable(),
+  goalTitle: z.string().nullable(),
+  related: z.array(relatedItemSchema),
+});
+
+export type TaskViewWire = z.infer<typeof taskViewSchema>;

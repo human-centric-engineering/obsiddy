@@ -121,6 +121,40 @@ export async function listSuggestedLinksForSources(
   });
 }
 
+/**
+ * Every link touching one entity, on **either** end.
+ *
+ * `listLinks` filters by source only, which is right for the sweep (it writes
+ * source-first) and wrong for a detail page. Several link kinds are directional —
+ * `blocks`, `supports` — so a project is legitimately the target of some of its
+ * own connections. Asking only for `sourceId` silently returns half the list, and
+ * the half it returns looks complete.
+ *
+ * Ordered strongest-first so a page can cap the list without dropping its best
+ * rows.
+ */
+export async function listLinksForEntity(
+  scope: OwnerScope,
+  entityType: string,
+  entityId: string,
+  options: { statuses?: string[]; take?: number } = {}
+): Promise<ObsiddyLink[]> {
+  const { statuses, take } = options;
+
+  return prisma.obsiddyLink.findMany({
+    where: {
+      ...ownerWhere(scope),
+      ...(statuses && statuses.length > 0 ? { status: { in: statuses } } : {}),
+      OR: [
+        { sourceType: entityType, sourceId: entityId },
+        { targetType: entityType, targetId: entityId },
+      ],
+    },
+    orderBy: [{ strength: 'desc' }, { createdAt: 'desc' }],
+    ...(take !== undefined ? { take } : {}),
+  });
+}
+
 // ─── Writes (phase 4: the connection engine) ─────────────────────────────────
 
 export interface LinkFilters {

@@ -47,6 +47,14 @@ export const OBSIDDY_API = {
   /** Triage: one thought becomes a task, a project or a goal. */
   promotePath: (id: string): string => `/api/v1/obsiddy/thoughts/${id}/promote`,
 
+  /**
+   * The enriched read behind a detail page — one request, fixed query count.
+   *
+   * A sibling of the item route rather than an `?include=` on it, so the generic
+   * item handlers stay bare (see `services/details.ts`).
+   */
+  viewPath: (collection: string, id: string): string => `${collection}/${id}/view`,
+
   LINKS: '/api/v1/obsiddy/links',
   linkById: (id: string): string => `/api/v1/obsiddy/links/${id}`,
   CONNECTIONS_SWEEP: '/api/v1/obsiddy/connections/sweep',
