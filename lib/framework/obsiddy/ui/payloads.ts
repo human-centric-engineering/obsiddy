@@ -360,3 +360,58 @@ export const taskViewSchema = z.object({
 });
 
 export type TaskViewWire = z.infer<typeof taskViewSchema>;
+
+// ─── /obsiddy/connections ────────────────────────────────────────────────────
+
+export const connectionRowSchema = z.object({
+  id: z.string(),
+  kind: z.string(),
+  status: z.string(),
+  origin: z.string(),
+  strength: z.number().nullable(),
+  rationale: z.string().nullable(),
+  createdAt: isoDate,
+  reviewedAt: isoDate.nullable(),
+  source: linkEndpointSchema,
+  target: linkEndpointSchema,
+});
+
+export type ConnectionRowWire = z.infer<typeof connectionRowSchema>;
+
+export const connectionRowsSchema = z.array(connectionRowSchema);
+
+// ─── /obsiddy/graph ──────────────────────────────────────────────────────────
+
+export const graphPayloadSchema = z.object({
+  focus: z.object({ type: z.string(), id: z.string() }),
+  nodes: z.array(
+    z.object({
+      type: z.string(),
+      id: z.string(),
+      title: z.string(),
+      subtitle: z.string().nullable(),
+      depth: z.number(),
+    })
+  ),
+  edges: z.array(
+    z.object({
+      linkId: z.string(),
+      sourceType: z.string(),
+      sourceId: z.string(),
+      targetType: z.string(),
+      targetId: z.string(),
+      kind: z.string(),
+      status: z.string(),
+      strength: z.number().nullable(),
+      rationale: z.string().nullable(),
+    })
+  ),
+  /** True when the walk hit the node cap rather than running out of links. */
+  truncated: z.boolean(),
+  nodeCap: z.number(),
+  depth: z.number(),
+});
+
+export type GraphPayloadWire = z.infer<typeof graphPayloadSchema>;
+export type GraphNodeWire = GraphPayloadWire['nodes'][number];
+export type GraphEdgeWire = GraphPayloadWire['edges'][number];

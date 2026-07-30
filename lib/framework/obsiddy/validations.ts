@@ -492,6 +492,57 @@ export const linkListQuerySchema = obsiddyListQuerySchema.extend({
 // body and no arguments, so there is nothing to validate. An empty `.strict()`
 // object would only add a way to 400 on a request nobody sends.
 
+/**
+ * `GET /obsiddy/connections` — the review queue.
+ *
+ * Same shape as `linkListQuerySchema` minus the source filters, because a review
+ * queue is asked about by status and kind, never by which end a link starts at.
+ * Omitting `status` means "things waiting on a decision" rather than "everything" —
+ * the service narrows it, and the count follows the same filter so the number and
+ * the list cannot disagree.
+ */
+export const connectionsQuerySchema = obsiddyListQuerySchema.extend({
+  status: z.enum(LINK_STATUSES).optional(),
+  kind: z.enum(LINK_KINDS).optional(),
+});
+
+export type ConnectionsQueryInput = z.infer<typeof connectionsQuerySchema>;
+
+/**
+ * `GET /obsiddy/graph` — a neighbourhood around one node.
+ *
+ * **`focus` and `focusType` are required**, and that is the design rather than an
+ * omission: an unfocused graph of a real brain is a hairball that looks impressive
+ * and tells you nothing (§9). There is deliberately no "show everything" mode to
+ * fall back to.
+ *
+ * `depth` is capped at 2 and `limit` at 150 by the service as well as here — a query
+ * string is external input, and the cost of an over-wide walk is paid in the
+ * database rather than in the response the client could have ignored.
+ */
+export const graphQuerySchema = z
+  .object({
+    focus: cuidSchema,
+    focusType: z.enum(SEARCHABLE_ENTITY_TYPES),
+    depth: z.coerce.number().int().min(1).max(2).default(1),
+    limit: z.coerce.number().int().min(1).max(150).default(150),
+    types: z
+      .string()
+      .optional()
+      .transform((value) =>
+        value
+          ? value
+              .split(',')
+              .map((part) => part.trim())
+              .filter((part) => part.length > 0)
+          : undefined
+      )
+      .pipe(z.array(z.enum(SEARCHABLE_ENTITY_TYPES)).min(1).optional()),
+  })
+  .strict();
+
+export type GraphQueryInput = z.infer<typeof graphQuerySchema>;
+
 // ─── Documents (phase 4) ─────────────────────────────────────────────────────
 
 /**

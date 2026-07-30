@@ -56,6 +56,10 @@ export const OBSIDDY_API = {
   viewPath: (collection: string, id: string): string => `${collection}/${id}/view`,
 
   LINKS: '/api/v1/obsiddy/links',
+  /** The review queue, with both ends of each link resolved. */
+  CONNECTIONS: '/api/v1/obsiddy/connections',
+  /** A neighbourhood around one node — never the whole corpus. */
+  GRAPH: '/api/v1/obsiddy/graph',
   linkById: (id: string): string => `/api/v1/obsiddy/links/${id}`,
   CONNECTIONS_SWEEP: '/api/v1/obsiddy/connections/sweep',
 
