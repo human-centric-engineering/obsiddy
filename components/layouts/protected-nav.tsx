@@ -15,13 +15,29 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useSession } from '@/lib/auth/client';
-import { LayoutDashboard, User, Settings, Shield } from 'lucide-react';
+import { LayoutDashboard, User, Settings, Shield, Brain } from 'lucide-react';
 
 const navItems = [
   {
     href: '/dashboard',
     label: 'Dashboard',
     icon: LayoutDashboard,
+    adminOnly: false,
+  },
+  // FRAMEWORK-TIER ENTRY (Obsiddy) — the one Sunrise-owned line Obsiddy edits.
+  //
+  // There is no `lib/app/protected-nav.ts` seam yet, so a framework tier cannot
+  // contribute a nav item the way it contributes an admin section
+  // (`lib/app/admin-nav.ts`). Filed upstream as sunrise#473 and recorded as ask
+  // #2 in `.context/framework/obsiddy/sunrise-asks.md`; `install.md` §2.11
+  // documents this line as the interim workaround for host projects.
+  //
+  // When the seam lands: delete this entry, register through the seam instead,
+  // and move the ask to the Landed table.
+  {
+    href: '/obsiddy',
+    label: 'Obsiddy',
+    icon: Brain,
     adminOnly: false,
   },
   {

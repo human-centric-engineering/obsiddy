@@ -588,6 +588,40 @@ export const priorityWeightsSchema = z
 export type PriorityWeights = z.infer<typeof priorityWeightsSchema>;
 
 /**
+ * The shape of a stored `priorityFactors` blob, for readers.
+ *
+ * The column is `Json?`, so anything a caller pulls out of it is external data
+ * even though this codebase wrote it — a row scored by an older build has an
+ * older shape, and `CLAUDE.md` forbids an `as` cast over that. The UI parses with
+ * this and falls back to "no explanation recorded" rather than rendering
+ * `undefined`.
+ *
+ * Deliberately **not** `.strict()`: a future build adding a seventh field must
+ * not blank the explanation on every task scored before this one. Unknown keys
+ * are dropped, known ones are trusted.
+ *
+ * The writer is `PriorityFactors` in `priority/score.ts`; keep the two in step.
+ */
+export const priorityFactorsSchema = z.object({
+  urgency: z.number(),
+  goalAlignment: z.number(),
+  projectMomentum: z.number(),
+  areaBalance: z.number(),
+  effortFit: z.number(),
+  staleness: z.number(),
+  base: z.number(),
+  manualBoost: z.number(),
+  boostActive: z.boolean(),
+  boostReason: z.string().nullable(),
+  deferred: z.boolean(),
+  returnedFromSnooze: z.boolean(),
+  dominantFactor: z.string(),
+  scoredAt: z.string(),
+});
+
+export type StoredPriorityFactors = z.infer<typeof priorityFactorsSchema>;
+
+/**
  * Which energy level you have when. Feeds `effortFit`: a `high`-energy task
  * scheduled into your `low`-energy evening fits worse than it looks on paper.
  *

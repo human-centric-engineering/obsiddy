@@ -15,6 +15,8 @@ export const OBSIDDY_API = {
   TODAY: '/api/v1/obsiddy/today',
   INBOX: '/api/v1/obsiddy/inbox',
   SPACE: '/api/v1/obsiddy/space',
+  /** Badge numbers for the shell — cheap enough to read on every navigation. */
+  COUNTS: '/api/v1/obsiddy/counts',
 
   SEARCH: '/api/v1/obsiddy/search',
   REINDEX: '/api/v1/obsiddy/reindex',
@@ -26,6 +28,21 @@ export const OBSIDDY_API = {
   THOUGHTS: '/api/v1/obsiddy/thoughts',
   ENTITIES: '/api/v1/obsiddy/entities',
   TIME_BLOCKS: '/api/v1/obsiddy/time-blocks',
+
+  /**
+   * Item and action paths for the collections above.
+   *
+   * `collection` is one of the constants on this object, so a caller composes
+   * `itemPath(OBSIDDY_API.TASKS, id)` rather than re-typing the prefix. The three
+   * lifecycle actions are named rather than string-built because each has
+   * behaviour a raw `PATCH` of the underlying column would skip — the snooze pair
+   * increments `snoozeCount` and logs an event, and restore nulls `indexedHash`
+   * so the item is re-embedded (see `api/handlers.ts`).
+   */
+  itemPath: (collection: string, id: string): string => `${collection}/${id}`,
+  snoozePath: (collection: string, id: string): string => `${collection}/${id}/snooze`,
+  unsnoozePath: (collection: string, id: string): string => `${collection}/${id}/unsnooze`,
+  restorePath: (collection: string, id: string): string => `${collection}/${id}/restore`,
 
   LINKS: '/api/v1/obsiddy/links',
   linkById: (id: string): string => `/api/v1/obsiddy/links/${id}`,
