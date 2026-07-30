@@ -120,6 +120,13 @@ export async function countUnindexed(scope: OwnerScope, entityType: EmbeddedType
  * unchanged — both are "dealt with". Without the second case an unchanged row
  * would stay null forever and be re-examined on every pass, which is a slow
  * query rather than a cost bug, but still a queue that never drains.
+ *
+ * **`updateMany`, not `update`.** A scoped `update` raises `P2025` when the row
+ * has gone, and these run inside one transaction *after* the embeddings have been
+ * paid for: a user deleting one of the fifty rows mid-pass would roll back all
+ * fifty stamps and fail the request, having already spent the money — and the
+ * 5/hour cap would be gone too. `updateMany` treats a vanished row as zero rows
+ * affected, which is exactly right: it no longer needs stamping.
  */
 export async function stampIndexedHash(
   scope: OwnerScope,
@@ -128,29 +135,30 @@ export async function stampIndexedHash(
 ): Promise<number> {
   if (stamps.length === 0) return 0;
 
-  await prisma.$transaction(
+  const results = await prisma.$transaction(
     stamps.map(({ id, hash }) => {
       const where = { id, ...ownerWhere(scope) };
       const data = { indexedHash: hash };
 
       switch (entityType) {
         case 'thought':
-          return prisma.obsiddyThought.update({ where, data });
+          return prisma.obsiddyThought.updateMany({ where, data });
         case 'project':
-          return prisma.obsiddyProject.update({ where, data });
+          return prisma.obsiddyProject.updateMany({ where, data });
         case 'goal':
-          return prisma.obsiddyGoal.update({ where, data });
+          return prisma.obsiddyGoal.updateMany({ where, data });
         case 'area':
-          return prisma.obsiddyArea.update({ where, data });
+          return prisma.obsiddyArea.updateMany({ where, data });
         case 'entity':
-          return prisma.obsiddyEntity.update({ where, data });
+          return prisma.obsiddyEntity.updateMany({ where, data });
         case 'document':
-          return prisma.obsiddyDocument.update({ where, data });
+          return prisma.obsiddyDocument.updateMany({ where, data });
       }
     })
   );
 
-  return stamps.length;
+  // Rows actually stamped, which can be fewer than requested if one vanished.
+  return results.reduce((total, result) => total + result.count, 0);
 }
 
 /**

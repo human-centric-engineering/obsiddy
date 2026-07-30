@@ -205,6 +205,32 @@ export async function archiveAndDropVectors<T>(
   });
 }
 
+/**
+ * Hard-delete an entity and its vectors **atomically**.
+ *
+ * `ObsiddyEmbedding` is polymorphic with no FK to its endpoints (D2), so nothing
+ * cascades — a destroyed row leaves its chunks behind. Search hides that (it drops
+ * hits it cannot hydrate), which is exactly why it needs to be handled here: the
+ * damage surfaces somewhere else entirely. The connection sweep reads
+ * `listEmbeddedEntityIds`, gets the dead entity's id back as a source *and* as a
+ * neighbour, and writes `ObsiddyLink` rows pointing at something that no longer
+ * exists — so the connections view fills with suggestions that resolve to nothing.
+ */
+export async function deleteAndDropVectors<T>(
+  scope: OwnerScope,
+  entityType: EmbeddedType,
+  entityId: string,
+  remove: () => Prisma.PrismaPromise<T>
+): Promise<T | null> {
+  return nullOnMiss(async () => {
+    const [removed] = await prisma.$transaction([
+      remove(),
+      prisma.obsiddyEmbedding.deleteMany(embeddingDeleteArgs(scope, entityType, entityId)),
+    ]);
+    return removed;
+  });
+}
+
 /** Standalone delete, for the paths that aren't already in a transaction. */
 export async function deleteEmbeddingsFor(
   scope: OwnerScope,
@@ -291,6 +317,27 @@ export interface HybridSearchInput {
  * (`lib/orchestration/knowledge/search.ts`) — including `ts_rank_cd(…, 32)`,
  * whose normalisation bounds the keyword half to `[0, 1)` and therefore keeps
  * the blend comparable across queries.
+ *
+ * ## This is EXACT search, not ANN — the HNSW index is not used here
+ *
+ * Verified with `EXPLAIN` against a 2000-row table with `enable_seqscan = off`:
+ * this query plans as `Index Scan using …_userId_entityType` + a filter + a sort.
+ * pgvector's HNSW index is only usable for a bare `ORDER BY embedding <=> $1
+ * LIMIT n`, and both halves of what makes this query useful defeat that — the
+ * distance *pre-filter* (`< maxDistance`) and the *blended* `ORDER BY final_score`.
+ *
+ * That is a deliberate trade at personal-brain scale, not an oversight. Exact
+ * distance over one user's few thousand chunks gives perfect recall for a few
+ * milliseconds; ANN would add approximation for no benefit at this size. The index
+ * is kept because it costs little on insert, it is drift-probed (B3), and it is
+ * what a later phase would need the moment the corpus outgrows exact search — at
+ * which point the fix is an inner index-usable CTE (`ORDER BY … LIMIT k`) feeding
+ * the blend, which changes recall semantics and so is a decision, not a tidy-up.
+ *
+ * **Do not describe this as HNSW-accelerated.** It was documented that way and it
+ * was not true; the same applies to "dropping the index degrades search to a
+ * sequential scan" — search does not use it, so the probe protects a future, not a
+ * present.
  */
 export async function hybridSearchRows(
   scope: OwnerScope,
@@ -466,7 +513,21 @@ export async function nearestNeighbourRows(
   return rows;
 }
 
-/** Entity ids that have at least one stored vector, for sweep candidate lists. */
+/**
+ * Entity ids that have at least one stored vector, for sweep candidate lists.
+ *
+ * **Ordered oldest-swept-first, not newest-embedded-first.** This ordering is the
+ * whole reason the per-type cap is survivable. `orderBy: { embeddedAt: 'desc' }`
+ * looks like the obvious choice and is a trap: `embeddedAt` only moves when a row
+ * is re-embedded, so a capped run would return the *same* most-recent N ids on
+ * every sweep, for ever — a user with 900 projects would have 700 of them
+ * permanently unreachable by the connection engine, while the run logged that it
+ * had merely stopped early. `sweptAt` is bumped for every id the sweep examines
+ * (`markSwept`), so a capped run picks up where the last one left off and the
+ * corpus rotates through.
+ *
+ * Nulls first: a never-swept row outranks anything already looked at.
+ */
 export async function listEmbeddedEntityIds(
   scope: OwnerScope,
   entityType: EmbeddedType,
@@ -481,11 +542,34 @@ export async function listEmbeddedEntityIds(
       ...(since ? { embeddedAt: { gte: since } } : {}),
     },
     select: { entityId: true },
-    orderBy: { embeddedAt: 'desc' },
+    orderBy: [{ sweptAt: { sort: 'asc', nulls: 'first' } }, { embeddedAt: 'desc' }],
     take: limit,
   });
 
   return rows.map((row) => row.entityId);
+}
+
+/**
+ * Stamp the ids a sweep just examined, so the next capped run moves on.
+ *
+ * Deliberately separate from the neighbour queries and called once per type with
+ * the whole batch: this is bookkeeping, and a per-id update would turn a bounded
+ * sweep into N extra writes.
+ */
+export async function markSwept(
+  scope: OwnerScope,
+  entityType: EmbeddedType,
+  entityIds: string[],
+  now: Date
+): Promise<number> {
+  if (entityIds.length === 0) return 0;
+
+  const { count } = await prisma.obsiddyEmbedding.updateMany({
+    where: { ...ownerWhere(scope), entityType, entityId: { in: entityIds } },
+    data: { sweptAt: now },
+  });
+
+  return count;
 }
 
 // ─── The dimension guard ─────────────────────────────────────────────────────
@@ -506,17 +590,24 @@ export async function listEmbeddedEntityIds(
  * caught too — a `findFirst` that happens to land on a matching row would let
  * the mismatch through, and the failure would then look random.
  *
+ * **Scoped to the caller.** The platform's version aggregates its whole table,
+ * which is right for a single global knowledge base and wrong here: this runs on
+ * the hot path of every search, so an unscoped aggregate would make one user's
+ * search latency grow with the entire install's corpus, and one user's mismatched
+ * vectors would throw for everybody — including a remedy ("re-index the brain")
+ * that the person seeing the error cannot perform. Scoping fixes all three.
+ *
  * Skips silently when there is no active model (legacy resolver default), no
  * corpus, or no recorded dimensions — in all three cases the stored vectors are
  * 1536 by construction.
  */
-export async function assertObsiddyModelMatchesStoredVectors(): Promise<void> {
+export async function assertObsiddyModelMatchesStoredVectors(scope: OwnerScope): Promise<void> {
   const active = await getActiveEmbeddingModelSummary();
   if (!active) return;
 
   const groups = await prisma.obsiddyEmbedding.groupBy({
     by: ['embeddingDimension'],
-    where: { embeddingDimension: { not: null } },
+    where: { ...ownerWhere(scope), embeddingDimension: { not: null } },
     _count: { _all: true },
   });
 
@@ -528,7 +619,7 @@ export async function assertObsiddyModelMatchesStoredVectors(): Promise<void> {
   const exemplars = await Promise.all(
     mismatched.map(async (group) => {
       const row = await prisma.obsiddyEmbedding.findFirst({
-        where: { embeddingDimension: group.embeddingDimension },
+        where: { ...ownerWhere(scope), embeddingDimension: group.embeddingDimension },
         select: { embeddingModel: true },
       });
       return {

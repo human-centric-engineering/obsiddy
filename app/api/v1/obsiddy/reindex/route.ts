@@ -23,11 +23,7 @@ import { getRouteLogger } from '@/lib/api/context';
 import { successResponse } from '@/lib/api/responses';
 import { validateRequestBody } from '@/lib/api/validation';
 import { withAuth } from '@/lib/auth/guards';
-import {
-  enqueueFullReindex,
-  reindexPending,
-  reindexType,
-} from '@/lib/framework/obsiddy/embedding/indexer';
+import { enqueueFullReindex, reindexPending } from '@/lib/framework/obsiddy/embedding/indexer';
 import { ownerScope } from '@/lib/framework/obsiddy/repo/owner-scope';
 import { reindexSchema } from '@/lib/framework/obsiddy/validations';
 
@@ -39,37 +35,12 @@ export const POST = withAuth(async (request, session) => {
 
   const queued = body.force ? await enqueueFullReindex(scope) : 0;
 
-  const result = body.types
-    ? await runForTypes(scope, body.types, body.limitPerType)
-    : await reindexPending(scope, body.limitPerType);
+  // `reindexPending` takes the type list, so the route no longer carries its own
+  // copy of the accumulation loop — that copy was identical line for line, which
+  // meant two places to update whenever a counter was added.
+  const result = await reindexPending(scope, body.limitPerType, body.types);
 
   log.info('Obsiddy reindex', { force: body.force, queued, ...result });
 
   return successResponse({ ...result, queued });
 });
-
-/** Sequential per type — they share one provider and its rate limits. */
-async function runForTypes(
-  scope: ReturnType<typeof ownerScope>,
-  types: ReadonlyArray<Parameters<typeof reindexType>[1]>,
-  limitPerType?: number
-): Promise<{
-  examined: number;
-  unchanged: number;
-  embedded: number;
-  chunks: number;
-  remaining: number;
-}> {
-  const totals = { examined: 0, unchanged: 0, embedded: 0, chunks: 0, remaining: 0 };
-
-  for (const entityType of types) {
-    const result = await reindexType(scope, entityType, limitPerType);
-    totals.examined += result.examined;
-    totals.unchanged += result.unchanged;
-    totals.embedded += result.embedded;
-    totals.chunks += result.chunks;
-    totals.remaining += result.remaining;
-  }
-
-  return totals;
-}

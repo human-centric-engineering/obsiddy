@@ -21,8 +21,12 @@
 // SIX Postgres objects here are managed via raw SQL in the migration because
 // Prisma cannot model them. `npx prisma migrate dev` WILL emit DROP statements
 // for all six on every schema-diff run. Always inspect generated migration SQL
-// and remove any line touching them before applying — a dropped HNSW index
-// degrades vector search to a sequential scan **silently, with no error**.
+// and remove any line touching them before applying — every one of them fails
+// **silently, with no error**. (Note: the HNSW index is NOT on today's query path —
+// the hybrid search's pre-filter and blended ORDER BY defeat it, verified with
+// EXPLAIN — so B3 guards a future restructuring. B4/B6, the GENERATED tsvector
+// columns, guard live code: recreated as plain columns they are never populated and
+// keyword search silently returns nothing.)
 // `lib/framework/obsiddy/db-drift.ts` probes all six; run
 // `npm run db:drift-check` after EVERY `migrate dev`. Non-negotiable.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -460,6 +464,15 @@ model ObsiddyEmbedding {
   /// frontmatter tick re-embeds the corpus (§17 risk 3).
   contentHash String
 
+  /// When the connection sweep last examined this entity as a source.
+  ///
+  /// The sweep is capped per type per run, and this is what makes the cap rotate
+  /// instead of re-examining the same head of the list for ever. Ordering by
+  /// `embeddedAt desc` (the obvious choice) would leave everything past the cap
+  /// permanently unreachable, because `embeddedAt` only moves on a re-embed.
+  /// Null = never swept, which sorts first.
+  sweptAt DateTime?
+
   embeddingModel     String?
   embeddingProvider  String?
   /// Probed by `assertActiveModelMatchesStoredVectors()` — without it a model
@@ -718,7 +731,15 @@ model ObsiddyDocument {
   space ObsiddySpace @relation(fields: [userId], references: [userId], onDelete: Cascade)
 
   @@index([userId, status])
-  @@index([userId, fileHash])
+  /// Dedupe is enforced by the DATABASE, not just by the lookup that precedes it.
+  ///
+  /// `ingestDocument` checks `findDocumentByHash` first, but check-then-insert has
+  /// a window: two simultaneous uploads of the same bytes both miss the check and
+  /// both create a row, each paying to parse and embed the same file.
+  /// `ObsiddyThought.externalId` got this treatment for exactly the same reason
+  /// (a replayed webhook delivery); documents deserve it too. The unique index also
+  /// serves the lookup, so it replaces the plain index rather than adding to it.
+  @@unique([userId, fileHash])
   @@index([userId, archivedAt])
   @@map("framework_obsiddy_document")
 }

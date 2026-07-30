@@ -12,7 +12,10 @@
  */
 
 import { prisma } from '@/lib/db/client';
-import { archiveAndDropVectors } from '@/lib/framework/obsiddy/repo/embeddings';
+import {
+  archiveAndDropVectors,
+  deleteAndDropVectors,
+} from '@/lib/framework/obsiddy/repo/embeddings';
 import {
   liveOwnerWhere,
   ownerWhere,
@@ -69,14 +72,46 @@ export async function findDocument(scope: OwnerScope, id: string): Promise<Obsid
 }
 
 /**
- * Dedupe lookup, scoped to the owner.
+ * Dedupe lookup, scoped to the owner and to rows a dedupe should actually match.
  *
  * **Per-user, not global.** Two people uploading the same public PDF get a row
  * each: a global hash lookup would tell user B that user A already has this
  * file, which is an existence leak, and would leave B's document pointing at
  * text A can delete.
+ *
+ * **`status: 'ready'` and not archived.** The row is created with its `fileHash`
+ * *before* parsing, so a parse failure leaves a `failed` row holding that hash. A
+ * bare hash lookup would then match it on the retry and return HTTP 200
+ * `{ deduped: true }` for a document with no extracted text — meaning a file that
+ * failed once (a scanned PDF, an unusual DOCX) could **never** be uploaded again
+ * from that account. Archived rows are excluded for the same reason: re-uploading
+ * would "succeed" and hand back something the user has already filed away and
+ * which is absent from search.
  */
 export async function findDocumentByHash(
+  scope: OwnerScope,
+  fileHash: string
+): Promise<ObsiddyDocument | null> {
+  return prisma.obsiddyDocument.findFirst({
+    where: { ...liveOwnerWhere(scope), fileHash, status: 'ready' },
+    orderBy: { createdAt: 'desc' },
+  });
+}
+
+/**
+ * The same lookup with **no status or archive filter** — whatever row holds this
+ * hash, if any.
+ *
+ * Needed because `@@unique([userId, fileHash])` and the `status: 'ready'` filter
+ * above interact: a `failed` row still occupies the hash slot, so a retry's INSERT
+ * raises P2002 while `findDocumentByHash` reports nothing. Without this the two
+ * safeguards would combine into the very bug the status filter was added to fix —
+ * a file that failed once could never be uploaded again.
+ *
+ * Ingest uses it to decide between "hand back the finished document" and "take over
+ * this dead row and re-drive it".
+ */
+export async function findDocumentByHashIncludingFailed(
   scope: OwnerScope,
   fileHash: string
 ): Promise<ObsiddyDocument | null> {
@@ -99,7 +134,14 @@ export async function updateDocument(
   data: DocumentUpdateData
 ): Promise<ObsiddyDocument | null> {
   return nullOnMiss(() =>
-    prisma.obsiddyDocument.update({ where: { id, ...ownerWhere(scope) }, data })
+    prisma.obsiddyDocument.update({
+      where: { id, ...ownerWhere(scope) },
+      // `indexedHash` LAST so it always wins: any content edit re-queues the row
+      // for the indexer. Nulling it costs a hash comparison, not an embedding
+      // call, which is why every update can do it without knowing which fields
+      // are semantic (see embedding/indexer.ts).
+      data: { ...data, indexedHash: null },
+    })
   );
 }
 
@@ -129,25 +171,21 @@ export async function restoreDocument(
 }
 
 /**
- * Hard delete. Returns the removed row so the caller can delete the stored blob
- * — `storageKey` is not recoverable afterwards, and a delete that leaves the
- * object behind is a file the user believes is gone.
+ * Hard delete, taking the document's vectors with it in one transaction.
+ *
+ * Returns the removed row so the caller can delete the stored blob — `storageKey`
+ * is not recoverable afterwards, and a delete that leaves the object behind is a
+ * file the user believes is gone.
  */
 export async function deleteDocument(
   scope: OwnerScope,
   id: string
 ): Promise<ObsiddyDocument | null> {
-  return nullOnMiss(() => prisma.obsiddyDocument.delete({ where: { id, ...ownerWhere(scope) } }));
+  return deleteAndDropVectors(scope, 'document', id, () =>
+    prisma.obsiddyDocument.delete({ where: { id, ...ownerWhere(scope) } })
+  );
 }
 
-/** Documents awaiting indexing — `indexedHash` is null until a pass stamps it. */
-export async function listUnindexedDocuments(
-  scope: OwnerScope,
-  limit: number
-): Promise<ObsiddyDocument[]> {
-  return prisma.obsiddyDocument.findMany({
-    where: { ...ownerWhere(scope), archivedAt: null, status: 'ready', indexedHash: null },
-    orderBy: { createdAt: 'asc' },
-    take: limit,
-  });
-}
+// `listUnindexedDocuments` used to live here and was never called: `repo/indexing.ts`
+// covers documents in its generic `listUnindexed`, including the `status: 'ready'`
+// gate. Two queries for one job is how they drift apart.

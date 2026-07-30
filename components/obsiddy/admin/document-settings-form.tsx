@@ -40,6 +40,7 @@ import {
 } from '@/components/ui/select';
 import { apiClient, APIClientError } from '@/lib/api/client';
 import { OBSIDDY_API } from '@/lib/framework/obsiddy/api/endpoints';
+import { obsiddyAdminSettingsResponseSchema } from '@/lib/framework/obsiddy/validations';
 
 /** Resolved storage capability, as reported by the settings endpoint. */
 export interface StorageCapability {
@@ -88,13 +89,20 @@ export function DocumentSettingsForm({ initial }: Props): React.ReactElement {
     setError(null);
     setJustSaved(false);
     try {
-      const next = await apiClient.patch<ObsiddyDocumentSettings>(OBSIDDY_API.ADMIN.SETTINGS, {
+      const raw = await apiClient.patch<unknown>(OBSIDDY_API.ADMIN.SETTINGS, {
         body: {
           documentOriginals: mode,
           ...(mbValid ? { maxDocumentBytes: parsedMb * BYTES_PER_MB } : {}),
         },
       });
-      setSaved({ ...next, storage: initial.storage });
+
+      // Parsed, not asserted. `apiClient.patch<T>` is a type assertion — it checks
+      // nothing at runtime — and this response is external data by the same
+      // argument that makes the page validate its GET (CLAUDE.md). A shape change
+      // on the server would otherwise land in component state unnoticed and
+      // surface as a blank field.
+      const next = obsiddyAdminSettingsResponseSchema.parse(raw);
+      setSaved(next);
       setJustSaved(true);
     } catch (err) {
       setError(

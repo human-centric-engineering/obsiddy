@@ -17,6 +17,7 @@
  */
 
 import { getRouteLogger } from '@/lib/api/context';
+import { ValidationError } from '@/lib/api/errors';
 import { successResponse } from '@/lib/api/responses';
 import { validateRequestBody } from '@/lib/api/validation';
 import { withAdminAuth } from '@/lib/auth/guards';
@@ -61,6 +62,23 @@ export const PATCH = withAdminAuth(async (request) => {
   const log = await getRouteLogger(request);
 
   const body = await validateRequestBody(request, obsiddySettingsSchema);
+
+  // The form disables `retain` on a provider that cannot hold private objects,
+  // but a disabled `<option>` is a suggestion, not a control — the request can
+  // still be made by hand. Enforcing it here is what makes "disable rather than
+  // warn" true: on the local provider, retaining would write user documents into
+  // `public/uploads/`, which Next serves statically at a guessable URL.
+  if (body.documentOriginals === 'retain') {
+    const capability = canServeRetainedOriginals();
+    if (!capability.capable) {
+      throw new ValidationError('This deployment cannot store original files privately', {
+        documentOriginals: [
+          capability.reason ??
+            'No storage provider is configured that can store objects privately and sign URLs.',
+        ],
+      });
+    }
+  }
 
   const settings = await upsertObsiddySettings({
     ...(body.documentOriginals ? { documentOriginals: body.documentOriginals } : {}),

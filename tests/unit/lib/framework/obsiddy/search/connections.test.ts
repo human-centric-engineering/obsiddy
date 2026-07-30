@@ -17,6 +17,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const nearestNeighbourRows = vi.fn();
 const listEmbeddedEntityIds = vi.fn();
+const markSwept = vi.fn();
 const createSuggestedLinks = vi.fn();
 const embedBatch = vi.fn();
 const embedText = vi.fn();
@@ -24,6 +25,7 @@ const embedText = vi.fn();
 vi.mock('@/lib/framework/obsiddy/repo/embeddings', () => ({
   nearestNeighbourRows: (...args: unknown[]) => nearestNeighbourRows(...args),
   listEmbeddedEntityIds: (...args: unknown[]) => listEmbeddedEntityIds(...args),
+  markSwept: (...args: unknown[]) => markSwept(...args),
 }));
 
 vi.mock('@/lib/framework/obsiddy/repo/links', () => ({
@@ -50,6 +52,7 @@ beforeEach(() => {
   listEmbeddedEntityIds.mockResolvedValue([]);
   nearestNeighbourRows.mockResolvedValue([]);
   createSuggestedLinks.mockResolvedValue(0);
+  markSwept.mockResolvedValue(0);
 });
 
 describe('findConnections', () => {
@@ -73,7 +76,7 @@ describe('findConnections', () => {
     );
   });
 
-  it('asks the database for the 0.72 floor as a distance ceiling', async () => {
+  it('asks the database for the STRENGTH_FLOOR as a distance ceiling', async () => {
     await findConnections({ scope: SCOPE, entityType: 'project', entityId: 'p_1' });
 
     expect(nearestNeighbourRows).toHaveBeenCalledWith(
@@ -222,6 +225,77 @@ describe('sweepConnections', () => {
 
     const call = nearestNeighbourRows.mock.calls.find((c) => c[1].entityType === 'thought');
     expect(call?.[1].targetTypes).toContain('thought');
+  });
+
+  // REGRESSION: the 180-day window was only ever justified for the quadratic
+  // thought-to-thought case. The well-formed-target call (project/goal/area/
+  // entity/document) must carry NO `since` — otherwise a thought captured this
+  // week could never connect to a project embedded nine months ago, a linear
+  // pair count bounded for no reason.
+  it('the well-formed-target call for a thought source carries no since', async () => {
+    listEmbeddedEntityIds.mockImplementation((_scope: unknown, type: string) =>
+      Promise.resolve(type === 'thought' ? ['t_1'] : [])
+    );
+
+    await sweepConnections(SCOPE, NOW);
+
+    const wellFormedCall = nearestNeighbourRows.mock.calls.find(
+      (call) => call[1].entityType === 'thought' && call[1].targetTypes.includes('project')
+    );
+    expect(wellFormedCall).toBeDefined();
+    expect(wellFormedCall?.[1]).not.toHaveProperty('since');
+
+    // The thought→thought call, by contrast, still carries the window.
+    const thoughtToThoughtCall = nearestNeighbourRows.mock.calls.find(
+      (call) =>
+        call[1].entityType === 'thought' &&
+        call[1].targetTypes.length === 1 &&
+        call[1].targetTypes[0] === 'thought'
+    );
+    expect(thoughtToThoughtCall?.[1]).toHaveProperty('since');
+  });
+
+  // REGRESSION: `area` is embedded like everything else (it's in EMBEDDED_TYPES),
+  // but before this change it was absent from SWEEP_TYPES — paying to embed areas
+  // that could never participate in a connection. It must now be swept.
+  it('sweeps area sources — area was embedded but previously swept against nothing', async () => {
+    listEmbeddedEntityIds.mockImplementation((_scope: unknown, type: string) =>
+      Promise.resolve(type === 'area' ? ['a_1'] : [])
+    );
+    nearestNeighbourRows.mockImplementation((_scope: unknown, input: { entityType: string }) =>
+      Promise.resolve(
+        input.entityType === 'area'
+          ? [{ entityType: 'project', entityId: 'p_1', distance: 0.2 }]
+          : []
+      )
+    );
+
+    const result = await sweepConnections(SCOPE, NOW);
+
+    expect(result.examined).toBe(1);
+    expect(nearestNeighbourRows).toHaveBeenCalledWith(
+      SCOPE,
+      expect.objectContaining({ entityType: 'area', entityId: 'a_1' })
+    );
+    expect(result.candidates).toBe(1);
+  });
+
+  // REGRESSION: the whole reason a capped sweep is survivable is that
+  // `listEmbeddedEntityIds` orders by `sweptAt` and every examined id gets
+  // stamped. If a type's examined ids were never passed to `markSwept`, the next
+  // capped run would return the exact same ids — the rotation would never
+  // happen, silently.
+  it('passes every examined id to markSwept, per type', async () => {
+    listEmbeddedEntityIds.mockImplementation((_scope: unknown, type: string) => {
+      if (type === 'project') return Promise.resolve(['p_1', 'p_2']);
+      if (type === 'thought') return Promise.resolve(['t_1']);
+      return Promise.resolve([]);
+    });
+
+    await sweepConnections(SCOPE, NOW);
+
+    expect(markSwept).toHaveBeenCalledWith(SCOPE, 'project', ['p_1', 'p_2'], NOW);
+    expect(markSwept).toHaveBeenCalledWith(SCOPE, 'thought', ['t_1'], NOW);
   });
 
   it('reports which types hit the source cap rather than truncating silently', async () => {

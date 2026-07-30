@@ -24,9 +24,17 @@
 --
 -- Prisma cannot model generated columns, HNSW indexes, or an FK into a
 -- Sunrise-owned model, so it re-proposes these DROPs on EVERY schema diff
--- forever. Dropping the HNSW index degrades vector search to a sequential scan
--- **silently, with no error** — which is why `npm run db:drift-check` (probes
--- B1 and B3–B7) runs after every migration, not just this one.
+-- forever. Dropping any of them fails **silently, with no error** — which is why
+-- `npm run db:drift-check` (probes B1 and B3–B7) runs after every migration, not
+-- just this one.
+--
+-- One correction to an earlier version of this note: it claimed dropping the HNSW
+-- index "degrades vector search to a sequential scan". It does not, because search
+-- does not use that index — the hybrid query's distance pre-filter and blended
+-- ORDER BY both defeat it (verified with EXPLAIN). Obsiddy does exact search at
+-- personal scale; B3 protects a future restructuring, not today's query path. The
+-- probes on the GENERATED tsvector columns (B4, B6) are the ones guarding a live
+-- code path.
 
 -- ─── The two changes this migration actually makes ───────────────────────────
 

@@ -33,6 +33,7 @@
 import { canonicalise, type CanonicalSource } from '@/lib/framework/obsiddy/embedding/canonical';
 import {
   assertObsiddyModelMatchesStoredVectors,
+  deleteEmbeddingsFor,
   deleteEmbeddingsFromIndex,
   EMBEDDED_TYPES,
   findStoredContentHashes,
@@ -61,6 +62,14 @@ export interface ReindexResult {
   examined: number;
   /** Rows whose hash was unchanged, so cost nothing. */
   unchanged: number;
+  /**
+   * Rows whose content is now empty, so their stale vectors were dropped.
+   *
+   * Reported separately from `unchanged` because it is the one skip-the-embedder
+   * case that still writes: a non-zero count here means someone blanked a note and
+   * its old vectors are gone from search.
+   */
+  emptied: number;
   /** Rows re-embedded. */
   embedded: number;
   /** Chunk rows written. */
@@ -72,6 +81,7 @@ export interface ReindexResult {
 const EMPTY_RESULT: ReindexResult = {
   examined: 0,
   unchanged: 0,
+  emptied: 0,
   embedded: 0,
   chunks: 0,
   remaining: 0,
@@ -114,13 +124,18 @@ export async function enqueueFullReindex(scope: OwnerScope): Promise<number> {
  * output dimension, every write here would fail on a SQL cast — better to say so
  * once, up front, than to fail per row after paying for the embeddings (§17
  * risk 5).
+ *
+ * `skipDimensionCheck` exists for `reindexPending`, which covers six types and
+ * would otherwise run the same aggregate six times for one answer that cannot
+ * change mid-pass.
  */
 export async function reindexType(
   scope: OwnerScope,
   entityType: EmbeddedType,
-  limit = DEFAULT_LIMIT_PER_TYPE
+  limit = DEFAULT_LIMIT_PER_TYPE,
+  skipDimensionCheck = false
 ): Promise<ReindexResult> {
-  await assertObsiddyModelMatchesStoredVectors();
+  if (!skipDimensionCheck) await assertObsiddyModelMatchesStoredVectors(scope);
 
   const candidates = await listUnindexed(scope, entityType, limit);
   if (candidates.length === 0) return EMPTY_RESULT;
@@ -136,19 +151,31 @@ export async function reindexType(
     hashed.map((row) => row.candidate.id)
   );
 
-  // The gate. Anything whose hash already matches is stamped and skipped — no
-  // embedding call, no cost. Empty canonical text is also "nothing to embed":
-  // a project with no name is not a thing worth a vector, and stamping it stops
-  // it being re-examined forever.
+  // Three buckets, not two. The distinction between the first two is easy to
+  // miss and it matters: both skip the embedder, but only one of them must also
+  // DROP what is already stored.
+  //
+  //   emptied   — canonical text is now empty. There is nothing to embed, and any
+  //               existing vector is stale: a thought edited down to whitespace
+  //               would otherwise keep matching searches for words it no longer
+  //               contains. Reachable only because content updates now re-queue
+  //               the row (they didn't before, which is what hid this).
+  //   unchanged — hash matches what is stored. Free: stamp and move on.
+  //   changed   — hash differs. The only bucket that spends anything.
+  const emptied = hashed.filter((row) => row.text.length === 0);
   const unchanged = hashed.filter(
-    (row) => row.text.length === 0 || storedHashes.get(row.candidate.id) === row.hash
+    (row) => row.text.length > 0 && storedHashes.get(row.candidate.id) === row.hash
   );
-  const changed = hashed.filter((row) => !unchanged.includes(row));
+  const changed = hashed.filter((row) => !emptied.includes(row) && !unchanged.includes(row));
+
+  for (const row of emptied) {
+    await deleteEmbeddingsFor(scope, entityType, row.candidate.id);
+  }
 
   await stampIndexedHash(
     scope,
     entityType,
-    unchanged.map((row) => ({ id: row.candidate.id, hash: row.hash }))
+    [...emptied, ...unchanged].map((row) => ({ id: row.candidate.id, hash: row.hash }))
   );
 
   let embedded = 0;
@@ -166,6 +193,7 @@ export async function reindexType(
     entityType,
     examined: candidates.length,
     unchanged: unchanged.length,
+    emptied: emptied.length,
     embedded,
     chunks,
     remaining,
@@ -174,30 +202,41 @@ export async function reindexType(
   return {
     examined: candidates.length,
     unchanged: unchanged.length,
+    emptied: emptied.length,
     embedded,
     chunks,
     remaining,
-  };
+  } satisfies ReindexResult;
 }
 
 /**
- * Run a pass over every embedded type.
+ * Run a pass over some or all embedded types.
  *
  * Types are processed in sequence rather than in parallel: they share one
  * embedding provider with its own rate limits, and `embedBatch` already paces
  * itself internally. Firing six concurrent batches would just move the
  * contention somewhere with no back-pressure.
+ *
+ * `types` exists so `POST /obsiddy/reindex` doesn't need its own copy of this
+ * accumulation loop — it had one, identical line for line, which is two places to
+ * fix when a counter is added.
  */
 export async function reindexPending(
   scope: OwnerScope,
-  limitPerType = DEFAULT_LIMIT_PER_TYPE
+  limitPerType = DEFAULT_LIMIT_PER_TYPE,
+  types: readonly EmbeddedType[] = EMBEDDED_TYPES
 ): Promise<ReindexResult> {
   const totals: ReindexResult = { ...EMPTY_RESULT };
 
-  for (const entityType of EMBEDDED_TYPES) {
-    const result = await reindexType(scope, entityType, limitPerType);
+  // Once for the whole pass, not once per type — the answer cannot change while
+  // the pass runs, and it is an indexed aggregate rather than a free lookup.
+  await assertObsiddyModelMatchesStoredVectors(scope);
+
+  for (const entityType of types) {
+    const result = await reindexType(scope, entityType, limitPerType, true);
     totals.examined += result.examined;
     totals.unchanged += result.unchanged;
+    totals.emptied += result.emptied;
     totals.embedded += result.embedded;
     totals.chunks += result.chunks;
     totals.remaining += result.remaining;

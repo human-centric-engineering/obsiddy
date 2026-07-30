@@ -28,13 +28,14 @@
 import { createHash } from 'crypto';
 import { extname } from 'path';
 
-import { enqueueReindex } from '@/lib/framework/obsiddy/embedding/indexer';
 import {
   createDocument,
   findDocumentByHash,
+  findDocumentByHashIncludingFailed,
   updateDocument,
 } from '@/lib/framework/obsiddy/repo/documents';
 import type { OwnerScope } from '@/lib/framework/obsiddy/repo/owner-scope';
+import { isUniqueConstraintViolation } from '@/lib/framework/obsiddy/repo/shared';
 import { findObsiddySettings } from '@/lib/framework/obsiddy/repo/settings';
 import {
   resolveDocumentOriginals,
@@ -44,6 +45,7 @@ import {
 import { logger } from '@/lib/logging';
 import { parseDocument } from '@/lib/orchestration/knowledge/parsers';
 import { getStorageClient } from '@/lib/storage/client';
+import type { StorageProvider } from '@/lib/storage/providers/types';
 import type { ObsiddyDocument } from '@prisma/client';
 
 /**
@@ -113,7 +115,7 @@ export interface IngestDocumentResult {
 export class DocumentIngestError extends Error {
   constructor(
     message: string,
-    readonly reason: 'unsupported' | 'too_large' | 'malformed' | 'empty'
+    readonly reason: 'unsupported' | 'too_large' | 'malformed' | 'empty' | 'duplicate'
   ) {
     super(message);
     this.name = 'DocumentIngestError';
@@ -171,15 +173,77 @@ export async function ingestDocument(
 
   const title = input.title?.trim() || input.fileName.replace(/\.[^.]+$/, '');
 
-  const document = await createDocument(scope, {
-    title,
-    fileName: input.fileName,
-    fileHash,
-    mimeType: input.mimeType,
-    byteSize: input.buffer.length,
-    status: 'processing',
-    ...(input.sourceUrl ? { sourceUrl: input.sourceUrl } : {}),
-  });
+  // The lookup above is a fast path, not the guarantee. `@@unique([userId,
+  // fileHash])` is the guarantee, and this catch is what makes it resolve as a
+  // dedupe rather than a 500: two simultaneous uploads of the same bytes both miss
+  // the check, and the loser of the insert race gets the winner's row back. Same
+  // shape as `captureThought`'s replayed-delivery handling.
+  let document: ObsiddyDocument;
+  try {
+    document = await createDocument(scope, {
+      title,
+      fileName: input.fileName,
+      fileHash,
+      mimeType: input.mimeType,
+      byteSize: input.buffer.length,
+      status: 'processing',
+      ...(input.sourceUrl ? { sourceUrl: input.sourceUrl } : {}),
+    });
+  } catch (error) {
+    if (!isUniqueConstraintViolation(error)) throw error;
+
+    // Something already holds this hash. WHAT it is decides what happens next —
+    // and this is where the unique constraint and the `status: 'ready'` dedupe
+    // filter have to be reconciled, or they combine into a worse bug than either
+    // fixed: a `failed` row keeps its hash slot for ever, so a retry would raise
+    // P2002 while the ready-only lookup reported nothing to hand back.
+    const holder = await findDocumentByHashIncludingFailed(scope, fileHash);
+
+    if (!holder) {
+      // Vanishingly unlikely: the row was deleted between the INSERT failing and
+      // this read. Surface it rather than guess.
+      throw error;
+    }
+
+    if (holder.status === 'ready' && holder.archivedAt === null) {
+      logger.info('Obsiddy document deduped on a concurrent upload', { documentId: holder.id });
+      return { document: holder, deduped: true };
+    }
+
+    if (holder.status === 'processing') {
+      // Another request is parsing these exact bytes right now. Two parses of one
+      // file is waste, and "succeeded" would be a lie while it is still running.
+      throw new DocumentIngestError(
+        'This file is already being processed. Try again in a moment.',
+        'duplicate'
+      );
+    }
+
+    // `failed`, or archived. Take the row over and re-drive it: the user is
+    // retrying a file that did not work, or re-adding one they filed away, and both
+    // should behave like a fresh upload rather than a refusal.
+    logger.info('Obsiddy document re-driving an unusable row for the same bytes', {
+      documentId: holder.id,
+      previousStatus: holder.status,
+      wasArchived: holder.archivedAt !== null,
+    });
+
+    const reclaimed = await updateDocument(scope, holder.id, {
+      title,
+      fileName: input.fileName,
+      mimeType: input.mimeType,
+      byteSize: input.buffer.length,
+      status: 'processing',
+      errorMessage: null,
+      extractedText: null,
+      archivedAt: null,
+      archivedReason: null,
+      ...(input.sourceUrl ? { sourceUrl: input.sourceUrl } : {}),
+    });
+
+    if (!reclaimed) throw error;
+    document = reclaimed;
+  }
 
   try {
     const parsed = await parseDocument(input.buffer, input.fileName);
@@ -199,18 +263,19 @@ export async function ingestDocument(
     const storageKey =
       resolved.documentOriginals === 'retain' ? await retainOriginal(scope, fileHash, input) : null;
 
+    // `updateDocument` nulls `indexedHash` itself, which is what queues the
+    // document for the indexer. There used to be a `void enqueueReindex(...)`
+    // after this, described as "shortening the wait" — it did nothing of the kind:
+    // it wrote null over null and kicked no pass, because nothing in the product
+    // calls `reindexPending` outside the explicit route. The real trigger arrives
+    // with the nightly workflow in phase 7; until then a document is indexed by
+    // `POST /obsiddy/reindex`. Better an honest gap than a comment implying a
+    // background job that does not exist.
     const ready = await updateDocument(scope, document.id, {
       status: 'ready',
       extractedText: text,
       ...(storageKey ? { storageKey } : {}),
-      // Left null on purpose: this is what queues the document for the indexer.
-      indexedHash: null,
     });
-
-    // Fire-and-forget nudge. The document is already queued by its null
-    // `indexedHash`, so this only shortens the wait — a failure here is not a
-    // failed upload.
-    void enqueueReindex(scope, 'document', document.id);
 
     logger.info('Obsiddy document ingested', {
       documentId: document.id,
@@ -267,22 +332,37 @@ function assertTextShape(text: string): void {
  * fetchable and a stored public URL has a way of ending up in an API response.
  * Downloads go through `getSignedUrl` at request time instead.
  *
- * Storage being unconfigured is not an ingest failure: the text is already
- * extracted and the document is usable. It logs and returns null, so the upload
- * succeeds with no original — which is exactly what the default mode does anyway.
+ * Storage being unusable is not an ingest failure: the text is already extracted
+ * and the document is usable. It logs and returns null, so the upload succeeds
+ * with no original — which is exactly what the default mode does anyway.
+ *
+ * **The capability is re-checked here, not just when the setting was saved.** The
+ * admin route refuses to store `retain` on a provider that cannot hold private
+ * objects, but that is a check against the provider resolved *at that moment*. A
+ * deployment that saves `retain` on S3 and later switches `STORAGE_PROVIDER` to
+ * `local` would otherwise start writing user documents into `public/uploads/`
+ * with nobody having changed a setting. Config drifts; this is the check that
+ * sees it.
  */
 async function retainOriginal(
   scope: OwnerScope,
   fileHash: string,
   input: IngestDocumentInput
 ): Promise<string | null> {
-  const storage = getStorageClient();
-  if (!storage) {
-    logger.warn('Obsiddy documentOriginals is "retain" but storage is not configured', {
+  // One provider resolution, not two: the capability check hands back the client
+  // it already looked up, so this cannot end up asking about one provider and
+  // uploading to another.
+  const { capable, provider, reason, client } = resolveRetentionCapability();
+  if (!capable || !client) {
+    logger.warn('Obsiddy documentOriginals is "retain" but this provider cannot store privately', {
       fileName: input.fileName,
+      provider,
+      reason,
     });
     return null;
   }
+
+  const storage = client;
 
   // Keyed by hash, not by file name: user-supplied names are attacker-influenced
   // and the provider's own key validation is the only thing between them and a
@@ -306,24 +386,34 @@ async function retainOriginal(
   }
 }
 
-/**
- * Whether the resolved provider can serve a retained original back safely.
- *
- * Two things have to be true: it stores objects privately, and it can sign a URL.
- * `getSignedUrl` is optional on the interface, and the local provider writes into
- * a statically-served directory — so this is the check the admin page renders as
- * a warning, and the download route uses to decide whether it can serve anything
- * at all.
- */
-export function canServeRetainedOriginals(): {
+/** Capability plus the client it was resolved from, so callers need not re-look-up. */
+interface RetentionCapability {
   capable: boolean;
   provider: string | null;
   reason: string | null;
-} {
+  client: StorageProvider | null;
+}
+
+/**
+ * Whether the resolved provider can serve a retained original back safely, and
+ * the client itself.
+ *
+ * Internal because `client` has no business crossing into a route response; the
+ * exported `canServeRetainedOriginals()` below is the public, serialisable view.
+ * Returning the client here is what lets `retainOriginal` resolve the provider
+ * exactly once — asking about one provider and uploading to another would be a
+ * quiet way to defeat the whole check.
+ */
+function resolveRetentionCapability(): RetentionCapability {
   const storage = getStorageClient();
 
   if (!storage) {
-    return { capable: false, provider: null, reason: 'No storage provider is configured.' };
+    return {
+      capable: false,
+      provider: null,
+      reason: 'No storage provider is configured.',
+      client: null,
+    };
   }
 
   if (storage.name === 'local') {
@@ -333,6 +423,7 @@ export function canServeRetainedOriginals(): {
       reason:
         'The local provider writes to public/uploads/, which Next serves statically at a ' +
         'guessable URL — uploaded documents would be publicly readable.',
+      client: storage,
     };
   }
 
@@ -343,8 +434,26 @@ export function canServeRetainedOriginals(): {
       reason:
         `The ${storage.name} provider does not implement getSignedUrl, so a privately stored ` +
         'file cannot be read back.',
+      client: storage,
     };
   }
 
-  return { capable: true, provider: storage.name, reason: null };
+  return { capable: true, provider: storage.name, reason: null, client: storage };
+}
+
+/**
+ * The serialisable capability view — what the admin page renders and the download
+ * route branches on.
+ *
+ * Two things have to be true for `capable`: the provider stores objects privately,
+ * and it can sign a URL. `getSignedUrl` is optional on the interface, and the local
+ * provider writes into a statically-served directory.
+ */
+export function canServeRetainedOriginals(): {
+  capable: boolean;
+  provider: string | null;
+  reason: string | null;
+} {
+  const { capable, provider, reason } = resolveRetentionCapability();
+  return { capable, provider, reason };
 }

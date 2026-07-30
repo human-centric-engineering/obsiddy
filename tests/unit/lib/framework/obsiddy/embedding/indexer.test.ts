@@ -22,7 +22,9 @@ const stampIndexedHash = vi.fn();
 const findStoredContentHashes = vi.fn();
 const upsertEmbeddings = vi.fn();
 const deleteEmbeddingsFromIndex = vi.fn();
+const deleteEmbeddingsFor = vi.fn();
 const enqueueForReindex = vi.fn();
+const enqueueAllForReindex = vi.fn();
 const assertDimensions = vi.fn();
 const splitForEmbedding = vi.fn();
 
@@ -35,7 +37,7 @@ vi.mock('@/lib/framework/obsiddy/repo/indexing', () => ({
   countUnindexed: (...args: unknown[]) => countUnindexed(...args),
   stampIndexedHash: (...args: unknown[]) => stampIndexedHash(...args),
   enqueueForReindex: (...args: unknown[]) => enqueueForReindex(...args),
-  enqueueAllForReindex: vi.fn().mockResolvedValue(0),
+  enqueueAllForReindex: (...args: unknown[]) => enqueueAllForReindex(...args),
 }));
 
 vi.mock('@/lib/framework/obsiddy/repo/embeddings', () => ({
@@ -44,14 +46,25 @@ vi.mock('@/lib/framework/obsiddy/repo/embeddings', () => ({
   findStoredContentHashes: (...args: unknown[]) => findStoredContentHashes(...args),
   upsertEmbeddings: (...args: unknown[]) => upsertEmbeddings(...args),
   deleteEmbeddingsFromIndex: (...args: unknown[]) => deleteEmbeddingsFromIndex(...args),
+  deleteEmbeddingsFor: (...args: unknown[]) => deleteEmbeddingsFor(...args),
 }));
 
 vi.mock('@/lib/framework/obsiddy/documents/chunking', () => ({
   splitForEmbedding: (...args: unknown[]) => splitForEmbedding(...args),
 }));
 
-import { enqueueReindex, reindexType } from '@/lib/framework/obsiddy/embedding/indexer';
+vi.mock('@/lib/logging', () => ({
+  logger: { warn: vi.fn(), info: vi.fn(), error: vi.fn(), debug: vi.fn() },
+}));
+
+import {
+  enqueueFullReindex,
+  enqueueReindex,
+  reindexPending,
+  reindexType,
+} from '@/lib/framework/obsiddy/embedding/indexer';
 import { ownerScope } from '@/lib/framework/obsiddy/repo/owner-scope';
+import { logger } from '@/lib/logging';
 
 const SCOPE = ownerScope('user_a');
 
@@ -66,6 +79,9 @@ beforeEach(() => {
   stampIndexedHash.mockResolvedValue(1);
   upsertEmbeddings.mockResolvedValue(1);
   deleteEmbeddingsFromIndex.mockResolvedValue(0);
+  deleteEmbeddingsFor.mockResolvedValue(0);
+  enqueueAllForReindex.mockResolvedValue(0);
+  listUnindexed.mockResolvedValue([]);
   splitForEmbedding.mockImplementation((text: string) => Promise.resolve([text]));
   embedBatch.mockResolvedValue({
     embeddings: [[0.1, 0.2, 0.3]],
@@ -129,9 +145,9 @@ describe('the hash gate', () => {
   });
 
   it('treats empty canonical text as nothing to embed, and stamps it anyway', async () => {
-    // A project with no name and no description. Embedding whitespace would produce
-    // a vector that matches everything weakly; leaving it unstamped would re-examine
-    // it forever.
+    // A project with no name and no description, never previously embedded (no
+    // stored hash). Embedding whitespace would produce a vector that matches
+    // everything weakly; leaving it unstamped would re-examine it forever.
     listUnindexed.mockResolvedValue([{ id: 'p_1', entityType: 'project', name: '  ' }]);
     findStoredContentHashes.mockResolvedValue(new Map());
 
@@ -139,7 +155,42 @@ describe('the hash gate', () => {
 
     expect(embedBatch).not.toHaveBeenCalled();
     expect(stampIndexedHash).toHaveBeenCalled();
-    expect(result).toMatchObject({ unchanged: 1, embedded: 0 });
+    // CHANGED: `emptied` is now its own bucket, separate from `unchanged`. This
+    // row has never been embedded (no stored hash), so it belongs in `emptied`,
+    // not `unchanged` — there is nothing to delete, but it is also not "hash
+    // matched what's already there".
+    expect(result).toMatchObject({ unchanged: 0, emptied: 1, embedded: 0 });
+    // `deleteEmbeddingsFor` runs unconditionally for every `emptied` row — even
+    // one that was never previously embedded, where it is a harmless no-op
+    // (nothing matches the delete). The indexer doesn't need to know which case
+    // it is; the repo layer's deleteMany simply reports 0 rows affected.
+    expect(deleteEmbeddingsFor).toHaveBeenCalledWith(SCOPE, 'project', 'p_1');
+  });
+
+  // REGRESSION: this is the headline bug the `emptied` bucket exists to close.
+  // Before content updates re-queued the row, this path was UNREACHABLE — a
+  // thought's `indexedHash` never went null on edit, so an edit down to
+  // whitespace was never re-examined and its stale vector sat in the index
+  // matching searches for words the note no longer contains. Now that updates
+  // null `indexedHash` (see repo/*.ts `update*`), this row DOES arrive here with
+  // a previously-stored hash, and its vectors must be deleted, not left behind.
+  it('deletes existing vectors when a previously-embedded row is edited down to whitespace', async () => {
+    listUnindexed.mockResolvedValue([{ id: 't_1', entityType: 'thought', content: '   ' }]);
+    // A hash IS stored — this thought was embedded before the edit.
+    findStoredContentHashes.mockResolvedValue(new Map([['t_1', 'some-previous-hash']]));
+
+    const result = await reindexType(SCOPE, 'thought');
+
+    expect(embedBatch).not.toHaveBeenCalled();
+    // THE assertion. Leaving this out means the old vector keeps matching
+    // searches for content that is no longer there.
+    expect(deleteEmbeddingsFor).toHaveBeenCalledWith(SCOPE, 'thought', 't_1');
+    expect(result).toMatchObject({ emptied: 1, unchanged: 0, embedded: 0 });
+    // Still stamped, in the same [...emptied, ...unchanged] batch, so the row
+    // doesn't stay queued forever.
+    expect(stampIndexedHash).toHaveBeenCalledWith(SCOPE, 'thought', [
+      { id: 't_1', hash: contentHash('thought', '') },
+    ]);
   });
 
   it('batches every changed row into ONE embedder call', async () => {
@@ -277,5 +328,106 @@ describe('enqueueReindex is safe to fire and forget', () => {
     enqueueForReindex.mockResolvedValue(false);
 
     await expect(enqueueReindex(SCOPE, 'thought', 'someone_elses')).resolves.toBe(false);
+  });
+});
+
+describe('reindexPending: a bounded pass over every embedded type', () => {
+  it('processes all six embedded types and sums their results into one total', async () => {
+    // One candidate per type, none matching a stored hash, so every type embeds.
+    listUnindexed.mockImplementation((_scope: unknown, entityType: string) =>
+      Promise.resolve([
+        {
+          id: `${entityType}_1`,
+          entityType,
+          content: 'x',
+          name: 'x',
+          title: 'x',
+          extractedText: 'x',
+        },
+      ])
+    );
+    findStoredContentHashes.mockResolvedValue(new Map());
+    countUnindexed.mockResolvedValue(2);
+
+    const result = await reindexPending(SCOPE);
+
+    // 6 types, one candidate embedded each, 2 remaining each.
+    expect(result).toMatchObject({
+      examined: 6,
+      unchanged: 0,
+      embedded: 6,
+      chunks: 6,
+      remaining: 12,
+    });
+  });
+
+  it('calls listUnindexed for every one of the six embedded types', async () => {
+    await reindexPending(SCOPE);
+
+    const typesSeen = listUnindexed.mock.calls.map((call) => call[1]);
+    expect(typesSeen).toEqual(['thought', 'project', 'goal', 'area', 'entity', 'document']);
+  });
+
+  it('processes types in sequence, not in parallel — one shared embedding provider', async () => {
+    // If two `reindexType` calls overlapped, listUnindexed for the second type
+    // would be invoked before the first type's embedBatch resolved. Track order.
+    const order: string[] = [];
+    listUnindexed.mockImplementation((_scope: unknown, entityType: string) => {
+      order.push(`list:${entityType}`);
+      return Promise.resolve([]);
+    });
+
+    await reindexPending(SCOPE);
+
+    expect(order).toEqual([
+      'list:thought',
+      'list:project',
+      'list:goal',
+      'list:area',
+      'list:entity',
+      'list:document',
+    ]);
+  });
+
+  it('returns all-zero totals when nothing is queued anywhere', async () => {
+    listUnindexed.mockResolvedValue([]);
+    countUnindexed.mockResolvedValue(0);
+
+    const result = await reindexPending(SCOPE);
+
+    // `emptied` is a new field on `ReindexResult` — included here too.
+    expect(result).toEqual({
+      examined: 0,
+      unchanged: 0,
+      emptied: 0,
+      embedded: 0,
+      chunks: 0,
+      remaining: 0,
+    });
+  });
+
+  it("passes limitPerType through to every type's pass", async () => {
+    await reindexPending(SCOPE, 5);
+
+    for (const call of listUnindexed.mock.calls) {
+      expect(call[2]).toBe(5);
+    }
+  });
+});
+
+describe('enqueueFullReindex', () => {
+  it('delegates to enqueueAllForReindex and returns its count', async () => {
+    enqueueAllForReindex.mockResolvedValue(42);
+
+    await expect(enqueueFullReindex(SCOPE)).resolves.toBe(42);
+    expect(enqueueAllForReindex).toHaveBeenCalledWith(SCOPE);
+  });
+
+  it('logs the queued count for visibility into a full reindex', async () => {
+    enqueueAllForReindex.mockResolvedValue(7);
+
+    await enqueueFullReindex(SCOPE);
+
+    expect(logger.info).toHaveBeenCalledWith('Obsiddy full reindex queued', { queued: 7 });
   });
 });

@@ -101,7 +101,9 @@ export async function searchObsiddy(input: SearchObsiddyInput): Promise<SearchOb
 
   // Before spending an embedding round trip — a dimension mismatch would fail
   // the SQL cast afterwards, which is a confusing way to learn the model changed.
-  await assertObsiddyModelMatchesStoredVectors();
+  // Scoped, so the check costs one indexed aggregate over the caller's own chunks
+  // rather than a scan of every user's.
+  await assertObsiddyModelMatchesStoredVectors(input.scope);
 
   const merged = new Map<string, SearchHit>();
   let embedding: SearchObsiddyResult['embedding'] = null;

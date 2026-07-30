@@ -192,7 +192,6 @@ const SCOPED_CALLS: Array<[string, () => Promise<unknown>]> = [
   ['documents.archiveDocument', () => documents.archiveDocument(SCOPE, 'id_1')],
   ['documents.restoreDocument', () => documents.restoreDocument(SCOPE, 'id_1')],
   ['documents.deleteDocument', () => documents.deleteDocument(SCOPE, 'id_1')],
-  ['documents.listUnindexedDocuments', () => documents.listUnindexedDocuments(SCOPE, 10)],
 
   ['links.listLinks', () => links.listLinks(SCOPE)],
   ['links.countLinks', () => links.countLinks(SCOPE)],
@@ -441,6 +440,117 @@ describe('archiving drops the vectors in the same transaction', () => {
     const update = vi.mocked(prisma.obsiddyProject.update).mock.calls[0]?.[0];
     expect(update?.data).toMatchObject({ indexedHash: null });
     expect(update?.where).toMatchObject({ userId: 'user_a', id: 'id_1' });
+  });
+});
+
+describe('content updates always force indexedHash: null, even over a caller-supplied value', () => {
+  /**
+   * THE headline bug this phase's review caught. The design's central claim is
+   * that every content update re-queues the row for the indexer — but before
+   * this change, no `update*` actually did it. An edited thought kept its stale
+   * vector and its stale search snippet forever, because nothing ever nulled
+   * `indexedHash` on a plain content edit (only archive/restore/reindex did).
+   *
+   * The fix is `data: { ...data, indexedHash: null }` with `indexedHash: null`
+   * spread LAST, so it always wins — including against a caller that smuggles
+   * its own `indexedHash` through (a capability handler forwarding a parsed
+   * payload has no type system stopping it from including the field).
+   */
+  it.each([
+    [
+      'project',
+      () => projects.updateProject(SCOPE, 'id_1', { name: 'y', indexedHash: 'smuggled' }),
+      () => prisma.obsiddyProject.update,
+    ],
+    [
+      'goal',
+      () => goals.updateGoal(SCOPE, 'id_1', { title: 'y', indexedHash: 'smuggled' }),
+      () => prisma.obsiddyGoal.update,
+    ],
+    [
+      'area',
+      () => areas.updateArea(SCOPE, 'id_1', { name: 'y', indexedHash: 'smuggled' }),
+      () => prisma.obsiddyArea.update,
+    ],
+    [
+      'thought',
+      () => thoughts.updateThought(SCOPE, 'id_1', { content: 'y', indexedHash: 'smuggled' }),
+      () => prisma.obsiddyThought.update,
+    ],
+    [
+      'entity',
+      () => entities.updateEntity(SCOPE, 'id_1', { name: 'y', indexedHash: 'smuggled' }),
+      () => prisma.obsiddyEntity.update,
+    ],
+    [
+      'document',
+      () => documents.updateDocument(SCOPE, 'id_1', { title: 'y', indexedHash: 'smuggled' }),
+      () => prisma.obsiddyDocument.update,
+    ],
+  ] as Array<[string, () => Promise<unknown>, () => ReturnType<typeof vi.fn>]>)(
+    'updating a %s nulls indexedHash even when the caller passed its own',
+    async (_entityType, call, getUpdateMock) => {
+      await call();
+
+      const update = vi.mocked(getUpdateMock()).mock.calls[0]?.[0];
+      expect(update?.data).toMatchObject({ indexedHash: null });
+      // The caller's value must not have won.
+      expect(update?.data).not.toMatchObject({ indexedHash: 'smuggled' });
+    }
+  );
+});
+
+describe('hard deletes drop the vectors in the same transaction as the row', () => {
+  /**
+   * Mirrors the archive-and-drop-vectors block above, for the hard-delete path.
+   * `ObsiddyEmbedding` is polymorphic with no FK to its endpoints (D2), so a
+   * plain `delete` leaves orphan chunks behind — and the connection sweep then
+   * proposes links to a row that no longer exists. `deleteAndDropVectors` closes
+   * that by putting the delete and the embedding `deleteMany` in one
+   * `$transaction`.
+   */
+  it.each([
+    ['project', () => projects.deleteProject(SCOPE, 'id_1')],
+    ['goal', () => goals.deleteGoal(SCOPE, 'id_1')],
+    ['area', () => areas.deleteArea(SCOPE, 'id_1')],
+    ['thought', () => thoughts.deleteThought(SCOPE, 'id_1')],
+    ['entity', () => entities.deleteEntity(SCOPE, 'id_1')],
+    ['document', () => documents.deleteDocument(SCOPE, 'id_1')],
+  ] as Array<[string, () => Promise<unknown>]>)(
+    'deleting a %s deletes its embeddings atomically',
+    async (entityType, call) => {
+      await call();
+
+      expect(vi.mocked(prisma.$transaction)).toHaveBeenCalledTimes(1);
+
+      const deleteArgs = vi.mocked(prisma.obsiddyEmbedding.deleteMany).mock.calls[0]?.[0];
+      expect(deleteArgs?.where).toMatchObject({ userId: 'user_a', entityType, entityId: 'id_1' });
+    }
+  );
+});
+
+describe('findDocumentByHash excludes rows a dedupe should not match', () => {
+  /**
+   * Both regressions the review caught: the row is created with its `fileHash`
+   * BEFORE parsing, so a parse failure — or an archive — leaves a row holding
+   * that hash. Without these filters, re-uploading the same bytes would match
+   * it and return HTTP 200 `{ deduped: true }` forever: a document that failed
+   * once (a scanned PDF, an unusual DOCX) could never be uploaded again from
+   * that account, and an archived document would "come back" as a dedupe hit
+   * while remaining invisible everywhere else.
+   */
+  it('filters to status: "ready" — a failed row must not dedupe-match a retry', async () => {
+    await documents.findDocumentByHash(SCOPE, 'hash_1');
+
+    const call = vi.mocked(prisma.obsiddyDocument.findFirst).mock.calls[0]?.[0];
+    expect(call?.where).toMatchObject({ status: 'ready' });
+  });
+
+  it('excludes archived rows — an archived document must not "come back" via dedupe', async () => {
+    await documents.findDocumentByHash(SCOPE, 'hash_1');
+
+    const call = vi.mocked(prisma.obsiddyDocument.findFirst).mock.calls[0]?.[0];
+    expect(call?.where).toMatchObject({ archivedAt: null });
   });
 });
 

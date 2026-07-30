@@ -20,6 +20,7 @@
 
 import {
   listEmbeddedEntityIds,
+  markSwept,
   nearestNeighbourRows,
   type EmbeddedType,
 } from '@/lib/framework/obsiddy/repo/embeddings';
@@ -30,11 +31,40 @@ import { logger } from '@/lib/logging';
 /**
  * Minimum cosine similarity for a pair to be worth a human's attention.
  *
- * 0.72 comes from the plan (§4). Below it, "related" degenerates into "both
- * written in English" — and a connections view full of weak pairs is one nobody
- * opens twice, which costs more than a missed connection.
+ * **0.55, measured — not the plan's 0.72, which surfaced nothing.**
+ *
+ * The plan specified 0.72 (§4). Against `text-embedding-3-small`, the model the
+ * platform resolves by default, that floor sits *above* the signal. Measured on
+ * realistic notes:
+ *
+ * | pair                                                    | similarity |
+ * | ------------------------------------------------------- | ---------- |
+ * | "Draft the talk about how small teams ship faster" ↔     |            |
+ * | "Article idea: why tiny teams outrun large ones"        | **0.679**  |
+ * | "Chase the invoice" ↔ "VAT return is due"               | 0.402      |
+ * | "VAT return is due" ↔ "Set aside for corporation tax"   | 0.362      |
+ * | "VAT return is due" ↔ "Try sourdough at the weekend"    | 0.192      |
+ *
+ * The first row is the exact payoff the plan describes — two fragments of one idea
+ * captured weeks apart — and 0.72 misses it. At 0.72 the connection engine is
+ * inert: it runs, costs nothing, and proposes nothing, for ever, with no error.
+ * That is the failure mode this whole file is written to avoid.
+ *
+ * 0.55 admits the same-idea pair and still rejects both the loosely-related
+ * accounting cluster (0.31–0.40, where "both about money" is not a useful
+ * suggestion) and the noise (≤0.19). Deliberately conservative: the plan is right
+ * that a connections view full of weak pairs is one nobody opens twice.
+ *
+ * **This number is model-dependent, which is the real lesson.** The active
+ * embedding model is operator-configurable, and a different one compresses its
+ * similarity range differently — so a hard-coded floor is only ever right for one
+ * model. Making it a per-user setting is a phase-5 follow-up, once the Connections
+ * view exists to judge suggestion quality against.
+ * `npm run framework:obsiddy:smoke-search` prints the best similarity the corpus
+ * actually contains alongside this floor, so a mis-set floor is visible rather
+ * than silent.
  */
-export const STRENGTH_FLOOR = 0.72;
+export const STRENGTH_FLOOR = 0.55;
 
 /** Cosine distance is `1 - similarity`; the SQL ceiling follows from the floor. */
 const MAX_DISTANCE = 1 - STRENGTH_FLOOR;
@@ -55,8 +85,31 @@ const SOURCES_PER_TYPE = 200;
  */
 const THOUGHT_WINDOW_DAYS = 180;
 
-/** Types swept against each other. Tasks are absent — they have no vectors. */
-const SWEEP_TYPES: readonly EmbeddedType[] = ['project', 'goal', 'entity', 'document'];
+/**
+ * Types swept against each other.
+ *
+ * **`task` is the only embedded type absent, and only because it has no vectors**
+ * (plan §1). `area` belongs here despite being a coarse container: it gets
+ * embedded like everything else, so leaving it out meant paying to embed areas
+ * that could never participate in a connection — the kind of omission that reads
+ * as deliberate until someone checks it against `EMBEDDED_TYPES`.
+ */
+const SWEEP_TYPES: readonly EmbeddedType[] = ['project', 'goal', 'area', 'entity', 'document'];
+
+/**
+ * What a thought can connect to, besides other thoughts.
+ *
+ * Thoughts get their own pass (they are the quadratic case), and this list is why
+ * it is two queries rather than one: everything here is a linear pair count and so
+ * is deliberately NOT bounded by the 180-day window.
+ */
+const THOUGHT_TARGET_TYPES: readonly EmbeddedType[] = [
+  'project',
+  'goal',
+  'area',
+  'entity',
+  'document',
+];
 
 export interface Connection {
   sourceType: EmbeddedType;
@@ -128,10 +181,13 @@ export interface SweepResult {
  * walk only follows **accepted** links, so a suggestion cannot quietly move a
  * task up the ranking before a human has agreed with it (plan §10).
  *
- * The caps are logged when they bite. A sweep that silently examined 200 of your
- * 900 projects reads as "there are no more connections" when it means "we
- * stopped looking" — and that is the kind of quiet shortfall that makes someone
- * distrust the whole feature six months later.
+ * The caps are logged when they bite, and — the part that took a review to
+ * catch — the candidate list **rotates**. `listEmbeddedEntityIds` orders by
+ * `sweptAt` and every examined id is stamped, so a capped run resumes where the
+ * last one stopped. Ordering by "most recently embedded" instead would have
+ * re-examined the same 200 rows for ever while logging that it had merely stopped
+ * early: a user with 900 projects would have had 700 of them permanently
+ * unreachable, with the log asserting the opposite.
  */
 export async function sweepConnections(scope: OwnerScope, now = new Date()): Promise<SweepResult> {
   const result: SweepResult = { examined: 0, candidates: 0, created: 0, cappedTypes: [] };
@@ -147,6 +203,9 @@ export async function sweepConnections(scope: OwnerScope, now = new Date()): Pro
       const found = await findConnections({ scope, entityType, entityId });
       pairs.push(...found);
     }
+
+    // Stamped per type, after the batch: bookkeeping, not per-id writes.
+    await markSwept(scope, entityType, sourceIds, now);
   }
 
   // ── Thought-to-thought, bounded to a recent window ─────────────────────────
@@ -156,16 +215,31 @@ export async function sweepConnections(scope: OwnerScope, now = new Date()): Pro
 
   for (const entityId of thoughtIds) {
     result.examined++;
-    const found = await nearestNeighbourRows(scope, {
-      entityType: 'thought',
-      entityId,
-      targetTypes: ['thought', 'project', 'goal'],
-      limit: NEIGHBOURS_PER_SOURCE,
-      maxDistance: MAX_DISTANCE,
-      since: windowStart,
-    });
+
+    // Two calls, because the 180-day window was only ever justified for the
+    // quadratic thought-to-thought case. Applying it to project/goal targets too
+    // would mean a thought captured this week could not connect to a project
+    // embedded nine months ago — a linear pair count, bounded for no reason.
+    const [thoughtPairs, wellFormedPairs] = await Promise.all([
+      nearestNeighbourRows(scope, {
+        entityType: 'thought',
+        entityId,
+        targetTypes: ['thought'],
+        limit: NEIGHBOURS_PER_SOURCE,
+        maxDistance: MAX_DISTANCE,
+        since: windowStart,
+      }),
+      nearestNeighbourRows(scope, {
+        entityType: 'thought',
+        entityId,
+        targetTypes: THOUGHT_TARGET_TYPES,
+        limit: NEIGHBOURS_PER_SOURCE,
+        maxDistance: MAX_DISTANCE,
+      }),
+    ]);
+
     pairs.push(
-      ...found.map((row) => ({
+      ...[...thoughtPairs, ...wellFormedPairs].map((row) => ({
         sourceType: 'thought' as const,
         sourceId: entityId,
         targetType: row.entityType as EmbeddedType,
@@ -174,6 +248,8 @@ export async function sweepConnections(scope: OwnerScope, now = new Date()): Pro
       }))
     );
   }
+
+  await markSwept(scope, 'thought', thoughtIds, now);
 
   result.candidates = pairs.length;
 
@@ -208,7 +284,10 @@ export async function sweepConnections(scope: OwnerScope, now = new Date()): Pro
     logger.warn('Obsiddy connection sweep hit its source cap', {
       cappedTypes: result.cappedTypes,
       cap: SOURCES_PER_TYPE,
-      note: 'Not all entities were examined this run; the next run continues.',
+      // This claim is only true because the candidate list is ordered by
+      // `sweptAt` and every examined id was stamped above. It was false when the
+      // ordering was `embeddedAt desc`.
+      note: 'Not all entities were examined this run; the next run resumes from the oldest unswept.',
     });
   }
 

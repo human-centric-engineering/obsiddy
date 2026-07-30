@@ -442,8 +442,9 @@ export const linkListQuerySchema = obsiddyListQuerySchema.extend({
   sourceId: cuidSchema.optional(),
 });
 
-/** `POST /obsiddy/connections/sweep` — no body; the sweep takes no arguments. */
-export const sweepSchema = z.object({}).strict();
+// `POST /obsiddy/connections/sweep` deliberately has no schema — it takes no
+// body and no arguments, so there is nothing to validate. An empty `.strict()`
+// object would only add a way to 400 on a request nobody sends.
 
 // ─── Documents (phase 4) ─────────────────────────────────────────────────────
 
@@ -457,7 +458,28 @@ export const sweepSchema = z.object({}).strict();
 export const documentUploadSchema = z
   .object({
     title: titleSchema.optional(),
-    sourceUrl: z.url('Invalid URL format').max(2000).optional(),
+    /**
+     * Where the file came from, if anywhere. **http/https only.**
+     *
+     * `z.url()` alone accepts any parseable scheme, `javascript:` included, and
+     * this value is stored and will eventually be rendered as a link. Nothing
+     * renders it today, which is exactly why the restriction belongs here now —
+     * the phase that adds the document UI will not think to check a field that
+     * was already in the database.
+     *
+     * **Uses Zod's own `protocol` option rather than a `.refine()`.** The obvious
+     * hand-rolled version — `.refine((v) => /^https?:$/.test(new URL(v).protocol))`
+     * — is broken in a way that is easy to miss: Zod does not short-circuit a
+     * failed `.url()` check, so the callback still runs on malformed input and
+     * `new URL('not-a-url')` throws a raw `TypeError`. That escapes even
+     * `safeParse`, sails past `handleAPIError`'s `instanceof z.ZodError` test, and
+     * turns a 400 into a 500. A boundary schema must never throw anything but a
+     * `ZodError`; the built-in check cannot.
+     */
+    sourceUrl: z
+      .url({ protocol: /^https?$/, error: 'Must be an http or https URL' })
+      .max(2000)
+      .optional(),
   })
   .strict();
 

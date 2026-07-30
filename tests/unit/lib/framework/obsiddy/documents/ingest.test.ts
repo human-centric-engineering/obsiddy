@@ -19,6 +19,7 @@ const getStorageClient = vi.fn();
 const createDocument = vi.fn();
 const updateDocument = vi.fn();
 const findDocumentByHash = vi.fn();
+const findDocumentByHashIncludingFailed = vi.fn();
 const findObsiddySettings = vi.fn();
 const enqueueReindex = vi.fn();
 
@@ -34,6 +35,8 @@ vi.mock('@/lib/framework/obsiddy/repo/documents', () => ({
   createDocument: (...args: unknown[]) => createDocument(...args),
   updateDocument: (...args: unknown[]) => updateDocument(...args),
   findDocumentByHash: (...args: unknown[]) => findDocumentByHash(...args),
+  findDocumentByHashIncludingFailed: (...args: unknown[]) =>
+    findDocumentByHashIncludingFailed(...args),
 }));
 
 vi.mock('@/lib/framework/obsiddy/repo/settings', () => ({
@@ -68,6 +71,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   findObsiddySettings.mockResolvedValue(null);
   findDocumentByHash.mockResolvedValue(null);
+  findDocumentByHashIncludingFailed.mockResolvedValue(null);
   createDocument.mockImplementation((_scope: unknown, data: Record<string, unknown>) =>
     Promise.resolve({ id: 'doc_1', storageKey: null, ...data })
   );
@@ -133,6 +137,89 @@ describe('dedupe on file hash', () => {
   });
 });
 
+describe('the insert race, and the retry it must not block', () => {
+  /**
+   * `@@unique([userId, fileHash])` is the real dedupe guarantee; the lookup before
+   * the insert is only a fast path. These cases cover what happens when the
+   * constraint fires — and in particular the interaction that nearly shipped:
+   * the ready-only dedupe filter (so a failed file CAN be retried) and the unique
+   * index (so concurrent uploads can't duplicate) combine, unless handled, into a
+   * failed file that can never be retried because its row still holds the hash.
+   */
+  const p2002 = Object.assign(new Error('Unique constraint failed'), { code: 'P2002' });
+
+  function readyRow(overrides: Record<string, unknown> = {}) {
+    return {
+      id: 'doc_winner',
+      status: 'ready',
+      archivedAt: null,
+      storageKey: null,
+      extractedText: 'text',
+      ...overrides,
+    };
+  }
+
+  it('hands back the winner’s row when a concurrent upload got there first', async () => {
+    createDocument.mockRejectedValueOnce(p2002);
+    findDocumentByHashIncludingFailed.mockResolvedValue(readyRow());
+
+    const result = await ingestDocument(SCOPE, upload());
+
+    expect(result).toMatchObject({ deduped: true });
+    expect(result.document.id).toBe('doc_winner');
+    // The loser must not re-parse: that is the waste the constraint exists to stop.
+    expect(parseDocument).not.toHaveBeenCalled();
+  });
+
+  it('refuses politely while the winner is still parsing', async () => {
+    // Saying "done" would be a lie — there is no extracted text yet.
+    createDocument.mockRejectedValueOnce(p2002);
+    findDocumentByHashIncludingFailed.mockResolvedValue(readyRow({ status: 'processing' }));
+
+    await expect(ingestDocument(SCOPE, upload())).rejects.toThrow(/already being processed/);
+  });
+
+  it.each([
+    ['a failed row', { status: 'failed', archivedAt: null }],
+    ['an archived row', { status: 'ready', archivedAt: new Date('2026-01-01') }],
+  ])('re-drives %s rather than refusing for ever', async (_label, holder) => {
+    // THE interaction bug. Without this branch the unique index turns "you may
+    // retry a file that failed" into "that file is banned from your account".
+    createDocument.mockRejectedValueOnce(p2002);
+    findDocumentByHashIncludingFailed.mockResolvedValue(readyRow(holder));
+
+    const result = await ingestDocument(SCOPE, upload());
+
+    expect(result.deduped).toBe(false);
+    // Reclaimed: reset to processing with the previous failure cleared, then parsed.
+    expect(updateDocument.mock.calls[0]?.[2]).toMatchObject({
+      status: 'processing',
+      errorMessage: null,
+      extractedText: null,
+      archivedAt: null,
+    });
+    expect(parseDocument).toHaveBeenCalled();
+    // And it lands ready, so the retry actually produces a usable document.
+    expect(updateDocument.mock.calls.at(-1)?.[2]).toMatchObject({ status: 'ready' });
+  });
+
+  it('rethrows the constraint error when the holder has vanished', async () => {
+    // Row deleted between the failed INSERT and the lookup. Guessing would be worse
+    // than surfacing it.
+    createDocument.mockRejectedValueOnce(p2002);
+    findDocumentByHashIncludingFailed.mockResolvedValue(null);
+
+    await expect(ingestDocument(SCOPE, upload())).rejects.toThrow(/Unique constraint/);
+  });
+
+  it('does not swallow an unrelated database error as a dedupe', async () => {
+    createDocument.mockRejectedValueOnce(new Error('connection reset'));
+
+    await expect(ingestDocument(SCOPE, upload())).rejects.toThrow('connection reset');
+    expect(findDocumentByHashIncludingFailed).not.toHaveBeenCalled();
+  });
+});
+
 describe('failure is recorded, not swallowed', () => {
   it('marks the row failed with the reason when parsing throws', async () => {
     parseDocument.mockRejectedValue(new Error('Corrupt PDF trailer'));
@@ -188,20 +275,19 @@ describe('failure is recorded, not swallowed', () => {
 });
 
 describe('the happy path queues indexing rather than embedding inline', () => {
-  it('stores the extracted text and leaves indexedHash null', async () => {
-    // Embedding a 300-chunk document inside an HTTP request would hold the
-    // connection open for a minute; the null hash IS the queue.
+  it('stores the extracted text — indexedHash is no longer passed explicitly', async () => {
+    // CHANGED: `ingestDocument` used to pass `indexedHash: null` itself. Now
+    // `updateDocument` nulls `indexedHash` on EVERY update unconditionally (the
+    // repo layer's `data: { ...data, indexedHash: null }`, spread last so it
+    // always wins) — so ingest no longer needs to know that, and doesn't send it.
     await ingestDocument(SCOPE, upload());
 
-    expect(updateDocument).toHaveBeenCalledWith(
-      SCOPE,
-      'doc_1',
-      expect.objectContaining({
-        status: 'ready',
-        extractedText: '# Notes\n\nRevenue targets for Q4.',
-        indexedHash: null,
-      })
-    );
+    const patch = vi.mocked(updateDocument).mock.calls.at(-1)?.[2];
+    expect(patch).toMatchObject({
+      status: 'ready',
+      extractedText: '# Notes\n\nRevenue targets for Q4.',
+    });
+    expect(patch).not.toHaveProperty('indexedHash');
   });
 
   it('defaults the title to the file name without its extension', async () => {
@@ -213,11 +299,15 @@ describe('the happy path queues indexing rather than embedding inline', () => {
     );
   });
 
-  it('nudges the indexer without making the upload depend on it', async () => {
-    enqueueReindex.mockRejectedValue(new Error('db blip'));
+  // CHANGED: `ingestDocument` used to fire `void enqueueReindex(...)` after the
+  // update as a "nudge" to the indexer. It was removed because it was a no-op —
+  // `updateDocument` already nulls `indexedHash` on every update, so the extra
+  // call wrote null over null and kicked no actual pass. Queueing is now
+  // entirely the repo layer's job; ingest doesn't call the indexer at all.
+  it('does not call enqueueReindex — the repo layer queues the document itself', async () => {
+    await ingestDocument(SCOPE, upload());
 
-    // Still resolves: the document is already queued by its null indexedHash.
-    await expect(ingestDocument(SCOPE, upload())).resolves.toMatchObject({ deduped: false });
+    expect(enqueueReindex).not.toHaveBeenCalled();
   });
 });
 
@@ -260,6 +350,33 @@ describe('documentOriginals: the bytes', () => {
     const patch = updateDocument.mock.calls.at(-1)?.[2];
     expect(patch).toMatchObject({ storageKey: 'stored-key' });
     expect(JSON.stringify(patch)).not.toContain('https://public/x');
+  });
+
+  it.each([
+    [
+      'the local provider, which publishes what it stores',
+      { name: 'local', upload: vi.fn(), getSignedUrl: vi.fn() },
+    ],
+    ['a provider that cannot sign URLs', { name: 'vercel-blob', upload: vi.fn() }],
+  ])('refuses to retain on %s even when the setting says retain', async (_label, storage) => {
+    // Config drift, and the reason the capability is re-checked at ingest rather
+    // than trusted from when the setting was saved: a deployment that chose
+    // `retain` on S3 and later switched STORAGE_PROVIDER to `local` would
+    // otherwise start writing user documents into a statically-served directory
+    // with nobody having touched a setting. The admin route's own check cannot
+    // see that happen — it only ran once, in the past.
+    getStorageClient.mockReturnValue(storage);
+    findObsiddySettings.mockResolvedValue({ documentOriginals: 'retain', maxDocumentBytes: null });
+
+    const result = await ingestDocument(SCOPE, upload());
+
+    expect(storage.upload).not.toHaveBeenCalled();
+    // The document is still ingested and usable — only the optional original is
+    // dropped. Failing the upload would punish the user for an operator's config.
+    expect(result.deduped).toBe(false);
+    const patch = updateDocument.mock.calls.at(-1)?.[2];
+    expect(patch).toMatchObject({ status: 'ready' });
+    expect(patch).not.toHaveProperty('storageKey');
   });
 
   it('still ingests when retention is on but storage is unconfigured', async () => {

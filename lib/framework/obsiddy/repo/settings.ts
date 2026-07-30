@@ -45,11 +45,25 @@ export interface ObsiddySettingsWrite {
   maxDocumentBytes?: number | null;
 }
 
-/** Create-or-update the singleton. */
+/**
+ * Create-or-update the singleton.
+ *
+ * **The slug is the spread that wins.** `owner-scope.ts` sets the rule for every
+ * other repo in this tier — in a `create`/`data` payload the trusted value goes
+ * LAST, because the last spread wins and must beat anything the caller sent. The
+ * same reasoning applies to the singleton key: `{ slug, ...data }` would let a
+ * `slug` smuggled into `data` create a *second* settings row, and that row would
+ * be a silent second source of truth for whether this deployment retains users'
+ * uploaded documents.
+ *
+ * Unreachable today — the route's schema is `.strict()` and declares no `slug` —
+ * but "safe because of a check in another file" is precisely how this class of bug
+ * arrives later, so the guard belongs at the write.
+ */
 export async function upsertObsiddySettings(data: ObsiddySettingsWrite): Promise<ObsiddySettings> {
   return prisma.obsiddySettings.upsert({
     where: { slug: OBSIDDY_SETTINGS_SLUG },
-    create: { slug: OBSIDDY_SETTINGS_SLUG, ...data },
+    create: { ...data, slug: OBSIDDY_SETTINGS_SLUG },
     update: data,
   });
 }
