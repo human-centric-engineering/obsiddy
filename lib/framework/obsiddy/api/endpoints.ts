@@ -44,6 +44,9 @@ export const OBSIDDY_API = {
   unsnoozePath: (collection: string, id: string): string => `${collection}/${id}/unsnooze`,
   restorePath: (collection: string, id: string): string => `${collection}/${id}/restore`,
 
+  /** Triage: one thought becomes a task, a project or a goal. */
+  promotePath: (id: string): string => `/api/v1/obsiddy/thoughts/${id}/promote`,
+
   LINKS: '/api/v1/obsiddy/links',
   linkById: (id: string): string => `/api/v1/obsiddy/links/${id}`,
   CONNECTIONS_SWEEP: '/api/v1/obsiddy/connections/sweep',

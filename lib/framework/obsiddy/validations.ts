@@ -198,6 +198,52 @@ export const updateThoughtSchema = z
   })
   .strict();
 
+/**
+ * `POST /obsiddy/thoughts/[id]/promote` — triage, as one gesture.
+ *
+ * `title` is optional because the thought's own first line is the default: the
+ * point of triage is not retyping what you already wrote.
+ *
+ * A **discriminated union** rather than one object with optional fields, because
+ * the per-target rules are real and the union enforces them in the type system
+ * instead of in a refinement the service then has to re-check:
+ *
+ *   - **A goal must carry a horizon.** A guessed one is worse than no goal:
+ *     `goalAlignment` weights near horizons far above distant ones (week 1.0 vs
+ *     life 0.35), so a silent default would quietly re-rank every task that ends
+ *     up linked to it.
+ *   - **Only a task can be filed under a project**, and only projects and goals
+ *     take an area. `.strict()` on each branch makes the wrong combination a 400
+ *     rather than a silently ignored field.
+ */
+export const promoteThoughtSchema = z.discriminatedUnion('target', [
+  z
+    .object({
+      target: z.literal('task'),
+      title: titleSchema.optional(),
+      /** "File this under the Q4 launch" — the most common triage action. */
+      projectId: cuidSchema.optional(),
+    })
+    .strict(),
+  z
+    .object({
+      target: z.literal('project'),
+      title: titleSchema.optional(),
+      areaId: cuidSchema.optional(),
+    })
+    .strict(),
+  z
+    .object({
+      target: z.literal('goal'),
+      title: titleSchema.optional(),
+      areaId: cuidSchema.optional(),
+      horizon: z.enum(GOAL_HORIZONS),
+    })
+    .strict(),
+]);
+
+export type PromoteThoughtInput = z.infer<typeof promoteThoughtSchema>;
+
 export const thoughtListQuerySchema = obsiddyListQuerySchema.extend({
   status: z.enum(THOUGHT_STATUSES).optional(),
   source: z.enum(THOUGHT_SOURCES).optional(),
