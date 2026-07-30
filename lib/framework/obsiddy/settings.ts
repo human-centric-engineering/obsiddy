@@ -118,6 +118,65 @@ export function normaliseWeights(weights: PriorityWeights): PriorityWeights {
   };
 }
 
+// ─── Instance settings ───────────────────────────────────────────────────────
+
+/**
+ * What happens to an uploaded document's original bytes.
+ *
+ * **`discard` is the default, and that is a security decision rather than a
+ * frugal one.** Sunrise's `StorageProvider` interface has `upload`, `delete`,
+ * `deletePrefix` and an *optional* `getSignedUrl` — there is no read method at
+ * all — and `LocalProvider` ignores `public: false`, writing into
+ * `public/uploads/` which Next serves statically at a guessable URL. So on a
+ * default install, retaining a user's uploaded PDF would publish it. Discarding
+ * the bytes after parsing keeps the extracted text and the embedding chunks —
+ * which is what the product actually uses — and leaves no blob to leak.
+ *
+ * `retain` is available for deployments whose provider stores objects privately
+ * and can sign URLs (S3 today). The admin page names the resolved provider and
+ * warns when it cannot, so the choice is informed. Sunrise ask filed for a
+ * private-read seam; when it lands, `retain` becomes safe everywhere.
+ */
+export const DOCUMENT_ORIGINAL_MODES = ['discard', 'retain'] as const;
+
+export type DocumentOriginalsMode = (typeof DOCUMENT_ORIGINAL_MODES)[number];
+
+export const DEFAULT_DOCUMENT_ORIGINALS: DocumentOriginalsMode = 'discard';
+
+/**
+ * Upload ceiling in bytes when the operator has not set one.
+ *
+ * 25 MB — deliberately between Sunrise's two contradictory caps (5 MB global in
+ * `lib/validations/storage.ts`, 50 MB local to the bulk knowledge route, Sunrise
+ * ask #9). 5 MB rejects an ordinary scanned PDF; 50 MB is more than a personal
+ * brain needs and more than one request should parse synchronously. Operators who
+ * disagree change it in the admin area rather than patching a constant.
+ */
+export const DEFAULT_MAX_DOCUMENT_BYTES = 25 * 1024 * 1024;
+
+/**
+ * Resolve the retention mode from the stored column.
+ *
+ * Falls back to `discard` on anything unrecognised. This one **must** fail safe
+ * rather than fail open: a garbled value meaning "retain" would start publishing
+ * files, whereas a garbled value meaning "discard" only loses an optional
+ * convenience.
+ */
+export function resolveDocumentOriginals(value: unknown): DocumentOriginalsMode {
+  if (typeof value === 'string') {
+    const match = DOCUMENT_ORIGINAL_MODES.find((mode) => mode === value);
+    if (match) return match;
+    logger.warn('Obsiddy documentOriginals unreadable, discarding originals', { value });
+  }
+  return DEFAULT_DOCUMENT_ORIGINALS;
+}
+
+/** Resolve the upload ceiling, ignoring non-positive stored values. */
+export function resolveMaxDocumentBytes(value: unknown): number {
+  if (typeof value === 'number' && Number.isFinite(value) && value > 0) return value;
+  return DEFAULT_MAX_DOCUMENT_BYTES;
+}
+
 export function resolveEnergyProfile(value: unknown): EnergyProfile {
   const parsed = energyProfileSchema.safeParse(value);
   return parsed.success ? parsed.data : DEFAULT_ENERGY_PROFILE;

@@ -41,7 +41,8 @@
     "postinstall": "prisma generate",
     "prepare": "husky",
     "framework:obsiddy:smoke-isolation": "tsx --env-file=.env.local scripts/framework/obsiddy/smoke-isolation.ts",
-    "framework:obsiddy:smoke-priority": "tsx --env-file=.env.local scripts/framework/obsiddy/smoke-priority.ts"
+    "framework:obsiddy:smoke-priority": "tsx --env-file=.env.local scripts/framework/obsiddy/smoke-priority.ts",
+    "framework:obsiddy:smoke-search": "tsx --env-file=.env.local scripts/framework/obsiddy/smoke-search.ts"
   },
   "repository": {
     "type": "git",

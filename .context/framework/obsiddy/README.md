@@ -33,22 +33,26 @@ Namespaced _inside_ the tier, never at its root — so a project already running
 
 ## Status
 
-**Release 1, phases 0–3 complete** — the tier is wired, the data model exists, every core type has an owner-scoped CRUD API, and tasks are ranked by a deterministic scorer. There is no UI, no search and no agent layer yet.
+**Release 1, phases 0–4 complete** — the tier is wired, the data model exists, every core type has an owner-scoped CRUD API, tasks are ranked by a deterministic scorer, and the brain is searchable by meaning. There is still no UI and no agent layer.
 
-| Wired                                   | Where                                                                                     |
-| --------------------------------------- | ----------------------------------------------------------------------------------------- |
-| Boot (dynamic import → `initLeafApp()`) | `lib/app/bootstrap.ts` → `lib/framework/obsiddy/index.ts`                                 |
-| Env schema                              | `lib/app/env.ts` merges `obsiddyEnvSchema` (currently empty)                              |
-| Lint boundary                           | `lib/app/eslint.config.mjs` spreads `lib/framework/eslint.config.mjs`                     |
-| Protected route                         | `/obsiddy` in `lib/app/protected-routes.ts`                                               |
-| Drift probes                            | `lib/app/db-drift.ts` → `registerObsiddyDriftProbes()` (six, B1 + B3–B7)                  |
-| Schema                                  | 18 models in `prisma/schema/framework-obsiddy.prisma`                                     |
-| Migrations                              | `add_second_brain`, `obsiddy_space_cascade` — hand-edited, never regenerate               |
-| Repo layer                              | `lib/framework/obsiddy/repo/*` — `OwnerScope`, 9 entity repos                             |
-| Services                                | `lib/framework/obsiddy/services/*` — resources, slug, events, space, snooze, today, inbox |
-| Priority engine                         | `lib/framework/obsiddy/priority/*` — pure scorer, batched reprioritise pass               |
-| Zoned time                              | `lib/framework/obsiddy/time/zoned.ts` — every schedule resolves in the user's zone        |
-| API                                     | `app/api/v1/obsiddy/**` — 29 route files                                                  |
+| Wired                                   | Where                                                                                          |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Boot (dynamic import → `initLeafApp()`) | `lib/app/bootstrap.ts` → `lib/framework/obsiddy/index.ts`                                      |
+| Env schema                              | `lib/app/env.ts` merges `obsiddyEnvSchema` (currently empty)                                   |
+| Lint boundary                           | `lib/app/eslint.config.mjs` spreads `lib/framework/eslint.config.mjs`                          |
+| Protected route                         | `/obsiddy` in `lib/app/protected-routes.ts`                                                    |
+| Rate-limit sub-caps                     | `lib/app/rate-limit.ts` → `registerObsiddyRateLimits()` (search, reindex, sweep, upload)       |
+| Admin nav                               | `lib/app/admin-nav.ts` → `registerObsiddyAdminNav()`                                           |
+| Drift probes                            | `lib/app/db-drift.ts` → `registerObsiddyDriftProbes()` (six, B1 + B3–B7)                       |
+| Schema                                  | 19 models in `prisma/schema/framework-obsiddy.prisma`                                          |
+| Migrations                              | `add_second_brain`, `obsiddy_space_cascade`, `obsiddy_document_originals` — never regenerate   |
+| Repo layer                              | `lib/framework/obsiddy/repo/*` — `OwnerScope`, 13 modules                                      |
+| Services                                | `lib/framework/obsiddy/services/*` — resources, slug, events, space, snooze, today, inbox      |
+| Priority engine                         | `lib/framework/obsiddy/priority/*` — pure scorer, batched reprioritise pass                    |
+| Semantic layer                          | `lib/framework/obsiddy/{embedding,search,documents}/*` — indexer, hybrid search, sweep, ingest |
+| Zoned time                              | `lib/framework/obsiddy/time/zoned.ts` — every schedule resolves in the user's zone             |
+| API                                     | `app/api/v1/obsiddy/**` — 37 route files, plus one admin pair                                  |
+| Admin UI                                | `/admin/obsiddy/settings` — document handling and the upload ceiling                           |
 
 ## The isolation contract (D5)
 
@@ -72,4 +76,17 @@ Three properties the tests hold, because each is invisible when it breaks:
 
 Scores are refreshed on every task mutation. The full nightly pass arrives with the workflows in phase 7 — until then, a task whose score depends on something _else_ changing (a project going quiet, a week rolling over) keeps its last value until it is next touched.
 
-Next: **phase 4** (indexer, `searchObsiddy`, connection sweep, document ingestion). **Phase 0b** (upstreaming two seams to Sunrise) is a separate PR against the template and is tracked in [`sunrise-asks.md`](./sunrise-asks.md).
+## How search works (D2, D4)
+
+**One vector table, one HNSW index, one re-embed path.** `ObsiddyEmbedding` holds every embedded type (`thought | project | goal | area | entity | document`), so there is a single `vector(1536)` column to drift-probe instead of six. `task` is deliberately absent — task titles are short and semantically thin, so they are searched through a generated tsvector (probe B4) instead.
+
+Four properties, each invisible when it breaks:
+
+1. **All vector SQL lives in `repo/embeddings.ts`.** The plan put `searchObsiddy` in `search/`, but the tier lint boundary forbids Prisma outside `repo/**` — and that constraint is worth more than the file layout, because it means the raw SQL, the one place a `WHERE "userId"` can be forgotten, can only be written in the layer whose every function takes an `OwnerScope`. `search/*` orchestrates; it cannot query.
+2. **`indexedHash` is nulled liberally; the hash comparison is the cost gate.** Every update, restore and manual reindex nulls it — which queues a _comparison_, not an API call. The indexer computes the canonical hash, checks it against what is stored, and only then spends anything. That is what lets a mutation path null the column without knowing which fields are semantic, and what keeps a corpus of five thousand notes from re-embedding because a status changed (§17 risk 3). `indexer.test.ts` asserts the call count on the embedder, both ways round.
+3. **Archiving deletes the embedding rows in the same transaction as the archive.** An archived item left in the index behind a `WHERE archivedAt IS NULL` filter would make recall degrade silently as history grows — no error, no symptom (§17 risk 5b). The consequence is that the archived corpus has _no vectors at all_, so `?includeArchived=true` is served by a keyword pass instead. That is a deliberate trade, not a gap.
+4. **The connection sweep costs nothing per run.** It reads _already-stored_ vectors and finds neighbour pairs in SQL (D4), so proactive connection-hunting can be left on forever; an LLM writes rationales later, only for pairs that cleared the 0.72 floor. Pair exclusion — including the `rejected` tombstone, in **both** directions — happens in the query, so no caller can forget it and re-nag someone every Sunday (§17 risk 5c).
+
+Proven by `npm run framework:obsiddy:smoke-search` against a real database: 26 assertions over the pgvector SQL, the HNSW index, the tsvector ranking, cross-user isolation (including the case where another user's row is the _better_ vector match), the sweep, the tombstone and the archive transaction. It runs with real embeddings when a provider is configured and with deterministic synthetic vectors when not — printing which, because a green run should never claim more than it proved.
+
+Next: **phase 5** (the UI — layout, Today, Inbox, Projects, Goals, Entities, Documents, Connections, Graph). **Phase 0b** (upstreaming two seams to Sunrise) is a separate PR against the template and is tracked in [`sunrise-asks.md`](./sunrise-asks.md).

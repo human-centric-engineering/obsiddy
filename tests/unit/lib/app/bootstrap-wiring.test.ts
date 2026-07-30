@@ -81,17 +81,43 @@ describe('rate-limit auto-wire (lib/app/rate-limit.ts → middleware realm)', ()
     expect(resolveRateLimitTier('wiretest')).toBeDefined();
   });
 
-  it('default lib/app/rate-limit is a no-op (effective policy is the base policy by identity)', async () => {
-    // Arrange — no doMock: the real (empty) registerAppRateLimits runs
+  it('the real lib/app/rate-limit auto-wires Obsiddy sub-caps without shadowing Sunrise surfaces', async () => {
+    // FORK NOTE (Obsiddy): vanilla Sunrise asserts the effective policy is the
+    // base policy *by identity*, proving the empty seam allocates nothing. Obsiddy
+    // fills the seam, so identity no longer holds — but the property that actually
+    // protects the platform still does, and is what this now asserts: Obsiddy's
+    // rules reach only its own namespace, and none of them matches an admin, auth
+    // or MCP path. (`registerRateLimitRule` throws on such a matcher at boot, so
+    // this is belt-and-braces on a guard that already exists.)
     vi.resetModules();
 
-    // Act
     await import('@/lib/security/rate-limit-middleware');
-    const { getEffectiveRateLimitPolicy, RATE_LIMIT_POLICY } =
+    const { getEffectiveRateLimitPolicy, RATE_LIMIT_POLICY, findRateLimitRule } =
       await import('@/lib/security/rate-limit-policy');
 
-    // Assert — no app rules registered → identity return (no allocation, no extra rule)
-    expect(getEffectiveRateLimitPolicy()).toBe(RATE_LIMIT_POLICY);
+    const eff = getEffectiveRateLimitPolicy();
+    const appRules = eff.filter((rule) => !RATE_LIMIT_POLICY.includes(rule));
+
+    expect(appRules).toHaveLength(4);
+    expect(
+      appRules.every(
+        (rule) => rule.match instanceof RegExp && String(rule.match).includes('obsiddy')
+      )
+    ).toBe(true);
+
+    // A protected Sunrise path still resolves to a Sunrise rule, not an app one.
+    for (const path of [
+      '/api/v1/admin/users',
+      '/api/v1/auth/sign-in',
+      '/api/v1/mcp',
+      '/api/v1/chat/stream',
+    ]) {
+      const rule = findRateLimitRule(path, eff);
+      expect(appRules.includes(rule!), `${path} must not match an Obsiddy rule`).toBe(false);
+    }
+
+    // And the catch-all is still last, so the splice landed in the right slot.
+    expect(eff[eff.length - 1]).toBe(RATE_LIMIT_POLICY[RATE_LIMIT_POLICY.length - 1]);
   });
 
   it('aborts boot when an app rule references an unregistered tier (finding #6 integrity check)', async () => {

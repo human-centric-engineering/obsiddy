@@ -9,6 +9,7 @@
  */
 
 import { prisma } from '@/lib/db/client';
+import { archiveAndDropVectors } from '@/lib/framework/obsiddy/repo/embeddings';
 import {
   liveOwnerWhere,
   ownerWhere,
@@ -72,7 +73,7 @@ export async function archiveArea(
   id: string,
   reason = 'manual'
 ): Promise<ObsiddyArea | null> {
-  return nullOnMiss(() =>
+  return archiveAndDropVectors(scope, 'area', id, () =>
     prisma.obsiddyArea.update({
       where: { id, ...ownerWhere(scope) },
       data: { archivedAt: new Date(), archivedReason: reason, indexedHash: null },

@@ -683,8 +683,18 @@ model ObsiddyDocument {
   /// SHA-256 — a re-upload of the same bytes dedupes on this.
   fileHash String
 
-  mimeType   String
-  storageKey String
+  mimeType String
+  /// Null when the original bytes were not retained — the default.
+  ///
+  /// Whether an upload's original file is kept is an **operator** decision
+  /// (`ObsiddySettings.documentOriginals`), not a per-user one, because Sunrise's
+  /// storage layer cannot hold private user files on every provider:
+  /// `StorageProvider` has no read method at all, and `LocalProvider` ignores
+  /// `public: false` and writes into `public/uploads/`, which Next serves
+  /// statically at a guessable URL. So `discard` is the default and this column
+  /// is empty on most rows — the extracted text and the embedding chunks are the
+  /// product, the bytes are an optional convenience.
+  storageKey String?
   byteSize   Int
 
   /// processing | ready | failed
@@ -823,4 +833,47 @@ model ObsiddyEvent {
   @@index([userId, createdAt(sort: Desc)])
   @@index([userId, entityType, entityId])
   @@map("framework_obsiddy_event")
+}
+
+/// Instance settings — the deliberate exception to rule 2 at the top of this file.
+///
+/// **This is the one Obsiddy table with no `userId`**, so it is also the one
+/// table outside the D1 cascade. That is not an oversight: what it holds are
+/// deployment facts, not user data. "Does this deployment's storage provider
+/// hold private objects safely?" has one answer per install, and it belongs to
+/// whoever operates the install — so it is an admin-area setting, and erasing a
+/// user must not change it.
+///
+/// Singleton by `slug`, mirroring `AiOrchestrationSettings` — a `@unique`
+/// defaulted column rather than a magic primary key, so the upsert has a natural
+/// target and a second row is a constraint violation rather than a silent
+/// second source of truth.
+model ObsiddySettings {
+  id   String @id @default(cuid())
+  slug String @unique @default("global")
+
+  /// discard | retain — what happens to an uploaded document's original bytes.
+  ///
+  /// `discard` (default) parses the file, keeps `extractedText` and the embedding
+  /// chunks, and drops the buffer: no blob, no download surface, nothing to leak.
+  /// `retain` uploads under `framework-obsiddy/<userId>/<fileHash>` with
+  /// `public: false` and serves downloads through a short-lived signed URL, which
+  /// only works on a provider that implements `getSignedUrl` and stores objects
+  /// privately. The admin page names the resolved provider and says so, because
+  /// choosing `retain` on the local provider means writing user documents into a
+  /// statically-served directory.
+  documentOriginals String @default("discard") @db.VarChar(16)
+
+  /// Upload ceiling in bytes. Null falls back to the code default.
+  ///
+  /// A setting rather than a constant because Sunrise ships two contradictory
+  /// caps — 5 MB global (`lib/validations/storage.ts`) and 50 MB local to the
+  /// bulk knowledge route — and Obsiddy has to pick one without pretending the
+  /// other doesn't exist (Sunrise ask #9).
+  maxDocumentBytes Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("framework_obsiddy_settings")
 }

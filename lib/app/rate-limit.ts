@@ -13,6 +13,16 @@
  *
  * Full guide + example: CUSTOMIZATION.md §4 · .context/security/rate-limiting.md
  */
+import { registerObsiddyRateLimits } from '@/lib/framework/obsiddy/rate-limit';
+
 export function registerAppRateLimits(): void {
-  // No app rate-limit tiers/rules by default.
+  // Obsiddy's per-flow sub-caps for its four expensive routes (search, reindex,
+  // sweep, document upload). One call, not a pasted body: Obsiddy owns the rules
+  // so a later Obsiddy release can add one without every host editing this file.
+  //
+  // Static import here on purpose — unlike `bootstrap.ts`, this runs in the
+  // middleware bundle where there is nowhere to await, and this repo IS the
+  // Obsiddy tier so the path always resolves. A host project adds the same two
+  // lines; see `.context/framework/obsiddy/install.md`.
+  registerObsiddyRateLimits();
 }
