@@ -264,11 +264,37 @@ copies wholesale. None of them is a Sunrise file, and none needs registering:
 | Docs          | `.context/framework/obsiddy/**`                        |
 | Smoke scripts | `scripts/framework/obsiddy/**`                         |
 
-That list is also the **removal list** for the portability check: the app must
-still build with all of it deleted, which is what proves the tier is a guest
-rather than a dependency. Phase 0's version of this check named only
-`lib/framework/` — that was correct when the tier had no routes, and is not any
-more.
+### The removal list — verified, and longer than the table above
+
+The portability claim is that **the app still builds with Obsiddy gone**, which is
+what proves the tier is a guest rather than a dependency. Phase 0 stated that as
+"delete `lib/framework/`"; that was true when the tier had no routes, and running
+it in phase 5 showed it is now incomplete in two ways.
+
+Deleting the tier-owned paths above is **not sufficient** — the build fails with
+eight `Module not found` errors, because the seam files a host _added_ when
+installing still import it. Uninstalling means undoing §2.1–§2.12, not just
+removing files:
+
+| Revert                                              | What it registered             |
+| --------------------------------------------------- | ------------------------------ |
+| `lib/app/bootstrap.ts`, `lib/app/leaf-bootstrap.ts` | the boot hook                  |
+| `lib/app/env.ts`                                    | `obsiddyEnvSchema`             |
+| `lib/app/rate-limit.ts`                             | the four sub-caps              |
+| `lib/app/admin-nav.ts`                              | the admin section              |
+| `lib/app/db-drift.ts`                               | the six drift probes           |
+| `lib/app/protected-routes.ts`                       | `/obsiddy`                     |
+| `lib/app/eslint.config.mjs`                         | the tier lint boundary         |
+| `lib/framework/eslint.config.mjs`                   | (tier-owned; delete it)        |
+| `components/layouts/protected-nav.tsx`              | the one core-file line (§2.11) |
+| `app/api/v1/admin/obsiddy/**`                       | the admin settings pair        |
+
+**Verified 2026-07-30**: with the table above deleted _and_ these ten reverted,
+`npm run build` compiles successfully. Anything less does not.
+
+Two consequences worth stating: the check needs a clean `.next` (stale generated
+route types reference deleted pages and produce misleading `tsc` errors), and a CI
+version of this needs to script the seam reverts rather than a single `rm -rf`.
 
 Three npm dependencies arrive with the UI:
 
