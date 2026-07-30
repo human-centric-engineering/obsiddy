@@ -28,6 +28,8 @@ export const OBSIDDY_API = {
   THOUGHTS: '/api/v1/obsiddy/thoughts',
   ENTITIES: '/api/v1/obsiddy/entities',
   TIME_BLOCKS: '/api/v1/obsiddy/time-blocks',
+  BOARDS: '/api/v1/obsiddy/boards',
+  TAGS: '/api/v1/obsiddy/tags',
 
   /**
    * Item and action paths for the collections above.
@@ -46,6 +48,18 @@ export const OBSIDDY_API = {
 
   /** Triage: one thought becomes a task, a project or a goal. */
   promotePath: (id: string): string => `/api/v1/obsiddy/thoughts/${id}/promote`,
+
+  /** Explicit board membership. Filter-backed boards never use these. */
+  boardCards: (boardId: string): string => `/api/v1/obsiddy/boards/${boardId}/cards`,
+  boardCard: (boardId: string, cardId: string): string =>
+    `/api/v1/obsiddy/boards/${boardId}/cards/${cardId}`,
+  boardExport: (boardId: string, format: 'csv' | 'json'): string =>
+    `/api/v1/obsiddy/boards/${boardId}/export?format=${format}`,
+
+  /** A task's labels, set as a whole rather than added one at a time. */
+  taskTags: (taskId: string): string => `/api/v1/obsiddy/tasks/${taskId}/tags`,
+  taskChecklist: (taskId: string): string => `/api/v1/obsiddy/tasks/${taskId}/checklist`,
+  checklistItem: (id: string): string => `/api/v1/obsiddy/checklist/${id}`,
 
   /**
    * The enriched read behind a detail page — one request, fixed query count.

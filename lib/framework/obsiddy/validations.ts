@@ -543,6 +543,137 @@ export const graphQuerySchema = z
 
 export type GraphQueryInput = z.infer<typeof graphQuerySchema>;
 
+// ─── Boards, tags and checklists (phase 5b) ──────────────────────────────────
+
+export const BOARD_MEMBERSHIP = ['filter', 'explicit'] as const;
+export const BOARD_SWIMLANES = ['project', 'area', 'entity', 'none'] as const;
+export const BOARD_EXPORT_FORMATS = ['csv', 'json'] as const;
+
+/**
+ * A board's columns.
+ *
+ * Each column IS a task status — `ObsiddyTask.status` already carries the states a
+ * kanban board wants, so dragging between columns is a `PATCH` of one field rather
+ * than a new subsystem (§12).
+ *
+ * `wipLimit` is advisory. Exceeding it flags the column; it never blocks a drop,
+ * because a hard block just teaches people to lie to the tool.
+ */
+export const boardColumnsSchema = z
+  .array(
+    z.object({
+      status: z.enum(TASK_STATUSES),
+      label: z.string().trim().min(1).max(60),
+      wipLimit: z.number().int().positive().max(999).optional(),
+    })
+  )
+  .min(1, 'A board needs at least one column')
+  .max(12, 'More than a dozen columns is a spreadsheet');
+
+export type BoardColumns = z.infer<typeof boardColumnsSchema>;
+
+/**
+ * What a filter-backed board matches.
+ *
+ * Deliberately small. Every field here widens what a shared board would expose
+ * later (§17 risk 6b: a filter board keeps sharing tasks you create afterwards), so
+ * the set grows only when there is a reason — not because a filter builder looked
+ * like it wanted more inputs.
+ */
+export const boardFilterSchema = z
+  .object({
+    projectId: cuidSchema.optional(),
+    /** Finished work is off the board unless it was asked for. */
+    includeDone: z.boolean().optional(),
+  })
+  .strict();
+
+export type BoardFilter = z.infer<typeof boardFilterSchema>;
+
+export const createBoardSchema = z
+  .object({
+    name: titleSchema,
+    slug: slugSchema.optional(),
+    description: noteBodySchema.optional(),
+    columns: boardColumnsSchema,
+    membership: z.enum(BOARD_MEMBERSHIP).default('filter'),
+    filter: boardFilterSchema.nullish(),
+    swimlaneBy: z.enum(BOARD_SWIMLANES).nullish(),
+  })
+  .strict();
+
+export const updateBoardSchema = createBoardSchema.partial().strict();
+
+export const boardListQuerySchema = obsiddyListQuerySchema;
+
+export type CreateBoardInput = z.infer<typeof createBoardSchema>;
+export type UpdateBoardInput = z.infer<typeof updateBoardSchema>;
+
+/**
+ * Placing a card on an explicit board.
+ *
+ * `targetIndex` rather than a raw position: the client knows where it dropped the
+ * card in the visual order, and the server owns the arithmetic that turns that into
+ * a fractional position — including the renormalisation pass when a gap has closed
+ * up. A client sending positions directly would have to reimplement that, and would
+ * get it wrong in the one case that matters.
+ */
+export const placeBoardCardSchema = z
+  .object({
+    taskId: cuidSchema,
+    targetIndex: z.number().int().min(0).max(10_000),
+  })
+  .strict();
+
+export type PlaceBoardCardInput = z.infer<typeof placeBoardCardSchema>;
+
+export const moveBoardCardSchema = z
+  .object({ targetIndex: z.number().int().min(0).max(10_000) })
+  .strict();
+
+export const boardExportQuerySchema = z
+  .object({ format: z.enum(BOARD_EXPORT_FORMATS).default('csv') })
+  .strict();
+
+export const createTagSchema = z
+  .object({
+    name: z.string().trim().min(1, 'Required').max(60),
+    slug: slugSchema.optional(),
+    colour: z.string().trim().max(16).optional(),
+    sortOrder: z.number().int().min(0).max(1000).optional(),
+  })
+  .strict();
+
+export const updateTagSchema = createTagSchema.partial().strict();
+
+export type CreateTagInput = z.infer<typeof createTagSchema>;
+export type UpdateTagInput = z.infer<typeof updateTagSchema>;
+
+/**
+ * `PUT /obsiddy/tasks/[id]/tags` — the whole set, not a delta.
+ *
+ * A board UI thinks in terms of "these are the labels now". Exposing add/remove
+ * would make the client compute the difference, and a half-applied difference — the
+ * add landed, the remove didn't — is a state nobody would notice.
+ */
+export const setTaskTagsSchema = z.object({ tagIds: z.array(cuidSchema).max(50) }).strict();
+
+export const createChecklistItemSchema = z
+  .object({ text: z.string().trim().min(1, 'Required').max(500) })
+  .strict();
+
+export const updateChecklistItemSchema = z
+  .object({
+    text: z.string().trim().min(1).max(500).optional(),
+    isDone: z.boolean().optional(),
+    /** Visual index; the server turns it into a fractional position. */
+    targetIndex: z.number().int().min(0).max(10_000).optional(),
+  })
+  .strict();
+
+export type CreateChecklistItemInput = z.infer<typeof createChecklistItemSchema>;
+export type UpdateChecklistItemInput = z.infer<typeof updateChecklistItemSchema>;
+
 // ─── Documents (phase 4) ─────────────────────────────────────────────────────
 
 /**

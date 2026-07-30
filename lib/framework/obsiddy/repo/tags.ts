@@ -32,7 +32,10 @@ import type { ObsiddyTag, Prisma } from '@prisma/client';
 export type TagCreateData = WithoutOwner<Prisma.ObsiddyTagUncheckedCreateInput>;
 export type TagUpdateData = WithoutOwner<Prisma.ObsiddyTagUncheckedUpdateInput>;
 
-export async function listTags(scope: OwnerScope, options: ListOptions = {}): Promise<ObsiddyTag[]> {
+export async function listTags(
+  scope: OwnerScope,
+  options: ListOptions = {}
+): Promise<ObsiddyTag[]> {
   return prisma.obsiddyTag.findMany({
     where: ownerWhere(scope),
     orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
@@ -61,9 +64,7 @@ export async function updateTag(
   id: string,
   data: TagUpdateData
 ): Promise<ObsiddyTag | null> {
-  return nullOnMiss(() =>
-    prisma.obsiddyTag.update({ where: { id, ...ownerWhere(scope) }, data })
-  );
+  return nullOnMiss(() => prisma.obsiddyTag.update({ where: { id, ...ownerWhere(scope) }, data }));
 }
 
 /**

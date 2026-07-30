@@ -106,6 +106,20 @@ export async function findTask(scope: OwnerScope, id: string): Promise<ObsiddyTa
 }
 
 /**
+ * Batched lookup by id — the explicit-board read.
+ *
+ * A curated board knows exactly which tasks it holds, so it needs *those* rows
+ * rather than the top N by score. Ordering is left to the caller: on an explicit
+ * board the position in the join table is the order, and sorting here would impose a
+ * second opinion on top of it.
+ */
+export async function findTasksByIds(scope: OwnerScope, ids: string[]): Promise<ObsiddyTask[]> {
+  if (ids.length === 0) return [];
+
+  return prisma.obsiddyTask.findMany({ where: { ...ownerWhere(scope), id: { in: ids } } });
+}
+
+/**
  * Every live task, with only the columns the scorer reads.
  *
  * Unpaginated on purpose — a reprioritise pass that silently stopped at 50 rows
