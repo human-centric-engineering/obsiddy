@@ -415,3 +415,79 @@ export const graphPayloadSchema = z.object({
 export type GraphPayloadWire = z.infer<typeof graphPayloadSchema>;
 export type GraphNodeWire = GraphPayloadWire['nodes'][number];
 export type GraphEdgeWire = GraphPayloadWire['edges'][number];
+
+// ─── /obsiddy/boards/[id]/view ───────────────────────────────────────────────
+
+export const boardSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  slug: z.string(),
+  description: z.string().nullable(),
+  columns: jsonValue,
+  membership: z.string(),
+  filter: jsonValue,
+  swimlaneBy: z.string().nullable(),
+  archivedAt: isoDate.nullable(),
+  createdAt: isoDate,
+  updatedAt: isoDate,
+});
+
+export type BoardWire = z.infer<typeof boardSchema>;
+
+export const tagSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  slug: z.string(),
+  colour: z.string(),
+  sortOrder: z.number(),
+});
+
+export type TagWire = z.infer<typeof tagSchema>;
+
+export const checklistItemSchema = z.object({
+  id: z.string(),
+  taskId: z.string(),
+  text: z.string(),
+  isDone: z.boolean(),
+  position: z.number(),
+  completedAt: isoDate.nullable(),
+});
+
+export type ChecklistItemWire = z.infer<typeof checklistItemSchema>;
+
+export const boardCardSchema = z.object({
+  task: taskSchema,
+  tags: z.array(tagSchema),
+  checklist: z.object({
+    done: z.number(),
+    total: z.number(),
+    items: z.array(checklistItemSchema),
+  }),
+  /** Milliseconds since the card was last touched — the aging signal. */
+  untouchedForMs: z.number(),
+  position: z.number().nullable(),
+  cardId: z.string().nullable(),
+});
+
+export type BoardCardWire = z.infer<typeof boardCardSchema>;
+
+export const boardColumnSchema = z.object({
+  status: z.string(),
+  label: z.string(),
+  wipLimit: z.number().nullable(),
+  /** Advisory: the column is over its limit. Never enforced. */
+  overWip: z.boolean(),
+  cards: z.array(boardCardSchema),
+});
+
+export type BoardColumnWire = z.infer<typeof boardColumnSchema>;
+
+export const boardViewSchema = z.object({
+  board: boardSchema,
+  columns: z.array(boardColumnSchema),
+  /** Cards whose status matches no column — surfaced rather than lost. */
+  unplaced: z.array(boardCardSchema),
+  totalCards: z.number(),
+});
+
+export type BoardViewWire = z.infer<typeof boardViewSchema>;
