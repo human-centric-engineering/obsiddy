@@ -10,6 +10,10 @@
 
 import { prisma } from '@/lib/db/client';
 import {
+  archiveAndDropVectors,
+  deleteAndDropVectors,
+} from '@/lib/framework/obsiddy/repo/embeddings';
+import {
   liveOwnerWhere,
   ownerWhere,
   type OwnerScope,
@@ -64,7 +68,16 @@ export async function updateArea(
   id: string,
   data: AreaUpdateData
 ): Promise<ObsiddyArea | null> {
-  return nullOnMiss(() => prisma.obsiddyArea.update({ where: { id, ...ownerWhere(scope) }, data }));
+  return nullOnMiss(() =>
+    prisma.obsiddyArea.update({
+      where: { id, ...ownerWhere(scope) },
+      // `indexedHash` LAST so it always wins: any content edit re-queues the row
+      // for the indexer. Nulling it costs a hash comparison, not an embedding
+      // call, which is why every update can do it without knowing which fields
+      // are semantic (see embedding/indexer.ts).
+      data: { ...data, indexedHash: null },
+    })
+  );
 }
 
 export async function archiveArea(
@@ -72,7 +85,7 @@ export async function archiveArea(
   id: string,
   reason = 'manual'
 ): Promise<ObsiddyArea | null> {
-  return nullOnMiss(() =>
+  return archiveAndDropVectors(scope, 'area', id, () =>
     prisma.obsiddyArea.update({
       where: { id, ...ownerWhere(scope) },
       data: { archivedAt: new Date(), archivedReason: reason, indexedHash: null },
@@ -90,5 +103,10 @@ export async function restoreArea(scope: OwnerScope, id: string): Promise<Obsidd
 }
 
 export async function deleteArea(scope: OwnerScope, id: string): Promise<ObsiddyArea | null> {
-  return nullOnMiss(() => prisma.obsiddyArea.delete({ where: { id, ...ownerWhere(scope) } }));
+  // Vectors go in the SAME transaction: nothing cascades to the polymorphic
+  // embedding table, and an orphan chunk makes the sweep propose links to a row
+  // that no longer exists.
+  return deleteAndDropVectors(scope, 'area', id, () =>
+    prisma.obsiddyArea.delete({ where: { id, ...ownerWhere(scope) } })
+  );
 }

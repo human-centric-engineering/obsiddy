@@ -309,6 +309,233 @@ export const snoozeSchema = z
 
 export type SnoozeInput = z.infer<typeof snoozeSchema>;
 
+// ─── Search, indexing and connections (phase 4) ───────────────────────────────
+
+/**
+ * Everything search can return. `task` is included even though tasks are not
+ * embedded — they are searched through their generated tsvector (probe B4), and
+ * a caller asking for "tasks" should not have to know which mechanism serves it.
+ */
+export const SEARCHABLE_ENTITY_TYPES = [
+  'thought',
+  'project',
+  'goal',
+  'area',
+  'entity',
+  'document',
+  'task',
+] as const;
+
+/** The six embedded types — the ones with vectors. Excludes `task` (§1). */
+export const EMBEDDED_ENTITY_TYPES = [
+  'thought',
+  'project',
+  'goal',
+  'area',
+  'entity',
+  'document',
+] as const;
+
+/**
+ * `GET /obsiddy/search`.
+ *
+ * `types` arrives as a comma-separated list because it is a query string, and a
+ * repeated `?types=a&types=b` reads worse in a URL a person might edit by hand.
+ * An unknown type is a 400 rather than being dropped: silently ignoring it would
+ * return "no results for documents" when the caller misspelled `documnet`.
+ */
+export const searchQuerySchema = z
+  .object({
+    q: z.string().trim().min(1, 'Required').max(500),
+    types: z
+      .string()
+      .optional()
+      .transform((value) =>
+        value
+          ? value
+              .split(',')
+              .map((part) => part.trim())
+              .filter((part) => part.length > 0)
+          : undefined
+      )
+      .pipe(z.array(z.enum(SEARCHABLE_ENTITY_TYPES)).min(1).optional()),
+    limit: z.coerce.number().int().positive().max(50).default(20),
+    /** Cosine-distance ceiling. Lower is stricter. */
+    maxDistance: z.coerce.number().min(0).max(1).optional(),
+    includeArchived: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((value) => value === 'true'),
+  })
+  .strict();
+
+export type SearchQuery = z.infer<typeof searchQuerySchema>;
+
+/**
+ * `POST /obsiddy/reindex`.
+ *
+ * `force` re-examines every row rather than only the queued ones — the "the
+ * embedding model changed" path. It is not the default because on a large brain
+ * it is the single most expensive thing a user can trigger.
+ */
+export const reindexSchema = z
+  .object({
+    types: z.array(z.enum(EMBEDDED_ENTITY_TYPES)).min(1).optional(),
+    limitPerType: z.number().int().positive().max(500).optional(),
+    force: z.boolean().default(false),
+  })
+  .strict();
+
+export type ReindexInput = z.infer<typeof reindexSchema>;
+
+export const LINK_KINDS = ['relates_to', 'blocks', 'supports', 'mentions', 'duplicates'] as const;
+export const LINK_STATUSES = ['suggested', 'accepted', 'rejected', 'proposed'] as const;
+
+/**
+ * `POST /obsiddy/links` — a link a person made.
+ *
+ * **`strength` and `origin` are deliberately absent.** `strength` is a measured
+ * cosine similarity; a hand-made link has no such number, and accepting one from
+ * the client would let a caller fabricate a similarity that sorts above real
+ * ones. `origin` is set server-side to `'user'` for the same reason — it is
+ * provenance, and provenance the caller can choose is not provenance.
+ */
+export const createLinkSchema = z
+  .object({
+    sourceType: z.enum(SEARCHABLE_ENTITY_TYPES),
+    sourceId: cuidSchema,
+    targetType: z.enum(SEARCHABLE_ENTITY_TYPES),
+    targetId: cuidSchema,
+    kind: z.enum(LINK_KINDS).default('relates_to'),
+    rationale: z.string().trim().max(2000).nullish(),
+  })
+  .strict()
+  .refine((link) => !(link.sourceType === link.targetType && link.sourceId === link.targetId), {
+    message: 'An item cannot be linked to itself',
+    path: ['targetId'],
+  });
+
+export type CreateLinkInput = z.infer<typeof createLinkSchema>;
+
+/**
+ * `PATCH /obsiddy/links/[id]` — reviewing a suggestion.
+ *
+ * Only `status`, `kind` and `snoozedUntil`. Rejecting sets `status: 'rejected'`,
+ * which is a **tombstone, not a delete**: the sweep excludes any pair that
+ * already has a row, so this is the only thing stopping the same suggestion
+ * reappearing every run forever (§17 risk 5c).
+ */
+export const updateLinkSchema = z
+  .object({
+    status: z.enum(LINK_STATUSES).optional(),
+    kind: z.enum(LINK_KINDS).optional(),
+    snoozedUntil: z.coerce.date().nullish(),
+  })
+  .strict();
+
+export type UpdateLinkInput = z.infer<typeof updateLinkSchema>;
+
+export const linkListQuerySchema = obsiddyListQuerySchema.extend({
+  status: z.enum(LINK_STATUSES).optional(),
+  kind: z.enum(LINK_KINDS).optional(),
+  sourceType: z.enum(SEARCHABLE_ENTITY_TYPES).optional(),
+  sourceId: cuidSchema.optional(),
+});
+
+// `POST /obsiddy/connections/sweep` deliberately has no schema — it takes no
+// body and no arguments, so there is nothing to validate. An empty `.strict()`
+// object would only add a way to 400 on a request nobody sends.
+
+// ─── Documents (phase 4) ─────────────────────────────────────────────────────
+
+/**
+ * Multipart metadata for `POST /obsiddy/documents`.
+ *
+ * The file itself is validated by `documents/ingest.ts` (extension allowlist,
+ * byte cap, text shape) — a Zod schema cannot usefully describe a `File`, and
+ * splitting the checks would mean two places to keep in step.
+ */
+export const documentUploadSchema = z
+  .object({
+    title: titleSchema.optional(),
+    /**
+     * Where the file came from, if anywhere. **http/https only.**
+     *
+     * `z.url()` alone accepts any parseable scheme, `javascript:` included, and
+     * this value is stored and will eventually be rendered as a link. Nothing
+     * renders it today, which is exactly why the restriction belongs here now —
+     * the phase that adds the document UI will not think to check a field that
+     * was already in the database.
+     *
+     * **Uses Zod's own `protocol` option rather than a `.refine()`.** The obvious
+     * hand-rolled version — `.refine((v) => /^https?:$/.test(new URL(v).protocol))`
+     * — is broken in a way that is easy to miss: Zod does not short-circuit a
+     * failed `.url()` check, so the callback still runs on malformed input and
+     * `new URL('not-a-url')` throws a raw `TypeError`. That escapes even
+     * `safeParse`, sails past `handleAPIError`'s `instanceof z.ZodError` test, and
+     * turns a 400 into a 500. A boundary schema must never throw anything but a
+     * `ZodError`; the built-in check cannot.
+     */
+    sourceUrl: z
+      .url({ protocol: /^https?$/, error: 'Must be an http or https URL' })
+      .max(2000)
+      .optional(),
+  })
+  .strict();
+
+export type DocumentUploadInput = z.infer<typeof documentUploadSchema>;
+
+export const documentListQuerySchema = obsiddyListQuerySchema.extend({
+  status: z.enum(['processing', 'ready', 'failed']).optional(),
+});
+
+// ─── Instance settings (admin) ────────────────────────────────────────────────
+
+export const DOCUMENT_ORIGINALS_MODES = ['discard', 'retain'] as const;
+
+/**
+ * `PATCH /api/v1/admin/obsiddy/settings`.
+ *
+ * Admin-guarded at the route. Note what is absent: nothing here is per-user, and
+ * there is no `userId` — these are deployment facts, and the settings row is the
+ * one Obsiddy table outside the erasure cascade.
+ */
+export const obsiddySettingsSchema = z
+  .object({
+    documentOriginals: z.enum(DOCUMENT_ORIGINALS_MODES),
+    /** 1 MB floor: below it nothing useful uploads and it reads as a typo. */
+    maxDocumentBytes: z
+      .number()
+      .int()
+      .min(1024 * 1024)
+      .max(200 * 1024 * 1024)
+      .nullish(),
+  })
+  .partial()
+  .strict();
+
+export type ObsiddySettingsInput = z.infer<typeof obsiddySettingsSchema>;
+
+/**
+ * Response shape of `GET /api/v1/admin/obsiddy/settings`.
+ *
+ * Parsed by the admin page, which fetches its own API — a fetch response is
+ * external data even when we wrote the endpoint, so it goes through Zod rather
+ * than an `as` (CLAUDE.md).
+ */
+export const obsiddyAdminSettingsResponseSchema = z.object({
+  documentOriginals: z.enum(DOCUMENT_ORIGINALS_MODES),
+  maxDocumentBytes: z.number().int().positive(),
+  isDefault: z.boolean(),
+  storage: z.object({
+    capable: z.boolean(),
+    provider: z.string().nullable(),
+    reason: z.string().nullable(),
+  }),
+});
+
+export type ObsiddyAdminSettingsResponse = z.infer<typeof obsiddyAdminSettingsResponseSchema>;
+
 // ─── Space settings ──────────────────────────────────────────────────────────
 
 /**

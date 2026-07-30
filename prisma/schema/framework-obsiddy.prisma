@@ -21,8 +21,12 @@
 // SIX Postgres objects here are managed via raw SQL in the migration because
 // Prisma cannot model them. `npx prisma migrate dev` WILL emit DROP statements
 // for all six on every schema-diff run. Always inspect generated migration SQL
-// and remove any line touching them before applying — a dropped HNSW index
-// degrades vector search to a sequential scan **silently, with no error**.
+// and remove any line touching them before applying — every one of them fails
+// **silently, with no error**. (Note: the HNSW index is NOT on today's query path —
+// the hybrid search's pre-filter and blended ORDER BY defeat it, verified with
+// EXPLAIN — so B3 guards a future restructuring. B4/B6, the GENERATED tsvector
+// columns, guard live code: recreated as plain columns they are never populated and
+// keyword search silently returns nothing.)
 // `lib/framework/obsiddy/db-drift.ts` probes all six; run
 // `npm run db:drift-check` after EVERY `migrate dev`. Non-negotiable.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -460,6 +464,15 @@ model ObsiddyEmbedding {
   /// frontmatter tick re-embeds the corpus (§17 risk 3).
   contentHash String
 
+  /// When the connection sweep last examined this entity as a source.
+  ///
+  /// The sweep is capped per type per run, and this is what makes the cap rotate
+  /// instead of re-examining the same head of the list for ever. Ordering by
+  /// `embeddedAt desc` (the obvious choice) would leave everything past the cap
+  /// permanently unreachable, because `embeddedAt` only moves on a re-embed.
+  /// Null = never swept, which sorts first.
+  sweptAt DateTime?
+
   embeddingModel     String?
   embeddingProvider  String?
   /// Probed by `assertActiveModelMatchesStoredVectors()` — without it a model
@@ -683,8 +696,18 @@ model ObsiddyDocument {
   /// SHA-256 — a re-upload of the same bytes dedupes on this.
   fileHash String
 
-  mimeType   String
-  storageKey String
+  mimeType String
+  /// Null when the original bytes were not retained — the default.
+  ///
+  /// Whether an upload's original file is kept is an **operator** decision
+  /// (`ObsiddySettings.documentOriginals`), not a per-user one, because Sunrise's
+  /// storage layer cannot hold private user files on every provider:
+  /// `StorageProvider` has no read method at all, and `LocalProvider` ignores
+  /// `public: false` and writes into `public/uploads/`, which Next serves
+  /// statically at a guessable URL. So `discard` is the default and this column
+  /// is empty on most rows — the extracted text and the embedding chunks are the
+  /// product, the bytes are an optional convenience.
+  storageKey String?
   byteSize   Int
 
   /// processing | ready | failed
@@ -708,7 +731,15 @@ model ObsiddyDocument {
   space ObsiddySpace @relation(fields: [userId], references: [userId], onDelete: Cascade)
 
   @@index([userId, status])
-  @@index([userId, fileHash])
+  /// Dedupe is enforced by the DATABASE, not just by the lookup that precedes it.
+  ///
+  /// `ingestDocument` checks `findDocumentByHash` first, but check-then-insert has
+  /// a window: two simultaneous uploads of the same bytes both miss the check and
+  /// both create a row, each paying to parse and embed the same file.
+  /// `ObsiddyThought.externalId` got this treatment for exactly the same reason
+  /// (a replayed webhook delivery); documents deserve it too. The unique index also
+  /// serves the lookup, so it replaces the plain index rather than adding to it.
+  @@unique([userId, fileHash])
   @@index([userId, archivedAt])
   @@map("framework_obsiddy_document")
 }
@@ -823,4 +854,47 @@ model ObsiddyEvent {
   @@index([userId, createdAt(sort: Desc)])
   @@index([userId, entityType, entityId])
   @@map("framework_obsiddy_event")
+}
+
+/// Instance settings — the deliberate exception to rule 2 at the top of this file.
+///
+/// **This is the one Obsiddy table with no `userId`**, so it is also the one
+/// table outside the D1 cascade. That is not an oversight: what it holds are
+/// deployment facts, not user data. "Does this deployment's storage provider
+/// hold private objects safely?" has one answer per install, and it belongs to
+/// whoever operates the install — so it is an admin-area setting, and erasing a
+/// user must not change it.
+///
+/// Singleton by `slug`, mirroring `AiOrchestrationSettings` — a `@unique`
+/// defaulted column rather than a magic primary key, so the upsert has a natural
+/// target and a second row is a constraint violation rather than a silent
+/// second source of truth.
+model ObsiddySettings {
+  id   String @id @default(cuid())
+  slug String @unique @default("global")
+
+  /// discard | retain — what happens to an uploaded document's original bytes.
+  ///
+  /// `discard` (default) parses the file, keeps `extractedText` and the embedding
+  /// chunks, and drops the buffer: no blob, no download surface, nothing to leak.
+  /// `retain` uploads under `framework-obsiddy/<userId>/<fileHash>` with
+  /// `public: false` and serves downloads through a short-lived signed URL, which
+  /// only works on a provider that implements `getSignedUrl` and stores objects
+  /// privately. The admin page names the resolved provider and says so, because
+  /// choosing `retain` on the local provider means writing user documents into a
+  /// statically-served directory.
+  documentOriginals String @default("discard") @db.VarChar(16)
+
+  /// Upload ceiling in bytes. Null falls back to the code default.
+  ///
+  /// A setting rather than a constant because Sunrise ships two contradictory
+  /// caps — 5 MB global (`lib/validations/storage.ts`) and 50 MB local to the
+  /// bulk knowledge route — and Obsiddy has to pick one without pretending the
+  /// other doesn't exist (Sunrise ask #9).
+  maxDocumentBytes Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("framework_obsiddy_settings")
 }

@@ -14,20 +14,21 @@ step ever needs you to edit a Sunrise-owned file, that is a bug in Obsiddy —
 open an issue rather than making the edit, because you'd be re-making it on
 every upgrade.
 
-> **Status: phases 0–3.** The tier scaffold, the data model, the CRUD API and
-> the priority engine exist — §§1–3 and 5 are real and installable today. Steps
-> still marked _(phase N)_ are listed so the checklist grows in place rather
-> than being reconstructed later. This file is updated by every phase.
+> **Status: phases 0–4.** The tier scaffold, the data model, the CRUD API, the
+> priority engine and the semantic layer (search, indexing, connections, document
+> ingestion) exist — §§1–6 are real and installable today. Steps still marked
+> _(phase N)_ are listed so the checklist grows in place rather than being
+> reconstructed later. This file is updated by every phase.
 
 ---
 
 ## 0. Requirements
 
-| Requirement                                                          | Why                                                                                      |
-| -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| Sunrise ≥ 0.7.0                                                      | Needs the `lib/app/*` seam set (bootstrap, env, eslint, protected-routes, db-drift)      |
-| PostgreSQL with `pgvector`                                           | Embeddings are a `vector(1536)` column with an HNSW index _(phase 1)_                    |
-| An embedding model configured in the orchestration provider registry | Obsiddy reuses `embedText`/`embedBatch` rather than owning an embedding path _(phase 4)_ |
+| Requirement                                                          | Why                                                                                                                                                                                                                                          |
+| -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Sunrise ≥ 0.7.0                                                      | Needs the `lib/app/*` seam set (bootstrap, env, eslint, protected-routes, db-drift)                                                                                                                                                          |
+| PostgreSQL with `pgvector`                                           | Embeddings are a `vector(1536)` column with an HNSW index _(phase 1)_                                                                                                                                                                        |
+| An embedding model configured in the orchestration provider registry | Obsiddy reuses `embedText`/`embedBatch` rather than owning an embedding path. **Without one, capture and CRUD work but nothing is searchable** — the indexer throws a clear "no embedding provider configured" rather than degrading quietly |
 
 Obsiddy adds **no new npm dependencies** in Release 1 except `d3-force`
 _(phase 5)_ and `@dnd-kit/core` + `@dnd-kit/sortable` _(phase 5b)_.
@@ -46,10 +47,12 @@ merge cleanly on upgrade:
 | `prisma/schema/framework-obsiddy.prisma` | same path                                                                 |
 | `prisma/seeds/framework-obsiddy/**`      | same path _(phase 6)_                                                     |
 | `.context/framework/obsiddy/**`          | same path                                                                 |
-| `app/api/v1/obsiddy/**`                  | same path — 29 route files, each 2 lines                                  |
+| `app/api/v1/obsiddy/**`                  | same path — 37 route files, most of them 2 lines                          |
+| `app/api/v1/admin/obsiddy/**`            | same path — the instance-settings pair                                    |
+| `app/admin/obsiddy/**`                   | same path — the settings page                                             |
 | `app/(protected)/obsiddy/**`             | same path _(phase 5)_                                                     |
 | `scripts/framework/obsiddy/**`           | same path — plus one `package.json` script line, below                    |
-| `components/obsiddy/**`                  | same path _(phase 5)_                                                     |
+| `components/obsiddy/**`                  | same path — the admin settings form; the rest arrives in _phase 5_        |
 
 **The `package.json` lines.** The smoke scripts need entries, and
 `package.json` is the single file Obsiddy cannot avoid touching — npm has no
@@ -58,7 +61,8 @@ include mechanism. Add them as the **last** entries in `scripts`, after
 
 ```jsonc
 "framework:obsiddy:smoke-isolation": "tsx --env-file=.env.local scripts/framework/obsiddy/smoke-isolation.ts",
-"framework:obsiddy:smoke-priority": "tsx --env-file=.env.local scripts/framework/obsiddy/smoke-priority.ts"
+"framework:obsiddy:smoke-priority": "tsx --env-file=.env.local scripts/framework/obsiddy/smoke-priority.ts",
+"framework:obsiddy:smoke-search": "tsx --env-file=.env.local scripts/framework/obsiddy/smoke-search.ts"
 ```
 
 Namespaced, and deliberately not in the `smoke:*` block:
@@ -173,40 +177,82 @@ column exists: a migration that recreated it as a plain `tsvector` would leave
 a column that is never populated, so search would quietly return nothing for
 every row written afterwards.
 
-### 2.6 Capabilities — `lib/app/capabilities.ts` _(phase 6)_
+### 2.6 Rate limits — `lib/app/rate-limit.ts`
 
-### 2.7 Chat context — `lib/app/context-contributors.ts` _(phase 6)_
+```ts
+import { registerObsiddyRateLimits } from '@/lib/framework/obsiddy/rate-limit';
 
-### 2.8 Maintenance tasks — `lib/app/maintenance-tasks.ts` _(phase 7)_
+export function registerAppRateLimits(): void {
+  registerObsiddyRateLimits();
+}
+```
+
+Four per-flow sub-caps, on top of the 100/min section cap `/api/v1/**` already
+inherits from `proxy.ts`. They exist because a single request on these paths is
+expensive rather than cheap: `/search` embeds the query (one paid API call each),
+`/reindex` and `/connections/sweep` start batch jobs, `/documents` parses an
+upload.
+
+| Path                            | Cap     | Keyed on     |
+| ------------------------------- | ------- | ------------ |
+| `/api/v1/obsiddy/search`        | 30/min  | session user |
+| `/api/v1/obsiddy/reindex`       | 5/hour  | session user |
+| `/api/v1/obsiddy/connections/*` | 5/hour  | session user |
+| `/api/v1/obsiddy/documents`     | 20/hour | session user |
+
+Static import, like §2.2 — this runs in the middleware bundle, where there is
+nowhere to `await`. `registerRateLimitRule` throws at boot if a matcher could
+shadow a Sunrise-protected surface, so a mistake here fails loudly rather than
+quietly capping the platform's own routes.
+
+### 2.7 Admin nav — `lib/app/admin-nav.ts`
+
+```ts
+import { registerObsiddyAdminNav } from '@/lib/framework/obsiddy/admin-nav';
+
+export function initAppNav(): void {
+  registerObsiddyAdminNav();
+}
+```
+
+Adds an **Obsiddy** section with the instance-settings page (§4.1). Obsiddy's
+registrar is client-safe by necessity — `components/admin/admin-sidebar.tsx`
+reads the registry during render, so registration cannot be async and cannot
+reach the database. Keep anything you add here to the same rule.
+
+### 2.8 Capabilities — `lib/app/capabilities.ts` _(phase 6)_
+
+### 2.9 Chat context — `lib/app/context-contributors.ts` _(phase 6)_
+
+### 2.10 Maintenance tasks — `lib/app/maintenance-tasks.ts` _(phase 7)_
 
 Requires the `registerAppMaintenanceTask` seam (Sunrise phase 0b). Until it
 lands upstream, the connection sweep and retention pass need one line added to
 `lib/orchestration/maintenance/run-tick.ts` — the single documented exception to
 the zero-core-file rule, and a temporary one.
 
-### 2.9 Nav — `lib/app/protected-nav.ts` _(phase 5)_
+### 2.11 Nav — `lib/app/protected-nav.ts` _(phase 5)_
 
 Requires the `protected-nav` seam (Sunrise phase 0b). Until it lands, add one
 entry to `components/layouts/protected-nav.tsx` by hand.
-
-### 2.10 Admin nav — `lib/app/admin-nav.ts` _(phase 7b)_
 
 ---
 
 ## 3. Migrate
 
 ```bash
-npm run db:migrate:deploy    # applies both Obsiddy migrations
+npm run db:migrate:deploy    # applies all three Obsiddy migrations
 npm run db:drift-check       # MUST be green before you go further
 npm run db:seed              # applies prisma/seeds/framework-obsiddy/* (phase 6)
 ```
 
-Two migrations:
+Three migrations:
 
-| Migration                              | What                                                                                                                                                                                                         |
-| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `20260728222816_add_second_brain`      | 18 `framework_obsiddy_*` tables plus six objects Prisma cannot model, grouped as **Group B** at the foot of the file (mirroring the Sunrise baseline's Group A convention)                                   |
-| `20260728232937_obsiddy_space_cascade` | The D1 cascade: a real FK from every scoped table to `framework_obsiddy_space("userId") ON DELETE CASCADE`, so erasing a user removes the whole brain. Also deletes any rows already orphaned by its absence |
+| Migration                                   | What                                                                                                                                                                                                         |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `20260728222816_add_second_brain`           | 18 `framework_obsiddy_*` tables plus six objects Prisma cannot model, grouped as **Group B** at the foot of the file (mirroring the Sunrise baseline's Group A convention)                                   |
+| `20260728232937_obsiddy_space_cascade`      | The D1 cascade: a real FK from every scoped table to `framework_obsiddy_space("userId") ON DELETE CASCADE`, so erasing a user removes the whole brain. Also deletes any rows already orphaned by its absence |
+| `20260729212556_obsiddy_document_originals` | `framework_obsiddy_settings` (the instance-settings singleton, §4.1) and `framework_obsiddy_document.storageKey` made nullable, because originals are discarded by default                                   |
 
 **It is hand-edited, and re-generating it will destroy things.** Two rules:
 
@@ -242,7 +288,42 @@ load, first capture, first agent turn. It is idempotent and race-safe.
 
 ---
 
-## 4. Optional host steps
+## 4. Operator settings
+
+### 4.1 Decide what happens to uploaded document originals
+
+**`/admin/obsiddy/settings`.** Obsiddy parses every uploaded file, stores the
+extracted text and embeds it; the original file is optional and **discarded by
+default**.
+
+That default is a security decision, not a frugal one. Sunrise's
+`StorageProvider` interface has `upload`, `delete`, `deletePrefix` and an
+_optional_ `getSignedUrl` — **there is no read method at all** — and
+`LocalProvider` ignores `public: false`, writing into `public/uploads/`, which
+Next serves statically at a guessable URL. So on a default install, retaining a
+user's uploaded PDF would publish it.
+
+| Provider      | Retention                                                        |
+| ------------- | ---------------------------------------------------------------- |
+| `s3`          | Safe — private objects, signed download URLs                     |
+| `local`       | **Unsafe** — `public/uploads/` is world-readable                 |
+| `vercel-blob` | Unsupported — no `getSignedUrl`, so a private file is unreadable |
+| none          | Nothing to retain                                                |
+
+The settings page names your resolved provider, explains what it can do, and
+disables the retain option where it isn't safe — so this is a decision you can
+make from the screen without reading this table. Sunrise ask filed for a
+private-read seam; when it lands, retention becomes available everywhere.
+
+The same page carries the **upload ceiling** (default 25 MB). Sunrise ships two
+contradictory caps — 5 MB global in `lib/validations/storage.ts` and 50 MB local
+to the bulk knowledge route (ask #9) — so Obsiddy picks a middle default and
+lets you change it rather than pretending the conflict doesn't exist.
+
+Nothing is written to the database until you save, so a fresh install runs on the
+defaults with no settings row at all.
+
+## 5. Optional host steps
 
 - **`app/robots.ts`** — add `/s/` to the disallow list if you use public share
   links _(Release 2)_. Optional by design: per-page `robots` metadata and the
@@ -261,7 +342,7 @@ load, first capture, first agent turn. It is idempotent and race-safe.
 
 ---
 
-## 5. Verify
+## 6. Verify
 
 ```bash
 npm run validate                            # type-check + lint + format
@@ -269,18 +350,27 @@ npm run db:drift-check                      # phase 1 onward
 npm run test
 npm run framework:obsiddy:smoke-isolation   # cross-user isolation + erasure cascade
 npm run framework:obsiddy:smoke-priority    # ranking, snooze and the aggregates
+npm run framework:obsiddy:smoke-search      # vectors, hybrid SQL, sweep, archive
 ```
 
-**Run both smoke scripts against a real database.** The unit suite mocks Prisma
-at the module boundary, so it verifies the shape of every query and nothing
+**Run all three smoke scripts against a real database.** The unit suite mocks
+Prisma at the module boundary, so it verifies the shape of every query and nothing
 about whether Postgres accepts it. That gap has already cost one shipped bug:
 the phase-2 migration added a foreign key from every scoped table to
 `framework_obsiddy_space`, nothing called `ensureObsiddySpace()`, and every new
-user's first write returned a 500 — under a completely green test suite. Both
+user's first write returned a 500 — under a completely green test suite. The
 scripts skip cleanly (exit 0) when no database is reachable, and clean up after
 themselves on every path.
 
-**Two Sunrise tests will fail, and they're supposed to.** Both assert that a
+`smoke-search` reports which mode it ran in. With an embedding provider
+configured it exercises the whole stack, real vectors included. **Without one it
+does not skip** — it seeds deterministic synthetic vectors through the real
+insert path and still proves the pgvector SQL, the HNSW index, the tsvector
+ranking, cross-user isolation, the connection sweep and the archive transaction.
+What that mode cannot tell you is whether the embeddings are any _good_, so run it
+once with a provider before trusting search quality.
+
+**Three Sunrise tests will fail, and they're supposed to.** All assert that a
 `lib/app/*` seam ships empty — the vanilla contract — so filling the seam, which
 is the entire point of the seam, breaks them. This is upstream
 [#480](https://github.com/human-centric-engineering/sunrise/issues/480); until it
@@ -288,10 +378,11 @@ lands, adjust the assertion rather than deleting the test, so the rest of each
 file still protects you against a stray registration in the seams you have _not_
 filled.
 
-| Test                                     | Broken by                       | Adjust to                                                         |
-| ---------------------------------------- | ------------------------------- | ----------------------------------------------------------------- |
-| `tests/unit/lib/app/defaults.test.ts`    | the ESLint seam (§2.3)          | identity with the framework-tier config array                     |
-| `tests/unit/lib/db/drift-probes.test.ts` | the drift-probe scaffold (§2.5) | identity with what `registerObsiddyDriftProbes()` alone registers |
+| Test                                          | Broken by                                                       | Adjust to                                                         |
+| --------------------------------------------- | --------------------------------------------------------------- | ----------------------------------------------------------------- |
+| `tests/unit/lib/app/defaults.test.ts`         | the ESLint (§2.3), rate-limit (§2.6) and admin-nav (§2.7) seams | the exact set each registrar owns                                 |
+| `tests/unit/lib/db/drift-probes.test.ts`      | the drift-probe scaffold (§2.5)                                 | identity with what `registerObsiddyDriftProbes()` alone registers |
+| `tests/unit/lib/app/bootstrap-wiring.test.ts` | the rate-limit seam (§2.6)                                      | Obsiddy's rules reaching only `/api/v1/obsiddy/*`                 |
 
 Assert **identity with the thing your tier owns**, not a literal list — that way
 a probe or block added straight to the leaf seam still fails, which is the
@@ -301,17 +392,28 @@ copy them.
 Then, the check that actually proves portability:
 
 ```bash
-git stash -u && rm -rf lib/framework    # then revert the env + eslint seam lines
+git stash -u && rm -rf lib/framework    # then revert the four static-import seams
 npm run build                           # must still succeed
 ```
 
 The app must build with the tier removed — that's what proves the boot import
-is genuinely dynamic. The env (§2.2) and lint (§2.3) seams import the tier
-statically by necessity, so back those two lines out as part of the test.
+is genuinely dynamic. Four seams import the tier **statically** by necessity, so
+back those lines out as part of the test:
+
+| Seam                               | Why it cannot be dynamic                                               |
+| ---------------------------------- | ---------------------------------------------------------------------- |
+| `lib/app/env.ts` (§2.2)            | `lib/env.ts` parses the merged schema during a synchronous module load |
+| `lib/app/eslint.config.mjs` (§2.3) | Flat config is a static default export                                 |
+| `lib/app/rate-limit.ts` (§2.6)     | Runs in the middleware bundle, where there is nowhere to `await`       |
+| `lib/app/admin-nav.ts` (§2.7)      | The sidebar reads the registry during client render                    |
+
+Only `bootstrap.ts` must stay dynamic, and that is the one
+`tests/unit/lib/framework/obsiddy/scaffold.test.ts` asserts by reading the file's
+own import statements.
 
 ---
 
-## 6. Extending Obsiddy
+## 7. Extending Obsiddy
 
 `lib/app/obsiddy.ts` _(phase 6)_ is Obsiddy-owned but **host-editable** — the
 place to register extra capabilities on the Obsiddy agents, add board column

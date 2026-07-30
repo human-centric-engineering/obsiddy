@@ -9,6 +9,10 @@
 
 import { prisma } from '@/lib/db/client';
 import {
+  archiveAndDropVectors,
+  deleteAndDropVectors,
+} from '@/lib/framework/obsiddy/repo/embeddings';
+import {
   liveOwnerWhere,
   ownerWhere,
   type OwnerScope,
@@ -107,7 +111,14 @@ export async function updateProject(
   data: ProjectUpdateData
 ): Promise<ObsiddyProject | null> {
   return nullOnMiss(() =>
-    prisma.obsiddyProject.update({ where: { id, ...ownerWhere(scope) }, data })
+    prisma.obsiddyProject.update({
+      where: { id, ...ownerWhere(scope) },
+      // `indexedHash` LAST so it always wins: any content edit re-queues the row
+      // for the indexer. Nulling it costs a hash comparison, not an embedding
+      // call, which is why every update can do it without knowing which fields
+      // are semantic (see embedding/indexer.ts).
+      data: { ...data, indexedHash: null },
+    })
   );
 }
 
@@ -116,11 +127,13 @@ export async function archiveProject(
   id: string,
   reason = 'manual'
 ): Promise<ObsiddyProject | null> {
-  return nullOnMiss(() =>
+  // The embedding rows go in the SAME transaction as the archive, not after it:
+  // an archived project that is still in the vector index for even a moment is
+  // an archived project that turns up in search (§17 risk 5b). `indexedHash` is
+  // nulled so a restore re-embeds it.
+  return archiveAndDropVectors(scope, 'project', id, () =>
     prisma.obsiddyProject.update({
       where: { id, ...ownerWhere(scope) },
-      // indexedHash is nulled so the tick re-embeds on restore; the embedding
-      // rows themselves are dropped by the archive service (§11).
       data: { archivedAt: new Date(), archivedReason: reason, indexedHash: null },
     })
   );
@@ -139,5 +152,10 @@ export async function restoreProject(
 }
 
 export async function deleteProject(scope: OwnerScope, id: string): Promise<ObsiddyProject | null> {
-  return nullOnMiss(() => prisma.obsiddyProject.delete({ where: { id, ...ownerWhere(scope) } }));
+  // Vectors go in the SAME transaction: nothing cascades to the polymorphic
+  // embedding table, and an orphan chunk makes the sweep propose links to a row
+  // that no longer exists.
+  return deleteAndDropVectors(scope, 'project', id, () =>
+    prisma.obsiddyProject.delete({ where: { id, ...ownerWhere(scope) } })
+  );
 }

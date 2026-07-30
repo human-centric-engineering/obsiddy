@@ -17,13 +17,18 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/lib/db/client', () => ({
-  prisma: { obsiddyLink: { findMany: vi.fn(), count: vi.fn() } },
+  prisma: {
+    obsiddyLink: { findMany: vi.fn(), count: vi.fn(), createMany: vi.fn() },
+  },
 }));
 
 import { prisma } from '@/lib/db/client';
 import {
+  countLinks,
   countUnreviewedLinks,
+  createSuggestedLinks,
   findAcceptedGoalLinks,
+  listLinks,
   listSuggestedLinksForSources,
   listUnreviewedLinks,
 } from '@/lib/framework/obsiddy/repo/links';
@@ -34,11 +39,13 @@ const NOW = new Date('2026-07-29T12:00:00.000Z');
 
 const findMany = vi.mocked(prisma.obsiddyLink.findMany);
 const count = vi.mocked(prisma.obsiddyLink.count);
+const createMany = vi.mocked(prisma.obsiddyLink.createMany);
 
 beforeEach(() => {
   vi.clearAllMocks();
   findMany.mockResolvedValue([]);
   count.mockResolvedValue(0);
+  createMany.mockResolvedValue({ count: 0 });
 });
 
 describe('findAcceptedGoalLinks', () => {
@@ -166,5 +173,88 @@ describe('listSuggestedLinksForSources', () => {
   it('short-circuits on an empty source list without querying', async () => {
     expect(await listSuggestedLinksForSources(SCOPE, 'thought', [], NOW)).toEqual([]);
     expect(findMany).not.toHaveBeenCalled();
+  });
+});
+
+describe('listLinks / countLinks filters (phase 4)', () => {
+  /**
+   * Each filter is an optional spread, so the risk is not that a filter is wrong
+   * — it is that a filter is silently DROPPED and the caller gets everything.
+   * `GET /obsiddy/links?status=rejected` returning accepted links too would look
+   * like the tombstones had leaked into the connections view.
+   */
+  it.each([
+    ['status', { status: 'rejected' }],
+    ['kind', { kind: 'blocks' }],
+    ['sourceType', { sourceType: 'thought' }],
+    ['sourceId', { sourceId: 'th_1' }],
+  ] as const)('applies the %s filter alongside the scope', async (_name, filters) => {
+    await listLinks(SCOPE, filters);
+
+    expect(findMany.mock.calls[0]?.[0]?.where).toEqual({ userId: 'user_x', ...filters });
+  });
+
+  it('applies every filter at once without dropping any', async () => {
+    const filters = {
+      status: 'suggested',
+      kind: 'relates_to',
+      sourceType: 'project',
+      sourceId: 'pr_1',
+    };
+
+    await listLinks(SCOPE, filters);
+
+    expect(findMany.mock.calls[0]?.[0]?.where).toEqual({ userId: 'user_x', ...filters });
+  });
+
+  it('omits absent filters rather than sending undefined, which Prisma treats differently', async () => {
+    // `{ status: undefined }` is not the same as no `status` key in some Prisma
+    // versions, and a stray undefined is how a filter accidentally matches nothing.
+    await listLinks(SCOPE);
+
+    expect(findMany.mock.calls[0]?.[0]?.where).toEqual({ userId: 'user_x' });
+  });
+
+  it('scopes the count the same way it scopes the list', async () => {
+    await countLinks(SCOPE, { status: 'accepted' });
+
+    expect(count.mock.calls[0]?.[0]?.where).toEqual({ userId: 'user_x', status: 'accepted' });
+  });
+
+  it('cannot be pointed at another user through a filter object', async () => {
+    // The scope is spread FIRST here and the filters after it, so this is the one
+    // place a caller-supplied key could in principle overwrite `userId`. The
+    // following keys are literal, so it cannot — pinned because the ordering is
+    // the kind of thing a later edit "tidies".
+    await listLinks(SCOPE, { userId: 'user_other' } as never);
+
+    expect(findMany.mock.calls[0]?.[0]?.where).toMatchObject({ userId: 'user_x' });
+  });
+});
+
+describe('createSuggestedLinks (phase 4)', () => {
+  it('short-circuits on an empty batch without querying', async () => {
+    // The sweep calls this with whatever it found, which is routinely nothing.
+    expect(await createSuggestedLinks(SCOPE, [])).toBe(0);
+    expect(createMany).not.toHaveBeenCalled();
+  });
+
+  it('stamps the scope on every row and skips duplicates', async () => {
+    createMany.mockResolvedValue({ count: 2 });
+
+    await createSuggestedLinks(SCOPE, [
+      { sourceType: 'thought', sourceId: 't_1', targetType: 'goal', targetId: 'g_1' },
+      { sourceType: 'thought', sourceId: 't_2', targetType: 'goal', targetId: 'g_1' },
+    ]);
+
+    const args = createMany.mock.calls[0]?.[0];
+    // `skipDuplicates` is the race guard behind the sweep's SQL exclusion: two
+    // sweeps overlapping would otherwise collide between the SELECT and the INSERT.
+    expect(args?.skipDuplicates).toBe(true);
+
+    // Prisma types `data` as one row OR an array; the sweep always sends an array.
+    const rows = Array.isArray(args?.data) ? args.data : [args?.data];
+    expect(rows).toHaveLength(2);
+    expect(rows.every((row) => row?.userId === 'user_x')).toBe(true);
   });
 });

@@ -101,7 +101,85 @@ release process.
   score write, `sumMinutesByArea`'s raw SQL, a real indexed
   `ORDER BY priorityScore`, preset resolution in `Pacific/Auckland`, and that
   none of the new surfaces leak across users.
+- **Obsiddy semantic layer** (Release 1, phase 4) — the brain is now searchable
+  by meaning. `searchObsiddy()`
+  (`lib/framework/obsiddy/search/hybrid-search.ts`) is the **only** search entry
+  point and takes an `OwnerScope` as a required field, so a route param or an LLM
+  tool argument cannot become one. It runs three passes: vector + BM25 over the
+  one embedding table, the generated tsvector for tasks (which are deliberately
+  not embedded), and — only when `includeArchived` is set — a keyword pass over
+  the archived corpus, which by design has no vectors at all.
+- **All Obsiddy vector SQL lives in `lib/framework/obsiddy/repo/embeddings.ts`.**
+  The plan put it in `search/`, but the tier lint boundary forbids Prisma outside
+  `repo/**` — which is the stronger arrangement, because the raw SQL is the one
+  place a `WHERE "userId"` can be forgotten and this confines it to the layer
+  whose every function carries a verified scope. Includes
+  `assertObsiddyModelMatchesStoredVectors()`, a port of the platform's private
+  dimension guard (upstream
+  [#491](https://github.com/human-centric-engineering/sunrise/issues/491) asks
+  for a shared version).
+- **Obsiddy indexer** (`lib/framework/obsiddy/embedding/{canonical,indexer}.ts`)
+  — `canonicalText()` and `contentHash()` are pure and cover **semantic content
+  only**, never rendered markdown, so formatting noise (CRLF, trailing
+  whitespace, a `null` → `''` description) is not an edit. `indexedHash` is nulled
+  liberally by every mutation path because nulling it queues a *hash comparison*,
+  not an embedding call: `reindexPending()` compares the recomputed hash against
+  what is stored and only then spends anything. That is what lets a mutation path
+  null the column without knowing which fields are semantic.
+- **Obsiddy connection engine** (`lib/framework/obsiddy/search/connections.ts`) —
+  `findConnections()` is read-only and idempotent; `sweepConnections()` persists
+  pairs above a 0.72 similarity floor as
+  `ObsiddyLink{ origin: 'rule', status: 'suggested' }`. Both read
+  **already-stored** vectors and do neighbour search in SQL, so the sweep costs
+  no embedding tokens. Pair exclusion — including the `rejected` tombstone, in
+  both directions — happens inside the query, so no caller can forget it.
+- **Obsiddy document ingestion**
+  (`lib/framework/obsiddy/documents/{ingest,chunking}.ts`) — reuses the
+  platform's `parseDocument()` (PDF, DOCX, EPUB, CSV, HTML, MD, TXT) and its
+  markdown and semantic chunkers, but stores rows in Obsiddy's own tables:
+  `.context/orchestration/knowledge.md` is explicit that the platform KB is a
+  global asset and per-user scoping there is an anti-pattern. Dedupes on
+  `fileHash` scoped to the owner, and queues indexing rather than embedding
+  inline.
+- **`ObsiddySettings`** — an instance-settings singleton and the one Obsiddy
+  table with no `userId`, so also the one outside the D1 erasure cascade. Holds
+  `documentOriginals` (`discard | retain`) and `maxDocumentBytes`, exposed at
+  `GET|PATCH /api/v1/admin/obsiddy/settings` and `/admin/obsiddy/settings`.
+- **New Obsiddy routes** — `GET /obsiddy/search`, `POST /obsiddy/reindex`,
+  `GET|POST /obsiddy/links`, `PATCH /obsiddy/links/[id]`,
+  `POST /obsiddy/connections/sweep`, `GET|POST /obsiddy/documents`,
+  `GET|DELETE /obsiddy/documents/[id]`,
+  `GET /obsiddy/documents/[id]/download`. There is deliberately no
+  `DELETE /obsiddy/links/[id]`: rejecting sets `status: 'rejected'`, which is the
+  tombstone that stops the sweep re-proposing a dismissed pair forever.
+- **`registerObsiddyRateLimits()`** (`lib/framework/obsiddy/rate-limit.ts`) —
+  per-flow sub-caps for the four expensive paths (search 30/min; reindex and
+  sweep 5/hour; document upload 20/hour), keyed on the session user. Wired
+  through the `lib/app/rate-limit.ts` seam with one call, so a later Obsiddy
+  release can add one without every host editing that file.
+- **`registerObsiddyAdminNav()`** (`lib/framework/obsiddy/admin-nav.ts`) — the
+  Obsiddy admin section, wired through `lib/app/admin-nav.ts`. Client-safe by
+  necessity: the sidebar reads the registry during render.
+- **`lib/framework/obsiddy/api/endpoints.ts`** — Obsiddy's own endpoint
+  constants. `lib/api/endpoints.ts` is Sunrise-owned, so adding Obsiddy's routes
+  there would be a merge conflict inflicted on every host on every upgrade.
+- **`scripts/framework/obsiddy/smoke-search.ts`**
+  (`npm run framework:obsiddy:smoke-search`) — 26 assertions against a real
+  database over the pgvector SQL, the HNSW index, tsvector ranking, cross-user
+  isolation (**including the case where another user's row is the better vector
+  match**), the sweep, the tombstone, and the archive transaction. Runs with real
+  embeddings when a provider is configured and with deterministic synthetic
+  vectors when not, printing which — so a green run never claims more than it
+  proved.
 
+### Changed
+
+- **Archiving an Obsiddy item now deletes its embedding rows in the same
+  transaction** as the archive (`archiveAndDropVectors()`), rather than leaving
+  them behind a `WHERE archivedAt IS NULL` filter. A filtered vector search
+  degrades recall silently as history grows — no error, no symptom — so the index
+  only ever holds live data. The consequence, deliberately accepted, is that the
+  archived corpus is keyword-searchable but not vector-searchable.
 
 ### Security
 
@@ -115,6 +193,21 @@ release process.
   the ETag exists for. The 304 carries the directive too. A project-wide default
   is upstream
   [#487](https://github.com/human-centric-engineering/sunrise/issues/487).
+- **Uploaded document originals are discarded by default**
+  (`ObsiddySettings.documentOriginals = 'discard'`). Sunrise's `StorageProvider`
+  has no read method at all, and `LocalProvider` ignores `public: false` — it
+  writes into `public/uploads/`, which Next serves statically at a guessable URL.
+  Retaining a user's uploaded PDF on a default install would therefore publish it.
+  Obsiddy keeps the extracted text and the embedding chunks, which is what the
+  product actually queries, and drops the bytes. Retention is an operator setting
+  that the admin page **disables** on providers that cannot store privately or
+  cannot sign URLs, rather than warning and allowing it; when retained, the stored
+  URL is never returned to a client and downloads go through a 5-minute signed
+  URL. Upstream
+  [#490](https://github.com/human-centric-engineering/sunrise/issues/490).
+- **`GET /api/v1/obsiddy/search` does not log the query text.** It is the most
+  sensitive string a user sends this product, and a log line outlives the search;
+  the route logs its length and the hit count instead.
 
 ### Fixed
 

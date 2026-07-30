@@ -1,11 +1,9 @@
 /**
  * Link repo — owner-scoped reads over the polymorphic edge table.
  *
- * **Reads only, for now.** Phase 3 needs exactly one thing from `ObsiddyLink`:
- * the accepted project → goal edges that the scorer's `goalAlignment` walk
- * follows. The write side (suggesting, accepting, rejecting, sweeping) arrives
- * with the connection engine in phase 4, and guessing at its shape now would
- * mean rewriting it then.
+ * Phase 3 needed exactly one thing here — the accepted project → goal edges the
+ * scorer's `goalAlignment` walk follows. Phase 4 added the write side: the
+ * connection sweep suggests pairs, and a human accepts, rejects or snoozes them.
  *
  * `ObsiddyLink` has **no foreign keys to its endpoints** (D2) — it is
  * polymorphic, so `sourceId` and `targetId` are bare strings the database will
@@ -21,6 +19,12 @@
 
 import { prisma } from '@/lib/db/client';
 import { ownerWhere, type OwnerScope } from '@/lib/framework/obsiddy/repo/owner-scope';
+import {
+  nullOnMiss,
+  pageArgs,
+  type ListOptions,
+  type WithoutOwner,
+} from '@/lib/framework/obsiddy/repo/shared';
 import type { ObsiddyLink, Prisma } from '@prisma/client';
 
 /** A project → goal edge, normalised so the caller never inspects direction. */
@@ -115,6 +119,103 @@ export async function listSuggestedLinksForSources(
     },
     orderBy: { strength: 'desc' },
   });
+}
+
+// ─── Writes (phase 4: the connection engine) ─────────────────────────────────
+
+export interface LinkFilters {
+  status?: string;
+  kind?: string;
+  sourceType?: string;
+  sourceId?: string;
+}
+
+export type LinkCreateData = WithoutOwner<Prisma.ObsiddyLinkUncheckedCreateInput>;
+
+function linkWhere(scope: OwnerScope, filters: LinkFilters = {}): Prisma.ObsiddyLinkWhereInput {
+  return {
+    ...ownerWhere(scope),
+    ...(filters.status ? { status: filters.status } : {}),
+    ...(filters.kind ? { kind: filters.kind } : {}),
+    ...(filters.sourceType ? { sourceType: filters.sourceType } : {}),
+    ...(filters.sourceId ? { sourceId: filters.sourceId } : {}),
+  };
+}
+
+export async function listLinks(
+  scope: OwnerScope,
+  filters: LinkFilters = {},
+  options: ListOptions = {}
+): Promise<ObsiddyLink[]> {
+  return prisma.obsiddyLink.findMany({
+    where: linkWhere(scope, filters),
+    orderBy: [{ strength: 'desc' }, { createdAt: 'desc' }],
+    ...pageArgs(options),
+  });
+}
+
+export async function countLinks(scope: OwnerScope, filters: LinkFilters = {}): Promise<number> {
+  return prisma.obsiddyLink.count({ where: linkWhere(scope, filters) });
+}
+
+export async function findLink(scope: OwnerScope, id: string): Promise<ObsiddyLink | null> {
+  return prisma.obsiddyLink.findFirst({ where: { ...ownerWhere(scope), id } });
+}
+
+/**
+ * A hand-made link. `origin: 'user'` and no `strength` — a person's assertion
+ * isn't a similarity score, and giving it a fake number would let it sort
+ * against swept suggestions as though it were one.
+ */
+export async function createLink(scope: OwnerScope, data: LinkCreateData): Promise<ObsiddyLink> {
+  return prisma.obsiddyLink.create({ data: { ...data, ...ownerWhere(scope) } });
+}
+
+/**
+ * Bulk-insert swept suggestions, skipping pairs that already exist.
+ *
+ * `skipDuplicates` leans on `@@unique([userId, sourceType, sourceId, targetType,
+ * targetId, kind])` and is the second line of defence behind the sweep's SQL
+ * exclusion: the query filters pairs that already have a row, but two sweeps
+ * running concurrently (a nightly tick overlapping a manual run) would otherwise
+ * race between the SELECT and the INSERT.
+ *
+ * Note this cannot skip a pair stored in the **opposite** direction — the unique
+ * index is directional. The sweep's `NOT EXISTS` handles that case, which is why
+ * both exist.
+ */
+export async function createSuggestedLinks(
+  scope: OwnerScope,
+  rows: LinkCreateData[]
+): Promise<number> {
+  if (rows.length === 0) return 0;
+
+  const { count } = await prisma.obsiddyLink.createMany({
+    data: rows.map((row) => ({ ...row, ...ownerWhere(scope) })),
+    skipDuplicates: true,
+  });
+
+  return count;
+}
+
+/**
+ * Review a suggestion: accept it, reject it, or snooze it.
+ *
+ * **Rejecting does not delete.** A `rejected` row is the tombstone that stops
+ * the sweep re-proposing the same pair every run, forever — it is the one status
+ * retention must never prune (§17 risk 5c, and the schema comment on
+ * `ObsiddyLink.status` says so at the column).
+ *
+ * `strength` is deliberately not updatable: it is the measured cosine similarity
+ * that produced the suggestion, and letting a review edit it would make the
+ * number mean two different things.
+ */
+export async function reviewLink(
+  scope: OwnerScope,
+  id: string,
+  data: { status?: string; kind?: string; snoozedUntil?: Date | null; reviewedAt?: Date | null }
+): Promise<ObsiddyLink | null> {
+  return nullOnMiss(() => prisma.obsiddyLink.update({ where: { id, ...ownerWhere(scope) }, data }));
 }
 
 function normaliseProjectGoalEdge(

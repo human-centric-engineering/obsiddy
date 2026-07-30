@@ -13,6 +13,11 @@
  *
  * Full guide + example: CUSTOMIZATION.md §4 · lib/admin-nav/registry.ts
  */
+import { registerObsiddyAdminNav } from '@/lib/framework/obsiddy/admin-nav';
+
 export function initAppNav(): void {
-  // No app nav sections by default.
+  // Obsiddy's admin section. Its registrar is client-safe by design — the
+  // sidebar reads the registry during render, so registration cannot be async
+  // and cannot reach the database.
+  registerObsiddyAdminNav();
 }
