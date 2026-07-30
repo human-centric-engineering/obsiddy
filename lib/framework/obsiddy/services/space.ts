@@ -34,6 +34,7 @@ import type {
   RetentionPolicy,
   UpdateSpaceInput,
 } from '@/lib/framework/obsiddy/validations';
+import { STRENGTH_FLOOR } from '@/lib/framework/obsiddy/search/connections';
 import { logger } from '@/lib/logging';
 import type { ObsiddySpace } from '@prisma/client';
 
@@ -132,6 +133,14 @@ export interface ObsiddySettings {
   priorityWeights: PriorityWeights;
   energyProfile: EnergyProfile;
   retentionPolicy: RetentionPolicy;
+  /**
+   * The similarity a pair must clear to be proposed as a connection.
+   *
+   * Resolved, like the weights above: the column is nullable and the default lives
+   * in code (`STRENGTH_FLOOR`), so a caller always sees the number actually in
+   * force rather than a `null` it has to interpret.
+   */
+  connectionStrengthFloor: number;
   /** Which of the three Json columns hold the user's own values rather than defaults. */
   customised: { priorityWeights: boolean; energyProfile: boolean; retentionPolicy: boolean };
 }
@@ -186,6 +195,7 @@ function toSettings(space: ObsiddySpace): ObsiddySettings {
     priorityWeights: resolvePriorityWeights(space.priorityWeights),
     energyProfile: resolveEnergyProfile(space.energyProfile),
     retentionPolicy: resolveRetentionPolicy(space.retentionPolicy),
+    connectionStrengthFloor: space.connectionStrengthFloor ?? STRENGTH_FLOOR,
     customised: {
       priorityWeights: space.priorityWeights !== null,
       energyProfile: space.energyProfile !== null,

@@ -942,6 +942,15 @@ export const updateSpaceSchema = z
     priorityWeights: priorityWeightsSchema.nullish(),
     energyProfile: energyProfileSchema.nullish(),
     retentionPolicy: retentionPolicySchema.nullish(),
+    /**
+     * Similarity floor for proposing connections. `null` restores the measured
+     * default rather than meaning "propose nothing".
+     *
+     * Bounded well inside `[0, 1]`: a floor of 0 proposes every pair in the brain
+     * and a floor of 1 proposes none, and both read as the feature being broken
+     * rather than as a setting being wrong.
+     */
+    connectionStrengthFloor: z.number().min(0.2).max(0.95).nullish(),
   })
   .partial()
   .strict();
