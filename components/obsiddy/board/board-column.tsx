@@ -84,7 +84,12 @@ export function BoardColumn({ column, onOpenCard }: BoardColumnProps): React.Rea
       >
         <ul className="flex min-h-16 flex-col gap-2">
           {column.cards.map((card) => (
-            <TaskCard key={card.task.id} card={card} onOpen={onOpenCard} />
+            <TaskCard
+              key={card.task.id}
+              card={card}
+              onOpen={onOpenCard}
+              columnLabel={column.label}
+            />
           ))}
         </ul>
       </SortableContext>

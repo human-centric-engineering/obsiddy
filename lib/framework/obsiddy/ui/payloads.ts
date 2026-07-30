@@ -463,8 +463,15 @@ export const boardCardSchema = z.object({
     total: z.number(),
     items: z.array(checklistItemSchema),
   }),
-  /** Milliseconds since the card was last touched — the aging signal. */
+  /** Milliseconds since the card was last touched at all. Always present. */
   untouchedForMs: z.number(),
+  /**
+   * Milliseconds since the card last changed status — the stronger aging signal.
+   *
+   * `null` when there is no status-change event to read, which the card renders as
+   * the weaker "untouched" wording rather than as a confident wrong number.
+   */
+  inColumnSinceMs: z.number().nullable(),
   position: z.number().nullable(),
   cardId: z.string().nullable(),
 });

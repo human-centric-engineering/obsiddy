@@ -51,6 +51,7 @@ function card(overrides: Partial<BoardCardWire> = {}): BoardCardWire {
     tags: [],
     checklist: { done: 0, total: 0, items: [] },
     untouchedForMs: 0,
+    inColumnSinceMs: null,
     position: null,
     cardId: null,
     ...overrides,
@@ -169,17 +170,36 @@ describe('TaskCard', () => {
     expect(screen.queryByText(/overdue/i)).not.toBeInTheDocument();
   });
 
-  it('shows aging from a week on, worded as untouched', () => {
-    renderColumn(column({ cards: [card({ untouchedForMs: 11 * DAY })] }));
+  it('names the column when it knows how long the card has been in it', () => {
+    renderColumn(column({ cards: [card({ inColumnSinceMs: 11 * DAY })] }));
 
-    // Not "in this column for 11 days" — the data cannot support that claim.
-    expect(screen.getByText('untouched 11d')).toBeInTheDocument();
+    // The §12 signal, read from the card's last status-change event.
+    expect(screen.getByText('11d in To do')).toBeInTheDocument();
   });
 
-  it('does not show aging before a week', () => {
-    renderColumn(column({ cards: [card({ untouchedForMs: 3 * DAY })] }));
+  it('falls back to "untouched" when there is no status-change event', () => {
+    // A card created and never moved, or one last moved before the status
+    // metadata existed. Inventing a column age here would be a confident lie.
+    renderColumn(column({ cards: [card({ untouchedForMs: 11 * DAY, inColumnSinceMs: null })] }));
 
+    expect(screen.getByText('untouched 11d')).toBeInTheDocument();
+    expect(screen.queryByText(/in To do/)).not.toBeInTheDocument();
+  });
+
+  it('prefers the column age over the weaker signal when both are present', () => {
+    renderColumn(column({ cards: [card({ untouchedForMs: 40 * DAY, inColumnSinceMs: 9 * DAY })] }));
+
+    expect(screen.getByText('9d in To do')).toBeInTheDocument();
     expect(screen.queryByText(/untouched/)).not.toBeInTheDocument();
+  });
+
+  it('does not show aging before a week, on either signal', () => {
+    const { unmount } = renderColumn(column({ cards: [card({ untouchedForMs: 3 * DAY })] }));
+    expect(screen.queryByText(/untouched/)).not.toBeInTheDocument();
+
+    unmount();
+    renderColumn(column({ cards: [card({ inColumnSinceMs: 3 * DAY })] }));
+    expect(screen.queryByText(/in To do/)).not.toBeInTheDocument();
   });
 
   it('exposes the card as draggable, and keeps Open out of the drag surface', () => {

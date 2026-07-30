@@ -47,6 +47,7 @@ function card(overrides: Partial<BoardCardPayload> = {}): BoardCardPayload {
     tags: [],
     checklist: { done: 0, total: 0, items: [] },
     untouchedForMs: 0,
+    inColumnSinceMs: null,
     position: null,
     cardId: null,
     ...overrides,

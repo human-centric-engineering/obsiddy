@@ -38,10 +38,12 @@ vi.mock('@/lib/framework/obsiddy/repo/tasks', () => ({
 }));
 vi.mock('@/lib/framework/obsiddy/repo/tags', () => ({ listTagsForTasks: vi.fn() }));
 vi.mock('@/lib/framework/obsiddy/repo/checklist', () => ({ listChecklistForTasks: vi.fn() }));
+vi.mock('@/lib/framework/obsiddy/repo/events', () => ({ findLatestStatusChanges: vi.fn() }));
 
 import { buildBoardView } from '@/lib/framework/obsiddy/services/board-view';
 import { findBoard, listBoardCards } from '@/lib/framework/obsiddy/repo/boards';
 import { listChecklistForTasks } from '@/lib/framework/obsiddy/repo/checklist';
+import { findLatestStatusChanges } from '@/lib/framework/obsiddy/repo/events';
 import { listTagsForTasks } from '@/lib/framework/obsiddy/repo/tags';
 import { findTasksByIds, listTasks } from '@/lib/framework/obsiddy/repo/tasks';
 import type { OwnerScope } from '@/lib/framework/obsiddy/repo/owner-scope';
@@ -52,6 +54,7 @@ const mockedListTasks = vi.mocked(listTasks);
 const mockedFindByIds = vi.mocked(findTasksByIds);
 const mockedTags = vi.mocked(listTagsForTasks);
 const mockedChecklist = vi.mocked(listChecklistForTasks);
+const mockedStatusChanges = vi.mocked(findLatestStatusChanges);
 
 const SCOPE = { userId: 'user_a' } as OwnerScope;
 const NOW = new Date('2026-07-30T12:00:00.000Z');
@@ -85,6 +88,7 @@ beforeEach(() => {
   mockedListCards.mockResolvedValue([]);
   mockedTags.mockResolvedValue([]);
   mockedChecklist.mockResolvedValue([]);
+  mockedStatusChanges.mockResolvedValue(new Map());
 });
 
 describe('buildBoardView', () => {
@@ -130,14 +134,17 @@ describe('buildBoardView', () => {
     }
   });
 
-  it('batches tags and checklists — one read each, whatever the card count', async () => {
+  it('batches tags, checklists and status changes — one read each, whatever the card count', async () => {
     mockedListTasks.mockResolvedValue(Array.from({ length: 40 }, (_, index) => task(`t${index}`)));
 
     await buildBoardView(SCOPE, 'board_1', NOW);
 
     expect(mockedTags).toHaveBeenCalledTimes(1);
     expect(mockedChecklist).toHaveBeenCalledTimes(1);
+    // The §12 aging signal, added without giving up the fixed query count.
+    expect(mockedStatusChanges).toHaveBeenCalledTimes(1);
     expect((mockedTags.mock.calls[0]?.[1] ?? []).length).toBe(40);
+    expect((mockedStatusChanges.mock.calls[0]?.[1] ?? []).length).toBe(40);
   });
 
   it('returns both the checklist counts and the items themselves', async () => {
@@ -218,6 +225,40 @@ describe('buildBoardView', () => {
     const result = await buildBoardView(SCOPE, 'board_1', NOW);
 
     expect(result?.columns[0]?.cards[0]?.untouchedForMs).toBe(3 * 86_400_000);
+  });
+
+  it('reports how long a card has been in its current column', async () => {
+    const fiveDaysAgo = new Date(NOW.getTime() - 5 * 86_400_000);
+    mockedListTasks.mockResolvedValue([task('a', 'doing')]);
+    mockedStatusChanges.mockResolvedValue(new Map([['a', { at: fiveDaysAgo, toStatus: 'doing' }]]));
+
+    const result = await buildBoardView(SCOPE, 'board_1', NOW);
+
+    expect(result?.columns[1]?.cards[0]?.inColumnSinceMs).toBe(5 * 86_400_000);
+  });
+
+  it('leaves the column age null when there is no status-change event', async () => {
+    // A card created and never moved, or last moved before the metadata existed.
+    mockedListTasks.mockResolvedValue([task('a', 'todo')]);
+    mockedStatusChanges.mockResolvedValue(new Map());
+
+    const result = await buildBoardView(SCOPE, 'board_1', NOW);
+
+    expect(result?.columns[0]?.cards[0]?.inColumnSinceMs).toBeNull();
+  });
+
+  it('ignores a recorded move that does not match the card’s current column', async () => {
+    // The card was moved to `doing` and has since been changed back some other way.
+    // Reporting the `doing` timestamp against a `todo` card would be a confident
+    // wrong number; "we don't know" is the honest answer.
+    mockedListTasks.mockResolvedValue([task('a', 'todo')]);
+    mockedStatusChanges.mockResolvedValue(
+      new Map([['a', { at: new Date(NOW.getTime() - 9 * 86_400_000), toStatus: 'doing' }]])
+    );
+
+    const result = await buildBoardView(SCOPE, 'board_1', NOW);
+
+    expect(result?.columns[0]?.cards[0]?.inColumnSinceMs).toBeNull();
   });
 
   it('threads the caller’s scope into every read', async () => {

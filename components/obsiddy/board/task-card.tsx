@@ -16,13 +16,21 @@
  * control inside a drag source means every click starts a drag first, and the click
  * that opens a sheet then feels like a failed drag.
  *
- * ## The aging tint says what it actually measures
+ * ## The aging label says which measurement it has
  *
- * `untouchedForMs` is time since the card was last modified, not time in this
- * column — `ObsiddyEvent` cannot distinguish a status move from an edited note, and
- * the tooltip says "untouched for 11 days" rather than claiming otherwise. The tint
- * appears from a week on, which is where "why is this still here" starts being a
- * fair question.
+ * Two numbers arrive, and they are not interchangeable. `inColumnSinceMs` is the
+ * §12 signal — how long the card has sat in *this* column, read from its last
+ * status-change event. `untouchedForMs` is the weaker fallback: how long since the
+ * card was modified at all.
+ *
+ * The card prefers the first and **says so** ("11d in Doing"), falls back to the
+ * second when there is no status-change event to read ("untouched 11d"), and never
+ * presents one as the other. A card created and never moved, or last moved before
+ * the status metadata existed, genuinely has no answer to "how long in this column"
+ * — and a made-up number there is worse than the honest weaker one.
+ *
+ * The tint appears from a week on either way, which is where "why is this still
+ * here" starts being a fair question.
  */
 
 import * as React from 'react';
@@ -45,11 +53,18 @@ const STALE_DAYS = 7;
 export interface TaskCardProps {
   card: BoardCardWire;
   onOpen: (card: BoardCardWire) => void;
+  /** The column's own label, so the aging text can name where the card is sitting. */
+  columnLabel?: string;
   /** Rendered without drag wiring inside the drag overlay. */
   overlay?: boolean;
 }
 
-export function TaskCard({ card, onOpen, overlay = false }: TaskCardProps): React.ReactElement {
+export function TaskCard({
+  card,
+  onOpen,
+  columnLabel,
+  overlay = false,
+}: TaskCardProps): React.ReactElement {
   const now = useNow();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: card.task.id,
@@ -58,8 +73,11 @@ export function TaskCard({ card, onOpen, overlay = false }: TaskCardProps): Reac
     disabled: overlay,
   });
 
-  const untouchedDays = Math.floor(card.untouchedForMs / DAY_MS);
-  const stale = untouchedDays >= STALE_DAYS;
+  // Prefer the real signal; fall back only when there is nothing to read.
+  const inColumn = card.inColumnSinceMs !== null;
+  const ageMs = card.inColumnSinceMs ?? card.untouchedForMs;
+  const ageDays = Math.floor(ageMs / DAY_MS);
+  const stale = ageDays >= STALE_DAYS;
 
   const overdue =
     now !== null &&
@@ -105,9 +123,16 @@ export function TaskCard({ card, onOpen, overlay = false }: TaskCardProps): Reac
           )}
 
           {stale && (
-            // Says what it measures. Not "in this column for 11 days" — the data
-            // cannot support that claim.
-            <span title={`Untouched for ${untouchedDays} days`}>untouched {untouchedDays}d</span>
+            // Names the measurement it actually has.
+            <span
+              title={
+                inColumn
+                  ? `In ${columnLabel ?? 'this column'} for ${ageDays} days`
+                  : `Untouched for ${ageDays} days — no record of when it last moved`
+              }
+            >
+              {inColumn ? `${ageDays}d in ${columnLabel ?? 'column'}` : `untouched ${ageDays}d`}
+            </span>
           )}
         </div>
 

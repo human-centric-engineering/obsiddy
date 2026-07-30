@@ -37,6 +37,11 @@ release process.
 - **Obsiddy: `listLinksForEntity` / `listLinksForEntities`** on the links repo, and
   `statuses` on `LinkFilters` — a detail page needs links on *either* end of a
   polymorphic edge, and the review queue filters by two statuses at once.
+- **Obsiddy: task status changes now record `{ statusFrom, statusTo }`** on their
+  `updated` event, and `findLatestStatusChanges` reads the newest per task in one
+  `DISTINCT ON`. This is what lets a board say how long a card has sat in its column
+  (§12) without giving up its fixed query count; cards with no such event fall back to
+  "untouched since", worded differently so the two are never confused.
 - **Obsiddy: `findTasksByIds`** on the tasks repo — the explicit-board read needs
   exactly its pinned tasks rather than the top N by score.
 

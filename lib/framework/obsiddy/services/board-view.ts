@@ -18,16 +18,21 @@
  * separate functions rather than one function with a flag is what stops explicit
  * positions leaking into a filter board — the exact failure §12 names.
  *
- * ## Aging: what it actually measures
+ * ## Aging: two numbers, and the card says which one it has
  *
- * §12 asks for aging indicators computed "from the `ObsiddyEvent` timestamp of the
- * last status change". `ObsiddyEvent` records `updated` without recording *which
- * field* changed, so there is no way to distinguish a status move from an edited
- * note — and a batched read of every card's event history would undo the batching
- * above. So this reports **`updatedAt`: how long since the card was touched at all**,
- * and the UI says exactly that rather than claiming "in this column for 11 days".
- * It is the same signal for the case that matters (a card nobody has moved), and it
- * does not assert something the data cannot support.
+ * §12 asks for aging computed "from the `ObsiddyEvent` timestamp of the last status
+ * change", which needs two things the log did not originally provide: a way to tell
+ * a status move from an edited note, and a way to read the latest one per card
+ * without a query per card. Both now exist — `statusChangeMetadata` writes
+ * `{ statusFrom, statusTo }` on the `updated` event, and `findLatestStatusChanges`
+ * reads the newest per task in one `DISTINCT ON`.
+ *
+ * So `inColumnSinceMs` is the real §12 signal. It is **null for cards last moved
+ * before that metadata existed**, and for cards created and never moved — there is
+ * no event to read, and inventing a date would be worse than admitting it. Those
+ * fall back to `untouchedForMs` (time since `updatedAt`), which is always available,
+ * and the card labels the two differently. Neither number is ever presented as the
+ * other.
  *
  * ## WIP limits flag, they never block
  *
@@ -37,6 +42,7 @@
 
 import { listBoardCards, findBoard } from '@/lib/framework/obsiddy/repo/boards';
 import { listChecklistForTasks } from '@/lib/framework/obsiddy/repo/checklist';
+import { findLatestStatusChanges } from '@/lib/framework/obsiddy/repo/events';
 import type { OwnerScope } from '@/lib/framework/obsiddy/repo/owner-scope';
 import { listTagsForTasks } from '@/lib/framework/obsiddy/repo/tags';
 import { findTasksByIds, listTasks } from '@/lib/framework/obsiddy/repo/tasks';
@@ -57,8 +63,15 @@ export interface BoardCardPayload {
    * carrying only "3 of 7" would not be a copy of the board.
    */
   checklist: { done: number; total: number; items: ObsiddyChecklistItem[] };
-  /** Milliseconds since the card was last touched — see the aging note. */
+  /** Milliseconds since the card was last touched at all. Always present. */
   untouchedForMs: number;
+  /**
+   * Milliseconds since the card last changed status — the §12 signal.
+   *
+   * `null` when there is no status-change event to read: a card created and never
+   * moved, or one last moved before the status metadata existed.
+   */
+  inColumnSinceMs: number | null;
   /** Only meaningful on an explicit board. */
   position: number | null;
   cardId: string | null;
@@ -103,10 +116,11 @@ export async function buildBoardView(
 
   const taskIds = tasks.map((task) => task.id);
 
-  // Two batched reads for the whole board, regardless of card count.
-  const [tagRows, checklistRows] = await Promise.all([
+  // Three batched reads for the whole board, regardless of card count.
+  const [tagRows, checklistRows, statusChanges] = await Promise.all([
     listTagsForTasks(scope, taskIds),
     listChecklistForTasks(scope, taskIds),
+    findLatestStatusChanges(scope, taskIds),
   ]);
 
   const tagsByTask = new Map<string, ObsiddyTag[]>();
@@ -135,6 +149,7 @@ export async function buildBoardView(
       tags: tagsByTask.get(task.id) ?? [],
       checklist: checklistByTask.get(task.id) ?? { done: 0, total: 0, items: [] },
       untouchedForMs: Math.max(0, now.getTime() - task.updatedAt.getTime()),
+      inColumnSinceMs: resolveInColumnSince(statusChanges.get(task.id), task.status, now),
       position: placement?.position ?? null,
       cardId: placement?.cardId ?? null,
     };
@@ -220,4 +235,22 @@ async function loadFilteredCards(
 
   // `position` stays empty on purpose — a filter-backed board must not read it.
   return { tasks, positions: new Map() };
+}
+
+/**
+ * How long the card has been in its current column.
+ *
+ * The recorded move only answers that if it landed the card **where it is now**. A
+ * card moved to `doing` and later dragged back by a client that failed to record —
+ * or edited directly in the database — would otherwise report an age for a column
+ * it has since left. Mismatch means "we do not know", which the card renders as the
+ * weaker `untouched` signal rather than as a confident wrong number.
+ */
+function resolveInColumnSince(
+  change: { at: Date; toStatus: string } | undefined,
+  currentStatus: string,
+  now: Date
+): number | null {
+  if (!change || change.toStatus !== currentStatus) return null;
+  return Math.max(0, now.getTime() - change.at.getTime());
 }

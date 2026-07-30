@@ -39,6 +39,7 @@ function card(id: string, status = 'todo'): BoardCardWire {
     tags: [],
     checklist: { done: 0, total: 0, items: [] },
     untouchedForMs: 0,
+    inColumnSinceMs: null,
     position: null,
     cardId: null,
   };

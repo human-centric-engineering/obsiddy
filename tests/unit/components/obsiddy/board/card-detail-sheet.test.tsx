@@ -84,6 +84,7 @@ function card(overrides: Partial<BoardCardWire> = {}): BoardCardWire {
       ],
     },
     untouchedForMs: 0,
+    inColumnSinceMs: null,
     position: null,
     cardId: null,
     ...overrides,

@@ -60,3 +60,23 @@ export function eventKindForUpdate(
   if (after.status === 'done' && before.status !== 'done') return 'completed';
   return 'updated';
 }
+
+/**
+ * The `{ statusFrom, statusTo }` payload for a status move, or nothing.
+ *
+ * `kind: 'updated'` covers every edit — a rename, a new note, a changed due date —
+ * so the kind alone cannot tell a board how long a card has sat in its column.
+ * This is the one extra key that makes that answerable, written only when the
+ * status actually changed so the presence of `statusTo` *is* the signal
+ * (`findLatestStatusChanges` filters on it).
+ *
+ * Ids and enum values only. The activity log deliberately takes no free-form
+ * content — an event that outlives the row it describes must not carry its text.
+ */
+export function statusChangeMetadata(
+  before: { status?: string | null },
+  after: { status?: string | null }
+): { statusFrom: string; statusTo: string } | undefined {
+  if (!after.status || after.status === before.status) return undefined;
+  return { statusFrom: before.status ?? 'unknown', statusTo: after.status };
+}

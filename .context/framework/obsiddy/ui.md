@@ -124,8 +124,10 @@ them, and these strings are not decoration:
 - **Archived items are keyword-searchable, not meaning-searchable**, because
   archiving deletes their embeddings.
 - **A restored item** returns to meaning-search only after the next indexing pass.
-- **Card aging is "untouched for N days"**, not time-in-column — see
-  `plan.md` §12's phase 5 note.
+- **Card aging names its own measurement.** "9d in Doing" is read from the card's
+  last status-change event; "untouched 11d" is the fallback when there is no such
+  event to read (a card never moved, or moved before that metadata existed). The two
+  are worded differently on purpose — see `plan.md` §12's phase 5 note.
 
 ## 8. Accessibility rules that are easy to skip
 

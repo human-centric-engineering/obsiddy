@@ -30,7 +30,11 @@ import * as tasks from '@/lib/framework/obsiddy/repo/tasks';
 import * as thoughts from '@/lib/framework/obsiddy/repo/thoughts';
 import * as timeBlocks from '@/lib/framework/obsiddy/repo/time-blocks';
 import { rescoreTask } from '@/lib/framework/obsiddy/priority/reprioritise';
-import { eventKindForUpdate, recordObsiddyEvent } from '@/lib/framework/obsiddy/services/events';
+import {
+  eventKindForUpdate,
+  recordObsiddyEvent,
+  statusChangeMetadata,
+} from '@/lib/framework/obsiddy/services/events';
 import { resolveSlugOnUpdate, resolveUniqueSlug } from '@/lib/framework/obsiddy/services/slug';
 import { ensureObsiddySpace } from '@/lib/framework/obsiddy/services/space';
 import {
@@ -162,10 +166,14 @@ const taskResourceOps: ObsiddyResource<
     const task = await tasks.updateTask(scope, id, data);
     if (!task) return null;
 
+    // The status-change payload is what lets a board say how long a card has sat
+    // in its column; `updated` alone cannot distinguish a move from a rename.
+    const statusChange = statusChangeMetadata(before, task);
     await recordObsiddyEvent(scope, {
       kind: eventKindForUpdate(before, task),
       entityType: 'task',
       entityId: task.id,
+      ...(statusChange ? { metadata: statusChange } : {}),
     });
     if (task.projectId) await touchProject(scope, task.projectId);
     return task;

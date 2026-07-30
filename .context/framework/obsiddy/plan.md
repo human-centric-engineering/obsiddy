@@ -724,15 +724,19 @@ Two ordering mechanisms exist, but they never apply to the same board. That sepa
 - **`wipLimit` per column.** Capping `doing` is the one genuinely valuable kanban idea: it stops you starting six things. Exceeding it flags the column rather than blocking the drop — a hard block just teaches people to lie to the tool.
 - **Aging indicators.** A card sitting in `doing` for eleven days should look wrong. Compute from the `ObsiddyEvent` timestamp of the last status change; no new column.
 
-  _Phase 5 note — built differently, deliberately._ `ObsiddyEvent` records `updated`
-  without recording **which field** changed, so there is no way to tell a status move
-  from an edited note; and reading every card's event history would undo the board's
-  one-query-per-concern batching. The board therefore reports `updatedAt` — how long
-  since the card was touched at all — and the UI says exactly that: "untouched 11d",
-  never "in this column 11 days". Same signal for the case that matters (a card nobody
-  has moved), without asserting something the data cannot support. Recording a
-  `{ statusFrom, statusTo }` payload on the `updated` event would close the gap for
-  cards changed from that point on; it is worth doing when something else needs it.
+  _Phase 5 note — built as specified, with one honest gap._ Two things were needed
+  first: `updated` events did not record **which field** changed, and reading every
+  card's history would have undone the board's batching. Both are now solved —
+  `statusChangeMetadata` writes `{ statusFrom, statusTo }` when (and only when) the
+  status actually moved, and `findLatestStatusChanges` reads the newest per task in a
+  single `DISTINCT ON`, so the board's fixed query count survives.
+
+  The card therefore shows **"9d in Doing"** — the real §12 signal. Two cases have no
+  answer and are not given one: a card created and never moved, and a card last moved
+  before the metadata existed. Those fall back to "untouched 11d" (time since
+  `updatedAt`) and are worded differently, so neither number is ever presented as the
+  other. A recorded move whose `statusTo` no longer matches the card's current status
+  is also discarded — reporting it would be a confident wrong number.
 
 - **Swimlanes** by project, area or **client entity** — "show me the board for Acme" is the same query plus one filter, free now that `ObsiddyEntity` exists (§1).
 
