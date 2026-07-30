@@ -10,7 +10,9 @@
  * `PATCH` rather than the more literal `PUT` for one practical reason: Sunrise's
  * `apiClient` exposes get/post/patch/delete and no `put`, and adding a verb to it
  * would be an edit to a Sunrise-owned file — a merge conflict inflicted on every host
- * project, for a naming preference. Recorded in `sunrise-asks.md`.
+ * project, for a naming preference. Filed upstream as
+ * [sunrise#495](https://github.com/human-centric-engineering/sunrise/issues/495) and
+ * tracked as ask #18; switch the verb when it lands.
  *
  * The repo applies it as one transaction, and silently drops tag ids the caller does
  * not own rather than erroring: a stale board tab whose tag was deleted in another
