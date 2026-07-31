@@ -178,4 +178,60 @@ describe('ConnectionsView', () => {
     render(<ConnectionsView connections={[row()]} total={1} />);
     expect(screen.getByText('1 suggestion nobody has looked at.')).toBeInTheDocument();
   });
+
+  it('pluralises more than one waiting suggestion', () => {
+    render(<ConnectionsView connections={[row()]} total={5} />);
+    expect(screen.getByText('5 suggestions nobody has looked at.')).toBeInTheDocument();
+  });
+
+  it('singularises a sweep that added exactly one suggestion', async () => {
+    const user = userEvent.setup();
+    mockedPost.mockResolvedValue({ examined: 4, candidates: 1, created: 1, cappedTypes: [] });
+    render(<ConnectionsView connections={[]} total={0} />);
+
+    await user.click(screen.getByRole('button', { name: /look again/i }));
+
+    await waitFor(() => expect(screen.getByText(/added 1 new suggestion\./)).toBeInTheDocument());
+  });
+
+  it('disables "Look again" while the sweep is in flight', async () => {
+    const user = userEvent.setup();
+    let resolveSweep!: (value: typeof CLEAN_SWEEP) => void;
+    mockedPost.mockReturnValue(
+      new Promise((resolve) => {
+        resolveSweep = resolve;
+      })
+    );
+    render(<ConnectionsView connections={[]} total={0} />);
+
+    const button = screen.getByRole('button', { name: /look again/i });
+    await user.click(button);
+
+    await waitFor(() => expect(button).toBeDisabled());
+
+    resolveSweep(CLEAN_SWEEP);
+    await waitFor(() => expect(button).not.toBeDisabled());
+  });
+
+  it('labels a user-created suggestion as "you"', () => {
+    render(<ConnectionsView connections={[row({ origin: 'user' })]} total={1} />);
+    expect(screen.getByText('you')).toBeInTheDocument();
+  });
+
+  it('labels an agent-created suggestion as "the agent"', () => {
+    render(<ConnectionsView connections={[row({ origin: 'llm' })]} total={1} />);
+    expect(screen.getByText('the agent')).toBeInTheDocument();
+  });
+
+  it('reports the failure and leaves no sweep summary when the sweep itself fails', async () => {
+    const user = userEvent.setup();
+    mockedPost.mockRejectedValue(new Error('sweep timed out'));
+    render(<ConnectionsView connections={[]} total={0} />);
+
+    await user.click(screen.getByRole('button', { name: /look again/i }));
+
+    await waitFor(() => expect(screen.getByText('sweep timed out')).toBeInTheDocument());
+    // Nothing was actually examined — a failed sweep must not fabricate a summary.
+    expect(screen.queryByText(/Examined/)).not.toBeInTheDocument();
+  });
 });

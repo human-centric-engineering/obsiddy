@@ -75,14 +75,20 @@ describe('DocumentsView', () => {
   });
 
   it('shows the parser’s own reason for a failure', () => {
+    // `failed` is the only failure state `documents/ingest.ts` ever writes, and the
+    // one the schema and `documentListQuerySchema` both name. Asserting against any
+    // other token tests the component's private vocabulary rather than the API's,
+    // which is how this branch went dead without a red test.
     render(
       <DocumentsView
-        documents={[doc({ status: 'error', chunkCount: 0, errorMessage: 'The PDF is encrypted' })]}
+        documents={[doc({ status: 'failed', chunkCount: 0, errorMessage: 'The PDF is encrypted' })]}
       />
     );
 
     expect(screen.getByText('couldn’t be read')).toBeInTheDocument();
     expect(screen.getByText('The PDF is encrypted')).toBeInTheDocument();
+    // The raw enum token leaking through is the tell that no copy matched.
+    expect(screen.queryByText('failed')).not.toBeInTheDocument();
   });
 
   it('offers a download only when an original was retained', () => {

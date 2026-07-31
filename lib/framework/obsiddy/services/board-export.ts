@@ -37,17 +37,41 @@ import type { BoardViewPayload } from '@/lib/framework/obsiddy/services/board-vi
 /** Trello's importer looks for these, in this order. */
 const CSV_HEADERS = ['Name', 'Description', 'Labels', 'Due Date', 'List'];
 
+/**
+ * The id the unplaced group exports under.
+ *
+ * Not a task status, so it cannot collide with a real column's id.
+ */
+const UNPLACED_ID = 'unplaced';
+
+/**
+ * The board's cards grouped for export — columns, then whatever matched no column.
+ *
+ * Shared by both formats deliberately. Each used to build this list itself, and
+ * they drifted: CSV appended the unplaced group and JSON did not, so a task whose
+ * status matched no configured column was silently absent from the JSON export.
+ * A board export that quietly drops tasks is worse than one with an odd group
+ * name, and one grouping is what keeps the two formats agreeing about it.
+ */
+function exportGroups(
+  view: BoardViewPayload
+): Array<{ id: string; label: string; cards: BoardViewPayload['unplaced'] }> {
+  return [
+    ...view.columns.map((column) => ({
+      id: column.status,
+      label: column.label,
+      cards: column.cards,
+    })),
+    ...(view.unplaced.length > 0
+      ? [{ id: UNPLACED_ID, label: 'Unplaced', cards: view.unplaced }]
+      : []),
+  ];
+}
+
 export function boardToCsv(view: BoardViewPayload): string {
   const rows: string[][] = [CSV_HEADERS];
 
-  // Unplaced cards are included under their raw status: a board export that
-  // silently dropped tasks would be worse than one with an odd column name.
-  const groups = [
-    ...view.columns.map((column) => ({ label: column.label, cards: column.cards })),
-    ...(view.unplaced.length > 0 ? [{ label: 'Unplaced', cards: view.unplaced }] : []),
-  ];
-
-  for (const group of groups) {
+  for (const group of exportGroups(view)) {
     for (const card of group.cards) {
       rows.push([
         card.task.title,
@@ -81,9 +105,11 @@ export interface TrelloShapedExport {
 export function boardToJson(view: BoardViewPayload): TrelloShapedExport {
   // Labels are collected across the whole board and de-duplicated, because Trello's
   // shape has one label list per board rather than per card.
+  const groups = exportGroups(view);
+
   const labels = new Map<string, { id: string; name: string; color: string }>();
-  for (const column of view.columns) {
-    for (const card of column.cards) {
+  for (const group of groups) {
+    for (const card of group.cards) {
       for (const tag of card.tags) {
         labels.set(tag.id, { id: tag.id, name: tag.name, color: tag.colour });
       }
@@ -91,12 +117,12 @@ export function boardToJson(view: BoardViewPayload): TrelloShapedExport {
   }
 
   const cards: TrelloShapedExport['cards'] = [];
-  for (const column of view.columns) {
-    for (const card of column.cards) {
+  for (const group of groups) {
+    for (const card of group.cards) {
       cards.push({
         name: card.task.title,
         desc: card.task.notes ?? '',
-        idList: column.status,
+        idList: group.id,
         due: card.task.dueAt ? card.task.dueAt.toISOString() : null,
         labels: card.tags.map((tag) => tag.id),
         // The items themselves, not the counts the card face shows: an export
@@ -121,7 +147,7 @@ export function boardToJson(view: BoardViewPayload): TrelloShapedExport {
   return {
     name: view.board.name,
     desc: view.board.description ?? '',
-    lists: view.columns.map((column) => ({ id: column.status, name: column.label })),
+    lists: groups.map((group) => ({ id: group.id, name: group.label })),
     labels: [...labels.values()],
     cards,
   };

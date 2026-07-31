@@ -112,7 +112,7 @@ export async function buildBoardView(
   const { tasks, positions } =
     board.membership === 'explicit'
       ? await loadExplicitCards(scope, board.id)
-      : await loadFilteredCards(scope, board);
+      : await loadFilteredCards(scope, board, columnSpecs);
 
   const taskIds = tasks.map((task) => task.id);
 
@@ -214,7 +214,8 @@ async function loadExplicitCards(
 /** Live query: whatever matches now, in score order. */
 async function loadFilteredCards(
   scope: OwnerScope,
-  board: ObsiddyBoard
+  board: ObsiddyBoard,
+  columnSpecs: Array<{ status: string }>
 ): Promise<{
   tasks: ObsiddyTask[];
   positions: Map<string, { position: number; cardId: string }>;
@@ -222,13 +223,26 @@ async function loadFilteredCards(
   const parsed = boardFilterSchema.safeParse(board.filter ?? {});
   const filter = parsed.success ? parsed.data : {};
 
+  // `dropped` is always off unless asked for — abandoned work is not finished work,
+  // and no default column shows it.
+  //
+  // `done` is the awkward one. The filter's own docstring says finished work stays
+  // off the board unless asked for, but the default columns are
+  // todo/next/doing/**done** — so hiding `done` unconditionally would leave that
+  // column permanently empty on the board most people get. Both readings are
+  // defensible, and the board itself resolves them: if there is a Done column, the
+  // board has asked for finished work by configuring somewhere to put it; if there
+  // is not, finished work would only ever land in `unplaced`, which is the silent
+  // pile-up the docstring is warning about.
+  const excludeStatuses = ['dropped'];
+  const hasDoneColumn = columnSpecs.some((column) => column.status === 'done');
+  if (!filter.includeDone && !hasDoneColumn) excludeStatuses.push('done');
+
   const tasks = await listTasks(
     scope,
     {
       ...(filter.projectId ? { projectId: filter.projectId } : {}),
-      // A board is a working surface; finished work belongs in its own column only
-      // if the board asked for one.
-      ...(filter.includeDone ? {} : { excludeStatuses: ['dropped'] }),
+      ...(filter.includeDone ? {} : { excludeStatuses }),
     },
     { take: CARD_LIMIT }
   );

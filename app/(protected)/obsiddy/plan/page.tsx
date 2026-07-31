@@ -56,7 +56,16 @@ export default async function ObsiddyPlanPage({
   }
 
   return (
+    // Keyed on the day so changing the date picker remounts the planner.
+    // Switching day is a `router.push` to this same segment, so without the key
+    // React reconciles rather than remounts, and `DayPlanner`'s `startAt`/`endAt`
+    // — seeded from `day` in `useState` initialisers, which run once — keep
+    // pointing at the day you just left. The block would then be written to the
+    // previous day and vanish from the list you are looking at. Remounting also
+    // clears the half-typed draft, which is the right call: a new day is a new
+    // plan, not a continuation of the last one.
     <DayPlanner
+      key={day}
       blocks={blocks.data}
       projects={projects.ok ? projects.data : []}
       areas={areas.ok ? areas.data : []}

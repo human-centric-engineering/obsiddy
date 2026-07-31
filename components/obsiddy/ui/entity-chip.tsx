@@ -1,5 +1,3 @@
-'use client';
-
 /**
  * EntityChip — one polymorphic `(entityType, id)` pair, rendered as something a
  * person can read and click.

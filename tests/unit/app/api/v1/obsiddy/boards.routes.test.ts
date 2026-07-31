@@ -46,6 +46,7 @@ vi.mock('@/lib/framework/obsiddy/repo/boards', () => ({
   findBoard: vi.fn(),
   findBoardCard: vi.fn(),
   listBoardCards: vi.fn(),
+  listBoardCardsWithStatus: vi.fn(),
   addBoardCard: vi.fn(),
   updateBoardCardPosition: vi.fn(),
   removeBoardCard: vi.fn(),
@@ -64,7 +65,7 @@ import {
   addBoardCard,
   findBoard,
   findBoardCard,
-  listBoardCards,
+  listBoardCardsWithStatus,
   removeBoardCard,
   renumberBoardCards,
   updateBoardCardPosition,
@@ -76,7 +77,7 @@ const TASK_ID = 'clx0000000000000000000000';
 
 const mockedFindBoard = vi.mocked(findBoard);
 const mockedFindCard = vi.mocked(findBoardCard);
-const mockedListCards = vi.mocked(listBoardCards);
+const mockedListCards = vi.mocked(listBoardCardsWithStatus);
 const mockedAdd = vi.mocked(addBoardCard);
 const mockedMove = vi.mocked(updateBoardCardPosition);
 const mockedRemove = vi.mocked(removeBoardCard);
@@ -186,8 +187,8 @@ describe('POST /obsiddy/boards/[id]/cards', () => {
 
   it('renumbers the column first when the gap has collapsed', async () => {
     mockedListCards.mockResolvedValue([
-      { id: 'c1', position: 1 },
-      { id: 'c2', position: 1 + 1e-9 },
+      { id: 'c1', taskId: 't1', position: 1, status: 'todo' },
+      { id: 'c2', taskId: 't2', position: 1 + 1e-9, status: 'todo' },
     ] as never);
 
     await invoke(CARDS_POST, { id: 'board_1' }, { taskId: TASK_ID, targetIndex: 1 });
@@ -200,21 +201,63 @@ describe('POST /obsiddy/boards/[id]/cards', () => {
 
   it('does not renumber a healthy column', async () => {
     mockedListCards.mockResolvedValue([
-      { id: 'c1', position: 1000 },
-      { id: 'c2', position: 2000 },
+      { id: 'c1', taskId: 't1', position: 1000, status: 'todo' },
+      { id: 'c2', taskId: 't2', position: 2000, status: 'todo' },
     ] as never);
 
     await invoke(CARDS_POST, { id: 'board_1' }, { taskId: TASK_ID, targetIndex: 1 });
 
     expect(mockedRenumber).not.toHaveBeenCalled();
   });
+
+  it('measures the index against the target column, not the whole board', async () => {
+    // `targetIndex` counts within a column, but positions run across the board.
+    // Placing into slot 1 of `doing` must land between the doing cards (3000 and
+    // 4000), never between the todo cards the board-wide list happens to start
+    // with.
+    mockedListCards.mockResolvedValue([
+      { id: 'c1', taskId: 't1', position: 1000, status: 'todo' },
+      { id: 'c2', taskId: 't2', position: 2000, status: 'todo' },
+      { id: 'c3', taskId: 't3', position: 3000, status: 'doing' },
+      { id: 'c4', taskId: 't4', position: 4000, status: 'doing' },
+    ] as never);
+
+    await invoke(
+      CARDS_POST,
+      { id: 'board_1' },
+      { taskId: TASK_ID, targetIndex: 1, status: 'doing' }
+    );
+
+    const position = mockedAdd.mock.calls[0]?.[3];
+    expect(position).toBeGreaterThan(3000);
+    expect(position).toBeLessThan(4000);
+  });
+
+  it('excludes the task’s own card when it is already on the board', async () => {
+    // `addBoardCard` treats a repeat placement as a move. Leaving the card in the
+    // list would position it relative to itself and shift every index below it.
+    mockedListCards.mockResolvedValue([
+      { id: 'c1', taskId: TASK_ID, position: 1000, status: 'todo' },
+      { id: 'c2', taskId: 't2', position: 2000, status: 'todo' },
+    ] as never);
+
+    await invoke(
+      CARDS_POST,
+      { id: 'board_1' },
+      { taskId: TASK_ID, targetIndex: 0, status: 'todo' }
+    );
+
+    // Slot 0 of a column whose only other card sits at 2000 — so above it.
+    const position = mockedAdd.mock.calls[0]?.[3];
+    expect(position).toBeLessThan(2000);
+  });
 });
 
 describe('PATCH /obsiddy/boards/[id]/cards/[cardId]', () => {
   it('moves a card to the requested index', async () => {
     mockedListCards.mockResolvedValue([
-      { id: 'card_1', position: 1000 },
-      { id: 'card_2', position: 2000 },
+      { id: 'card_1', taskId: 't1', position: 1000, status: 'todo' },
+      { id: 'card_2', taskId: 't2', position: 2000, status: 'todo' },
     ] as never);
 
     const response = await invoke(
@@ -229,9 +272,9 @@ describe('PATCH /obsiddy/boards/[id]/cards/[cardId]', () => {
 
   it('excludes the moving card from its own neighbour calculation', async () => {
     mockedListCards.mockResolvedValue([
-      { id: 'card_1', position: 1000 },
-      { id: 'card_2', position: 2000 },
-      { id: 'card_3', position: 3000 },
+      { id: 'card_1', taskId: 't1', position: 1000, status: 'todo' },
+      { id: 'card_2', taskId: 't2', position: 2000, status: 'todo' },
+      { id: 'card_3', taskId: 't3', position: 3000, status: 'todo' },
     ] as never);
 
     await invoke(CARD_PATCH, { id: 'board_1', cardId: 'card_1' }, { targetIndex: 1 });
@@ -240,6 +283,47 @@ describe('PATCH /obsiddy/boards/[id]/cards/[cardId]', () => {
     const position = mockedMove.mock.calls[0]?.[2];
     expect(position).toBeGreaterThan(2000);
     expect(position).toBeLessThan(3000);
+  });
+
+  it('measures the index against the target column, not the whole board', async () => {
+    // The bug this guards: `targetIndex` is a column-relative index and a board's
+    // positions span every column, so measuring one against the other drops the
+    // card among a different column's cards and the board snaps back on refresh.
+    // Reordering within `doing` must land between 3000 and 4000.
+    mockedListCards.mockResolvedValue([
+      { id: 'card_1', taskId: 't1', position: 1000, status: 'todo' },
+      { id: 'card_2', taskId: 't2', position: 2000, status: 'todo' },
+      { id: 'card_3', taskId: 't3', position: 3000, status: 'doing' },
+      { id: 'card_4', taskId: 't4', position: 4000, status: 'doing' },
+      { id: 'card_5', taskId: 't5', position: 5000, status: 'doing' },
+    ] as never);
+
+    // Drag card_5 to slot 1 of the doing column: after card_3, before card_4.
+    await invoke(
+      CARD_PATCH,
+      { id: 'board_1', cardId: 'card_5' },
+      { targetIndex: 1, status: 'doing' }
+    );
+
+    const position = mockedMove.mock.calls[0]?.[2];
+    expect(position).toBeGreaterThan(3000);
+    expect(position).toBeLessThan(4000);
+  });
+
+  it('falls back to the whole board when no status is sent', async () => {
+    // `status` is optional so an older client keeps working rather than 400ing.
+    mockedListCards.mockResolvedValue([
+      { id: 'card_1', taskId: 't1', position: 1000, status: 'todo' },
+      { id: 'card_2', taskId: 't2', position: 2000, status: 'doing' },
+      { id: 'card_3', taskId: 't3', position: 3000, status: 'doing' },
+    ] as never);
+
+    await invoke(CARD_PATCH, { id: 'board_1', cardId: 'card_3' }, { targetIndex: 1 });
+
+    // Board-wide slot 1 — between card_1 and card_2, across columns.
+    const position = mockedMove.mock.calls[0]?.[2];
+    expect(position).toBeGreaterThan(1000);
+    expect(position).toBeLessThan(2000);
   });
 
   it('returns 404 for a card belonging to a different board', async () => {

@@ -27,7 +27,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { CardDetailSheet } from '@/components/obsiddy/board/card-detail-sheet';
@@ -175,6 +175,33 @@ describe('CardDetailSheet', () => {
     await waitFor(() => expect(mockedDelete).toHaveBeenCalledWith('/api/v1/obsiddy/checklist/c2'));
   });
 
+  it('surfaces an error and leaves the item in place when removing it fails', async () => {
+    const user = userEvent.setup();
+    mockedDelete.mockRejectedValue(new Error('could not remove'));
+    render(<CardDetailSheet card={card()} allTags={TAGS} onOpenChange={vi.fn()} />);
+
+    await user.click(screen.getByRole('button', { name: 'Remove Submit' }));
+
+    await waitFor(() => expect(screen.getByText('could not remove')).toBeInTheDocument());
+    // Nothing here removes the item from the DOM on failure — there is no
+    // optimistic delete to roll back, only the request itself did not go through.
+    expect(screen.getByRole('checkbox', { name: 'Submit' })).toBeInTheDocument();
+  });
+
+  it('does not submit an add for text that is only whitespace', async () => {
+    const user = userEvent.setup();
+    render(<CardDetailSheet card={card()} allTags={TAGS} onOpenChange={vi.fn()} />);
+
+    const input = screen.getByLabelText('Add a checklist step');
+    await user.type(input, '   ');
+    // The button is disabled for whitespace-only input, so submit the form
+    // directly — this is what proves `addItem`'s own `!text` guard is real,
+    // not just backing up the disabled attribute.
+    fireEvent.submit(input.closest('form') as HTMLFormElement);
+
+    expect(mockedPost).not.toHaveBeenCalled();
+  });
+
   it('sends the whole label set when one is added', async () => {
     const user = userEvent.setup();
     render(<CardDetailSheet card={card()} allTags={TAGS} onOpenChange={vi.fn()} />);
@@ -261,6 +288,43 @@ describe('CardDetailSheet', () => {
     );
 
     expect(screen.getByRole('checkbox', { name: 'Submit' })).not.toBeChecked();
+  });
+
+  it('shows a "Pinned by you" badge for a positive manual boost', () => {
+    render(
+      <CardDetailSheet
+        card={card({ task: { ...card().task, manualBoost: 1 } })}
+        allTags={TAGS}
+        onOpenChange={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText('Pinned by you')).toBeInTheDocument();
+  });
+
+  it('shows a "Pushed down by you" badge for a negative manual boost', () => {
+    render(
+      <CardDetailSheet
+        card={card({ task: { ...card().task, manualBoost: -1 } })}
+        allTags={TAGS}
+        onOpenChange={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText('Pushed down by you')).toBeInTheDocument();
+  });
+
+  it('shows no manual-boost badge when the task has never been boosted', () => {
+    render(
+      <CardDetailSheet
+        card={card({ task: { ...card().task, manualBoost: 0 } })}
+        allTags={TAGS}
+        onOpenChange={vi.fn()}
+      />
+    );
+
+    expect(screen.queryByText('Pinned by you')).not.toBeInTheDocument();
+    expect(screen.queryByText('Pushed down by you')).not.toBeInTheDocument();
   });
 
   it('renders nothing when there is no card', () => {

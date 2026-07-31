@@ -25,7 +25,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useRouter } from 'next/navigation';
 
@@ -116,6 +116,39 @@ describe('SpaceSettingsForm', () => {
     expect(mockedPatch).not.toHaveBeenCalled();
   });
 
+  it('still refuses to save invalid weights even if the form submits directly', async () => {
+    // The disabled button is the primary guard, but `onSubmit` re-checks
+    // `weightsValid` itself — dispatching the submit event straight at the
+    // <form>, bypassing the button entirely, is what proves that second guard
+    // is real and not just dead code backing up the disabled attribute.
+    const { container } = render(
+      <SpaceSettingsForm
+        initial={settings({ priorityWeights: { ...BALANCED_WEIGHTS, urgency: 0.9 } })}
+      />
+    );
+
+    const form = container.querySelector('form');
+    expect(form).not.toBeNull();
+    fireEvent.submit(form as HTMLFormElement);
+
+    await waitFor(() => {
+      // Give the async handler a tick, then confirm no request went out.
+      expect(mockedPatch).not.toHaveBeenCalled();
+    });
+  });
+
+  it('shows a validation message for an out-of-range weekly capacity', async () => {
+    const user = userEvent.setup();
+    render(<SpaceSettingsForm initial={settings()} />);
+
+    const capacity = screen.getByRole('spinbutton', { name: /hours a week/i });
+    await user.clear(capacity);
+    await user.type(capacity, '999');
+    await user.tab();
+
+    expect(await screen.findByText('A week has 168 hours')).toBeInTheDocument();
+  });
+
   it('says what the total actually is, rather than only disabling the button', async () => {
     render(
       <SpaceSettingsForm
@@ -194,5 +227,77 @@ describe('SpaceSettingsForm', () => {
     await user.click(screen.getByRole('button', { name: /save settings/i }));
 
     await waitFor(() => expect(refresh).toHaveBeenCalled());
+  });
+
+  it('picks a different timezone from the dropdown and submits it', async () => {
+    const user = userEvent.setup();
+    render(<SpaceSettingsForm initial={settings({ timezone: 'Europe/London' })} />);
+
+    await user.click(screen.getByRole('combobox', { name: /timezone/i }));
+    await user.click(await screen.findByRole('option', { name: 'America/New_York' }));
+
+    // The trigger reflects the new selection, not just the initial one.
+    expect(screen.getByRole('combobox', { name: /timezone/i })).toHaveTextContent(
+      'America/New_York'
+    );
+
+    await user.click(screen.getByRole('button', { name: /save settings/i }));
+
+    await waitFor(() => {
+      const body = mockedPatch.mock.calls[0]?.[1]?.body as { timezone: string };
+      expect(body.timezone).toBe('America/New_York');
+    });
+  });
+
+  it('picks a different work style from the dropdown and submits it', async () => {
+    const user = userEvent.setup();
+    render(<SpaceSettingsForm initial={settings({ workStyle: 'balanced' })} />);
+
+    await user.click(screen.getByRole('combobox', { name: /how you like to work/i }));
+    await user.click(
+      await screen.findByRole('option', { name: /Exploratory — surface connections/i })
+    );
+
+    expect(screen.getByRole('combobox', { name: /how you like to work/i })).toHaveTextContent(
+      'Exploratory'
+    );
+
+    await user.click(screen.getByRole('button', { name: /save settings/i }));
+
+    await waitFor(() => {
+      const body = mockedPatch.mock.calls[0]?.[1]?.body as { workStyle: string };
+      expect(body.workStyle).toBe('exploratory');
+    });
+  });
+
+  it('updates a ranking weight when its slider moves, reflected in the running total', async () => {
+    render(<SpaceSettingsForm initial={settings()} />);
+
+    // Starting total is 100%; nudging urgency up without compensating elsewhere
+    // must break it — proof the slider's onChange actually reaches form state,
+    // not just that the DOM input's own value changed.
+    const urgencySlider = screen.getByRole('slider', { name: /how soon it.s due/i });
+    fireEvent.change(urgencySlider, { target: { value: '0.5' } });
+
+    expect(screen.getByText(/Adds up to 120%/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /save settings/i })).toBeDisabled();
+  });
+
+  it('moves the connection floor slider and submits the new value', async () => {
+    const user = userEvent.setup();
+    render(<SpaceSettingsForm initial={settings({ connectionStrengthFloor: 0.55 })} />);
+
+    const floorSlider = screen.getByRole('slider', { name: /how similar is similar enough/i });
+    fireEvent.change(floorSlider, { target: { value: '0.8' } });
+
+    // The displayed number follows the slider, not just the initial prop.
+    expect(screen.getByText('0.80')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /save settings/i }));
+
+    await waitFor(() => {
+      const body = mockedPatch.mock.calls[0]?.[1]?.body as { connectionStrengthFloor: number };
+      expect(body.connectionStrengthFloor).toBe(0.8);
+    });
   });
 });

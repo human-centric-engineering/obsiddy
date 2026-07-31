@@ -28,7 +28,8 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 
 import { AreasView } from '@/components/obsiddy/areas/areas-view';
 import type { AreaWire } from '@/lib/framework/obsiddy/ui/payloads';
@@ -132,5 +133,72 @@ describe('AreasView', () => {
 
     expect(screen.getByText('No areas yet')).toBeInTheDocument();
     expect(screen.getByText(/floating its work up your list/i)).toBeInTheDocument();
+  });
+
+  it('opens the create dialog from the header "New area" button', async () => {
+    const user = userEvent.setup();
+    render(<AreasView areas={[area()]} weeklyCapacityMinutes={2400} />);
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /^new area$/i }));
+
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByRole('heading', { name: 'New area' })).toBeInTheDocument();
+    // A create form, not an edit — the name field starts blank.
+    expect(within(dialog).getByLabelText('Name')).toHaveValue('');
+  });
+
+  it('opens the create dialog from the empty state\'s "Add the first" button', async () => {
+    const user = userEvent.setup();
+    render(<AreasView areas={[]} weeklyCapacityMinutes={2400} />);
+
+    await user.click(screen.getByRole('button', { name: 'Add the first' }));
+
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByRole('heading', { name: 'New area' })).toBeInTheDocument();
+  });
+
+  it('opens the edit dialog pre-filled with the clicked area, then closes on escape', async () => {
+    const user = userEvent.setup();
+    render(
+      <AreasView
+        areas={[area({ name: 'Career', targetWeeklyMinutes: 300 })]}
+        weeklyCapacityMinutes={2400}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Edit Career' }));
+
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByRole('heading', { name: 'Edit area' })).toBeInTheDocument();
+    // Pre-filled from the clicked area, not blank — proves `editing` carries the row through.
+    expect(within(dialog).getByLabelText('Name')).toHaveValue('Career');
+
+    await user.keyboard('{Escape}');
+
+    // The wrapped onOpenChange resets `editing` to null rather than leaving stale state.
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('renders the colour swatch and description when an area has them', () => {
+    render(
+      <AreasView
+        areas={[area({ colour: '#0d9488', description: 'Anything client-facing.' })]}
+        weeklyCapacityMinutes={2400}
+      />
+    );
+
+    expect(screen.getByText('Anything client-facing.')).toBeInTheDocument();
+    const swatch = document.querySelector('span[aria-hidden="true"].rounded-full');
+    expect(swatch).toHaveStyle({ backgroundColor: '#0d9488' });
+  });
+
+  it('hides the "of X capacity" suffix and the over-capacity warning when capacity is 0', () => {
+    render(<AreasView areas={[area({ targetWeeklyMinutes: 300 })]} weeklyCapacityMinutes={0} />);
+
+    expect(screen.getByText(/5h a week claimed across 1 area/i)).toBeInTheDocument();
+    expect(screen.queryByText(/of.*capacity/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/add up to more than/i)).not.toBeInTheDocument();
   });
 });

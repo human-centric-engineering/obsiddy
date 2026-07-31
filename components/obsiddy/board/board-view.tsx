@@ -108,6 +108,16 @@ export function BoardView({ view, allTags }: BoardViewProps): React.ReactElement
     const { active, over } = event;
     if (!over) return;
 
+    // Dropped back on its own slot — no column change, no reorder, no gesture.
+    // Nothing reorders `columns` mid-drag (there is no `onDragOver`), so `over`
+    // can only be the active card itself when the pointer ended over where it
+    // started. Without this, a 5px nudge past the activation distance on the
+    // top card of a column reads as `droppedAtTop` and silently pins it for a
+    // week; on any other card it fires a position PATCH that reorders nothing.
+    // Dropping *onto* the card currently at the top is a different `over.id`,
+    // so the real pin gesture is untouched.
+    if (String(over.id) === String(active.id)) return;
+
     const taskId = String(active.id);
     const found = findCard(taskId);
     if (!found) return;
@@ -143,8 +153,12 @@ export function BoardView({ view, allTags }: BoardViewProps): React.ReactElement
       // Only an explicit board keeps a hand-ordering; writing a position on a
       // filter board would imply an order nothing reads.
       if (explicit && found.card.cardId) {
+        // `targetIndex` counts within the target column, so the server is told
+        // which column that is — a board's positions run across all of them, and
+        // without the status it would measure the index against the whole board
+        // and drop the card among another column's cards.
         await apiClient.patch(OBSIDDY_API.boardCard(view.board.id, found.card.cardId), {
-          body: { targetIndex },
+          body: { targetIndex, status: targetStatus },
         });
       }
     });

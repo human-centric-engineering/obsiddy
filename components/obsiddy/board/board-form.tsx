@@ -91,7 +91,10 @@ export function BoardForm({
   const defaults = React.useMemo<BoardFormValues>(
     () => ({
       name: board?.name ?? '',
-      membership: (board?.membership as BoardFormValues['membership']) ?? 'filter',
+      // `BoardWire.membership` is plain `string` — validate it against the enum the
+      // form declares rather than asserting it. See CLAUDE.md: never `as` on external
+      // data. `.catch` preserves the default-on-miss the cast relied on.
+      membership: formSchema.shape.membership.catch('filter').parse(board?.membership),
       projectId: existing.projectId ?? NO_PROJECT,
       statuses: existing.statuses ?? DEFAULT_STATUSES,
       doingWipLimit: existing.doingWipLimit !== null ? String(existing.doingWipLimit) : '',

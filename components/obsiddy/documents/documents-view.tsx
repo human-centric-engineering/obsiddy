@@ -36,7 +36,7 @@ import type { DocumentWire } from '@/lib/framework/obsiddy/ui/payloads';
 const STATUS_COPY: Record<string, string> = {
   processing: 'being read — not searchable yet',
   ready: 'indexed and searchable',
-  error: 'couldn’t be read',
+  failed: 'couldn’t be read',
 };
 
 export function DocumentsView({ documents }: { documents: DocumentWire[] }): React.ReactElement {
@@ -62,7 +62,7 @@ export function DocumentsView({ documents }: { documents: DocumentWire[] }): Rea
                   variant={
                     document.status === 'ready'
                       ? 'default'
-                      : document.status === 'error'
+                      : document.status === 'failed'
                         ? 'destructive'
                         : 'secondary'
                   }
@@ -95,7 +95,7 @@ export function DocumentsView({ documents }: { documents: DocumentWire[] }): Rea
 
               {/* The parser's own reason — "encrypted PDF", "no extractable text" —
                   is more useful than anything this component could invent. */}
-              {document.status === 'error' && document.errorMessage && (
+              {document.status === 'failed' && document.errorMessage && (
                 <p className="text-destructive text-xs">{document.errorMessage}</p>
               )}
 

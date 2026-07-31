@@ -21,6 +21,8 @@
  * - Chronic snoozing shows from three snoozes on, not before
  * - `returnedFromSnooze` is badged
  * - The checkbox's accessible name names the task, not just "done"
+ * - Pinning via PinControl refreshes the row on success (its onDone wiring)
+ * - Snoozing via SnoozeMenu refreshes the row on success (its onDone wiring)
  *
  * @see components/obsiddy/today/task-row.tsx
  */
@@ -29,7 +31,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-import { TaskRow } from '@/components/obsiddy/today/task-row';
+import { TaskRow, formatMinutes } from '@/components/obsiddy/today/task-row';
 import type { TodayTaskWire } from '@/lib/framework/obsiddy/ui/payloads';
 
 vi.mock('@/lib/api/client', () => ({
@@ -37,9 +39,31 @@ vi.mock('@/lib/api/client', () => ({
   APIClientError: class APIClientError extends Error {},
 }));
 
+// The global mock in tests/setup.ts hands back a fresh `refresh` fn on every
+// `useRouter()` call, which TaskRow makes on every re-render — there would be
+// no single mock to assert against. Override it here with one stable
+// `mockRefresh` so `router.refresh()` calls (fired from PinControl's and
+// SnoozeMenu's `onDone`) land on a fn we can actually inspect.
+const { mockRefresh } = vi.hoisted(() => ({ mockRefresh: vi.fn() }));
+
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({
+    push: vi.fn(),
+    replace: vi.fn(),
+    refresh: mockRefresh,
+    back: vi.fn(),
+    forward: vi.fn(),
+    prefetch: vi.fn(),
+  }),
+  usePathname: vi.fn(() => '/'),
+  useSearchParams: vi.fn(() => new URLSearchParams()),
+  useParams: vi.fn(() => ({})),
+}));
+
 import { apiClient } from '@/lib/api/client';
 
 const mockedPatch = apiClient.patch as ReturnType<typeof vi.fn>;
+const mockedPost = apiClient.post as ReturnType<typeof vi.fn>;
 
 const DAY = 86_400_000;
 
@@ -65,6 +89,7 @@ function task(overrides: Partial<TodayTaskWire> = {}): TodayTaskWire {
 beforeEach(() => {
   vi.clearAllMocks();
   mockedPatch.mockResolvedValue({ id: 'task_1' });
+  mockedPost.mockResolvedValue({ id: 'task_1' });
 });
 
 describe('TaskRow', () => {
@@ -176,5 +201,81 @@ describe('TaskRow', () => {
   it('badges a task that has come back from a snooze', () => {
     render(<TaskRow task={task()} returnedFromSnooze />);
     expect(screen.getByText('Back from snooze')).toBeInTheDocument();
+  });
+
+  it('refreshes the row after pinning succeeds, via PinControl onDone', async () => {
+    const user = userEvent.setup();
+    render(<TaskRow task={task()} />);
+
+    await user.click(screen.getByRole('button', { name: 'Rank this task by hand' }));
+    await user.click(await screen.findByText('Pin for a week'));
+
+    // The row itself does not know how to write the pin — it only wires
+    // PinControl's onDone to router.refresh(), which is the code path this
+    // proves ran.
+    await waitFor(() => expect(mockedPatch).toHaveBeenCalled());
+    await waitFor(() => expect(mockRefresh).toHaveBeenCalledTimes(1));
+  });
+
+  it('refreshes the row after snoozing succeeds, via SnoozeMenu onDone', async () => {
+    const user = userEvent.setup();
+    render(<TaskRow task={task()} />);
+
+    await user.click(screen.getByRole('button', { name: 'Snooze this task' }));
+    await user.click(await screen.findByText('Later today'));
+
+    await waitFor(() => expect(mockedPost).toHaveBeenCalled());
+    await waitFor(() => expect(mockRefresh).toHaveBeenCalledTimes(1));
+  });
+
+  it('passes the rank through to the priority explainer', () => {
+    render(
+      <TaskRow
+        task={task({
+          priorityFactors: {
+            urgency: 0.5,
+            goalAlignment: 0.5,
+            projectMomentum: 0.5,
+            areaBalance: 0.5,
+            effortFit: 0.5,
+            staleness: 0.5,
+            base: 0.5,
+            manualBoost: 0,
+            boostActive: false,
+            boostReason: null,
+            deferred: false,
+            returnedFromSnooze: false,
+            dominantFactor: 'urgency',
+            scoredAt: '2026-07-20T09:00:00.000Z',
+          },
+        })}
+        rank={2}
+      />
+    );
+    expect(screen.getByRole('button', { name: /why is this ranked here/i })).toHaveTextContent(
+      '#2'
+    );
+  });
+
+  it('falls back to currentColor for an area with no colour set', () => {
+    const { container } = render(
+      <TaskRow task={task({ area: { id: 'area_1', name: 'Career', colour: null } })} />
+    );
+    const dot = container.querySelector('span[aria-hidden="true"].rounded-full');
+    expect(dot).toHaveStyle({ backgroundColor: 'currentColor' });
+  });
+});
+
+describe('formatMinutes', () => {
+  it('renders under an hour as minutes only', () => {
+    expect(formatMinutes(45)).toBe('45m');
+  });
+
+  it('renders exact hours with no minutes remainder', () => {
+    expect(formatMinutes(120)).toBe('2h');
+  });
+
+  it('renders hours and minutes together', () => {
+    expect(formatMinutes(90)).toBe('1h 30m');
   });
 });

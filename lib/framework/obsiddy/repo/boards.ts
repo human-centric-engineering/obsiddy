@@ -103,12 +103,15 @@ export async function createBoard(
   const { columns, filter, ...rest } = data;
   return prisma.obsiddyBoard.create({
     data: {
-      ...ownerWhere(scope),
       ...rest,
       // `columns` is non-nullable in the schema, so it is set unconditionally
       // rather than through the optional-spread path the update uses.
       columns: columns ?? [],
       ...jsonFields({ filter }),
+      // Scope spreads LAST so it beats anything the caller sent — see the rule
+      // in `repo/owner-scope.ts`. `WithoutOwner<…>` already keeps `userId` out
+      // of the create types, so this is the second line of defence, not the first.
+      ...ownerWhere(scope),
     },
   });
 }
@@ -169,6 +172,48 @@ export async function listBoardCards(
     where: { ...ownerWhere(scope), boardId },
     orderBy: { position: 'asc' },
   });
+}
+
+/** A card plus the one task field the ordering needs. */
+export interface BoardCardWithStatus {
+  id: string;
+  taskId: string;
+  position: number;
+  status: string;
+}
+
+/**
+ * The same cards, carrying their task's status.
+ *
+ * The board's `position` is one sequence spanning every column, but a column is
+ * just that sequence filtered by `task.status` — so a card's *visual* index is
+ * relative to its column, and the two only coincide for the first one. Placing a
+ * card by an index therefore has to compare it against the cards in the column it
+ * landed in, and `ObsiddyBoardCard` has no status of its own to filter on. Hence
+ * the join: it is the cheapest thing that lets the server work in the same index
+ * space the client dropped in.
+ */
+export async function listBoardCardsWithStatus(
+  scope: OwnerScope,
+  boardId: string
+): Promise<BoardCardWithStatus[]> {
+  const rows = await prisma.obsiddyBoardCard.findMany({
+    where: { ...ownerWhere(scope), boardId },
+    orderBy: { position: 'asc' },
+    select: {
+      id: true,
+      taskId: true,
+      position: true,
+      task: { select: { status: true } },
+    },
+  });
+
+  return rows.map((row) => ({
+    id: row.id,
+    taskId: row.taskId,
+    position: row.position,
+    status: row.task.status,
+  }));
 }
 
 export async function findBoardCard(

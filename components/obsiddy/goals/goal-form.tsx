@@ -96,8 +96,11 @@ export function GoalForm({
     () => ({
       title: goal?.title ?? '',
       description: goal?.description ?? '',
-      horizon: (goal?.horizon as GoalFormValues['horizon']) ?? 'quarter',
-      status: (goal?.status as GoalFormValues['status']) ?? 'active',
+      // `GoalWire.horizon` and `.status` are plain `string` — validate them against
+      // the enums the form declares rather than asserting them. See CLAUDE.md: never
+      // `as` on external data. `.catch` preserves the default-on-miss the cast had.
+      horizon: formSchema.shape.horizon.catch('quarter').parse(goal?.horizon),
+      status: formSchema.shape.status.catch('active').parse(goal?.status),
       // A date input wants `yyyy-mm-dd`; the wire carries a full ISO timestamp.
       targetDate: goal?.targetDate ? goal.targetDate.slice(0, 10) : '',
       parentGoalId: goal?.parentGoalId ?? NONE,

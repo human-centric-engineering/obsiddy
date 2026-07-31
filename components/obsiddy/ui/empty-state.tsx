@@ -1,5 +1,3 @@
-'use client';
-
 /**
  * EmptyState — what a surface says before it has anything in it.
  *

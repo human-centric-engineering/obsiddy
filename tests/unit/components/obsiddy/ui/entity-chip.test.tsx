@@ -52,6 +52,33 @@ describe('EntityChip', () => {
     );
   });
 
+  // goal/area/document all resolve `href` via a zero-arg closure — `() =>
+  // OBSIDDY_ROUTES.GOALS` etc. — rather than one that takes the chip's id.
+  // Neither of the two tests above ever calls those closures, so they were
+  // sitting uncovered even though the component "worked": exercise each one
+  // directly, since a typo in any of them (e.g. pointing 'area' at GOALS)
+  // would send every area chip to the wrong list page.
+  it('links a goal chip to the goals list (not a goal detail page — there is none)', () => {
+    render(<EntityChip type="goal" id="goal_1" label="Ship v2" />);
+
+    expect(screen.getByRole('link', { name: /Ship v2/ })).toHaveAttribute('href', '/obsiddy/goals');
+  });
+
+  it('links an area chip to the areas list', () => {
+    render(<EntityChip type="area" id="area_1" label="Health" />);
+
+    expect(screen.getByRole('link', { name: /Health/ })).toHaveAttribute('href', '/obsiddy/areas');
+  });
+
+  it('links a document chip to the documents list', () => {
+    render(<EntityChip type="document" id="doc_1" label="Contract.pdf" />);
+
+    expect(screen.getByRole('link', { name: /Contract.pdf/ })).toHaveAttribute(
+      'href',
+      '/obsiddy/documents'
+    );
+  });
+
   it('renders a deleted target as inert text, never a link', () => {
     render(<EntityChip type="project" id="proj_gone" label={null} />);
 

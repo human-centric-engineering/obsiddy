@@ -138,6 +138,20 @@ describe('GET /api/v1/obsiddy/graph', () => {
 
     expect(response.headers.get('Cache-Control')).toContain('private');
   });
+
+  it('passes an explicit types filter through to buildGraph', async () => {
+    await invoke(GRAPH_GET, `focus=${ID}&focusType=project&types=project,task`);
+
+    const input = mockedGraph.mock.calls[0]?.[0] as { types?: string[] };
+    expect(input.types).toEqual(['project', 'task']);
+  });
+
+  it('omits the types key entirely when no filter is given', async () => {
+    await invoke(GRAPH_GET, `focus=${ID}&focusType=project`);
+
+    const input = mockedGraph.mock.calls[0]?.[0] as unknown as Record<string, unknown>;
+    expect(input).not.toHaveProperty('types');
+  });
 });
 
 describe('GET /api/v1/obsiddy/connections', () => {

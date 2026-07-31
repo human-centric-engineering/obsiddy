@@ -57,6 +57,14 @@ export function DocumentUpload(): React.ReactElement {
   function upload(file: File): void {
     setState({ kind: 'uploading', percent: 0 });
 
+    // Clear the picker up front, not on success. A file input fires `change`
+    // only when the selection *differs* from what it already holds, so leaving
+    // the failed filename in place means picking the same file again is
+    // silently ignored — the retry every user tries first is the one that
+    // cannot work. `file` is already captured, so clearing the input here does
+    // not affect this upload.
+    if (inputRef.current) inputRef.current.value = '';
+
     const form = new FormData();
     form.append('file', file);
 
@@ -76,7 +84,6 @@ export function DocumentUpload(): React.ReactElement {
       if (request.status >= 200 && request.status < 300) {
         const deduped = readDeduped(request.responseText);
         setState({ kind: 'done', deduped, title: file.name });
-        if (inputRef.current) inputRef.current.value = '';
         router.refresh();
       } else {
         setState({ kind: 'error', message: readErrorMessage(request.responseText) });

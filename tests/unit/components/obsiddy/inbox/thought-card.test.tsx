@@ -22,6 +22,8 @@
  * - A suggestion whose target was deleted still renders, inertly
  * - The source is shown in words rather than as an enum value
  * - Chronic snoozing is surfaced
+ * - "Make something of it" opens the promote dialog
+ * - Snoozing via SnoozeMenu refreshes the card on success (its onDone wiring)
  *
  * @see components/obsiddy/inbox/thought-card.tsx
  */
@@ -38,9 +40,31 @@ vi.mock('@/lib/api/client', () => ({
   APIClientError: class APIClientError extends Error {},
 }));
 
+// The global mock in tests/setup.ts hands back a fresh `refresh` fn on every
+// `useRouter()` call, which ThoughtCard makes on every re-render — there
+// would be no single mock to assert against. Override it here with one
+// stable `mockRefresh` so `router.refresh()` (fired from SnoozeMenu's
+// `onDone`) lands on a fn we can actually inspect.
+const { mockRefresh } = vi.hoisted(() => ({ mockRefresh: vi.fn() }));
+
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({
+    push: vi.fn(),
+    replace: vi.fn(),
+    refresh: mockRefresh,
+    back: vi.fn(),
+    forward: vi.fn(),
+    prefetch: vi.fn(),
+  }),
+  usePathname: vi.fn(() => '/'),
+  useSearchParams: vi.fn(() => new URLSearchParams()),
+  useParams: vi.fn(() => ({})),
+}));
+
 import { apiClient } from '@/lib/api/client';
 
 const mockedPatch = apiClient.patch as ReturnType<typeof vi.fn>;
+const mockedPost = apiClient.post as ReturnType<typeof vi.fn>;
 
 function item(overrides: Partial<InboxItemWire> = {}): InboxItemWire {
   return {
@@ -75,6 +99,7 @@ function item(overrides: Partial<InboxItemWire> = {}): InboxItemWire {
 beforeEach(() => {
   vi.clearAllMocks();
   mockedPatch.mockResolvedValue({ id: 'link_1' });
+  mockedPost.mockResolvedValue({ id: 'th_1' });
 });
 
 describe('ThoughtCard', () => {
@@ -191,5 +216,83 @@ describe('ThoughtCard', () => {
     );
 
     expect(screen.queryByText(/this looks related to/i)).not.toBeInTheDocument();
+  });
+
+  it('opens the promote dialog from "Make something of it"', async () => {
+    const user = userEvent.setup();
+    render(<ThoughtCard item={item()} projects={[]} />);
+
+    expect(screen.queryByText('What is this?')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /make something of it/i }));
+
+    expect(await screen.findByText('What is this?')).toBeInTheDocument();
+  });
+
+  it('refreshes the card after snoozing succeeds, via SnoozeMenu onDone', async () => {
+    const user = userEvent.setup();
+    render(<ThoughtCard item={item()} projects={[]} />);
+
+    await user.click(screen.getByRole('button', { name: /snooze this thought/i }));
+    await user.click(await screen.findByText('Later today'));
+
+    await waitFor(() => expect(mockedPost).toHaveBeenCalled());
+    await waitFor(() => expect(mockRefresh).toHaveBeenCalledTimes(1));
+  });
+
+  it('does not refresh, and surfaces the message, when dropping fails', async () => {
+    const user = userEvent.setup();
+    mockedPatch.mockRejectedValue(new Error('thought not found'));
+    render(<ThoughtCard item={item()} projects={[]} />);
+
+    await user.click(screen.getByRole('button', { name: /not worth doing/i }));
+
+    await waitFor(() => expect(screen.getByText('thought not found')).toBeInTheDocument());
+    // The optimistic-refresh path is conditional on success — a failed write
+    // must not re-sync the list with (soon to be stale) server data.
+    expect(mockRefresh).not.toHaveBeenCalled();
+  });
+
+  it('shows the raw source value when there is no known label for it', () => {
+    render(
+      <ThoughtCard
+        item={item({
+          thought: { ...item().thought, source: 'homing_pigeon' },
+        })}
+        projects={[]}
+      />
+    );
+    expect(screen.getByText('homing_pigeon')).toBeInTheDocument();
+  });
+
+  it('falls back to the full note when the first line is blank', async () => {
+    const user = userEvent.setup();
+    render(
+      <ThoughtCard
+        item={item({
+          thought: { ...item().thought, content: '\n\nActual body text here' },
+        })}
+        projects={[]}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: /make something of it/i }));
+
+    expect(await screen.findByLabelText('Title')).toHaveValue('Actual body text here');
+  });
+
+  it('truncates a default title longer than 120 characters', async () => {
+    const user = userEvent.setup();
+    const longLine = 'A'.repeat(150);
+    render(
+      <ThoughtCard
+        item={item({ thought: { ...item().thought, content: longLine } })}
+        projects={[]}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: /make something of it/i }));
+
+    expect(await screen.findByLabelText('Title')).toHaveValue(`${'A'.repeat(119)}…`);
   });
 });

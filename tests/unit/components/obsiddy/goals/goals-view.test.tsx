@@ -163,4 +163,40 @@ describe('GoalsView', () => {
     expect(screen.getByText('No goals yet')).toBeInTheDocument();
     expect(screen.getByText(/outranks a task that serves nothing/i)).toBeInTheDocument();
   });
+
+  it('opens the create dialog from the header "New goal" button', async () => {
+    const user = userEvent.setup();
+    render(<GoalsView goals={[goal()]} areas={[]} />);
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'New goal' }));
+
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByRole('heading', { name: 'New goal' })).toBeInTheDocument();
+  });
+
+  it('opens the create dialog from the empty state\'s "Set one" button', async () => {
+    const user = userEvent.setup();
+    render(<GoalsView goals={[]} areas={[]} />);
+
+    await user.click(screen.getByRole('button', { name: 'Set one' }));
+
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByRole('heading', { name: 'New goal' })).toBeInTheDocument();
+  });
+
+  it('closes the edit dialog on escape and resets which goal was being edited', async () => {
+    const user = userEvent.setup();
+    render(<GoalsView goals={[goal({ title: 'Ship the beta' })]} areas={[]} />);
+
+    await user.click(screen.getByRole('button', { name: 'Edit Ship the beta' }));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+
+    await user.keyboard('{Escape}');
+
+    // The wrapped onOpenChange nulls `editing` rather than leaving stale state that
+    // would reopen prefilled with the last-clicked goal next time.
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
 });

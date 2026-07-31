@@ -1,5 +1,3 @@
-'use client';
-
 /**
  * Loading placeholders — `animate-pulse` divs, no dependency.
  *

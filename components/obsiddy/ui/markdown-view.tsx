@@ -1,5 +1,3 @@
-'use client';
-
 /**
  * MarkdownView — renders task notes, project descriptions and briefing prose.
  *

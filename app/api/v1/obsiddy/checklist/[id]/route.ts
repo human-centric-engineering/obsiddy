@@ -22,6 +22,7 @@ import {
   deleteChecklistItem,
   findChecklistItem,
   listChecklist,
+  renumberChecklistItems,
   updateChecklistItem,
 } from '@/lib/framework/obsiddy/repo/checklist';
 import { ownerScope } from '@/lib/framework/obsiddy/repo/owner-scope';
@@ -43,7 +44,16 @@ export const PATCH = withAuth<{ id: string }>(async (request, session, { params 
     // The moving item is excluded, or it would be positioned relative to itself
     // and stay put.
     const siblings = (await listChecklist(scope, existing.taskId)).filter((item) => item.id !== id);
-    position = planMove(siblings, body.targetIndex).position;
+    const plan = planMove(siblings, body.targetIndex);
+
+    // `plan.position` is computed against the *spread* list when the gap has
+    // collapsed, so the spread has to be written too — exactly as the board-card
+    // route does. Skipping it puts the item at a coordinate its siblings never
+    // moved to, and the drop silently sorts to the end instead of the slot asked
+    // for.
+    if (plan.renormalised) await renumberChecklistItems(scope, plan.renormalised);
+
+    position = plan.position;
   }
 
   const item = await updateChecklistItem(scope, id, {

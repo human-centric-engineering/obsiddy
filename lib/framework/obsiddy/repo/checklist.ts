@@ -84,7 +84,12 @@ export async function createChecklistItem(
   if (!task) return null;
 
   return prisma.obsiddyChecklistItem.create({
-    data: { ...ownerWhere(scope), taskId, ...data },
+    // The caller's fields go first; the verified `taskId` and the scope both
+    // spread after them, so neither can be overridden by the payload. That is
+    // the ordering rule in `repo/owner-scope.ts`, and here it is what keeps the
+    // ownership check above meaningful — a `taskId` arriving in `data` would
+    // otherwise replace the one just verified.
+    data: { ...data, taskId, ...ownerWhere(scope) },
   });
 }
 
@@ -121,6 +126,34 @@ export async function deleteChecklistItem(
 ): Promise<ObsiddyChecklistItem | null> {
   return nullOnMiss(() =>
     prisma.obsiddyChecklistItem.delete({ where: { id, ...ownerWhere(scope) } })
+  );
+}
+
+/**
+ * Rewrite a whole task's checklist positions in one transaction.
+ *
+ * The counterpart to `renumberBoardCards`, and needed for the same reason:
+ * `planMove` returns a `renormalised` plan once repeated inserts into one gap
+ * exhaust float precision, and it computes the moved item's position against
+ * that **spread** list. Applying the position without applying the spread puts
+ * the item at a coordinate the stored siblings never moved to — so a drop into
+ * slot 1 silently sorts last instead.
+ *
+ * Atomic, so a checklist is never observed half-renumbered.
+ */
+export async function renumberChecklistItems(
+  scope: OwnerScope,
+  positions: Array<{ id: string; position: number }>
+): Promise<void> {
+  if (positions.length === 0) return;
+
+  await prisma.$transaction(
+    positions.map((entry) =>
+      prisma.obsiddyChecklistItem.updateMany({
+        where: { id: entry.id, ...ownerWhere(scope) },
+        data: { position: entry.position },
+      })
+    )
   );
 }
 

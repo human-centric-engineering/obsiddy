@@ -1,5 +1,3 @@
-'use client';
-
 /**
  * ProgressBar — a `div` with `role="progressbar"`, per `plan.md` §9.
  *

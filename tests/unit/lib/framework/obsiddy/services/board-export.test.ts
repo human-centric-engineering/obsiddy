@@ -296,4 +296,42 @@ describe('boardToJson', () => {
     );
     expect(undated.cards[0]?.due).toBeNull();
   });
+
+  it('exports unplaced cards rather than dropping them', () => {
+    // The CSV path has always done this; the JSON path iterated only `columns`, so
+    // a task whose status matched no configured column was silently absent from
+    // `?format=json` — the same data loss, in the format people migrate with.
+    // Both formats now share one grouping so they cannot drift apart again.
+    const json = boardToJson(
+      view({
+        unplaced: [card({ task: { ...card().task, title: 'Orphaned task' } })],
+        totalCards: 2,
+      })
+    );
+
+    expect(json.cards.map((entry) => entry.name)).toContain('Orphaned task');
+    expect(json.lists).toContainEqual({ id: 'unplaced', name: 'Unplaced' });
+    expect(json.cards.find((entry) => entry.name === 'Orphaned task')?.idList).toBe('unplaced');
+  });
+
+  it('adds no unplaced list when everything is in a column', () => {
+    const json = boardToJson(view());
+
+    expect(json.lists).toEqual([{ id: 'todo', name: 'To do' }]);
+  });
+
+  it('collects labels from unplaced cards too', () => {
+    // Labels are board-wide in Trello's shape, so a tag that only appears on an
+    // unplaced card still has to reach the label list — otherwise its cards
+    // reference an id that is not there.
+    const orphanTag = tag('t9', 'stalled');
+    const json = boardToJson(
+      view({
+        unplaced: [card({ tags: [orphanTag] })],
+        totalCards: 2,
+      })
+    );
+
+    expect(json.labels.map((label) => label.id)).toContain('t9');
+  });
 });

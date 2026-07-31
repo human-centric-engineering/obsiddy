@@ -56,7 +56,7 @@ export async function findTagBySlug(scope: OwnerScope, slug: string): Promise<Ob
 }
 
 export async function createTag(scope: OwnerScope, data: TagCreateData): Promise<ObsiddyTag> {
-  return prisma.obsiddyTag.create({ data: { ...ownerWhere(scope), ...data } });
+  return prisma.obsiddyTag.create({ data: { ...data, ...ownerWhere(scope) } });
 }
 
 export async function updateTag(

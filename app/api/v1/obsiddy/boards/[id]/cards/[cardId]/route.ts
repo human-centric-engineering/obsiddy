@@ -19,7 +19,7 @@ import { validateRequestBody } from '@/lib/api/validation';
 import { withAuth } from '@/lib/auth/guards';
 import {
   findBoardCard,
-  listBoardCards,
+  listBoardCardsWithStatus,
   removeBoardCard,
   renumberBoardCards,
   updateBoardCardPosition,
@@ -40,9 +40,25 @@ export const PATCH = withAuth<{ id: string; cardId: string }>(
     // A card id from another board — or another user — is a 404 either way.
     if (!card || card.boardId !== id) throw new NotFoundError('card not found');
 
-    // The moving card is excluded from the neighbour calculation: leaving it in
-    // would let it be positioned relative to itself, which pins it in place.
-    const others = (await listBoardCards(scope, id)).filter((row) => row.id !== cardId);
+    // Two exclusions, for two different reasons.
+    //
+    // The moving card is dropped because leaving it in would let it be positioned
+    // relative to itself, which pins it in place.
+    //
+    // Everything outside the target column is dropped because `targetIndex` is an
+    // index *within that column*. A board's positions are a single sequence across
+    // every column, and a column is that sequence filtered by status — so the two
+    // index spaces coincide only for the first column. Measuring a column-relative
+    // index against the whole board drops the card among another column's cards,
+    // and the board snaps back on the next read.
+    //
+    // `status` is optional: without it there is no column to measure against, so
+    // fall back to the board-wide list rather than reject the request.
+    const all = await listBoardCardsWithStatus(scope, id);
+    const others = all
+      .filter((row) => row.id !== cardId)
+      .filter((row) => (body.status === undefined ? true : row.status === body.status));
+
     const plan = planMove(others, body.targetIndex);
 
     if (plan.renormalised) await renumberBoardCards(scope, plan.renormalised);

@@ -3,6 +3,18 @@
 /**
  * CapacityMeter — how much of the week you have already committed.
  *
+ * ## Why this one keeps `'use client'` when its siblings dropped it
+ *
+ * It renders nothing client-only, so by CLAUDE.md's "server components by default"
+ * it ought not to need the directive. But it imports `formatMinutes` from
+ * `today/task-row`, which *is* a client module — and a server component importing a
+ * value across that boundary gets a client reference, not the function, so the call
+ * fails the moment this is rendered server-side. Today its only consumer is
+ * `TodayView` (a client component), so the directive costs nothing and the removal
+ * would be a trap set for whoever first drops a `<CapacityMeter>` into a page.
+ * Lifting `formatMinutes` into a plain module is the real fix, and it belongs with
+ * whatever next touches that file rather than in a gate run.
+ *
  * This is the number that makes the difference between a to-do list and a plan.
  * `plannedMinutesThisWeek` comes from `ObsiddyTimeBlock` rows, so it is time you
  * actually blocked out, not an estimate summed from tasks — which is why it can be

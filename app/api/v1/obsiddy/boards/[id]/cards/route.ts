@@ -28,7 +28,7 @@ import { withAuth } from '@/lib/auth/guards';
 import {
   addBoardCard,
   findBoard,
-  listBoardCards,
+  listBoardCardsWithStatus,
   renumberBoardCards,
 } from '@/lib/framework/obsiddy/repo/boards';
 import { ownerScope } from '@/lib/framework/obsiddy/repo/owner-scope';
@@ -51,7 +51,17 @@ export const POST = withAuth<{ id: string }>(async (request, session, { params }
     });
   }
 
-  const existing = await listBoardCards(scope, id);
+  // Measured against the target column, not the whole board — `targetIndex` is a
+  // column-relative index and a board's positions span every column, so the two
+  // only coincide for the first one. See the PATCH route for the full reasoning.
+  //
+  // The card for this task is also dropped when it is already on the board:
+  // `addBoardCard` treats that as a move, and leaving the card in the list would
+  // have it positioned relative to itself and shift every index below it by one.
+  const existing = (await listBoardCardsWithStatus(scope, id))
+    .filter((row) => row.taskId !== body.taskId)
+    .filter((row) => (body.status === undefined ? true : row.status === body.status));
+
   const plan = planMove(existing, body.targetIndex);
 
   // Spread first when the gap has closed up, so the position below lands in a real

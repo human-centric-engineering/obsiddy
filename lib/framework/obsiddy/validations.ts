@@ -583,7 +583,14 @@ export type BoardColumns = z.infer<typeof boardColumnsSchema>;
 export const boardFilterSchema = z
   .object({
     projectId: cuidSchema.optional(),
-    /** Finished work is off the board unless it was asked for. */
+    /**
+     * Show closed work.
+     *
+     * Set, it stops `done` *and* `dropped` being filtered out. Unset, `dropped` is
+     * always hidden, and `done` is hidden only when the board has no Done column to
+     * put it in — a board configured with one has asked for finished work by saying
+     * where it goes. See `loadFilteredCards`.
+     */
     includeDone: z.boolean().optional(),
   })
   .strict();
@@ -622,13 +629,27 @@ export const placeBoardCardSchema = z
   .object({
     taskId: cuidSchema,
     targetIndex: z.number().int().min(0).max(10_000),
+    /**
+     * The column the card landed in.
+     *
+     * `targetIndex` is an index *within a column*, but a board's positions are one
+     * sequence spanning all of them — so the server cannot turn the index into a
+     * position without knowing which column's cards to measure against. Optional so
+     * an older client, or a caller placing a card without a visual column in mind,
+     * still gets the previous board-wide behaviour rather than a 400.
+     */
+    status: z.enum(TASK_STATUSES).optional(),
   })
   .strict();
 
 export type PlaceBoardCardInput = z.infer<typeof placeBoardCardSchema>;
 
 export const moveBoardCardSchema = z
-  .object({ targetIndex: z.number().int().min(0).max(10_000) })
+  .object({
+    targetIndex: z.number().int().min(0).max(10_000),
+    /** The column the card landed in — see `placeBoardCardSchema.status`. */
+    status: z.enum(TASK_STATUSES).optional(),
+  })
   .strict();
 
 export const boardExportQuerySchema = z

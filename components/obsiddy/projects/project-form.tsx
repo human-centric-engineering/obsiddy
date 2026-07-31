@@ -87,7 +87,10 @@ export function ProjectForm({
     () => ({
       name: project?.name ?? '',
       description: project?.description ?? '',
-      status: (project?.status as ProjectFormValues['status']) ?? 'active',
+      // `ProjectWire.status` is plain `string` — validate it against the enum the
+      // form declares rather than asserting it. See CLAUDE.md: never `as` on
+      // external data. `.catch` preserves the default-on-miss the cast relied on.
+      status: formSchema.shape.status.catch('active').parse(project?.status),
       areaId: project?.areaId ?? NO_AREA,
     }),
     [project]

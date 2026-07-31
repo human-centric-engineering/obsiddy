@@ -44,7 +44,10 @@ release process.
   "untouched since", worded differently so the two are never confused.
 - **Obsiddy: `findTasksByIds`** on the tasks repo — the explicit-board read needs
   exactly its pinned tasks rather than the top N by score.
-
+- **Obsiddy: `renumberChecklistItems`** on the checklist repo — the counterpart to
+  `renumberBoardCards`. `planMove` computes a moved item's position against the
+  *spread* list once a gap has collapsed, so the spread has to be written in the
+  same pass or the item lands at a coordinate its siblings never moved to.
 
 - **Obsiddy framework-tier scaffold** (Release 1, phase 0) — the reserved
   `/framework` tier is now occupied by Obsiddy: `lib/framework/obsiddy/` with

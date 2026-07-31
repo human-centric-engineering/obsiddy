@@ -77,8 +77,13 @@ export function EntityForm({ open, onOpenChange, entity }: EntityFormProps): Rea
   const defaults = React.useMemo<EntityFormValues>(
     () => ({
       name: entity?.name ?? '',
-      kind: (entity?.kind as EntityFormValues['kind']) ?? 'person',
-      status: (entity?.status as EntityFormValues['status']) ?? 'active',
+      // `EntityWire.kind` and `.status` are plain `string` — the column is a
+      // `VarChar`, not a Prisma enum, so the wire schema cannot narrow them. Parsing
+      // against the enum the form already declares validates the value instead of
+      // asserting it, and `.catch` keeps the same default-on-miss behaviour a cast
+      // plus `??` had. See CLAUDE.md: never `as` on external data.
+      kind: formSchema.shape.kind.catch('person').parse(entity?.kind),
+      status: formSchema.shape.status.catch('active').parse(entity?.status),
       description: entity?.description ?? '',
       website: entity?.website ?? '',
     }),

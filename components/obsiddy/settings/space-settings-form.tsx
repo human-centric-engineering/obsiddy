@@ -118,7 +118,10 @@ export function SpaceSettingsForm({ initial }: { initial: SpaceSettings }): Reac
     defaultValues: {
       timezone: initial.timezone,
       weeklyCapacityHours: String(initial.weeklyCapacityMinutes / MINUTES_PER_HOUR),
-      workStyle: (initial.workStyle as SettingsFormValues['workStyle']) ?? 'balanced',
+      // `workStyle` arrives as plain `string` — validate it against the enum the form
+      // declares rather than asserting it. See CLAUDE.md: never `as` on external data.
+      // `.catch` preserves the default-on-miss the cast relied on.
+      workStyle: formSchema.shape.workStyle.catch('balanced').parse(initial.workStyle),
       weights: { ...initial.priorityWeights },
       connectionStrengthFloor: initial.connectionStrengthFloor,
     },

@@ -37,7 +37,11 @@ import { render, screen } from '@testing-library/react';
 
 import { CapacityMeter } from '@/components/obsiddy/today/capacity-meter';
 import { TodayView } from '@/components/obsiddy/today/today-view';
-import type { TodayPayloadWire, TodayTaskWire } from '@/lib/framework/obsiddy/ui/payloads';
+import type {
+  TodayPayloadWire,
+  TodayTaskWire,
+  TimeBlockWire,
+} from '@/lib/framework/obsiddy/ui/payloads';
 
 vi.mock('@/lib/api/client', () => ({
   apiClient: { patch: vi.fn(), post: vi.fn() },
@@ -59,6 +63,21 @@ function task(id: string, overrides: Partial<TodayTaskWire> = {}): TodayTaskWire
     snoozeCount: 0,
     project: null,
     area: null,
+    ...overrides,
+  };
+}
+
+function timeBlock(overrides: Partial<TimeBlockWire> = {}): TimeBlockWire {
+  return {
+    id: 'block_1',
+    title: 'Deep work',
+    taskId: null,
+    projectId: null,
+    areaId: null,
+    startAt: '2026-07-30T09:00:00.000Z',
+    endAt: '2026-07-30T10:30:00.000Z',
+    source: 'manual',
+    notes: null,
     ...overrides,
   };
 }
@@ -238,6 +257,41 @@ describe('TodayView', () => {
   it('nudges toward planning when nothing is blocked out', () => {
     render(<TodayView payload={payload()} />);
     expect(screen.getByRole('link', { name: /plan your day/i })).toBeInTheDocument();
+  });
+
+  it('lists a blocked-out time block with its title and computed duration', () => {
+    render(
+      <TodayView
+        payload={payload({
+          timeBlocks: [
+            timeBlock({
+              title: 'Deep work',
+              startAt: '2026-07-30T09:00:00.000Z',
+              endAt: '2026-07-30T10:30:00.000Z',
+            }),
+          ],
+        })}
+      />
+    );
+
+    expect(screen.getByText('Deep work')).toBeInTheDocument();
+    // 90 minutes between start and end — proves `minutesBetween` actually computed
+    // the duration rather than the component just echoing something from the payload.
+    expect(screen.getByText(/1h 30m/)).toBeInTheDocument();
+    // A populated block list drops the "plan your day" nudge.
+    expect(screen.queryByRole('link', { name: /plan your day/i })).not.toBeInTheDocument();
+  });
+
+  it('falls back to "Blocked time" when a block has no title', () => {
+    render(
+      <TodayView
+        payload={payload({
+          timeBlocks: [timeBlock({ title: null })],
+        })}
+      />
+    );
+
+    expect(screen.getByText('Blocked time')).toBeInTheDocument();
   });
 });
 

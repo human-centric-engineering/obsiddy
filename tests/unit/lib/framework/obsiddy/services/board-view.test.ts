@@ -269,4 +269,50 @@ describe('buildBoardView', () => {
     expect(mockedTags.mock.calls[0]?.[0]).toBe(SCOPE);
     expect(mockedChecklist.mock.calls[0]?.[0]).toBe(SCOPE);
   });
+
+  // `includeDone` reads as "show closed work", but a board with a Done column has
+  // already said where finished work goes — hiding it there would render that
+  // column permanently empty on the default board, whose columns are
+  // todo/next/doing/done. So the board's own configuration decides, and `dropped`
+  // is the one that is always off unless asked for.
+  describe('the closed-work filter', () => {
+    it('keeps done tasks when the board has a Done column', async () => {
+      mockedFindBoard.mockResolvedValue(
+        board({ columns: [...COLUMNS, { status: 'done', label: 'Done' }] })
+      );
+
+      await buildBoardView(SCOPE, 'board_1', NOW);
+
+      expect(mockedListTasks.mock.calls[0]?.[1]).toMatchObject({ excludeStatuses: ['dropped'] });
+    });
+
+    it('hides done tasks when the board has nowhere to put them', async () => {
+      // COLUMNS is todo + doing — a done task could only land in `unplaced`,
+      // which is the silent pile-up the filter exists to prevent.
+      await buildBoardView(SCOPE, 'board_1', NOW);
+
+      expect(mockedListTasks.mock.calls[0]?.[1]).toMatchObject({
+        excludeStatuses: ['dropped', 'done'],
+      });
+    });
+
+    it('excludes nothing when includeDone is set', async () => {
+      mockedFindBoard.mockResolvedValue(board({ filter: { includeDone: true } }));
+
+      await buildBoardView(SCOPE, 'board_1', NOW);
+
+      expect(mockedListTasks.mock.calls[0]?.[1]).not.toHaveProperty('excludeStatuses');
+    });
+
+    it('always hides dropped work when includeDone is not set', async () => {
+      mockedFindBoard.mockResolvedValue(
+        board({ columns: [...COLUMNS, { status: 'done', label: 'Done' }] })
+      );
+
+      await buildBoardView(SCOPE, 'board_1', NOW);
+
+      const filters = mockedListTasks.mock.calls[0]?.[1] as { excludeStatuses?: string[] };
+      expect(filters.excludeStatuses).toContain('dropped');
+    });
+  });
 });

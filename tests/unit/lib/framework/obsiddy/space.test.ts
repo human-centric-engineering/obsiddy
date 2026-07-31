@@ -30,6 +30,7 @@ vi.mock('@/lib/db/client', () => ({
 }));
 
 import { prisma } from '@/lib/db/client';
+import { STRENGTH_FLOOR } from '@/lib/framework/obsiddy/search/connections';
 import {
   DEFAULT_ENERGY_PROFILE,
   DEFAULT_PRIORITY_WEIGHTS,
@@ -324,5 +325,43 @@ describe('updateObsiddySettings (phase 3)', () => {
     await updateObsiddySettings('user_a', { workStyle: 'structured' });
 
     expect(create).toHaveBeenCalled();
+  });
+
+  it('writes connectionStrengthFloor through to the row (phase 5)', async () => {
+    // Regression. The repo's patch type is hand-maintained, and the service
+    // hands it an object typed as `UpdateSpaceInput` — a *variable*, so
+    // TypeScript's excess-property check does not fire. A key the schema
+    // accepts but the patch type omits therefore compiles clean and is
+    // silently dropped on the way to Prisma, which is exactly what happened
+    // to this field: the form sent it, the API validated it, the read path
+    // returned it, and nothing ever stored it.
+    update.mockResolvedValue(spaceRow({ connectionStrengthFloor: 0.72 }));
+
+    // Act
+    const settings = await updateObsiddySettings('user_a', { connectionStrengthFloor: 0.72 });
+
+    // Assert: it reaches the write, and comes back as the value now in force.
+    expect(update).toHaveBeenCalledWith({
+      where: { userId: 'user_a' },
+      data: { connectionStrengthFloor: 0.72 },
+    });
+    expect(settings.connectionStrengthFloor).toBe(0.72);
+  });
+
+  it('resets connectionStrengthFloor to the code default on an explicit null', async () => {
+    // Unlike the Json columns above this is a nullable *scalar*, so a plain
+    // null is the correct SQL NULL — no DbNull translation. Null means "use
+    // STRENGTH_FLOOR", which is what the caller must then read back.
+    update.mockResolvedValue(spaceRow({ connectionStrengthFloor: null }));
+
+    // Act
+    const settings = await updateObsiddySettings('user_a', { connectionStrengthFloor: null });
+
+    // Assert
+    expect(update).toHaveBeenCalledWith({
+      where: { userId: 'user_a' },
+      data: { connectionStrengthFloor: null },
+    });
+    expect(settings.connectionStrengthFloor).toBe(STRENGTH_FLOOR);
   });
 });

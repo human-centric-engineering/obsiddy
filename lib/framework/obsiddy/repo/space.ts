@@ -38,6 +38,12 @@ export interface SpaceSettingsPatch {
   priorityWeights?: object | null;
   energyProfile?: object | null;
   retentionPolicy?: object | null;
+  /**
+   * Nullable scalar, not a `Json` column — so a plain `null` reaches SQL as NULL
+   * and needs none of the `Prisma.DbNull` translation below. `null` means "use
+   * the code default" (`STRENGTH_FLOOR`), matching the migration's reasoning.
+   */
+  connectionStrengthFloor?: number | null;
 }
 
 /**
@@ -67,6 +73,9 @@ export async function updateSpaceSettings(
   if (patch.priorityWeights !== undefined) data.priorityWeights = jsonOrNull(patch.priorityWeights);
   if (patch.energyProfile !== undefined) data.energyProfile = jsonOrNull(patch.energyProfile);
   if (patch.retentionPolicy !== undefined) data.retentionPolicy = jsonOrNull(patch.retentionPolicy);
+  if (patch.connectionStrengthFloor !== undefined) {
+    data.connectionStrengthFloor = patch.connectionStrengthFloor;
+  }
 
   return prisma.obsiddySpace.update({ where: { userId }, data });
 }
