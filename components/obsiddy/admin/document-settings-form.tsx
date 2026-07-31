@@ -9,18 +9,21 @@
  * "Keep the original file" sounds like a preference. It is actually a question
  * about the storage provider, and the honest answer differs per deployment:
  *
- *   - **S3** stores objects privately and can sign a time-limited URL. Retention
- *     works properly.
- *   - **The local dev provider** writes into `public/uploads/`, which Next serves
- *     statically at a guessable URL. Retaining here *publishes* people's
- *     documents.
- *   - **Vercel Blob** has no `getSignedUrl`, so a privately stored file cannot be
- *     read back at all.
+ *   - **S3** stores objects privately and can sign a time-limited URL — provided
+ *     ACLs are on or `S3_OBJECTS_PRIVATE_BY_DEFAULT` is set. Retention works.
+ *   - **The local dev provider** stores privately and serves through a signed
+ *     read route (since sunrise#490 — before that it wrote into `public/uploads/`
+ *     and retaining here *published* people's documents).
+ *   - **Vercel Blob** cannot store an object privately at all, so a retained
+ *     file would be readable by anyone with the URL.
  *
- * An operator cannot make that call without being told which provider they are
- * running and what it can do — so the form says so, inline, and disables the
- * unsafe choice rather than letting someone discover the consequence later. This
- * is the one screen in Obsiddy where the safe default is doing nothing.
+ * The server resolves that per deployment from the provider's declared
+ * `capabilities` rather than its name, so a provider added later is refused until
+ * it says what it can do. An operator cannot make the call without being told
+ * which provider they are running and what it can do — so the form says so,
+ * inline, and disables the unsafe choice rather than letting someone discover the
+ * consequence later. This is the one screen in Obsiddy where the safe default is
+ * doing nothing.
  */
 
 import * as React from 'react';

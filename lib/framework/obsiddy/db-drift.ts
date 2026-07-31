@@ -18,47 +18,25 @@
  * `prisma/migrations/20260728222816_add_second_brain/migration.sql`.
  */
 
-import { prisma } from '@/lib/db/client';
 import {
   registerAppDriftProbe,
   constraintExists,
+  generatedColumnExists,
   indexExists,
-  type Probe,
 } from '@/lib/db/drift-probes';
 
 /**
- * Asserts a column exists **and** is `GENERATED ALWAYS`.
+ * `generatedColumnExists` was a local copy here until Sunrise shipped it in
+ * response to ask #10 (sunrise#481) — core's own A1 probe had the same blind
+ * spot the copy was written to close, and now uses this too.
  *
- * Local until Sunrise ships it — proposed upstream as
- * https://github.com/human-centric-engineering/sunrise/issues/481, since core's
- * own A1 probe has the same blind spot. Delete this and import
- * `generatedColumnExists` from `@/lib/db/drift-probes` once that lands.
- *
- * `columnExists` from the platform would pass on a plain `tsvector` column,
- * which is the shape a careless migration would leave behind: the column is
- * still there, nothing errors, and it silently stops being populated — so
- * search quietly returns nothing for every row written afterwards. Checking
- * `is_generated` is what makes this probe worth having.
+ * Why it matters, kept here because the import no longer says it: `columnExists`
+ * passes on a plain `tsvector` column, which is the shape a careless migration
+ * leaves behind. The column is still there, nothing errors, and it silently
+ * stops being populated — so search quietly returns nothing for every row
+ * written afterwards while old rows still match. Checking `is_generated` is what
+ * makes the probe worth having.
  */
-function generatedColumnExists(tableName: string, columnName: string): Probe {
-  return async () => {
-    const rows = await prisma.$queryRaw<Array<{ is_generated: string }>>`
-      SELECT is_generated
-      FROM information_schema.columns
-      WHERE table_name = ${tableName}
-        AND column_name = ${columnName}
-    `;
-    const isGenerated = rows[0]?.is_generated;
-    if (!isGenerated) return { ok: false, note: 'column missing entirely' };
-    if (isGenerated !== 'ALWAYS') {
-      return {
-        ok: false,
-        note: `column exists but is not GENERATED — saw is_generated="${isGenerated}". It will never be populated.`,
-      };
-    }
-    return { ok: true };
-  };
-}
 
 /**
  * Register Obsiddy's six probes. Idempotent per process is NOT guaranteed —

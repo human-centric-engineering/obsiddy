@@ -34,7 +34,7 @@ import { CardDetailSheet } from '@/components/obsiddy/board/card-detail-sheet';
 import type { BoardCardWire, TagWire } from '@/lib/framework/obsiddy/ui/payloads';
 
 vi.mock('@/lib/api/client', () => ({
-  apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
+  apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), put: vi.fn(), delete: vi.fn() },
   APIClientError: class APIClientError extends Error {},
 }));
 
@@ -43,6 +43,9 @@ import { apiClient } from '@/lib/api/client';
 const mockedGet = apiClient.get as ReturnType<typeof vi.fn>;
 const mockedPost = apiClient.post as ReturnType<typeof vi.fn>;
 const mockedPatch = apiClient.patch as ReturnType<typeof vi.fn>;
+// Labels are a whole-set replace, so the tag calls go through `put` while the
+// checklist's per-item toggles stay `patch` (sunrise#495 added the verb).
+const mockedPut = apiClient.put as ReturnType<typeof vi.fn>;
 const mockedDelete = apiClient.delete as ReturnType<typeof vi.fn>;
 
 const TAGS: TagWire[] = [
@@ -95,6 +98,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockedPost.mockResolvedValue({ id: 'c3' });
   mockedPatch.mockResolvedValue({ id: 'c1' });
+  mockedPut.mockResolvedValue([]);
   mockedDelete.mockResolvedValue(undefined);
 });
 
@@ -210,7 +214,7 @@ describe('CardDetailSheet', () => {
 
     await waitFor(() => {
       // Replace, not a delta — the endpoint's whole contract.
-      expect(mockedPatch).toHaveBeenCalledWith('/api/v1/obsiddy/tasks/task_1/tags', {
+      expect(mockedPut).toHaveBeenCalledWith('/api/v1/obsiddy/tasks/task_1/tags', {
         body: { tagIds: ['tag_1', 'tag_2'] },
       });
     });
@@ -223,7 +227,7 @@ describe('CardDetailSheet', () => {
     await user.click(screen.getByRole('button', { name: 'urgent' }));
 
     await waitFor(() => {
-      expect(mockedPatch).toHaveBeenCalledWith('/api/v1/obsiddy/tasks/task_1/tags', {
+      expect(mockedPut).toHaveBeenCalledWith('/api/v1/obsiddy/tasks/task_1/tags', {
         body: { tagIds: [] },
       });
     });
@@ -238,7 +242,7 @@ describe('CardDetailSheet', () => {
 
   it('rolls a failed label change back', async () => {
     const user = userEvent.setup();
-    mockedPatch.mockRejectedValue(new Error('task not found'));
+    mockedPut.mockRejectedValue(new Error('task not found'));
     render(<CardDetailSheet card={card()} allTags={TAGS} onOpenChange={vi.fn()} />);
 
     await user.click(screen.getByRole('button', { name: 'client' }));

@@ -539,6 +539,28 @@ release process.
 
 ### Changed
 
+- **Obsiddy: `PATCH /api/v1/obsiddy/tasks/[id]/tags` is now `PUT`.** The route
+  always replaced the whole tag set; it used `PATCH` only because `apiClient` had
+  no `put` and adding one would have been a core-file edit. #495 landed the verb.
+  **Breaking for any caller built against the old verb** — the body and response
+  are unchanged.
+- **Obsiddy: retention capability is read from the provider, not inferred from
+  its name.** `resolveRetentionCapability()` named `local` and refused it, because
+  the local provider wrote into `public/uploads/` and ignored `public: false`.
+  #490 gave it a private root and a signed read route, which made the name check
+  **wrong in both directions** — it would refuse a local provider that can now
+  hold objects privately, and go on trusting any future provider that simply
+  isn't called `local`. It now reads `getStorageCapabilities()`, where an
+  undeclared capability means "cannot".
+- **Obsiddy: `assertObsiddyModelMatchesStoredVectors` delegates to the platform
+  guard** exported by #491, instead of carrying ~40 duplicated lines. The fork
+  still supplies owner-scoped closures — an unscoped aggregate would make one
+  user's search latency grow with the whole install's corpus and let one user's
+  mismatched vectors throw for everybody — and keeps its structured `logger.error`
+  via catch/rethrow, because a thrown string is not queryable.
+- **Obsiddy: `lib/framework/obsiddy/db-drift.ts` imports `generatedColumnExists`**
+  from `@/lib/db/drift-probes` rather than defining its own. #481 landed it and
+  switched core's A1 probe to it, closing the same blind spot upstream.
 - **`upload_to_storage` refuses a private-upload binding the provider cannot
   honour** (#490). A binding with `public: false` or `signedUrlTtlSeconds` now
   fails with `private_objects_not_supported` — before any upload — when the
@@ -728,11 +750,11 @@ release process.
   Applied on create only, so a re-seed never deactivates a row an operator
   turned on. ([#436])
 
-- **`components/layouts/protected-nav.tsx` gains one `/obsiddy` entry.** The only
-  Sunrise-owned file Obsiddy edits, pre-authorised by `install.md` §2.11 while
-  [sunrise#473](https://github.com/human-centric-engineering/sunrise/issues/473)
-  (a `lib/app/protected-nav.ts` seam) is open. Commented in place with what to
-  delete when the seam lands.
+- ~~**`components/layouts/protected-nav.tsx` gains one `/obsiddy` entry.**~~
+  **Reverted before release.** #473 landed the `lib/app/protected-nav.ts` seam
+  the entry was waiting on, so the core file is pristine again and Obsiddy
+  registers through the seam. Added and removed within the same unreleased cycle;
+  no released version carried the edit.
 - **Archiving an Obsiddy item now deletes its embedding rows in the same
   transaction** as the archive (`archiveAndDropVectors()`), rather than leaving
   them behind a `WHERE archivedAt IS NULL` filter. A filtered vector search
@@ -746,6 +768,14 @@ release process.
   `updateSpaceSettings()`, which takes the patch in domain terms and translates
   a `null` Json column into `Prisma.DbNull`. Added and removed within the same
   unreleased cycle; no released version exposed it.
+
+- **`privateCacheHeaders()` and `withPrivateCache()`**
+  (`lib/framework/obsiddy/api/cache.ts`) — the per-route `Cache-Control`
+  workaround, redundant once #487 made `private, no-cache` the default on every
+  JSON envelope and on `checkConditional()`'s 304. Deleted rather than left as
+  no-ops a future route author would copy without knowing. `PRIVATE_NO_CACHE`
+  survives for the board export, which returns a raw `Response` and so never
+  passes through the envelope helpers. Same unreleased cycle.
 
 - **Obsiddy erasure cascade was incomplete** (`20260728232937_obsiddy_space_cascade`).
   The phase-1 migration gave every scoped table a plain `userId` column with no

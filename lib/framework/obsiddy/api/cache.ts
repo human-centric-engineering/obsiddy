@@ -1,46 +1,29 @@
 /**
- * Cache directives for Obsiddy's ETag'd read endpoints.
+ * Cache directive for Obsiddy's **raw-`Response`** routes.
  *
- * `/today` and `/inbox` return one person's tasks, thoughts and goals, and they
- * carry an `ETag` so a polling dashboard can get a cheap 304. Without an
- * explicit directive a response with a validator and no freshness information is
- * **heuristically cacheable** (RFC 9111 §4.2.2) — a shared proxy or CDN in front
- * of the app may store it and serve it on. For a per-user payload that is the
- * wrong default, and it fails quietly: everything works until the day something
- * sits in front of the origin.
+ * Most of this file used to be a workaround. Nothing in Sunrise set a
+ * `Cache-Control` header, and a response carrying a validator (an `ETag`) with
+ * no freshness information is *heuristically cacheable* under RFC 9111 §4.2.2 —
+ * a shared proxy or CDN in front of the origin may store a per-user payload and
+ * serve it on. So Obsiddy stamped `private, no-cache` on its own ETag'd reads,
+ * one route at a time, and filed the general case as ask #14.
  *
- * `private, no-cache` is the pair that says what we mean:
+ * That landed as sunrise#487: `successResponse()` and `errorResponse()` now send
+ * the directive by default, and `checkConditional()` puts the same constant on
+ * its 304 — so the 200 and the 304 on one endpoint cannot drift apart. Every
+ * Obsiddy route returning a JSON envelope gets it for free, and the per-route
+ * helpers this module used to export were deleted rather than left to rot into
+ * something a future route author would copy without knowing it was a no-op.
  *
- *   - **`private`** — only the end user's own browser may store this. Shared
- *     caches must not.
- *   - **`no-cache`** — a stored copy must be revalidated with the origin before
- *     reuse. Note this is *not* `no-store`: the browser keeps the copy, so the
- *     conditional GET the ETag exists for still pays off. `no-store` would
- *     forbid keeping it at all and make the ETag pointless.
+ * **What upstream's default does not reach**, and why this constant survives:
+ * a route that returns a bare `new Response(...)` never passes through the
+ * envelope helpers and keeps only the headers it sets itself. Obsiddy has one —
+ * the board CSV/JSON export — and a board export is exactly the kind of
+ * attachment a shared cache should not hold on to.
  *
- * Applied per route rather than globally because a project-wide policy would
- * mean editing `next.config.js` or `proxy.ts`, both Sunrise-owned — and this
- * fork's contract is that Obsiddy touches no upstream file. The project-wide
- * version is Sunrise ask #14; until it lands, this covers Obsiddy's own surface.
+ * `private, no-cache`, deliberately not `no-store`: `private` keeps shared
+ * caches out, `no-cache` still lets the browser store a copy and revalidate.
+ * `no-store` would forbid keeping it at all.
  */
 
 export const PRIVATE_NO_CACHE = 'private, no-cache';
-
-/** Headers for a 200 that carries an ETag. */
-export function privateCacheHeaders(etag: string): Record<string, string> {
-  return { ETag: etag, 'Cache-Control': PRIVATE_NO_CACHE };
-}
-
-/**
- * Stamp the directive onto a 304 from `checkConditional`.
- *
- * The 304 needs it as much as the 200 does — it is the response a shared cache
- * would use to refresh a stored entry, so omitting it here would leave exactly
- * the hole the 200 closes. `checkConditional` lives in Sunrise's `lib/api/etag`
- * and sets only the `ETag`, so the header is added on the way past rather than
- * by editing upstream.
- */
-export function withPrivateCache(response: Response): Response {
-  response.headers.set('Cache-Control', PRIVATE_NO_CACHE);
-  return response;
-}

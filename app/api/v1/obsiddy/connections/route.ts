@@ -20,7 +20,6 @@ import { getRouteLogger } from '@/lib/api/context';
 import { successResponse } from '@/lib/api/responses';
 import { validateQueryParams } from '@/lib/api/validation';
 import { withAuth } from '@/lib/auth/guards';
-import { PRIVATE_NO_CACHE } from '@/lib/framework/obsiddy/api/cache';
 import { ownerScope } from '@/lib/framework/obsiddy/repo/owner-scope';
 import { buildConnections } from '@/lib/framework/obsiddy/services/connections-view';
 import { connectionsQuerySchema } from '@/lib/framework/obsiddy/validations';
@@ -40,12 +39,8 @@ export const GET = withAuth(async (request, session) => {
 
   log.info('Obsiddy connections', { count: payload.items.length, total: payload.total });
 
-  return successResponse(
-    payload.items,
-    {
-      total: payload.total,
-      count: payload.items.length,
-    },
-    { headers: { 'Cache-Control': PRIVATE_NO_CACHE } }
-  );
+  return successResponse(payload.items, {
+    total: payload.total,
+    count: payload.items.length,
+  });
 });

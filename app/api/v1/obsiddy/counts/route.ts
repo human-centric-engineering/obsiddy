@@ -16,7 +16,6 @@ import { getRouteLogger } from '@/lib/api/context';
 import { checkConditional, computeETag } from '@/lib/api/etag';
 import { successResponse } from '@/lib/api/responses';
 import { withAuth } from '@/lib/auth/guards';
-import { privateCacheHeaders, withPrivateCache } from '@/lib/framework/obsiddy/api/cache';
 import { ownerScope } from '@/lib/framework/obsiddy/repo/owner-scope';
 import { buildCounts } from '@/lib/framework/obsiddy/services/counts';
 
@@ -31,9 +30,9 @@ export const GET = withAuth(async (request, session) => {
   const etag = computeETag(counts);
 
   const notModified = checkConditional(request, etag);
-  if (notModified) return withPrivateCache(notModified);
+  if (notModified) return notModified;
 
   log.info('Obsiddy counts', { ...counts });
 
-  return successResponse(counts, undefined, { headers: privateCacheHeaders(etag) });
+  return successResponse(counts, undefined, { headers: { ETag: etag } });
 });

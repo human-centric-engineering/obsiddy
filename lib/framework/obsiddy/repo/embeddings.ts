@@ -33,6 +33,7 @@ import { ownerWhere, type OwnerScope } from '@/lib/framework/obsiddy/repo/owner-
 import { nullOnMiss } from '@/lib/framework/obsiddy/repo/shared';
 import { logger } from '@/lib/logging';
 import { getActiveEmbeddingModelSummary } from '@/lib/orchestration/knowledge/embedder';
+import { assertStoredVectorDimensions } from '@/lib/orchestration/knowledge/embedding-dimensions';
 import { Prisma } from '@prisma/client';
 
 /**
@@ -581,68 +582,77 @@ export async function markSwept(
  * `vector(1536)` is baked into the column DDL, so swapping the active model to
  * one with a different output dimension breaks **every** brain query with a
  * cryptic SQL cast error, after spending an embedding round trip (§17 risk 5).
- * This is the ported equivalent of the platform's private
- * `assertActiveModelMatchesStoredVectors()` — ported rather than imported
- * because that one is hard-wired to `aiKnowledgeChunk`. Sunrise ask filed for a
- * generic version; delete this when it lands.
+ * Delegates to the platform's `assertStoredVectorDimensions()`, which Sunrise
+ * exported as a table-agnostic guard in response to ask #16 (sunrise#491). Until
+ * that landed this file carried a ~40-line port of a private function hard-wired
+ * to `aiKnowledgeChunk` — a copy that could only drift, since an upstream fix to
+ * the original would never have reached it.
+ *
+ * What the fork still owns is the **subject**, and specifically that both
+ * closures are scoped to the caller. The platform aggregates its whole table,
+ * which is right for a single global knowledge base and wrong here: this runs on
+ * the hot path of every search, so an unscoped aggregate would make one user's
+ * search latency grow with the entire install's corpus, and one user's mismatched
+ * vectors would throw for everybody — including a remedy ("re-index the brain")
+ * that the person seeing the error cannot perform. Scoping fixes all three, and
+ * the closure shape is what makes it expressible without forking the guard.
  *
  * `groupBy` rather than a sampled row so a **partially** re-embedded corpus is
  * caught too — a `findFirst` that happens to land on a matching row would let
  * the mismatch through, and the failure would then look random.
  *
- * **Scoped to the caller.** The platform's version aggregates its whole table,
- * which is right for a single global knowledge base and wrong here: this runs on
- * the hot path of every search, so an unscoped aggregate would make one user's
- * search latency grow with the entire install's corpus, and one user's mismatched
- * vectors would throw for everybody — including a remedy ("re-index the brain")
- * that the person seeing the error cannot perform. Scoping fixes all three.
- *
  * Skips silently when there is no active model (legacy resolver default), no
  * corpus, or no recorded dimensions — in all three cases the stored vectors are
- * 1536 by construction.
+ * 1536 by construction. Rows with no recorded dimension are excluded from the
+ * grouping for that last reason; counting them as a mismatch is a false alarm.
+ *
+ * The `logger.error` is the fork's own, and stays: the guard throws a message
+ * carrying the same facts, but a thrown string is not queryable. This fires on
+ * the search hot path, so the operator wants to see *how many* users hit it and
+ * *which* model produced the stale vectors without reading exception text. The
+ * catch/rethrow is the price of keeping that while sharing the guard.
  */
 export async function assertObsiddyModelMatchesStoredVectors(scope: OwnerScope): Promise<void> {
-  const active = await getActiveEmbeddingModelSummary();
-  if (!active) return;
+  /** Filled by `groupByDimension` on the way past, so the log can name buckets. */
+  const buckets: Array<{ dimension: number | null; count: number }> = [];
 
-  const groups = await prisma.obsiddyEmbedding.groupBy({
-    by: ['embeddingDimension'],
-    where: { ...ownerWhere(scope), embeddingDimension: { not: null } },
-    _count: { _all: true },
-  });
+  try {
+    await assertStoredVectorDimensions({
+      label: 'chunk',
+      remediation:
+        'Re-index the brain (POST /api/v1/obsiddy/reindex?force=true) to apply the new model.',
+      groupByDimension: async () => {
+        const groups = await prisma.obsiddyEmbedding.groupBy({
+          by: ['embeddingDimension'],
+          where: { ...ownerWhere(scope), embeddingDimension: { not: null } },
+          _count: { _all: true },
+        });
+        buckets.push(
+          ...groups.map((group) => ({
+            dimension: group.embeddingDimension,
+            count: group._count._all,
+          }))
+        );
+        return buckets;
+      },
+      exemplarModel: async (dimension) => {
+        const row = await prisma.obsiddyEmbedding.findFirst({
+          where: { ...ownerWhere(scope), embeddingDimension: dimension },
+          select: { embeddingModel: true },
+        });
+        return row?.embeddingModel ?? null;
+      },
+    });
+  } catch (error) {
+    // Resolved here rather than up front so the happy path makes exactly one
+    // call — the guard already resolves it, and this runs on every search.
+    const active = await getActiveEmbeddingModelSummary().catch(() => null);
 
-  if (groups.length === 0) return;
-
-  const mismatched = groups.filter((group) => group.embeddingDimension !== active.dimensions);
-  if (mismatched.length === 0) return;
-
-  const exemplars = await Promise.all(
-    mismatched.map(async (group) => {
-      const row = await prisma.obsiddyEmbedding.findFirst({
-        where: { ...ownerWhere(scope), embeddingDimension: group.embeddingDimension },
-        select: { embeddingModel: true },
-      });
-      return {
-        dimension: group.embeddingDimension,
-        count: group._count._all,
-        model: row?.embeddingModel ?? 'unknown',
-      };
-    })
-  );
-
-  const summary = exemplars
-    .map((e) => `${e.count} chunk(s) embedded by "${e.model}" at ${e.dimension} dims`)
-    .join('; ');
-
-  logger.error('Obsiddy embedding dimension mismatch', {
-    activeModel: active.modelId,
-    activeDimensions: active.dimensions,
-    stored: exemplars,
-  });
-
-  throw new Error(
-    `Obsiddy embedding model mismatch: the active model "${active.modelId}" produces ` +
-      `${active.dimensions}-dim vectors, but the brain contains: ${summary}. ` +
-      'Re-index the brain (POST /api/v1/obsiddy/reindex?force=true) to apply the new model.'
-  );
+    logger.error('Obsiddy embedding dimension guard failed', {
+      activeModel: active?.modelId,
+      activeDimensions: active?.dimensions,
+      stored: buckets,
+    });
+    throw error;
+  }
 }

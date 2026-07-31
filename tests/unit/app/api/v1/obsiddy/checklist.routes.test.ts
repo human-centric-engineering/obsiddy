@@ -18,7 +18,7 @@
  * `positionBetween(last, null)` is the append contract — the new item never
  * receives a caller-supplied position.
  *
- * **`PATCH /tasks/[id]/tags` is replace semantics, not a delta**, and — like
+ * **`PUT /tasks/[id]/tags` is replace semantics, not a delta**, and — like
  * every cross-user lookup in this codebase — another user's task id comes
  * back as 404, never 403 (see `.context/testing/patterns.md` isolation
  * convention, and `owner-scope.ts` / `shared.ts` docblocks).
@@ -74,7 +74,7 @@ import {
   GET as CHECKLIST_GET,
   POST as CHECKLIST_POST,
 } from '@/app/api/v1/obsiddy/tasks/[id]/checklist/route';
-import { PATCH as TAGS_PATCH } from '@/app/api/v1/obsiddy/tasks/[id]/tags/route';
+import { PUT as TAGS_PUT } from '@/app/api/v1/obsiddy/tasks/[id]/tags/route';
 import {
   createChecklistItem,
   deleteChecklistItem,
@@ -360,9 +360,9 @@ describe('POST /obsiddy/tasks/[id]/checklist', () => {
   });
 });
 
-describe('PATCH /obsiddy/tasks/[id]/tags', () => {
+describe('PUT /obsiddy/tasks/[id]/tags', () => {
   it('replaces the task’s tag set and returns what the repo returns', async () => {
-    const response = await invoke(TAGS_PATCH, { id: TASK_ID }, { tagIds: [TAG_ID_1, TAG_ID_2] });
+    const response = await invoke(TAGS_PUT, { id: TASK_ID }, { tagIds: [TAG_ID_1, TAG_ID_2] });
     const body = (await response.json()) as { success: boolean; data: unknown[] };
 
     expect(response.status).toBe(200);
@@ -379,24 +379,20 @@ describe('PATCH /obsiddy/tasks/[id]/tags', () => {
     // returns null for both — a 403 here would confirm the row exists.
     mockedSetTags.mockResolvedValue(null);
 
-    const response = await invoke(TAGS_PATCH, { id: TASK_ID }, { tagIds: [TAG_ID_1] });
+    const response = await invoke(TAGS_PUT, { id: TASK_ID }, { tagIds: [TAG_ID_1] });
 
     expect(response.status).toBe(404);
   });
 
   it('rejects a malformed tag id before ever calling the repo', async () => {
-    const response = await invoke(TAGS_PATCH, { id: TASK_ID }, { tagIds: ['not-a-cuid'] });
+    const response = await invoke(TAGS_PUT, { id: TASK_ID }, { tagIds: ['not-a-cuid'] });
 
     expect(response.status).toBe(400);
     expect(mockedSetTags).not.toHaveBeenCalled();
   });
 
   it('rejects a body carrying an unknown field (strict schema)', async () => {
-    const response = await invoke(
-      TAGS_PATCH,
-      { id: TASK_ID },
-      { tagIds: [TAG_ID_1], extra: 'nope' }
-    );
+    const response = await invoke(TAGS_PUT, { id: TASK_ID }, { tagIds: [TAG_ID_1], extra: 'nope' });
 
     expect(response.status).toBe(400);
   });

@@ -17,7 +17,6 @@ import { checkConditional, computeETag } from '@/lib/api/etag';
 import { NotFoundError } from '@/lib/api/errors';
 import { successResponse } from '@/lib/api/responses';
 import { withAuth } from '@/lib/auth/guards';
-import { privateCacheHeaders, withPrivateCache } from '@/lib/framework/obsiddy/api/cache';
 import { ownerScope } from '@/lib/framework/obsiddy/repo/owner-scope';
 import { buildProjectView } from '@/lib/framework/obsiddy/services/details';
 
@@ -32,12 +31,12 @@ export const GET = withAuth<{ id: string }>(async (request, session, { params })
 
   const etag = computeETag(payload);
   const notModified = checkConditional(request, etag);
-  if (notModified) return withPrivateCache(notModified);
+  if (notModified) return notModified;
 
   log.info('Obsiddy project view', {
     tasks: payload.tasks.length,
     related: payload.related.length,
   });
 
-  return successResponse(payload, undefined, { headers: privateCacheHeaders(etag) });
+  return successResponse(payload, undefined, { headers: { ETag: etag } });
 });

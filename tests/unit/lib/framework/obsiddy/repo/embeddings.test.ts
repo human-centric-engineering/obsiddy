@@ -341,7 +341,7 @@ describe('assertObsiddyModelMatchesStoredVectors', () => {
       /text-embedding-3-large.*3072-dim.*text-embedding-3-small.*1536 dims/s
     );
     expect(logger.error).toHaveBeenCalledWith(
-      'Obsiddy embedding dimension mismatch',
+      'Obsiddy embedding dimension guard failed',
       expect.objectContaining({ activeModel: 'text-embedding-3-large', activeDimensions: 3072 })
     );
   });

@@ -19,10 +19,11 @@
  *
  * By default the original file is parsed and then **dropped**. See
  * `resolveDocumentOriginals` for why that is the safe default rather than the
- * lazy one — briefly: Sunrise's storage interface cannot read an object back, and
- * the local provider publishes what it stores. Retention is an operator setting,
- * and when it is on the stored URL is never returned to a client; downloads go
- * through a short-lived signed URL.
+ * lazy one — briefly: not every provider can hold an object privately or read it
+ * back, and retaining on one that cannot would publish people's documents.
+ * Retention is an operator setting gated on the provider's declared
+ * `capabilities`, and when it is on the stored URL is never returned to a
+ * client; downloads go through a short-lived signed URL.
  */
 
 import { createHash } from 'crypto';
@@ -45,6 +46,7 @@ import {
 import { logger } from '@/lib/logging';
 import { parseDocument } from '@/lib/orchestration/knowledge/parsers';
 import { getStorageClient } from '@/lib/storage/client';
+import { getStorageCapabilities } from '@/lib/storage/providers/types';
 import type { StorageProvider } from '@/lib/storage/providers/types';
 import type { ObsiddyDocument } from '@prisma/client';
 
@@ -339,10 +341,11 @@ function assertTextShape(text: string): void {
  * **The capability is re-checked here, not just when the setting was saved.** The
  * admin route refuses to store `retain` on a provider that cannot hold private
  * objects, but that is a check against the provider resolved *at that moment*. A
- * deployment that saves `retain` on S3 and later switches `STORAGE_PROVIDER` to
- * `local` would otherwise start writing user documents into `public/uploads/`
- * with nobody having changed a setting. Config drifts; this is the check that
- * sees it.
+ * deployment that saves `retain` on a capable provider and later repoints
+ * `STORAGE_PROVIDER` at one that cannot — or at an S3 bucket with ACLs off and
+ * `S3_OBJECTS_PRIVATE_BY_DEFAULT` unset, which downgrades the same declaration —
+ * would otherwise start publishing user documents with nobody having changed a
+ * setting. Config drifts; this is the check that sees it.
  */
 async function retainOriginal(
   scope: OwnerScope,
@@ -403,6 +406,19 @@ interface RetentionCapability {
  * Returning the client here is what lets `retainOriginal` resolve the provider
  * exactly once — asking about one provider and uploading to another would be a
  * quiet way to defeat the whole check.
+ *
+ * **Asks the provider, no longer guesses.** This used to name `local` explicitly
+ * and refuse it, because the local provider wrote into `public/uploads/` and
+ * silently ignored `public: false` — the data-exposure shape behind ask #15.
+ * Sunrise closed it (sunrise#490) by giving the local provider a private root
+ * and a signed read route, and by making capability a *declaration*:
+ * `getStorageCapabilities()` fills anything undeclared with `false`, so a
+ * provider that cannot do this says so rather than being recognised by name.
+ *
+ * Keeping the name check would now be a live bug, not merely dead code — it
+ * would refuse to retain originals on a local provider that can hold them
+ * privately, and it would go on trusting any future provider that isn't `local`
+ * whether or not it can.
  */
 function resolveRetentionCapability(): RetentionCapability {
   const storage = getStorageClient();
@@ -416,24 +432,26 @@ function resolveRetentionCapability(): RetentionCapability {
     };
   }
 
-  if (storage.name === 'local') {
+  const caps = getStorageCapabilities(storage);
+
+  if (!caps.privateObjects) {
     return {
       capable: false,
       provider: storage.name,
       reason:
-        'The local provider writes to public/uploads/, which Next serves statically at a ' +
-        'guessable URL — uploaded documents would be publicly readable.',
+        `The ${storage.name} provider does not store objects privately, so an uploaded ` +
+        'document would be readable by anyone with the URL.',
       client: storage,
     };
   }
 
-  if (typeof storage.getSignedUrl !== 'function') {
+  if (!caps.signedUrls) {
     return {
       capable: false,
       provider: storage.name,
       reason:
-        `The ${storage.name} provider does not implement getSignedUrl, so a privately stored ` +
-        'file cannot be read back.',
+        `The ${storage.name} provider cannot sign a URL, so a privately stored file ` +
+        'cannot be read back.',
       client: storage,
     };
   }

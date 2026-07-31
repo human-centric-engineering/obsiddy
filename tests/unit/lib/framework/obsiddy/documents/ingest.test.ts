@@ -313,7 +313,12 @@ describe('the happy path queues indexing rather than embedding inline', () => {
 
 describe('documentOriginals: the bytes', () => {
   it('discards the original by default — nothing is uploaded', async () => {
-    const storage = { name: 's3', upload: vi.fn(), getSignedUrl: vi.fn() };
+    const storage = {
+      name: 's3',
+      upload: vi.fn(),
+      getSignedUrl: vi.fn(),
+      capabilities: { privateObjects: true, signedUrls: true },
+    };
     getStorageClient.mockReturnValue(storage);
 
     await ingestDocument(SCOPE, upload());
@@ -330,6 +335,7 @@ describe('documentOriginals: the bytes', () => {
       name: 's3',
       upload: vi.fn().mockResolvedValue({ key: 'stored-key', url: 'https://public/x', size: 1 }),
       getSignedUrl: vi.fn(),
+      capabilities: { privateObjects: true, signedUrls: true },
     };
     getStorageClient.mockReturnValue(storage);
     findObsiddySettings.mockResolvedValue({ documentOriginals: 'retain', maxDocumentBytes: null });
@@ -354,10 +360,25 @@ describe('documentOriginals: the bytes', () => {
 
   it.each([
     [
-      'the local provider, which publishes what it stores',
-      { name: 'local', upload: vi.fn(), getSignedUrl: vi.fn() },
+      'a provider that cannot store an object privately',
+      {
+        name: 'some-public-provider',
+        upload: vi.fn(),
+        getSignedUrl: vi.fn(),
+        capabilities: { privateObjects: false, signedUrls: true },
+      },
     ],
-    ['a provider that cannot sign URLs', { name: 'vercel-blob', upload: vi.fn() }],
+    [
+      'a provider that cannot sign URLs',
+      { name: 'vercel-blob', upload: vi.fn(), capabilities: { privateObjects: true } },
+    ],
+    [
+      'a provider that declares nothing at all',
+      // Undeclared means "cannot" (DEFAULT_STORAGE_CAPABILITIES), which is the
+      // property that makes a future provider safe by default rather than
+      // trusted because nobody thought to name it.
+      { name: 'mystery-provider', upload: vi.fn(), getSignedUrl: vi.fn() },
+    ],
   ])('refuses to retain on %s even when the setting says retain', async (_label, storage) => {
     // Config drift, and the reason the capability is re-checked at ingest rather
     // than trusted from when the setting was saved: a deployment that chose
@@ -400,6 +421,7 @@ describe('documentOriginals: the bytes', () => {
       name: 's3',
       upload: vi.fn().mockRejectedValue(new Error('bucket on fire')),
       getSignedUrl: vi.fn(),
+      capabilities: { privateObjects: true, signedUrls: true },
     };
     getStorageClient.mockReturnValue(storage);
     findObsiddySettings.mockResolvedValue({ documentOriginals: 'retain', maxDocumentBytes: null });
@@ -415,28 +437,55 @@ describe('canServeRetainedOriginals — which providers are safe', () => {
     expect(canServeRetainedOriginals()).toMatchObject({ capable: false, provider: null });
   });
 
-  it('refuses the local provider, which publishes what it stores', () => {
-    // public/uploads/ is served statically by Next at a guessable URL. This is the
-    // case that makes "retain" a security decision rather than a preference.
-    getStorageClient.mockReturnValue({ name: 'local', upload: vi.fn() });
+  it('refuses a provider that cannot store an object privately', () => {
+    // The case that makes "retain" a security decision rather than a preference:
+    // a provider that accepts `public: false` and cannot honour it publishes
+    // every uploaded document at a guessable URL. Asked, not guessed by name —
+    // the local provider used to be exactly this and, since sunrise#490, is not.
+    getStorageClient.mockReturnValue({
+      name: 'some-public-provider',
+      upload: vi.fn(),
+      getSignedUrl: vi.fn(),
+      capabilities: { privateObjects: false, signedUrls: true },
+    });
 
     const result = canServeRetainedOriginals();
 
     expect(result.capable).toBe(false);
-    expect(result.reason).toMatch(/public\/uploads|publicly readable/);
+    expect(result.reason).toMatch(/does not store objects privately/);
   });
 
   it('refuses a provider that cannot sign URLs, because the file could not be read back', () => {
-    getStorageClient.mockReturnValue({ name: 'vercel-blob', upload: vi.fn() });
+    getStorageClient.mockReturnValue({
+      name: 'vercel-blob',
+      upload: vi.fn(),
+      capabilities: { privateObjects: true },
+    });
 
     const result = canServeRetainedOriginals();
 
     expect(result.capable).toBe(false);
-    expect(result.reason).toMatch(/getSignedUrl/);
+    expect(result.reason).toMatch(/cannot sign a URL/);
+  });
+
+  it('refuses a provider that declares no capabilities at all', () => {
+    // Undeclared means "cannot". A provider added after this code was written is
+    // refused until it says otherwise, rather than trusted because its name is
+    // not on a list.
+    getStorageClient.mockReturnValue({ name: 'mystery-provider', upload: vi.fn() });
+
+    const result = canServeRetainedOriginals();
+
+    expect(result.capable).toBe(false);
   });
 
   it('allows a private, signing provider', () => {
-    getStorageClient.mockReturnValue({ name: 's3', upload: vi.fn(), getSignedUrl: vi.fn() });
+    getStorageClient.mockReturnValue({
+      name: 's3',
+      upload: vi.fn(),
+      getSignedUrl: vi.fn(),
+      capabilities: { privateObjects: true, signedUrls: true },
+    });
 
     expect(canServeRetainedOriginals()).toMatchObject({
       capable: true,

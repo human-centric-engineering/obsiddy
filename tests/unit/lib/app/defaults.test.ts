@@ -120,9 +120,7 @@ const SEAM_DEFAULTS: SeamDefault[] = [
 
       // The catch-all must stay last — app rules are spliced in just ahead of
       // it, and a rule after it would never match.
-      expect(effective[effective.length - 1]).toBe(
-        RATE_LIMIT_POLICY[RATE_LIMIT_POLICY.length - 1]
-      );
+      expect(effective[effective.length - 1]).toBe(RATE_LIMIT_POLICY[RATE_LIMIT_POLICY.length - 1]);
     },
   },
   {

@@ -16,7 +16,6 @@ import { getRouteLogger } from '@/lib/api/context';
 import { successResponse } from '@/lib/api/responses';
 import { validateRequestBody } from '@/lib/api/validation';
 import { withAuth } from '@/lib/auth/guards';
-import { PRIVATE_NO_CACHE } from '@/lib/framework/obsiddy/api/cache';
 import { getObsiddySettings, updateObsiddySettings } from '@/lib/framework/obsiddy/services/space';
 import { updateSpaceSchema } from '@/lib/framework/obsiddy/validations';
 
@@ -28,10 +27,9 @@ export const GET = withAuth(async (request, session) => {
   log.info('Obsiddy settings read');
 
   // Not ETag'd, but the payload is one person's settings all the same — a
-  // shared cache must not be free to store and replay it.
-  return successResponse(settings, undefined, {
-    headers: { 'Cache-Control': PRIVATE_NO_CACHE },
-  });
+  // shared cache must not be free to store and replay it. `successResponse`
+  // sends `private, no-cache` for every envelope since sunrise#487.
+  return successResponse(settings);
 });
 
 export const PATCH = withAuth(async (request, session) => {

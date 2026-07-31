@@ -124,18 +124,23 @@ export function normaliseWeights(weights: PriorityWeights): PriorityWeights {
  * What happens to an uploaded document's original bytes.
  *
  * **`discard` is the default, and that is a security decision rather than a
- * frugal one.** Sunrise's `StorageProvider` interface has `upload`, `delete`,
- * `deletePrefix` and an *optional* `getSignedUrl` — there is no read method at
- * all — and `LocalProvider` ignores `public: false`, writing into
- * `public/uploads/` which Next serves statically at a guessable URL. So on a
- * default install, retaining a user's uploaded PDF would publish it. Discarding
- * the bytes after parsing keeps the extracted text and the embedding chunks —
- * which is what the product actually uses — and leaves no blob to leak.
+ * frugal one.** Retaining a user's uploaded PDF is only safe if the storage
+ * provider can hold it privately *and* hand it back — and not every one can.
+ * Discarding the bytes after parsing keeps the extracted text and the embedding
+ * chunks, which is what the product actually uses, and leaves no blob to leak.
  *
- * `retain` is available for deployments whose provider stores objects privately
- * and can sign URLs (S3 today). The admin page names the resolved provider and
- * warns when it cannot, so the choice is informed. Sunrise ask filed for a
- * private-read seam; when it lands, `retain` becomes safe everywhere.
+ * `retain` is available for deployments whose provider declares
+ * `capabilities.privateObjects` and `capabilities.signedUrls`. The admin page
+ * names the resolved provider and says what it can do, so the choice is
+ * informed.
+ *
+ * This was ask #15, filed when the interface had no read method at all and
+ * `LocalProvider` silently ignored `public: false`. Sunrise closed it
+ * (sunrise#490): the local provider gained a private root and a signed read
+ * route, and capability became a declaration rather than something a caller
+ * infers from a provider's name. The default stays `discard` — a capable
+ * provider makes retention *possible*, not *advisable*, and keeping bytes you do
+ * not need is still the thing that turns a bug into a breach.
  */
 export const DOCUMENT_ORIGINAL_MODES = ['discard', 'retain'] as const;
 
