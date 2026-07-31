@@ -11,6 +11,11 @@
  * `where` actually matches nothing — including the case that matters most,
  * where B guesses a real id belonging to A.
  *
+ * Also covers §16.8b's entity assertion, which needs a real database for a
+ * different reason: the risk there is not a forgotten filter but a polymorphic
+ * `OR` over both link endpoints matching a row it shouldn't, and a mocked repo
+ * cannot fail that way.
+ *
  * Skips cleanly (exit 0) when no database is reachable, so it is safe to run
  * anywhere. Self-cleaning: creates only `smoke-obsiddy-*` users and removes
  * them (and, via cascade, everything they own) on every path.
@@ -29,9 +34,12 @@
 
 import { prisma } from '@/lib/db/client';
 import { ownerScope } from '@/lib/framework/obsiddy/repo/owner-scope';
+import * as entities from '@/lib/framework/obsiddy/repo/entities';
+import * as links from '@/lib/framework/obsiddy/repo/links';
 import * as projects from '@/lib/framework/obsiddy/repo/projects';
 import * as tasks from '@/lib/framework/obsiddy/repo/tasks';
 import * as thoughts from '@/lib/framework/obsiddy/repo/thoughts';
+import { buildEntityView } from '@/lib/framework/obsiddy/services/details';
 import { ensureObsiddySpace } from '@/lib/framework/obsiddy/services/space';
 
 const stamp = Date.now();
@@ -174,6 +182,71 @@ async function main(): Promise<void> {
     const bSame = await thoughts.captureThought(scopeB, { content: 'once', externalId: external });
     check(!bSame.deduped, "B's identical externalId is not deduped against A's row");
     check(bSame.thought.userId === userB, "B's thought belongs to B");
+
+    // ── §16.8b: the entity view returns only that entity's links ────────────
+    //
+    // The plan words this against `GET /obsiddy/entities/[id]`; phase 5 moved the
+    // enriched read to `/entities/[id]/view`, so the assertion lives here against
+    // `buildEntityView`, which is what that route calls.
+    //
+    // Worth proving on a real database rather than with mocks: the risk is not that
+    // the builder forgets to filter, it is that `listLinksForEntity`'s `OR` over
+    // both endpoints matches a row it shouldn't — and a mocked repo cannot fail that
+    // way.
+    console.log("\nEntity views return only that entity's links (§16.8b)");
+
+    const acme = await entities.createEntity(scopeA, {
+      name: 'Acme',
+      slug: `acme-${stamp}`,
+    });
+    const globex = await entities.createEntity(scopeA, {
+      name: 'Globex',
+      slug: `globex-${stamp}`,
+    });
+
+    // One project, linked to both — the case where a naive query returns the
+    // other entity's edge alongside this one's.
+    for (const entity of [acme, globex]) {
+      await links.createLink(scopeA, {
+        sourceType: 'project',
+        sourceId: projectA.id,
+        targetType: 'entity',
+        targetId: entity.id,
+        kind: 'relates_to',
+        origin: 'user',
+        status: 'accepted',
+      });
+    }
+
+    const acmeView = await buildEntityView(scopeA, acme.id);
+    check(acmeView !== null, "A can read their own entity's view");
+    check(acmeView?.related.length === 1, "Acme's view returns exactly its own link");
+    check(
+      acmeView?.related[0]?.endpoint.id === projectA.id,
+      "Acme's link resolves to the project, not to Globex"
+    );
+    check(
+      !acmeView?.related.some((item) => item.endpoint.id === globex.id),
+      "Globex does not appear in Acme's view"
+    );
+
+    // B's own entity, with its own link, must never surface in A's view — and A's
+    // must never surface in B's.
+    const bEntity = await entities.createEntity(scopeB, {
+      name: 'B private client',
+      slug: `b-client-${stamp}`,
+    });
+    check(
+      (await buildEntityView(scopeB, acme.id)) === null,
+      "B's view of A's entity id is null, not a 403-shaped answer"
+    );
+    check(
+      (await buildEntityView(scopeA, bEntity.id)) === null,
+      "A's view of B's entity id is null"
+    );
+
+    const bView = await buildEntityView(scopeB, bEntity.id);
+    check(bView?.related.length === 0, "B's entity view carries none of A's links");
 
     console.log('\nErasure cascade (the hand-written FK, probe B1)');
     const beforeCount = await prisma.obsiddyTask.count({ where: { userId: userA } });

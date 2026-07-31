@@ -121,10 +121,95 @@ export async function listSuggestedLinksForSources(
   });
 }
 
+/**
+ * Every link touching one entity, on **either** end.
+ *
+ * `listLinks` filters by source only, which is right for the sweep (it writes
+ * source-first) and wrong for a detail page. Several link kinds are directional —
+ * `blocks`, `supports` — so a project is legitimately the target of some of its
+ * own connections. Asking only for `sourceId` silently returns half the list, and
+ * the half it returns looks complete.
+ *
+ * Ordered strongest-first so a page can cap the list without dropping its best
+ * rows.
+ */
+export async function listLinksForEntity(
+  scope: OwnerScope,
+  entityType: string,
+  entityId: string,
+  options: { statuses?: string[]; take?: number } = {}
+): Promise<ObsiddyLink[]> {
+  const { statuses, take } = options;
+
+  return prisma.obsiddyLink.findMany({
+    where: {
+      ...ownerWhere(scope),
+      ...(statuses && statuses.length > 0 ? { status: { in: statuses } } : {}),
+      OR: [
+        { sourceType: entityType, sourceId: entityId },
+        { targetType: entityType, targetId: entityId },
+      ],
+    },
+    orderBy: [{ strength: 'desc' }, { createdAt: 'desc' }],
+    ...(take !== undefined ? { take } : {}),
+  });
+}
+
+/** One end of a link, as the graph walker refers to nodes. */
+export interface EntityRef {
+  type: string;
+  id: string;
+}
+
+/**
+ * Every link touching **any** of a set of entities, in one query.
+ *
+ * The graph expands breadth-first: the focus node's neighbours, then theirs. Done
+ * with `listLinksForEntity` per node that is one query per node — at a 150-node cap
+ * with a depth of two, 150 round trips to draw one picture. This is one, with an
+ * `OR` clause per end.
+ *
+ * `refs` is expected to be bounded by the caller's node cap; there is no point
+ * defending against an unbounded set here, because the cap is the thing that keeps
+ * the query sane and it belongs where the traversal decides to stop.
+ */
+export async function listLinksForEntities(
+  scope: OwnerScope,
+  refs: EntityRef[],
+  options: { statuses?: string[]; take?: number } = {}
+): Promise<ObsiddyLink[]> {
+  if (refs.length === 0) return [];
+
+  const { statuses, take } = options;
+
+  return prisma.obsiddyLink.findMany({
+    where: {
+      ...ownerWhere(scope),
+      ...(statuses && statuses.length > 0 ? { status: { in: statuses } } : {}),
+      OR: refs.flatMap((ref) => [
+        { sourceType: ref.type, sourceId: ref.id },
+        { targetType: ref.type, targetId: ref.id },
+      ]),
+    },
+    orderBy: [{ strength: 'desc' }, { createdAt: 'desc' }],
+    ...(take !== undefined ? { take } : {}),
+  });
+}
+
 // ─── Writes (phase 4: the connection engine) ─────────────────────────────────
 
 export interface LinkFilters {
   status?: string;
+  /**
+   * Several statuses at once — the review queue's "suggested or proposed" read.
+   *
+   * Separate from `status` rather than replacing it because the two are asked for
+   * differently: a caller filtering to one status wants exactly that one, and a
+   * caller wanting a set should not have to express it as a single-element array.
+   * When both are given, `status` wins, so a caller narrowing an existing query
+   * cannot accidentally widen it.
+   */
+  statuses?: string[];
   kind?: string;
   sourceType?: string;
   sourceId?: string;
@@ -135,7 +220,11 @@ export type LinkCreateData = WithoutOwner<Prisma.ObsiddyLinkUncheckedCreateInput
 function linkWhere(scope: OwnerScope, filters: LinkFilters = {}): Prisma.ObsiddyLinkWhereInput {
   return {
     ...ownerWhere(scope),
-    ...(filters.status ? { status: filters.status } : {}),
+    ...(filters.status
+      ? { status: filters.status }
+      : filters.statuses && filters.statuses.length > 0
+        ? { status: { in: filters.statuses } }
+        : {}),
     ...(filters.kind ? { kind: filters.kind } : {}),
     ...(filters.sourceType ? { sourceType: filters.sourceType } : {}),
     ...(filters.sourceId ? { sourceId: filters.sourceId } : {}),

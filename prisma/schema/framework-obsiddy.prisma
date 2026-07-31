@@ -68,6 +68,18 @@ model ObsiddySpace {
   /// SELECTS, not just how it is worded (§6). Never an input to score.ts.
   workStyle String @default("balanced") @db.VarChar(16)
 
+  /// Cosine-similarity floor for proposing a connection. `null` uses the
+  /// measured default (0.55).
+  ///
+  /// Per-user because the right value is **model-dependent**, which the phase-4
+  /// work discovered the hard way: the plan specified 0.72, and against
+  /// `text-embedding-3-small` that sits above the signal — the flagship
+  /// "same idea, different words" pair scores 0.679, so the engine proposed
+  /// nothing at all, silently and for ever. Anyone running a different embedding
+  /// model needs a different number, and hard-coding one makes the failure
+  /// invisible rather than adjustable.
+  connectionStrengthFloor Float?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

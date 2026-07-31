@@ -18,6 +18,37 @@ release process.
 
 ### Added
 
+- **Obsiddy phase 5 — the UI layer** (Release 1, phases 5 and 5b): twelve
+  authenticated surfaces under `app/(protected)/obsiddy/**` — Today, Inbox,
+  Search, Projects, Goals, Areas, People, Documents, Connections, Graph, Boards
+  and Plan — plus personal Settings. Components live in `components/obsiddy/**`
+  and page paths in the new `OBSIDDY_ROUTES` (`lib/framework/obsiddy/ui/routes.ts`).
+- **Obsiddy: new API endpoints backing those surfaces** — `GET /api/v1/obsiddy/counts`,
+  `/connections`, `/graph`; `POST /api/v1/obsiddy/thoughts/[id]/promote`; enriched
+  reads at `/projects/[id]/view`, `/entities/[id]/view`, `/tasks/[id]/view`; and the
+  boards layer: `/boards` (+ `[id]`, `/view`, `/cards`, `/cards/[cardId]`, `/export`,
+  `/restore`), `/tags` (+ `[id]`), `PATCH /tasks/[id]/tags`,
+  `/tasks/[id]/checklist` and `/checklist/[id]`.
+- **Obsiddy: `ObsiddySpace.connectionStrengthFloor`** (migration
+  `20260730160000_obsiddy_connection_floor`) — the similarity a pair must clear to be
+  proposed as a connection, per user. Nullable; `null` uses the measured 0.55 default.
+  The right value is model-dependent, and a mis-tuned floor produces exactly the same
+  output as a sweep with nothing left to find. Exposed on `GET`/`PATCH /obsiddy/space`.
+- **Obsiddy: `listLinksForEntity` / `listLinksForEntities`** on the links repo, and
+  `statuses` on `LinkFilters` — a detail page needs links on *either* end of a
+  polymorphic edge, and the review queue filters by two statuses at once.
+- **Obsiddy: task status changes now record `{ statusFrom, statusTo }`** on their
+  `updated` event, and `findLatestStatusChanges` reads the newest per task in one
+  `DISTINCT ON`. This is what lets a board say how long a card has sat in its column
+  (§12) without giving up its fixed query count; cards with no such event fall back to
+  "untouched since", worded differently so the two are never confused.
+- **Obsiddy: `findTasksByIds`** on the tasks repo — the explicit-board read needs
+  exactly its pinned tasks rather than the top N by score.
+- **Obsiddy: `renumberChecklistItems`** on the checklist repo — the counterpart to
+  `renumberBoardCards`. `planMove` computes a moved item's position against the
+  *spread* list once a gap has collapsed, so the spread has to be written in the
+  same pass or the item lands at a coordinate its siblings never moved to.
+
 - **Obsiddy framework-tier scaffold** (Release 1, phase 0) — the reserved
   `/framework` tier is now occupied by Obsiddy: `lib/framework/obsiddy/` with
   `initObsiddy()` and `obsiddyEnvSchema`, the tier import boundary in
@@ -174,12 +205,24 @@ release process.
 
 ### Changed
 
+- **`components/layouts/protected-nav.tsx` gains one `/obsiddy` entry.** The only
+  Sunrise-owned file Obsiddy edits, pre-authorised by `install.md` §2.11 while
+  [sunrise#473](https://github.com/human-centric-engineering/sunrise/issues/473)
+  (a `lib/app/protected-nav.ts` seam) is open. Commented in place with what to
+  delete when the seam lands.
 - **Archiving an Obsiddy item now deletes its embedding rows in the same
   transaction** as the archive (`archiveAndDropVectors()`), rather than leaving
   them behind a `WHERE archivedAt IS NULL` filter. A filtered vector search
   degrades recall silently as history grows — no error, no symptom — so the index
   only ever holds live data. The consequence, deliberately accepted, is that the
   archived corpus is keyword-searchable but not vector-searchable.
+
+### Dependencies
+
+- Added `d3-force` (+ `@types/d3-force`) for graph layout — `@xyflow/react` renders
+  but expects coordinates — and `@dnd-kit/core` + `@dnd-kit/sortable` for the kanban
+  board, chosen over native HTML5 drag-and-drop because that is inaccessible to
+  keyboard users and unusable on touch.
 
 ### Security
 

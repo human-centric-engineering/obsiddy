@@ -27,32 +27,72 @@ Namespaced _inside_ the tier, never at its root — so a project already running
 | -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [`plan.md`](./plan.md)                 | The full implementation plan — data model, migrations, API, agents, workflows, prioritisation, lifecycle, boards, sharing, Obsidian sync, phasing, verification, risks |
 | [`install.md`](./install.md)           | How a host Sunrise project installs Obsiddy — tier directories, one-line seam registrations, env vars, migration, verification. Kept current by every phase            |
+| [`ui.md`](./ui.md)                     | The UI's rules and why each exists — one fetch per surface, read/mutate split, wire-shape parsing, the fork-owned primitives, and the checklist for adding a surface   |
 | [`sunrise-asks.md`](./sunrise-asks.md) | What Obsiddy needs from upstream Sunrise — missing seams, core files a fork is forced to edit, platform gaps. Every row also gets an issue on the Sunrise repo         |
 
 `plan.md` is the working copy that travels with the code. It is not auto-synced with any copy held outside the repository.
 
 ## Status
 
-**Release 1, phases 0–4 complete** — the tier is wired, the data model exists, every core type has an owner-scoped CRUD API, tasks are ranked by a deterministic scorer, and the brain is searchable by meaning. There is still no UI and no agent layer.
+**Release 1, phases 0–5 complete (including 5b)** — the tier is wired, the data model exists, every core type has an owner-scoped CRUD API, tasks are ranked by a deterministic scorer, the brain is searchable by meaning, and **there is now a UI**: twelve surfaces at `/obsiddy`, including a kanban board. There is still no agent layer.
 
-| Wired                                   | Where                                                                                          |
-| --------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| Boot (dynamic import → `initLeafApp()`) | `lib/app/bootstrap.ts` → `lib/framework/obsiddy/index.ts`                                      |
-| Env schema                              | `lib/app/env.ts` merges `obsiddyEnvSchema` (currently empty)                                   |
-| Lint boundary                           | `lib/app/eslint.config.mjs` spreads `lib/framework/eslint.config.mjs`                          |
-| Protected route                         | `/obsiddy` in `lib/app/protected-routes.ts`                                                    |
-| Rate-limit sub-caps                     | `lib/app/rate-limit.ts` → `registerObsiddyRateLimits()` (search, reindex, sweep, upload)       |
-| Admin nav                               | `lib/app/admin-nav.ts` → `registerObsiddyAdminNav()`                                           |
-| Drift probes                            | `lib/app/db-drift.ts` → `registerObsiddyDriftProbes()` (six, B1 + B3–B7)                       |
-| Schema                                  | 19 models in `prisma/schema/framework-obsiddy.prisma`                                          |
-| Migrations                              | `add_second_brain`, `obsiddy_space_cascade`, `obsiddy_document_originals` — never regenerate   |
-| Repo layer                              | `lib/framework/obsiddy/repo/*` — `OwnerScope`, 13 modules                                      |
-| Services                                | `lib/framework/obsiddy/services/*` — resources, slug, events, space, snooze, today, inbox      |
-| Priority engine                         | `lib/framework/obsiddy/priority/*` — pure scorer, batched reprioritise pass                    |
-| Semantic layer                          | `lib/framework/obsiddy/{embedding,search,documents}/*` — indexer, hybrid search, sweep, ingest |
-| Zoned time                              | `lib/framework/obsiddy/time/zoned.ts` — every schedule resolves in the user's zone             |
-| API                                     | `app/api/v1/obsiddy/**` — 37 route files, plus one admin pair                                  |
-| Admin UI                                | `/admin/obsiddy/settings` — document handling and the upload ceiling                           |
+| Wired                                   | Where                                                                                                                                                                                                       |
+| --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Boot (dynamic import → `initLeafApp()`) | `lib/app/bootstrap.ts` → `lib/framework/obsiddy/index.ts`                                                                                                                                                   |
+| Env schema                              | `lib/app/env.ts` merges `obsiddyEnvSchema` (currently empty)                                                                                                                                                |
+| Lint boundary                           | `lib/app/eslint.config.mjs` spreads `lib/framework/eslint.config.mjs`                                                                                                                                       |
+| Protected route                         | `/obsiddy` in `lib/app/protected-routes.ts`                                                                                                                                                                 |
+| Rate-limit sub-caps                     | `lib/app/rate-limit.ts` → `registerObsiddyRateLimits()` (search, reindex, sweep, upload)                                                                                                                    |
+| Admin nav                               | `lib/app/admin-nav.ts` → `registerObsiddyAdminNav()`                                                                                                                                                        |
+| Drift probes                            | `lib/app/db-drift.ts` → `registerObsiddyDriftProbes()` (six, B1 + B3–B7)                                                                                                                                    |
+| Protected nav                           | one entry in `components/layouts/protected-nav.tsx` — **the PR's only core-file edit**, see ask #2                                                                                                          |
+| Schema                                  | 19 models in `prisma/schema/framework-obsiddy.prisma`                                                                                                                                                       |
+| Migrations                              | `add_second_brain`, `obsiddy_space_cascade`, `obsiddy_document_originals`, `obsiddy_sweep_cursor`, `obsiddy_document_hash_unique`, `obsiddy_connection_floor` — all hand-edited, never regenerate           |
+| Repo layer                              | `lib/framework/obsiddy/repo/*` — `OwnerScope`, 16 modules                                                                                                                                                   |
+| Services                                | `lib/framework/obsiddy/services/*` — resources, slug, events, space, snooze, today, inbox, promote, details, graph, connections-view, board-view, board-export, fractional-position, counts, link-hydration |
+| Priority engine                         | `lib/framework/obsiddy/priority/*` — pure scorer, batched reprioritise pass                                                                                                                                 |
+| Semantic layer                          | `lib/framework/obsiddy/{embedding,search,documents}/*` — indexer, hybrid search, sweep, ingest                                                                                                              |
+| Zoned time                              | `lib/framework/obsiddy/time/zoned.ts` — every schedule resolves in the user's zone                                                                                                                          |
+| UI contracts                            | `lib/framework/obsiddy/ui/*` — `OBSIDDY_ROUTES`, wire-shape schemas, the one server-read helper                                                                                                             |
+| API                                     | `app/api/v1/obsiddy/**` — 58 route files, plus one admin pair                                                                                                                                               |
+| User UI                                 | `app/(protected)/obsiddy/**` — 12 surfaces; components in `components/obsiddy/**`                                                                                                                           |
+| Admin UI                                | `/admin/obsiddy/settings` — document handling and the upload ceiling                                                                                                                                        |
+
+## The UI, and the rules it follows (phase 5)
+
+Twelve surfaces under `app/(protected)/obsiddy/`: Today, Inbox, Search, Projects
+(+ detail), Goals, Areas, People (+ detail), Documents, Connections, Graph, Boards
+(+ board), Plan, Settings.
+
+Four rules shape all of them, and each exists because breaking it is invisible:
+
+1. **One enriched fetch per surface, never one per row.** `/today`, `/inbox`,
+   `/connections`, `/graph`, and the four `/view` endpoints each assemble a page in a
+   bounded number of queries. The route tests assert the query _count_, because an
+   N+1 regression changes nothing you can see — it just quietly becomes thirty
+   requests.
+2. **Server components read; client components mutate.** A page fetches through
+   `readObsiddy` and hands the payload to a `'use client'` child. Pages read through
+   the **API**, not the services directly: it costs one localhost request and it means
+   there is exactly one implementation of "what does this surface show", exercised by
+   the web UI, the agent layer and MCP alike.
+3. **Wire shapes are parsed, not cast.** `ui/payloads.ts` describes what arrives
+   _after_ `JSON.stringify` — every `Date` is a string. A component typed with a
+   service's return type would be lying, and the lie surfaces as
+   `dueAt.getTime is not a function` rather than a type error.
+4. **Missing primitives are built, not installed.** No toast (an `aria-live` status
+   line), no skeleton (`animate-pulse`), no progress (`role="progressbar"`), no
+   generic data table. Three new dependencies total: `d3-force` for graph layout,
+   `@dnd-kit/core` + `@dnd-kit/sortable` for the board.
+
+Two things the UI says out loud because nothing else would:
+
+- **An area with no weekly target does not participate in balancing at all**, and
+  targets summing past your weekly capacity make every area read as neglected —
+  which flattens the term rather than sharpening it.
+- **A sweep that stopped at its cap looks exactly like a sweep that found
+  everything.** `cappedTypes` and the graph's `truncated` are rendered prominently
+  for that reason.
 
 ## The isolation contract (D5)
 
@@ -93,4 +133,16 @@ Six properties, each invisible when it breaks:
 
 Proven by `npm run framework:obsiddy:smoke-search` against a real database: 26 assertions over the pgvector SQL, the tsvector ranking, cross-user isolation (including the case where another user's row is the _better_ vector match), the sweep, the tombstone and the archive transaction. It runs with real embeddings when a provider is configured and with deterministic synthetic vectors when not — printing which, because a green run should never claim more than it proved.
 
-Next: **phase 5** (the UI — layout, Today, Inbox, Projects, Goals, Entities, Documents, Connections, Graph). **Phase 0b** (upstreaming two seams to Sunrise) is a separate PR against the template and is tracked in [`sunrise-asks.md`](./sunrise-asks.md).
+Next: **phase 6** (the agent layer — capabilities, agents, the `obsiddy-core` profile, provenance and the chat page). **Phase 0b** (upstreaming two seams to Sunrise) is a separate PR against the template and is tracked in [`sunrise-asks.md`](./sunrise-asks.md).
+
+Two deviations from `plan.md` were recorded during phase 5:
+
+- §16.8b's entity assertion now targets **`GET /obsiddy/entities/[id]/view`**. The
+  generic `[id]` handler stays deliberately bare — threading `?include=` through
+  `createItemHandlers` would push page-shaped concerns into the one factory that
+  guarantees the isolation rules for twenty routes.
+- **Card aging measures `updatedAt`, not time-in-column.** §12 asks for the last
+  status-change event, but `ObsiddyEvent` records `updated` without recording _which
+  field_ changed, and a per-card event read would undo the board's batching. The UI
+  says "untouched for 11 days" — true, useful for the case that matters, and not a
+  claim the data can support otherwise.

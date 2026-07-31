@@ -198,6 +198,52 @@ export const updateThoughtSchema = z
   })
   .strict();
 
+/**
+ * `POST /obsiddy/thoughts/[id]/promote` — triage, as one gesture.
+ *
+ * `title` is optional because the thought's own first line is the default: the
+ * point of triage is not retyping what you already wrote.
+ *
+ * A **discriminated union** rather than one object with optional fields, because
+ * the per-target rules are real and the union enforces them in the type system
+ * instead of in a refinement the service then has to re-check:
+ *
+ *   - **A goal must carry a horizon.** A guessed one is worse than no goal:
+ *     `goalAlignment` weights near horizons far above distant ones (week 1.0 vs
+ *     life 0.35), so a silent default would quietly re-rank every task that ends
+ *     up linked to it.
+ *   - **Only a task can be filed under a project**, and only projects and goals
+ *     take an area. `.strict()` on each branch makes the wrong combination a 400
+ *     rather than a silently ignored field.
+ */
+export const promoteThoughtSchema = z.discriminatedUnion('target', [
+  z
+    .object({
+      target: z.literal('task'),
+      title: titleSchema.optional(),
+      /** "File this under the Q4 launch" — the most common triage action. */
+      projectId: cuidSchema.optional(),
+    })
+    .strict(),
+  z
+    .object({
+      target: z.literal('project'),
+      title: titleSchema.optional(),
+      areaId: cuidSchema.optional(),
+    })
+    .strict(),
+  z
+    .object({
+      target: z.literal('goal'),
+      title: titleSchema.optional(),
+      areaId: cuidSchema.optional(),
+      horizon: z.enum(GOAL_HORIZONS),
+    })
+    .strict(),
+]);
+
+export type PromoteThoughtInput = z.infer<typeof promoteThoughtSchema>;
+
 export const thoughtListQuerySchema = obsiddyListQuerySchema.extend({
   status: z.enum(THOUGHT_STATUSES).optional(),
   source: z.enum(THOUGHT_SOURCES).optional(),
@@ -446,6 +492,209 @@ export const linkListQuerySchema = obsiddyListQuerySchema.extend({
 // body and no arguments, so there is nothing to validate. An empty `.strict()`
 // object would only add a way to 400 on a request nobody sends.
 
+/**
+ * `GET /obsiddy/connections` — the review queue.
+ *
+ * Same shape as `linkListQuerySchema` minus the source filters, because a review
+ * queue is asked about by status and kind, never by which end a link starts at.
+ * Omitting `status` means "things waiting on a decision" rather than "everything" —
+ * the service narrows it, and the count follows the same filter so the number and
+ * the list cannot disagree.
+ */
+export const connectionsQuerySchema = obsiddyListQuerySchema.extend({
+  status: z.enum(LINK_STATUSES).optional(),
+  kind: z.enum(LINK_KINDS).optional(),
+});
+
+export type ConnectionsQueryInput = z.infer<typeof connectionsQuerySchema>;
+
+/**
+ * `GET /obsiddy/graph` — a neighbourhood around one node.
+ *
+ * **`focus` and `focusType` are required**, and that is the design rather than an
+ * omission: an unfocused graph of a real brain is a hairball that looks impressive
+ * and tells you nothing (§9). There is deliberately no "show everything" mode to
+ * fall back to.
+ *
+ * `depth` is capped at 2 and `limit` at 150 by the service as well as here — a query
+ * string is external input, and the cost of an over-wide walk is paid in the
+ * database rather than in the response the client could have ignored.
+ */
+export const graphQuerySchema = z
+  .object({
+    focus: cuidSchema,
+    focusType: z.enum(SEARCHABLE_ENTITY_TYPES),
+    depth: z.coerce.number().int().min(1).max(2).default(1),
+    limit: z.coerce.number().int().min(1).max(150).default(150),
+    types: z
+      .string()
+      .optional()
+      .transform((value) =>
+        value
+          ? value
+              .split(',')
+              .map((part) => part.trim())
+              .filter((part) => part.length > 0)
+          : undefined
+      )
+      .pipe(z.array(z.enum(SEARCHABLE_ENTITY_TYPES)).min(1).optional()),
+  })
+  .strict();
+
+export type GraphQueryInput = z.infer<typeof graphQuerySchema>;
+
+// ─── Boards, tags and checklists (phase 5b) ──────────────────────────────────
+
+export const BOARD_MEMBERSHIP = ['filter', 'explicit'] as const;
+export const BOARD_SWIMLANES = ['project', 'area', 'entity', 'none'] as const;
+export const BOARD_EXPORT_FORMATS = ['csv', 'json'] as const;
+
+/**
+ * A board's columns.
+ *
+ * Each column IS a task status — `ObsiddyTask.status` already carries the states a
+ * kanban board wants, so dragging between columns is a `PATCH` of one field rather
+ * than a new subsystem (§12).
+ *
+ * `wipLimit` is advisory. Exceeding it flags the column; it never blocks a drop,
+ * because a hard block just teaches people to lie to the tool.
+ */
+export const boardColumnsSchema = z
+  .array(
+    z.object({
+      status: z.enum(TASK_STATUSES),
+      label: z.string().trim().min(1).max(60),
+      wipLimit: z.number().int().positive().max(999).optional(),
+    })
+  )
+  .min(1, 'A board needs at least one column')
+  .max(12, 'More than a dozen columns is a spreadsheet');
+
+export type BoardColumns = z.infer<typeof boardColumnsSchema>;
+
+/**
+ * What a filter-backed board matches.
+ *
+ * Deliberately small. Every field here widens what a shared board would expose
+ * later (§17 risk 6b: a filter board keeps sharing tasks you create afterwards), so
+ * the set grows only when there is a reason — not because a filter builder looked
+ * like it wanted more inputs.
+ */
+export const boardFilterSchema = z
+  .object({
+    projectId: cuidSchema.optional(),
+    /**
+     * Show closed work.
+     *
+     * Set, it stops `done` *and* `dropped` being filtered out. Unset, `dropped` is
+     * always hidden, and `done` is hidden only when the board has no Done column to
+     * put it in — a board configured with one has asked for finished work by saying
+     * where it goes. See `loadFilteredCards`.
+     */
+    includeDone: z.boolean().optional(),
+  })
+  .strict();
+
+export type BoardFilter = z.infer<typeof boardFilterSchema>;
+
+export const createBoardSchema = z
+  .object({
+    name: titleSchema,
+    slug: slugSchema.optional(),
+    description: noteBodySchema.optional(),
+    columns: boardColumnsSchema,
+    membership: z.enum(BOARD_MEMBERSHIP).default('filter'),
+    filter: boardFilterSchema.nullish(),
+    swimlaneBy: z.enum(BOARD_SWIMLANES).nullish(),
+  })
+  .strict();
+
+export const updateBoardSchema = createBoardSchema.partial().strict();
+
+export const boardListQuerySchema = obsiddyListQuerySchema;
+
+export type CreateBoardInput = z.infer<typeof createBoardSchema>;
+export type UpdateBoardInput = z.infer<typeof updateBoardSchema>;
+
+/**
+ * Placing a card on an explicit board.
+ *
+ * `targetIndex` rather than a raw position: the client knows where it dropped the
+ * card in the visual order, and the server owns the arithmetic that turns that into
+ * a fractional position — including the renormalisation pass when a gap has closed
+ * up. A client sending positions directly would have to reimplement that, and would
+ * get it wrong in the one case that matters.
+ */
+export const placeBoardCardSchema = z
+  .object({
+    taskId: cuidSchema,
+    targetIndex: z.number().int().min(0).max(10_000),
+    /**
+     * The column the card landed in.
+     *
+     * `targetIndex` is an index *within a column*, but a board's positions are one
+     * sequence spanning all of them — so the server cannot turn the index into a
+     * position without knowing which column's cards to measure against. Optional so
+     * an older client, or a caller placing a card without a visual column in mind,
+     * still gets the previous board-wide behaviour rather than a 400.
+     */
+    status: z.enum(TASK_STATUSES).optional(),
+  })
+  .strict();
+
+export type PlaceBoardCardInput = z.infer<typeof placeBoardCardSchema>;
+
+export const moveBoardCardSchema = z
+  .object({
+    targetIndex: z.number().int().min(0).max(10_000),
+    /** The column the card landed in — see `placeBoardCardSchema.status`. */
+    status: z.enum(TASK_STATUSES).optional(),
+  })
+  .strict();
+
+export const boardExportQuerySchema = z
+  .object({ format: z.enum(BOARD_EXPORT_FORMATS).default('csv') })
+  .strict();
+
+export const createTagSchema = z
+  .object({
+    name: z.string().trim().min(1, 'Required').max(60),
+    slug: slugSchema.optional(),
+    colour: z.string().trim().max(16).optional(),
+    sortOrder: z.number().int().min(0).max(1000).optional(),
+  })
+  .strict();
+
+export const updateTagSchema = createTagSchema.partial().strict();
+
+export type CreateTagInput = z.infer<typeof createTagSchema>;
+export type UpdateTagInput = z.infer<typeof updateTagSchema>;
+
+/**
+ * `PUT /obsiddy/tasks/[id]/tags` — the whole set, not a delta.
+ *
+ * A board UI thinks in terms of "these are the labels now". Exposing add/remove
+ * would make the client compute the difference, and a half-applied difference — the
+ * add landed, the remove didn't — is a state nobody would notice.
+ */
+export const setTaskTagsSchema = z.object({ tagIds: z.array(cuidSchema).max(50) }).strict();
+
+export const createChecklistItemSchema = z
+  .object({ text: z.string().trim().min(1, 'Required').max(500) })
+  .strict();
+
+export const updateChecklistItemSchema = z
+  .object({
+    text: z.string().trim().min(1).max(500).optional(),
+    isDone: z.boolean().optional(),
+    /** Visual index; the server turns it into a fractional position. */
+    targetIndex: z.number().int().min(0).max(10_000).optional(),
+  })
+  .strict();
+
+export type CreateChecklistItemInput = z.infer<typeof createChecklistItemSchema>;
+export type UpdateChecklistItemInput = z.infer<typeof updateChecklistItemSchema>;
+
 // ─── Documents (phase 4) ─────────────────────────────────────────────────────
 
 /**
@@ -588,6 +837,40 @@ export const priorityWeightsSchema = z
 export type PriorityWeights = z.infer<typeof priorityWeightsSchema>;
 
 /**
+ * The shape of a stored `priorityFactors` blob, for readers.
+ *
+ * The column is `Json?`, so anything a caller pulls out of it is external data
+ * even though this codebase wrote it — a row scored by an older build has an
+ * older shape, and `CLAUDE.md` forbids an `as` cast over that. The UI parses with
+ * this and falls back to "no explanation recorded" rather than rendering
+ * `undefined`.
+ *
+ * Deliberately **not** `.strict()`: a future build adding a seventh field must
+ * not blank the explanation on every task scored before this one. Unknown keys
+ * are dropped, known ones are trusted.
+ *
+ * The writer is `PriorityFactors` in `priority/score.ts`; keep the two in step.
+ */
+export const priorityFactorsSchema = z.object({
+  urgency: z.number(),
+  goalAlignment: z.number(),
+  projectMomentum: z.number(),
+  areaBalance: z.number(),
+  effortFit: z.number(),
+  staleness: z.number(),
+  base: z.number(),
+  manualBoost: z.number(),
+  boostActive: z.boolean(),
+  boostReason: z.string().nullable(),
+  deferred: z.boolean(),
+  returnedFromSnooze: z.boolean(),
+  dominantFactor: z.string(),
+  scoredAt: z.string(),
+});
+
+export type StoredPriorityFactors = z.infer<typeof priorityFactorsSchema>;
+
+/**
  * Which energy level you have when. Feeds `effortFit`: a `high`-energy task
  * scheduled into your `low`-energy evening fits worse than it looks on paper.
  *
@@ -680,6 +963,15 @@ export const updateSpaceSchema = z
     priorityWeights: priorityWeightsSchema.nullish(),
     energyProfile: energyProfileSchema.nullish(),
     retentionPolicy: retentionPolicySchema.nullish(),
+    /**
+     * Similarity floor for proposing connections. `null` restores the measured
+     * default rather than meaning "propose nothing".
+     *
+     * Bounded well inside `[0, 1]`: a floor of 0 proposes every pair in the brain
+     * and a floor of 1 proposes none, and both read as the feature being broken
+     * rather than as a setting being wrong.
+     */
+    connectionStrengthFloor: z.number().min(0.2).max(0.95).nullish(),
   })
   .partial()
   .strict();

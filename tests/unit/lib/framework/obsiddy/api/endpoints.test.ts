@@ -42,6 +42,102 @@ describe('URL builders', () => {
   });
 });
 
+describe('item and action path builders', () => {
+  it('itemPath joins the given collection and id with a single slash', () => {
+    expect(OBSIDDY_API.itemPath(OBSIDDY_API.TASKS, 'task_1')).toBe('/api/v1/obsiddy/tasks/task_1');
+    // A different collection constant produces a different prefix — the
+    // builder is generic over `collection`, not hard-coded to one resource.
+    expect(OBSIDDY_API.itemPath(OBSIDDY_API.PROJECTS, 'proj_1')).toBe(
+      '/api/v1/obsiddy/projects/proj_1'
+    );
+  });
+
+  it('snoozePath/unsnoozePath/restorePath append the named action after the id', () => {
+    expect(OBSIDDY_API.snoozePath(OBSIDDY_API.TASKS, 'task_1')).toBe(
+      '/api/v1/obsiddy/tasks/task_1/snooze'
+    );
+    expect(OBSIDDY_API.unsnoozePath(OBSIDDY_API.TASKS, 'task_1')).toBe(
+      '/api/v1/obsiddy/tasks/task_1/unsnooze'
+    );
+    expect(OBSIDDY_API.restorePath(OBSIDDY_API.PROJECTS, 'proj_1')).toBe(
+      '/api/v1/obsiddy/projects/proj_1/restore'
+    );
+  });
+
+  it('viewPath is a sibling of the item route, not a query string on it', () => {
+    // The header comment is explicit that this is deliberate — an `?include=`
+    // would keep the generic item handlers from staying bare.
+    expect(OBSIDDY_API.viewPath(OBSIDDY_API.PROJECTS, 'proj_1')).toBe(
+      '/api/v1/obsiddy/projects/proj_1/view'
+    );
+  });
+
+  it('promotePath is fixed under thoughts regardless of what the thought becomes', () => {
+    expect(OBSIDDY_API.promotePath('th_1')).toBe('/api/v1/obsiddy/thoughts/th_1/promote');
+  });
+
+  it('boardCards/boardCard build under the given board id', () => {
+    expect(OBSIDDY_API.boardCards('board_1')).toBe('/api/v1/obsiddy/boards/board_1/cards');
+    expect(OBSIDDY_API.boardCard('board_1', 'card_1')).toBe(
+      '/api/v1/obsiddy/boards/board_1/cards/card_1'
+    );
+  });
+
+  it('boardExport puts the format on the query string, not the path', () => {
+    expect(OBSIDDY_API.boardExport('board_1', 'csv')).toBe(
+      '/api/v1/obsiddy/boards/board_1/export?format=csv'
+    );
+    expect(OBSIDDY_API.boardExport('board_1', 'json')).toBe(
+      '/api/v1/obsiddy/boards/board_1/export?format=json'
+    );
+  });
+
+  it('taskTags/taskChecklist/checklistItem build under the given task or item id', () => {
+    expect(OBSIDDY_API.taskTags('task_1')).toBe('/api/v1/obsiddy/tasks/task_1/tags');
+    expect(OBSIDDY_API.taskChecklist('task_1')).toBe('/api/v1/obsiddy/tasks/task_1/checklist');
+    expect(OBSIDDY_API.checklistItem('ci_1')).toBe('/api/v1/obsiddy/checklist/ci_1');
+  });
+});
+
+/**
+ * ## A gap worth flagging, not silently working around
+ *
+ * The sibling file `lib/framework/obsiddy/ui/routes.ts` runs dynamic segments
+ * through `encodeURIComponent` (see `graphFocus` and `searchFor` there). The
+ * builders in *this* file — `itemPath`, `snoozePath`, `restorePath`, `viewPath`,
+ * `promotePath`, `boardCards`, `boardCard`, `taskTags`, `taskChecklist`,
+ * `checklistItem`, `linkById`, `documentById`, `documentDownload` — do **not**:
+ * they interpolate `collection`/`id` into the template literal raw. Every id
+ * Obsiddy hands these functions today is a server-issued CUID, so this is
+ * unlikely to be reachable with attacker-controlled input in practice — but it
+ * is a real asymmetry with `routes.ts`, and an id containing `/` or `?` would
+ * corrupt the resulting path (an extra segment, or an accidental query string).
+ * The tests below pin the ACTUAL behaviour — no encoding — rather than
+ * asserting an `encodeURIComponent` call this file does not make. Flagged here
+ * so a future pass can decide whether to bring this file in line with
+ * `routes.ts`.
+ */
+describe('current (un-encoded) behaviour on ids with reserved URL characters', () => {
+  it('does not escape a slash in the id — it introduces an extra path segment', () => {
+    const path = OBSIDDY_API.itemPath(OBSIDDY_API.TASKS, 'a/b');
+    expect(path).toBe('/api/v1/obsiddy/tasks/a/b');
+    // Three segments after "tasks", not one opaque id segment.
+    expect(path.split('/').filter(Boolean)).toHaveLength(6);
+  });
+
+  it('does not escape a `?` in the id — it can start an unintended query string', () => {
+    expect(OBSIDDY_API.itemPath(OBSIDDY_API.TASKS, 'weird?x=1')).toBe(
+      '/api/v1/obsiddy/tasks/weird?x=1'
+    );
+  });
+
+  it('does not escape a space in the id — it is passed through raw', () => {
+    expect(OBSIDDY_API.itemPath(OBSIDDY_API.PROJECTS, 'has space')).toBe(
+      '/api/v1/obsiddy/projects/has space'
+    );
+  });
+});
+
 describe('every path corresponds to a route file that exists', () => {
   /**
    * The check that earns this file's place. `OBSIDDY_API` is a hand-maintained

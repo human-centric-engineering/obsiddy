@@ -77,6 +77,7 @@ beforeEach(() => {
     priorityWeights: DEFAULT_PRIORITY_WEIGHTS,
     energyProfile: DEFAULT_ENERGY_PROFILE,
     retentionPolicy: DEFAULT_RETENTION_POLICY,
+    connectionStrengthFloor: 0.55,
     customised: { priorityWeights: false, energyProfile: false, retentionPolicy: false },
   });
 

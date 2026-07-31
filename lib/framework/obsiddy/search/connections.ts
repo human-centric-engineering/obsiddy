@@ -26,6 +26,7 @@ import {
 } from '@/lib/framework/obsiddy/repo/embeddings';
 import { createSuggestedLinks, type LinkCreateData } from '@/lib/framework/obsiddy/repo/links';
 import type { OwnerScope } from '@/lib/framework/obsiddy/repo/owner-scope';
+import { getObsiddySettings } from '@/lib/framework/obsiddy/services/space';
 import { logger } from '@/lib/logging';
 
 /**
@@ -67,7 +68,6 @@ import { logger } from '@/lib/logging';
 export const STRENGTH_FLOOR = 0.55;
 
 /** Cosine distance is `1 - similarity`; the SQL ceiling follows from the floor. */
-const MAX_DISTANCE = 1 - STRENGTH_FLOOR;
 
 /** Neighbours considered per source entity. */
 const NEIGHBOURS_PER_SOURCE = 5;
@@ -193,6 +193,11 @@ export async function sweepConnections(scope: OwnerScope, now = new Date()): Pro
   const result: SweepResult = { examined: 0, candidates: 0, created: 0, cappedTypes: [] };
   const pairs: Connection[] = [];
 
+  // Read once per sweep, not per pair. `null` means "use the measured default",
+  // which keeps that number in one place rather than copied into every space row.
+  const floor = (await getObsiddySettings(scope.userId)).connectionStrengthFloor;
+  const maxDistance = 1 - floor;
+
   // ── The well-formed types, swept against each other ────────────────────────
   for (const entityType of SWEEP_TYPES) {
     const sourceIds = await listEmbeddedEntityIds(scope, entityType, SOURCES_PER_TYPE);
@@ -200,7 +205,7 @@ export async function sweepConnections(scope: OwnerScope, now = new Date()): Pro
 
     for (const entityId of sourceIds) {
       result.examined++;
-      const found = await findConnections({ scope, entityType, entityId });
+      const found = await findConnections({ scope, entityType, entityId, strengthFloor: floor });
       pairs.push(...found);
     }
 
@@ -226,7 +231,7 @@ export async function sweepConnections(scope: OwnerScope, now = new Date()): Pro
         entityId,
         targetTypes: ['thought'],
         limit: NEIGHBOURS_PER_SOURCE,
-        maxDistance: MAX_DISTANCE,
+        maxDistance,
         since: windowStart,
       }),
       nearestNeighbourRows(scope, {
@@ -234,7 +239,7 @@ export async function sweepConnections(scope: OwnerScope, now = new Date()): Pro
         entityId,
         targetTypes: THOUGHT_TARGET_TYPES,
         limit: NEIGHBOURS_PER_SOURCE,
-        maxDistance: MAX_DISTANCE,
+        maxDistance,
       }),
     ]);
 
@@ -277,7 +282,7 @@ export async function sweepConnections(scope: OwnerScope, now = new Date()): Pro
     deduped: deduped.length,
     created: result.created,
     cappedTypes: result.cappedTypes,
-    strengthFloor: STRENGTH_FLOOR,
+    strengthFloor: floor,
   });
 
   if (result.cappedTypes.length > 0) {

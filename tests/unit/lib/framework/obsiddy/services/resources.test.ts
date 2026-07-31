@@ -101,6 +101,10 @@ vi.mock('@/lib/framework/obsiddy/repo/time-blocks', () => ({
 vi.mock('@/lib/framework/obsiddy/services/events', () => ({
   recordObsiddyEvent: vi.fn(),
   eventKindForUpdate: vi.fn(),
+  // Not stubbed to a constant: whether a status-change payload is attached is the
+  // thing under test below, and a stub returning the same value either way would
+  // pass whether or not the service consulted it.
+  statusChangeMetadata: vi.fn(),
 }));
 
 vi.mock('@/lib/framework/obsiddy/services/slug', () => ({
@@ -129,7 +133,11 @@ import * as tasks from '@/lib/framework/obsiddy/repo/tasks';
 import * as thoughts from '@/lib/framework/obsiddy/repo/thoughts';
 import * as timeBlocks from '@/lib/framework/obsiddy/repo/time-blocks';
 import { rescoreTask } from '@/lib/framework/obsiddy/priority/reprioritise';
-import { eventKindForUpdate, recordObsiddyEvent } from '@/lib/framework/obsiddy/services/events';
+import {
+  eventKindForUpdate,
+  recordObsiddyEvent,
+  statusChangeMetadata,
+} from '@/lib/framework/obsiddy/services/events';
 import { ensureObsiddySpace } from '@/lib/framework/obsiddy/services/space';
 import {
   areaResource,
@@ -209,6 +217,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(recordObsiddyEvent).mockResolvedValue(undefined);
   vi.mocked(eventKindForUpdate).mockReturnValue('updated');
+  vi.mocked(statusChangeMetadata).mockReturnValue(undefined);
   vi.mocked(resolveUniqueSlug).mockResolvedValue('generated-slug');
   vi.mocked(resolveSlugOnUpdate).mockResolvedValue('generated-slug');
 });
@@ -1854,5 +1863,41 @@ describe('withTaskRescore — a pin takes effect now, not at 3am (phase 3)', () 
 
     // Assert
     expect(rescoreTask).not.toHaveBeenCalled();
+  });
+});
+
+describe('taskResource.update — the status-change payload', () => {
+  /**
+   * The board's aging indicator reads `metadata.statusTo`, so this key is the whole
+   * mechanism. Two ways it can silently fail: the service never attaches it (aging
+   * is permanently unknown), or it attaches one on every edit (a renamed card claims
+   * to have just arrived in its column). Both look fine on screen.
+   */
+  it('attaches the status-change payload to the event when the status moved', async () => {
+    vi.mocked(tasks.findTask).mockResolvedValue(fakeTask({ status: 'todo' }));
+    vi.mocked(tasks.updateTask).mockResolvedValue(fakeTask({ status: 'doing' }));
+    vi.mocked(statusChangeMetadata).mockReturnValue({ statusFrom: 'todo', statusTo: 'doing' });
+
+    await taskResource.update(scope, 'task_1', { status: 'doing' } as unknown as TaskUpdate);
+
+    expect(vi.mocked(recordObsiddyEvent)).toHaveBeenCalledWith(
+      scope,
+      expect.objectContaining({
+        entityType: 'task',
+        metadata: { statusFrom: 'todo', statusTo: 'doing' },
+      })
+    );
+  });
+
+  it('attaches no payload when the status did not move', async () => {
+    vi.mocked(tasks.findTask).mockResolvedValue(fakeTask({ status: 'doing' }));
+    vi.mocked(tasks.updateTask).mockResolvedValue(fakeTask({ status: 'doing' }));
+    vi.mocked(statusChangeMetadata).mockReturnValue(undefined);
+
+    await taskResource.update(scope, 'task_1', { notes: 'just a note' });
+
+    const event = vi.mocked(recordObsiddyEvent).mock.calls[0]?.[1];
+    // Absent, not `undefined` — the reader filters on the key's presence.
+    expect(event).not.toHaveProperty('metadata');
   });
 });

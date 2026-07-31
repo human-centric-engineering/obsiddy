@@ -32,12 +32,19 @@ vi.mock('@/lib/framework/obsiddy/repo/links', () => ({
   createSuggestedLinks: (...args: unknown[]) => createSuggestedLinks(...args),
 }));
 
+// The sweep reads the user's similarity floor once per run — `null` in the column
+// means "use the measured default", which the service resolves before we see it.
+vi.mock('@/lib/framework/obsiddy/services/space', () => ({
+  getObsiddySettings: vi.fn(async () => ({ connectionStrengthFloor: 0.55 })),
+}));
+
 vi.mock('@/lib/orchestration/knowledge/embedder', () => ({
   embedBatch: (...args: unknown[]) => embedBatch(...args),
   embedText: (...args: unknown[]) => embedText(...args),
 }));
 
 import { ownerScope } from '@/lib/framework/obsiddy/repo/owner-scope';
+import { getObsiddySettings } from '@/lib/framework/obsiddy/services/space';
 import {
   findConnections,
   STRENGTH_FLOOR,
@@ -328,5 +335,55 @@ describe('sweepConnections', () => {
 
     expect(createSuggestedLinks).toHaveBeenCalledWith(SCOPE, []);
     expect(result.created).toBe(0);
+  });
+});
+
+describe('the per-user similarity floor', () => {
+  /**
+   * The floor decides whether two things are "similar enough" to propose, and the
+   * right value is **model-dependent** — phase 4 shipped the plan's 0.72, and against
+   * the default embedding model that sits above the signal, so the engine proposed
+   * nothing at all. Silently: a mis-tuned sweep and an exhausted one produce
+   * identical output.
+   *
+   * So it is a per-user column, and the only thing that matters is that the value
+   * actually reaches the distance filter rather than being read and discarded.
+   */
+  it('reads the floor once per sweep, not once per pair', async () => {
+    listEmbeddedEntityIds.mockResolvedValue(['id_1', 'id_2', 'id_3']);
+    nearestNeighbourRows.mockResolvedValue([]);
+
+    await sweepConnections(SCOPE);
+
+    expect(vi.mocked(getObsiddySettings)).toHaveBeenCalledTimes(1);
+  });
+
+  it('applies a tightened floor to the distance filter', async () => {
+    vi.mocked(getObsiddySettings).mockResolvedValue({
+      connectionStrengthFloor: 0.8,
+    } as never);
+    listEmbeddedEntityIds.mockResolvedValue(['id_1']);
+    nearestNeighbourRows.mockResolvedValue([]);
+
+    await sweepConnections(SCOPE);
+
+    // A floor of 0.8 is a cosine distance of 0.2 — the number the SQL actually uses.
+    for (const call of nearestNeighbourRows.mock.calls) {
+      expect((call[1] as { maxDistance: number }).maxDistance).toBeCloseTo(0.2, 10);
+    }
+  });
+
+  it('applies a loosened floor too', async () => {
+    vi.mocked(getObsiddySettings).mockResolvedValue({
+      connectionStrengthFloor: 0.35,
+    } as never);
+    listEmbeddedEntityIds.mockResolvedValue(['id_1']);
+    nearestNeighbourRows.mockResolvedValue([]);
+
+    await sweepConnections(SCOPE);
+
+    for (const call of nearestNeighbourRows.mock.calls) {
+      expect((call[1] as { maxDistance: number }).maxDistance).toBeCloseTo(0.65, 10);
+    }
   });
 });

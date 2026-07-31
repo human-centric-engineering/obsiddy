@@ -20,22 +20,31 @@
 import type { z } from 'zod';
 
 import * as areas from '@/lib/framework/obsiddy/repo/areas';
+import * as boards from '@/lib/framework/obsiddy/repo/boards';
 import * as entities from '@/lib/framework/obsiddy/repo/entities';
 import * as goals from '@/lib/framework/obsiddy/repo/goals';
 import type { OwnerScope } from '@/lib/framework/obsiddy/repo/owner-scope';
 import * as projects from '@/lib/framework/obsiddy/repo/projects';
+import * as tags from '@/lib/framework/obsiddy/repo/tags';
 import * as tasks from '@/lib/framework/obsiddy/repo/tasks';
 import * as thoughts from '@/lib/framework/obsiddy/repo/thoughts';
 import * as timeBlocks from '@/lib/framework/obsiddy/repo/time-blocks';
 import { rescoreTask } from '@/lib/framework/obsiddy/priority/reprioritise';
-import { eventKindForUpdate, recordObsiddyEvent } from '@/lib/framework/obsiddy/services/events';
+import {
+  eventKindForUpdate,
+  recordObsiddyEvent,
+  statusChangeMetadata,
+} from '@/lib/framework/obsiddy/services/events';
 import { resolveSlugOnUpdate, resolveUniqueSlug } from '@/lib/framework/obsiddy/services/slug';
 import { ensureObsiddySpace } from '@/lib/framework/obsiddy/services/space';
 import {
+  boardListQuerySchema,
   createAreaSchema,
+  createBoardSchema,
   createEntitySchema,
   createGoalSchema,
   createProjectSchema,
+  createTagSchema,
   createTaskSchema,
   createThoughtSchema,
   createTimeBlockSchema,
@@ -47,9 +56,11 @@ import {
   thoughtListQuerySchema,
   timeBlockListQuerySchema,
   updateAreaSchema,
+  updateBoardSchema,
   updateEntitySchema,
   updateGoalSchema,
   updateProjectSchema,
+  updateTagSchema,
   updateTaskSchema,
   updateThoughtSchema,
   updateTimeBlockSchema,
@@ -155,10 +166,14 @@ const taskResourceOps: ObsiddyResource<
     const task = await tasks.updateTask(scope, id, data);
     if (!task) return null;
 
+    // The status-change payload is what lets a board say how long a card has sat
+    // in its column; `updated` alone cannot distinguish a move from a rename.
+    const statusChange = statusChangeMetadata(before, task);
     await recordObsiddyEvent(scope, {
       kind: eventKindForUpdate(before, task),
       entityType: 'task',
       entityId: task.id,
+      ...(statusChange ? { metadata: statusChange } : {}),
     });
     if (task.projectId) await touchProject(scope, task.projectId);
     return task;
@@ -726,6 +741,147 @@ async function rescoreIfIdentifiable(scope: OwnerScope, row: unknown): Promise<v
  * space?" and "which types rescore?" are answered by reading eight lines, not by
  * grepping seven object literals.
  */
+/**
+ * Board resource — a saved kanban view.
+ *
+ * The only descriptor whose rows are **not** part of the semantic layer: a board is a
+ * query over tasks, so there is nothing to embed and archiving drops no vectors.
+ * `columns` and `filter` are stored as JSON because their shape is the board's own
+ * configuration rather than a relational fact — `boardColumnsSchema` and
+ * `boardFilterSchema` validate them on the way in, and again on the way out in
+ * `board-view.ts`, since a blob written by an older build is external data.
+ */
+const boardResourceOps: ObsiddyResource<
+  z.infer<typeof createBoardSchema>,
+  z.infer<typeof updateBoardSchema>,
+  z.infer<typeof boardListQuerySchema>
+> = {
+  name: 'board',
+  createSchema: createBoardSchema,
+  updateSchema: updateBoardSchema,
+  listQuerySchema: boardListQuerySchema,
+
+  async list(scope, query) {
+    const [items, total] = await Promise.all([
+      boards.listBoards(scope, {
+        take: query.limit,
+        skip: query.offset,
+        includeArchived: query.includeArchived,
+      }),
+      boards.countBoards(scope, query.includeArchived),
+    ]);
+    return { items, total };
+  },
+
+  get: (scope, id) => boards.findBoard(scope, id),
+
+  async create(scope, input) {
+    const slug = await resolveUniqueSlug(scope, {
+      preferred: input.slug,
+      fallbackFrom: input.name,
+      exists: boards.findBoardBySlug,
+    });
+    const board = await boards.createBoard(scope, {
+      ...definedOnly(input),
+      slug,
+      columns: input.columns,
+      ...(input.filter ? { filter: input.filter } : {}),
+    });
+    await recordObsiddyEvent(scope, { kind: 'created', entityType: 'board', entityId: board.id });
+    return board;
+  },
+
+  async update(scope, id, input) {
+    const before = await boards.findBoard(scope, id);
+    if (!before) return null;
+    const slug = await resolveSlugOnUpdate(scope, {
+      current: before.slug,
+      requested: input.slug,
+      exists: boards.findBoardBySlug,
+    });
+    const board = await boards.updateBoard(scope, id, {
+      ...definedOnly(input),
+      slug,
+      ...(input.columns ? { columns: input.columns } : {}),
+      ...(input.filter ? { filter: input.filter } : {}),
+    });
+    if (!board) return null;
+    await recordObsiddyEvent(scope, { kind: 'updated', entityType: 'board', entityId: board.id });
+    return board;
+  },
+
+  async archive(scope, id, reason) {
+    const board = await boards.archiveBoard(scope, id, reason);
+    if (board)
+      await recordObsiddyEvent(scope, { kind: 'archived', entityType: 'board', entityId: id });
+    return board;
+  },
+
+  async restore(scope, id) {
+    const board = await boards.restoreBoard(scope, id);
+    if (board)
+      await recordObsiddyEvent(scope, { kind: 'restored', entityType: 'board', entityId: id });
+    return board;
+  },
+
+  async remove(scope, id) {
+    const board = await boards.deleteBoard(scope, id);
+    if (board)
+      await recordObsiddyEvent(scope, { kind: 'deleted', entityType: 'board', entityId: id });
+    return board;
+  },
+};
+
+/**
+ * Tag resource — labels.
+ *
+ * No archive lifecycle: a tag is a label, and a label nobody uses is deleted rather
+ * than kept in a drawer. `ObsiddyTaskTag` cascades, so removing one takes the label
+ * off every task without leaving rows pointing at nothing.
+ */
+const tagResourceOps: ObsiddyResource<
+  z.infer<typeof createTagSchema>,
+  z.infer<typeof updateTagSchema>,
+  z.infer<typeof obsiddyListQuerySchema>
+> = {
+  name: 'tag',
+  createSchema: createTagSchema,
+  updateSchema: updateTagSchema,
+  listQuerySchema: obsiddyListQuerySchema,
+
+  async list(scope, query) {
+    const [items, total] = await Promise.all([
+      tags.listTags(scope, { take: query.limit, skip: query.offset }),
+      tags.countTags(scope),
+    ]);
+    return { items, total };
+  },
+
+  get: (scope, id) => tags.findTag(scope, id),
+
+  async create(scope, input) {
+    const slug = await resolveUniqueSlug(scope, {
+      preferred: input.slug,
+      fallbackFrom: input.name,
+      exists: tags.findTagBySlug,
+    });
+    return tags.createTag(scope, { ...definedOnly(input), slug });
+  },
+
+  async update(scope, id, input) {
+    const before = await tags.findTag(scope, id);
+    if (!before) return null;
+    const slug = await resolveSlugOnUpdate(scope, {
+      current: before.slug,
+      requested: input.slug,
+      exists: tags.findTagBySlug,
+    });
+    return tags.updateTag(scope, id, { ...definedOnly(input), slug });
+  },
+
+  remove: (scope, id) => tags.deleteTag(scope, id),
+};
+
 export const taskResource = withTaskRescore(withSpaceBootstrap(taskResourceOps));
 export const projectResource = withSpaceBootstrap(projectResourceOps);
 export const goalResource = withSpaceBootstrap(goalResourceOps);
@@ -733,3 +889,5 @@ export const areaResource = withSpaceBootstrap(areaResourceOps);
 export const thoughtResource = withSpaceBootstrap(thoughtResourceOps);
 export const entityResource = withSpaceBootstrap(entityResourceOps);
 export const timeBlockResource = withSpaceBootstrap(timeBlockResourceOps);
+export const boardResource = withSpaceBootstrap(boardResourceOps);
+export const tagResource = withSpaceBootstrap(tagResourceOps);
