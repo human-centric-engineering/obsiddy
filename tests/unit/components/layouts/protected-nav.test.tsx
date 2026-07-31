@@ -1,27 +1,33 @@
 /**
- * ProtectedNav Component Tests
+ * ProtectedNav default-vs-override (issue #473)
  *
- * The nav filters `navItems` to `!item.adminOnly || isAdmin` and marks the
- * current entry with `aria-current="page"` by matching the pathname exactly or
- * as a prefix. Two things are worth pinning: the Admin link must never render
- * for a non-admin session (it is the only route gate this component provides —
- * the actual page-level authorization lives elsewhere, but a leaked link is a
- * leaked affordance), and the active-state match has to be a "starts with
- * `href/`" check, not a raw `includes`, so `/obsiddy` doesn't light up while
- * viewing `/obsiddy-something-else`.
+ * The authenticated header renders `protectedNavItems` from the fork-owned
+ * `lib/app/protected-nav.ts` when non-null, else `DEFAULT_PROTECTED_NAV`. The
+ * override list *replaces* the default wholesale. `navItems` is resolved at
+ * module load, so the override case stubs the scaffold via `vi.doMock` and
+ * re-imports fresh.
  *
- * Test Coverage:
- * - Admin link hidden for a non-admin session, shown for an ADMIN session
- * - The exact-match page is marked aria-current="page"
- * - A nested child route also marks its parent active (prefix match)
- * - A path that merely starts with the same letters, without the `/`, is NOT active
+ * The component previously had no test at all, which is part of why an app could
+ * ship a header that never linked to its own product — there was nothing to
+ * notice. These cases pin both halves: the platform default a fork inherits, and
+ * that a fork's own items keep the platform's admin filtering and active-state
+ * behaviour rather than having to reimplement them.
  *
- * @see components/layouts/protected-nav.tsx
+ * `usePathname` is globally mocked to '/' (tests/setup.ts).
+ *
+ * FORK NOTE (Obsiddy): this fork FILLS the seam, so the platform-default case
+ * below stubs it back to `null` — without that it would render Obsiddy's
+ * override while claiming to test the default, and still pass, because the
+ * override happens to contain the same three links. A second block at the end
+ * covers the fork's real seam.
+ *
+ * @see components/layouts/protected-nav.tsx · lib/app/protected-nav.ts · lib/protected-nav/types.ts
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { usePathname } from 'next/navigation';
+import * as React from 'react';
 
 const mockUseSession = vi.hoisted(() => vi.fn());
 
@@ -29,76 +35,184 @@ vi.mock('@/lib/auth/client', () => ({
   useSession: () => mockUseSession(),
 }));
 
-import { ProtectedNav } from '@/components/layouts/protected-nav';
-
-function sessionWithRole(role: 'USER' | 'ADMIN') {
-  return {
-    data: {
-      user: { id: 'u1', role },
-    },
-    error: null,
-    isPending: false,
-  };
+/** Signed in as a plain user (the default for most cases below). */
+function asUser() {
+  mockUseSession.mockReturnValue({ data: { user: { role: 'USER' } } });
 }
 
+/** Signed in as an admin. */
+function asAdmin() {
+  mockUseSession.mockReturnValue({ data: { user: { role: 'ADMIN' } } });
+}
+
+afterEach(() => {
+  vi.resetModules();
+  vi.doUnmock('@/lib/app/protected-nav');
+  vi.mocked(usePathname).mockReturnValue('/'); // restore the global mock default
+  mockUseSession.mockReset();
+});
+
 describe('ProtectedNav', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    vi.mocked(usePathname).mockReturnValue('/dashboard');
+  it('renders the platform default links when no override is set', async () => {
+    asUser();
+    vi.resetModules();
+    // FORK (Obsiddy): stub the filled seam back to null so this case tests
+    // DEFAULT_PROTECTED_NAV rather than the fork's override.
+    vi.doMock('@/lib/app/protected-nav', () => ({ protectedNavItems: null }));
+    const { ProtectedNav } = await import('@/components/layouts/protected-nav');
+    render(React.createElement(ProtectedNav));
+
+    expect(screen.getByRole('link', { name: /dashboard/i })).toHaveAttribute('href', '/dashboard');
+    expect(screen.getByRole('link', { name: /profile/i })).toHaveAttribute('href', '/profile');
+    expect(screen.getByRole('link', { name: /settings/i })).toHaveAttribute('href', '/settings');
   });
 
-  it('hides the Admin link for a non-admin session', () => {
-    mockUseSession.mockReturnValue(sessionWithRole('USER'));
+  it('hides an adminOnly item from a non-admin and shows it to an admin', async () => {
+    asUser();
+    vi.resetModules();
+    vi.doMock('@/lib/app/protected-nav', () => ({ protectedNavItems: null }));
+    const { ProtectedNav } = await import('@/components/layouts/protected-nav');
+    const { unmount } = render(React.createElement(ProtectedNav));
 
-    render(<ProtectedNav />);
+    expect(screen.queryByRole('link', { name: /admin/i })).toBeNull();
+    unmount();
 
-    expect(screen.queryByRole('link', { name: /admin/i })).not.toBeInTheDocument();
-  });
-
-  it('shows the Admin link only for an ADMIN session', () => {
-    mockUseSession.mockReturnValue(sessionWithRole('ADMIN'));
-
-    render(<ProtectedNav />);
-
+    asAdmin();
+    render(React.createElement(ProtectedNav));
     expect(screen.getByRole('link', { name: /admin/i })).toHaveAttribute('href', '/admin');
   });
 
-  it('hides the Admin link when there is no session at all', () => {
-    mockUseSession.mockReturnValue({ data: null, error: null, isPending: true });
+  it('replaces the default wholesale with a non-null override list', async () => {
+    asUser();
+    vi.resetModules();
+    vi.doMock('@/lib/app/protected-nav', () => ({
+      protectedNavItems: [
+        { href: '/programme', label: 'Programme' },
+        { href: '/reports', label: 'Reports' },
+      ],
+    }));
 
-    render(<ProtectedNav />);
+    const { ProtectedNav } = await import('@/components/layouts/protected-nav');
+    render(React.createElement(ProtectedNav));
 
-    expect(screen.queryByRole('link', { name: /admin/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /programme/i })).toHaveAttribute('href', '/programme');
+    expect(screen.getByRole('link', { name: /reports/i })).toHaveAttribute('href', '/reports');
+    // Default links are gone — replacement, not append.
+    expect(screen.queryByRole('link', { name: /profile/i })).toBeNull();
+    expect(screen.queryByRole('link', { name: /settings/i })).toBeNull();
   });
 
-  it('marks the exact current page active', () => {
-    vi.mocked(usePathname).mockReturnValue('/dashboard');
-    mockUseSession.mockReturnValue(sessionWithRole('USER'));
+  it("applies adminOnly to a fork's own items", async () => {
+    asUser();
+    vi.resetModules();
+    vi.doMock('@/lib/app/protected-nav', () => ({
+      protectedNavItems: [
+        { href: '/programme', label: 'Programme' },
+        { href: '/billing', label: 'Billing', adminOnly: true },
+      ],
+    }));
 
-    render(<ProtectedNav />);
+    const { ProtectedNav } = await import('@/components/layouts/protected-nav');
+    render(React.createElement(ProtectedNav));
 
-    expect(screen.getByRole('link', { name: /dashboard/i })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: /programme/i })).toBeInTheDocument();
+    // The platform's admin filtering covers fork items — no reimplementation.
+    expect(screen.queryByRole('link', { name: /billing/i })).toBeNull();
+  });
+
+  it('renders an item with no icon', async () => {
+    asUser();
+    vi.resetModules();
+    vi.doMock('@/lib/app/protected-nav', () => ({
+      protectedNavItems: [{ href: '/programme', label: 'Programme' }],
+    }));
+
+    const { ProtectedNav } = await import('@/components/layouts/protected-nav');
+    render(React.createElement(ProtectedNav));
+
+    // `icon` is optional on ProtectedNavItem; omitting it must not throw.
+    expect(screen.getByRole('link', { name: /programme/i })).toHaveAttribute('href', '/programme');
+  });
+
+  it('an `exact` item is NOT active on child routes', async () => {
+    asUser();
+    vi.resetModules();
+    vi.mocked(usePathname).mockReturnValue('/projects/123');
+    vi.doMock('@/lib/app/protected-nav', () => ({
+      protectedNavItems: [{ href: '/projects', label: 'Projects', exact: true }],
+    }));
+
+    const { ProtectedNav } = await import('@/components/layouts/protected-nav');
+    render(React.createElement(ProtectedNav));
+
+    expect(screen.getByRole('link', { name: /projects/i })).not.toHaveAttribute(
       'aria-current',
       'page'
     );
   });
 
-  it('marks the parent link active on a nested child route', () => {
+  it('a non-exact item prefix-matches child routes (default)', async () => {
+    asUser();
+    vi.resetModules();
+    vi.mocked(usePathname).mockReturnValue('/projects/123');
+    vi.doMock('@/lib/app/protected-nav', () => ({
+      protectedNavItems: [{ href: '/projects', label: 'Projects' }],
+    }));
+
+    const { ProtectedNav } = await import('@/components/layouts/protected-nav');
+    render(React.createElement(ProtectedNav));
+
+    expect(screen.getByRole('link', { name: /projects/i })).toHaveAttribute('aria-current', 'page');
+  });
+});
+
+/**
+ * FORK (Obsiddy): the seam as this fork actually ships it.
+ *
+ * These render the REAL `lib/app/protected-nav.ts` — no `vi.doMock` — because
+ * the thing worth pinning is that Obsiddy's link reaches the header *and* that
+ * filling the seam did not drop a platform link on the way through. The seam
+ * replaces the default wholesale, so losing "Profile" here loses it everywhere,
+ * with nothing else to notice.
+ */
+describe('ProtectedNav — Obsiddy override', () => {
+  it('renders Obsiddy alongside every platform link', async () => {
+    asUser();
+    vi.resetModules();
+    const { ProtectedNav } = await import('@/components/layouts/protected-nav');
+    render(React.createElement(ProtectedNav));
+
+    expect(screen.getByRole('link', { name: /obsiddy/i })).toHaveAttribute('href', '/obsiddy');
+    for (const name of [/dashboard/i, /profile/i, /settings/i]) {
+      expect(screen.getByRole('link', { name })).toBeInTheDocument();
+    }
+    // Admin is adminOnly — the override must not have flattened that flag.
+    expect(screen.queryByRole('link', { name: /admin/i })).toBeNull();
+  });
+
+  it('keeps Obsiddy active on a nested surface', async () => {
+    asUser();
+    vi.resetModules();
     vi.mocked(usePathname).mockReturnValue('/obsiddy/projects/proj_1');
-    mockUseSession.mockReturnValue(sessionWithRole('USER'));
 
-    render(<ProtectedNav />);
+    const { ProtectedNav } = await import('@/components/layouts/protected-nav');
+    render(React.createElement(ProtectedNav));
 
+    // OBSIDDY_NAV_ITEM is deliberately not `exact`: a user on the board page
+    // must not see a header claiming they are nowhere.
     expect(screen.getByRole('link', { name: /obsiddy/i })).toHaveAttribute('aria-current', 'page');
   });
 
-  it('does not treat a path with the same prefix but no separator as active', () => {
+  it('does not treat a same-prefix path without a separator as active', async () => {
+    asUser();
+    vi.resetModules();
     // '/settings-beta' starts with the same characters as '/settings' but is a
-    // different route — the match must require the '/' boundary.
+    // different route — the match must require the '/' boundary. Same shape as
+    // the case that would light up '/obsiddy' while viewing '/obsiddy-archive'.
     vi.mocked(usePathname).mockReturnValue('/settings-beta');
-    mockUseSession.mockReturnValue(sessionWithRole('USER'));
 
-    render(<ProtectedNav />);
+    const { ProtectedNav } = await import('@/components/layouts/protected-nav');
+    render(React.createElement(ProtectedNav));
 
     expect(screen.getByRole('link', { name: /settings/i })).not.toHaveAttribute(
       'aria-current',
@@ -106,13 +220,14 @@ describe('ProtectedNav', () => {
     );
   });
 
-  it('renders the non-admin-only items for every session', () => {
-    mockUseSession.mockReturnValue(sessionWithRole('USER'));
+  it('hides Admin when there is no session at all', async () => {
+    mockUseSession.mockReturnValue({ data: null, error: null, isPending: true });
+    vi.resetModules();
 
-    render(<ProtectedNav />);
+    const { ProtectedNav } = await import('@/components/layouts/protected-nav');
+    render(React.createElement(ProtectedNav));
 
-    for (const name of [/dashboard/i, /obsiddy/i, /profile/i, /settings/i]) {
-      expect(screen.getByRole('link', { name })).toBeInTheDocument();
-    }
+    expect(screen.queryByRole('link', { name: /admin/i })).toBeNull();
+    expect(screen.getByRole('link', { name: /obsiddy/i })).toBeInTheDocument();
   });
 });

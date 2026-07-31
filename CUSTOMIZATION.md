@@ -69,7 +69,7 @@ findable in the same place in every fork.)
 
 **Two reserved fork tiers — `/app` (leaf) and `/framework`.** The `/app` surface
 above is the **leaf-fork** tier: fork Sunrise directly and build your product in
-`lib/app/**` + `.context/app/`. Some forks instead build a reusable
+`lib/app/**`, `.context/app/`, and `prisma/schema/app.prisma`. Some forks instead build a reusable
 **framework layer** that sits _between_ Sunrise and their own leaf forks (e.g.
 Daybreak). For those, Sunrise reserves a second tier one level up —
 `lib/framework/`, `.context/framework/`, `prisma/schema/framework-*.prisma`, and
@@ -111,12 +111,16 @@ under either tier**, so both merge cleanly on upgrade. A framework fork owns
 **App name (the brand seam):**
 
 - Set **`NEXT_PUBLIC_APP_NAME`** in your `.env` — this renames the app across
-  page-title metadata (all layouts + auth pages), the **header/footer brand**,
-  and the email templates in one place, no file edits. Defaults to `"Sunrise"`
-  when unset. Consumed via `lib/brand.ts` (`BRAND.name`); import that constant
-  if you add new brand-bearing surfaces. Marketing-page **body copy**
-  (`app/(public)/*`) is not driven by this seam — re-skin it with the thin-shim
-  pattern in [§6](#6-landing-page--routes) so your content stays sync-safe.
+  page-title metadata (all layouts + auth pages), the settings and knowledge-base
+  **tab titles** (written straight to `document.title`, so they would otherwise
+  override the layout template), the legal/contact pages' metadata
+  (`privacy`, `terms`, `contact`), the **header/footer brand**, and the email
+  templates in one place, no file edits. Defaults to `"Sunrise"` when unset.
+  Consumed via `lib/brand.ts` (`BRAND.name`); import that constant if you add new
+  brand-bearing surfaces. Marketing-page **body copy** (`app/(public)/*`,
+  including `about/`'s description of the template itself) is not driven by this
+  seam — re-skin it with the thin-shim pattern in
+  [§6](#6-landing-page--routes) so your content stays sync-safe.
 
 **Legal entity / copyright holder (`BRAND.legalName`):**
 
@@ -161,6 +165,35 @@ under either tier**, so both merge cleanly on upgrade. A framework fork owns
   governs _links_; the consent control is not overridable (it's a legal
   requirement in many jurisdictions). This principle recurs for any surface that
   mixes fork copy with required platform behavior.
+
+**Authenticated nav & where users land — the pair that makes an app reachable:**
+
+- The nav a signed-in user sees is **`lib/app/protected-nav.ts`**: set
+  `protectedNavItems` to a `ProtectedNavItem[]` and it **replaces**
+  `DEFAULT_PROTECTED_NAV` wholesale, same replace-with-fallback model as the
+  public nav. Items are `{ href, label, icon?, exact?, adminOnly? }`; the
+  `next/link`, active-state and admin-filtering glue stays in
+  `components/layouts/protected-nav.tsx`, so `adminOnly: true` works on your own
+  items too. To add a link while keeping the platform ones, spread
+  `DEFAULT_PROTECTED_NAV` — accepting that the spread pins that list as it stood
+  at upgrade time.
+- Where a user _lands_ is **`lib/app/auth-landing.ts`**: `appAuthLandingRoute`
+  (default `/dashboard`) and `appAuthLandingLabel` (default `Dashboard`). One
+  edit covers login, OAuth, signup, invite acceptance, email verification, the
+  header brand link, the admin "Back to …" links, the error-page escape hatches
+  and the proxy's redirect of a signed-in user off an auth page — all of which
+  hardcoded `/dashboard` before. The label follows the route so the copy on those
+  buttons doesn't keep saying "Dashboard" after you've moved.
+- **Set both, or you build a dead end.** A landing route with no nav link leaves
+  users somewhere the header never returns them to; a nav link with no landing
+  change drops them on the stock dashboard first. If your route is outside
+  `/dashboard`, `/settings` and `/profile`, also add its prefix to
+  `lib/app/protected-routes.ts` so the proxy bounces signed-out visitors to
+  login.
+- The landing route must be **root-relative** (`/app`, not `https://…` or
+  `//host`). It reaches `safeCallbackUrl()` as the _fallback_, and that helper
+  only sanitises the untrusted URL — so a non-relative value throws at module
+  load instead of quietly becoming an off-site redirect.
 
 **Auth email copy — the email resolver:**
 
@@ -239,32 +272,46 @@ does **not** change them after shipping them, so the edits you make merge cleanl
 when you pull an upstream release. (Contrast the marketing pages, which Sunrise
 _does_ keep improving — those stay sync-safe via the thin-shim in
 [§6](#6-landing-page--routes), not by editing the platform file in place.) The stable
-contract the platform depends on is each file's _export_ (`appEnvSchema`,
-`registerAppRateLimits`, `initAppCapabilities`, `initAppNav`,
-`registerAppDriftProbes`, the `publicNavItems` / `footerNavItems` /
-`footerLegalItems` lists, `emailOverrides`) — which the core imports — **not**
-the body, which is yours. Keep the export name and signature;
-everything inside is free to change. (Detailed examples live here in this guide,
-not in the files, precisely so the files stay small and conflict-free.)
+contract the platform depends on is each file's _export_ — the symbol named in
+the table below, which the core imports — **not** the body, which is yours. Keep
+the export name and signature; everything inside is free to change. (Detailed
+examples live here in this guide, not in the files, precisely so the files stay
+small and conflict-free.)
 
-| Edit this file                             | To register                                   | Auto-wired by (runtime)                                          |
-| ------------------------------------------ | --------------------------------------------- | ---------------------------------------------------------------- |
-| `lib/app/env.ts`                           | server env vars (`appEnvSchema`)              | `lib/env.ts` startup parse (server)                              |
-| `lib/app/rate-limit.ts`                    | rate-limit tiers / rules                      | rate-limit middleware (middleware runtime)                       |
-| `lib/app/protected-routes.ts`              | extra authed route prefixes (append)          | `proxy.ts` edge redirect-to-login (proxy runtime)                |
-| `lib/app/capabilities.ts`                  | agent capabilities (tools)                    | the capability registry (server route-handler)                   |
-| `lib/app/context-contributors.ts`          | prompt-context loaders (`buildContext` types) | the chat context builder (server route-handler)                  |
-| `lib/app/admin-nav.ts`                     | admin sidebar sections                        | `admin-sidebar.tsx` (client)                                     |
-| `lib/app/db-drift.ts`                      | Prisma-unmodelled DB objects                  | `scripts/db/check-drift.ts` (CI / `/pre-pr`)                     |
-| `lib/app/public-nav.ts`                    | public nav / footer link lists                | `public-nav.tsx`, `public-footer.tsx` (client)                   |
-| `lib/app/emails.ts`                        | auth email template overrides                 | `lib/email/registry.ts` (server)                                 |
-| `lib/app/bootstrap.ts`                     | one-time server boot work (`initApp`)         | `instrumentation.ts` `register()` (server, all envs)             |
-| `lib/app/eslint.config.mjs`                | ESLint import-boundary blocks (fork tiers)    | root `eslint.config.mjs` spread (lint)                           |
-| `lib/app/knowledge-access-contributors.ts` | extra docs for a restricted agent             | `resolveAgentDocumentAccess()` (server route-handler)            |
-| `lib/app/guard-floor-contributors.ts`      | per-turn minimum for inline chat guards       | the chat handler's `collectGuardFloors()` (server route-handler) |
-| `lib/app/guard-event-contributors.ts`      | observe an inline chat guard firing           | the chat handler's `emitGuardEvent()` (server route-handler)     |
+| Edit this file                             | To register                                        | Auto-wired by (runtime)                                               |
+| ------------------------------------------ | -------------------------------------------------- | --------------------------------------------------------------------- |
+| `lib/app/env.ts`                           | server env vars (`appEnvSchema`)                   | `lib/env.ts` startup parse (server)                                   |
+| `lib/app/rate-limit.ts`                    | rate-limit tiers / rules                           | rate-limit middleware (middleware runtime)                            |
+| `lib/app/protected-routes.ts`              | extra authed route prefixes (append)               | `proxy.ts` edge redirect-to-login (proxy runtime)                     |
+| `lib/app/capabilities.ts`                  | agent capabilities (tools)                         | the capability registry (server route-handler)                        |
+| `lib/app/context-contributors.ts`          | prompt-context loaders (`buildContext` types)      | the chat context builder (server route-handler)                       |
+| `lib/app/admin-nav.ts`                     | admin sidebar sections                             | `admin-sidebar.tsx` (client)                                          |
+| `lib/app/db-drift.ts`                      | Prisma-unmodelled DB objects                       | `scripts/db/check-drift.ts` (CI / `/pre-pr`)                          |
+| `lib/app/public-nav.ts`                    | public nav / footer link lists                     | `public-nav.tsx`, `public-footer.tsx` (client)                        |
+| `lib/app/protected-nav.ts`                 | authenticated nav link list                        | `protected-nav.tsx` (client)                                          |
+| `lib/app/auth-landing.ts`                  | where a signed-in user lands, and its label        | `lib/auth-landing/route.ts` → a dozen sites (proxy + server + client) |
+| `lib/app/emails.ts`                        | auth email template overrides                      | `lib/email/registry.ts` (server)                                      |
+| `lib/app/bootstrap.ts`                     | one-time server boot work (`initApp`)              | `instrumentation.ts` `register()` (server, all envs)                  |
+| `lib/app/user-created.ts`                  | react to a new account (`initAppUserCreatedHooks`) | better-auth `user.create.after` (server)                              |
+| `lib/app/jobs.ts`                          | recurring background work (`initAppJobs`)          | the maintenance tick (server)                                         |
+| `lib/app/eslint.config.mjs`                | ESLint import-boundary blocks (fork tiers)         | root `eslint.config.mjs` spread (lint)                                |
+| `lib/app/knowledge-access-contributors.ts` | extra docs for a restricted agent                  | `resolveAgentDocumentAccess()` (server route-handler)                 |
+| `lib/app/guard-floor-contributors.ts`      | per-turn minimum for inline chat guards            | the chat handler's `collectGuardFloors()` (server route-handler)      |
+| `lib/app/guard-event-contributors.ts`      | observe an inline chat guard firing                | the chat handler's `emitGuardEvent()` (server route-handler)          |
+| `lib/app/csp.ts`                           | extra CSP `frame-src` origins                      | `lib/security/headers.ts` → `proxy.ts` (middleware runtime)           |
+| `lib/app/agent-fields.ts`                  | extra `AiAgent` config fields                      | the agent field registry (server + agent form)                        |
+| `lib/app/surface.ts`                       | which URLs count as `admin` vs `consumer`          | `proxy.ts` classification + `<SurfaceSync>` (proxy + client)          |
 
-**Why four files and not one bootstrap call?** Next.js bundles middleware,
+> **Filling a seam is expected to fail one row of a core test.**
+> `tests/unit/lib/app/defaults.test.ts` asserts every seam ships empty — that
+> contract is what stops a stray default from applying to every install. When you
+> fill a seam, **pin the new value** in that file's `SEAM_DEFAULTS` table rather
+> than deleting the row (`expect(appEslintConfig).toEqual(myTierConfig)`, not a
+> deletion). Pinning keeps the protection for the seams you have _not_ filled.
+> One row per seam, so your diff stays a line — see the FORK NOTE at the top of
+> that file.
+
+**Why one file per concern and not one bootstrap call?** Next.js bundles middleware,
 server route-handlers, and the client as three separate module realms — a
 registration only takes effect in the realm where it runs. So each concern lives
 in its own file, imported by the consumer in the matching realm. (It also keeps
@@ -286,6 +333,77 @@ carries zero framework vocabulary. A **framework-layer fork** (see the two-tier
 model below) boots its tier in `bootstrap.ts` and then delegates to a fresh
 reserved leaf hook (e.g. `lib/app/leaf-bootstrap.ts`), so a leaf-on-framework
 fork can still hook boot without colliding on `bootstrap.ts`.
+
+**Reacting to a new account — `lib/app/user-created.ts`.** To provision a
+profile row, seed a default workspace, start an onboarding sequence or push to a
+CRM when someone signs up, fill the empty `initAppUserCreatedHooks()`:
+
+```typescript
+// lib/app/user-created.ts — yours to edit
+import { registerUserCreatedHook } from '@/lib/auth/user-created-hooks';
+
+export function initAppUserCreatedHooks(): void {
+  registerUserCreatedHook('app:seed-workspace', async ({ userId, email, signupMethod }) => {
+    await prisma.appWorkspace.create({ data: { ownerId: userId, name: email } });
+  });
+}
+```
+
+better-auth's `user.create.after` hook calls the initializer once, then
+dispatches every registered hook. The context is
+`{ userId, email, name, signupMethod, viaInvitation }` — `signupMethod`
+distinguishes OAuth (address already verified) from email/password (not yet),
+and `viaInvitation` tells you the address was already proven.
+
+Hooks run **after** the user row exists, so one **cannot reject a signup**: a
+throw is logged and ignored rather than failing account creation, because the
+account is already there. Pre-creation rejection happens in `userCreateBeforeHook`
+(`lib/auth/config.ts`, better-auth's `databaseHooks.user.create.before`), which
+throws an `APIError` — that is where the reserved-address and
+OAuth-invitation-mismatch refusals live. There is no fork seam for it today; a
+fork that needs one edits that hook. Hooks are dispatched together, so a slow one delays the
+others — hand long work to a queue rather than awaiting it here. The `key` is
+for logging and for replacing a registration; register the same key twice and
+the second wins.
+
+**Recurring background work — `lib/app/jobs.ts`.** To run periodic work on the
+existing maintenance tick instead of standing up a second scheduler, fill the
+empty `initAppJobs()`:
+
+```typescript
+// lib/app/jobs.ts — yours to edit
+import { registerAppJob } from '@/lib/orchestration/maintenance/app-jobs';
+
+export function initAppJobs(): void {
+  registerAppJob({
+    name: 'app:prune-draft-invoices',
+    intervalMs: 6 * 60 * 60 * 1000, // 6 hours
+    run: async () => {
+      const { count } = await prisma.appInvoice.deleteMany({/* … */});
+      return { pruned: count }; // folded into the tick's log line
+    },
+  });
+}
+```
+
+`intervalMs` is a **minimum gap, not a guarantee**, and last-run times live in
+process memory. So a multi-instance deployment runs each job roughly once per
+instance per interval, and a restart re-arms everything. **Write jobs to be
+idempotent.** If a job must run exactly once cluster-wide it needs its own
+lease — see `execution-reaper` for that pattern.
+
+Three behaviours worth knowing:
+
+- **A slow job never stacks up.** A job still running from an earlier tick is
+  skipped, however long ago it became due — so a 5-minute job on a 1-minute
+  interval does not accumulate concurrent runs.
+- **A non-positive or `NaN` `intervalMs` is refused at registration**, loudly,
+  rather than defaulted. A job silently running every tick is worse than a
+  visible refusal.
+- **Failures are contained.** Jobs run in parallel; one throwing is logged, its
+  error folded into the tick's summary, and the others are unaffected. Whatever
+  `run()` returns is folded into the tick's log line, so return a small count
+  object rather than logging yourself.
 
 **ESLint boundary rules + CI checks — `lib/app/eslint.config.mjs`.** To enforce
 your tier's own import boundary (e.g. a `framework ↔ core` rule), add flat-config
@@ -406,6 +524,21 @@ direct grants follow) so the cached decision re-composes. See
 `initAppNav()` with `registerNavSection({ … })` calls; the admin sidebar renders
 your sections after the core ones. Keep this file client-safe (registrar + icon
 imports only — no server code). Use a `title` distinct from the core sections.
+To render your own brand lockup as the section header instead of the default
+uppercase label, pass `titleNode` (any `ReactNode`); `title` stays required and
+remains the React key, the registry's dedupe key, and the heading's accessible
+name, so a wordmark image can't cost you the label.
+
+**Third-party iframes — `lib/app/csp.ts`.** `frame-src` is `'self'` in both the
+dev and prod CSP. If your app embeds a third-party iframe (an onboarding or
+marketing video is the usual case), list the hosts in `appFrameSrc` rather than
+editing `lib/security/headers.ts`; the platform folds them into the global CSP.
+Only exact `https://` origins are accepted (a left-most wildcard and a port are
+fine) — anything else is dropped and logged at warn, because these values are
+spliced into a response header. Keep the list exactly as broad as the feature:
+build iframe `src`s only on these hosts from a **validated id**, never from an
+admin's raw input, so a hostile stored value yields no iframe at all. See
+[`.context/security/overview.md`](./.context/security/overview.md#third-party-iframes--the-frame-src-seam).
 
 **Database drift probes — `lib/app/db-drift.ts`.** Register the Prisma-_unmodelled_
 DB objects your app adds — hand-written FK constraints, custom indexes (GIN/HNSW),
@@ -425,8 +558,11 @@ using the probe factories from `@/lib/db/drift-probes` (`indexExists`,
 **Modifying the schema:**
 
 - Edit the schema in `prisma/schema/` — Sunrise's models are split into domain
-  files there; **put your own app models in `prisma/schema/app.prisma`** to keep
-  them clearly separate from the platform's
+  files there; **put your own app models in `prisma/schema/app.prisma`**, which
+  Sunrise ships **empty** and never adds models to (the platform's own
+  app-domain models live in `platform.prisma`). It is fork-reserved in the same
+  way `lib/app/**` and `.context/app/` are, so your models there merge cleanly
+  on every upstream sync
 - Add/modify models as needed
 - Create + apply a migration: `npm run db:migrate:dev` (dev) /
   `npm run db:migrate:deploy` (prod / CI)
@@ -659,21 +795,36 @@ touches so that merge stays clean.
 - ✅ **Add your app's scripts under an `app:*` namespace** — e.g.
   `app:import`, `app:report`, `app:backfill`. Namespacing guarantees they never
   collide with a script a future Sunrise release adds.
+- ✅ **A framework-tier fork uses `framework:*`** — if you sit _between_ Sunrise
+  and your own leaf forks (see the two reserved tiers in
+  [The app/platform model](#the-appplatform-model)), take `framework:*` and leave
+  `app:*` free for the forks downstream of you. Same rule, one tier up.
 - ❌ **Never edit or remove an existing Sunrise script.** Wrap it from an
-  `app:*` script if you need to extend its behavior.
+  `app:*` (or `framework:*`) script if you need to extend its behavior.
 
 ```jsonc
 {
   "scripts": {
     "dev": "next dev", // ← Sunrise-owned: leave untouched
-    "app:import": "tsx scripts/app/import.ts", // ← yours: app:* namespace
+    "app:import": "tsx scripts/app/import.ts", // ← leaf fork: app:* namespace
     "app:report": "tsx scripts/app/report.ts",
+    "framework:sync": "tsx scripts/framework/sync.ts", // ← framework tier
   },
 }
 ```
 
+The same split applies to the `scripts/` directory itself: `scripts/app/` is
+leaf-fork-owned, `scripts/framework/` is framework-tier-owned, and everything
+else under `scripts/` is Sunrise's. Neither subdirectory exists upstream — that
+is what lets a fork create one without a merge conflict.
+
+Two script names are **called by CI if they exist** and are otherwise a no-op:
+`app:ci-checks` and `framework:ci-checks` (see the `lint` job in
+`.github/workflows/ci.yml`). Define one to run your own boundary checks or
+migration-hygiene lint on every PR without editing the workflow.
+
 Following this convention means `package.json` merges cleanly on every upgrade:
-your dependencies and `app:*` scripts sit in regions upstream never edits.
+your dependencies and namespaced scripts sit in regions upstream never edits.
 
 ---
 
@@ -795,8 +946,10 @@ the database migration history — your app's migrations and Sunrise's share one
 directory.
 
 **What does _not_ conflict.** Your own new files (routes, components, `lib/`
-modules, `prisma/schema/app.prisma`, and your docs under `.context/app/`) are
-invisible to upstream, so they never conflict. The `lib/app/` bootstrap files ([§4](#4-configuration--environment--the-libapp-surface))
+modules, and your docs under `.context/app/`) are invisible to upstream, so they
+never conflict. `prisma/schema/app.prisma` is fork-reserved the same way —
+Sunrise ships it empty and adds no models to it, so the models you put there
+survive every sync untouched. The `lib/app/` bootstrap files ([§4](#4-configuration--environment--the-libapp-surface))
 are **fork-owned scaffold**: Sunrise ships them empty and doesn't re-edit them,
 so the registrations you add there merge cleanly too — no special handling. The
 files that _can_ conflict are the ones both you and upstream edit (the migration
