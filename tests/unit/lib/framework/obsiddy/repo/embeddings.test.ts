@@ -340,9 +340,40 @@ describe('assertObsiddyModelMatchesStoredVectors', () => {
     await expect(assertObsiddyModelMatchesStoredVectors(SCOPE)).rejects.toThrow(
       /text-embedding-3-large.*3072-dim.*text-embedding-3-small.*1536 dims/s
     );
+    // Three arguments, not two: `logger.error` is `(message, error?, meta?)`, so
+    // context passed 2nd would be buried as JSON inside `entry.error.message`.
     expect(logger.error).toHaveBeenCalledWith(
       'Obsiddy embedding dimension guard failed',
+      expect.any(Error),
       expect.objectContaining({ activeModel: 'text-embedding-3-large', activeDimensions: 3072 })
+    );
+
+    // The reason this log is kept at all is that it names *which* model produced
+    // the stale vectors — a thrown string is not queryable. Assert the field
+    // rather than the call shape, or a refactor can silently drop it again.
+    const meta = vi.mocked(logger.error).mock.calls[0]?.[2] as {
+      stored?: Array<{ dimension: number | null; count: number; model: string }>;
+    };
+    expect(meta.stored).toEqual([{ dimension: 1536, count: 200, model: 'text-embedding-3-small' }]);
+  });
+
+  it('logs no stored buckets when the guard fails on a genuine database fault', async () => {
+    // A DB error means the guard never formed an opinion, so `stored` must be
+    // empty rather than listing buckets it never objected to. The caught error
+    // must still reach the logger and still propagate.
+    getActiveEmbeddingModelSummary.mockResolvedValue({
+      modelId: 'text-embedding-3-large',
+      dimensions: 3072,
+    });
+    const boom = new Error('connection terminated unexpectedly');
+    vi.mocked(prisma.obsiddyEmbedding.groupBy).mockRejectedValue(boom);
+
+    await expect(assertObsiddyModelMatchesStoredVectors(SCOPE)).rejects.toThrow(boom);
+
+    expect(logger.error).toHaveBeenCalledWith(
+      'Obsiddy embedding dimension guard failed',
+      boom,
+      expect.objectContaining({ stored: [] })
     );
   });
 

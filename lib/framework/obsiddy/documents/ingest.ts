@@ -464,8 +464,12 @@ function resolveRetentionCapability(): RetentionCapability {
  * route branches on.
  *
  * Two things have to be true for `capable`: the provider stores objects privately,
- * and it can sign a URL. `getSignedUrl` is optional on the interface, and the local
- * provider writes into a statically-served directory.
+ * and it can sign a URL. Both come from the provider's declared `capabilities`,
+ * where an absent field means "cannot" — see `resolveRetentionCapability()`. Do
+ * not reintroduce a check on the provider's *name*: since sunrise#490 the local
+ * provider has a private root and a signed read route, so a name check would
+ * refuse a provider that is now capable and trust any future one that simply
+ * isn't called `local`.
  */
 export function canServeRetainedOriginals(): {
   capable: boolean;

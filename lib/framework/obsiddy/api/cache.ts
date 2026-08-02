@@ -24,6 +24,10 @@
  * `private, no-cache`, deliberately not `no-store`: `private` keeps shared
  * caches out, `no-cache` still lets the browser store a copy and revalidate.
  * `no-store` would forbid keeping it at all.
+ *
+ * Re-exported from upstream rather than re-declared, so the raw-`Response` route
+ * and the envelope routes cannot drift: a copied string would make the alignment
+ * this module exists to guarantee coincidental instead of structural.
  */
 
-export const PRIVATE_NO_CACHE = 'private, no-cache';
+export { DEFAULT_CACHE_CONTROL as PRIVATE_NO_CACHE } from '@/lib/api/responses';

@@ -63,6 +63,19 @@ const URL_NORMALIZE_STRIP =
 /* eslint-enable no-control-regex */
 
 /**
+ * The three characters the WHATWG URL parser removes from *anywhere* in a URL
+ * before it reads the authority: ASCII tab (U+0009), LF (U+000A), CR (U+000D).
+ *
+ * Deliberately narrower than `URL_NORMALIZE_STRIP`. That one guards *scheme*
+ * inspection, where discarding the whole C0-plus-space range costs nothing
+ * because the result is only ever compared, never returned. This one is applied
+ * to a path that is returned and then navigated to, and that range includes the
+ * space — so reusing it would turn a legitimate `/search?q=two words` into
+ * `/search?q=twowords`.
+ */
+const URL_AUTHORITY_STRIP = /[\t\n\r]/g;
+
+/**
  * Escape HTML entities to prevent XSS
  *
  * Use this for user-generated content that will be rendered as text.
@@ -253,7 +266,10 @@ export function sanitizeRedirectUrl(
  */
 export function safeCallbackUrl(url: string | null, fallback: string = '/'): string {
   if (!url || typeof url !== 'string') return fallback;
-  const trimmed = url.trim();
+  // Normalise BEFORE validating, and return the normalised value — so the string
+  // that reaches `router.push()` is byte-for-byte the one that was judged safe.
+  // Returning the raw input instead would re-open the hole the strip closes.
+  const trimmed = url.trim().replace(URL_AUTHORITY_STRIP, '');
   if (isRootRelativePath(trimmed)) return trimmed;
   return fallback;
 }
@@ -267,9 +283,22 @@ export function safeCallbackUrl(url: string | null, fallback: string = '/'): str
  * resolves to `//evil.com` — a different origin — even though it doesn't
  * literally start with `//`. `new URL('/\\evil.com', 'https://good.example.com')`
  * confirms this: its `.href` is `https://evil.com/`.
+ *
+ * It also strips tab/LF/CR first, because a *structural* judgement on `path[1]`
+ * is only sound if it inspects what the parser will actually see. The WHATWG
+ * parser removes those three from anywhere in the input before reading the
+ * authority, and `trim()` only reaches the ends — so `/<TAB>/evil.com` cleared
+ * both the `startsWith('/')` and the `path[1] !== '/'` test, then collapsed to
+ * `//evil.com` in the browser. Verified: `new URL('/\t/evil.com', base).href`
+ * is `https://evil.com/`. Same for LF and CR, and for `/<TAB>\evil.com`.
+ *
+ * FORK NOTE (Obsiddy): this strip is a local edit to a Sunrise-owned file —
+ * filed upstream as sunrise#506 (ask #20). Revert it the moment that lands; the
+ * rest of the function is upstream's.
  */
 export function isRootRelativePath(path: string): boolean {
-  return path.startsWith('/') && path[1] !== '/' && path[1] !== '\\';
+  const seen = path.replace(URL_AUTHORITY_STRIP, '');
+  return seen.startsWith('/') && seen[1] !== '/' && seen[1] !== '\\';
 }
 
 import { isRecord } from '@/lib/utils';

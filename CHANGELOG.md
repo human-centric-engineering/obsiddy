@@ -18,6 +18,22 @@ release process.
 
 ### Security
 
+- **`isRootRelativePath()` / `safeCallbackUrl()` no longer pass a tab, LF or CR
+  hidden inside a redirect path.** The guard judged `path[1]` on the raw string,
+  but the WHATWG URL parser removes those three characters from _anywhere_ in a
+  URL before it reads the authority, and `trim()` only reaches the ends — so
+  `/<TAB>/evil.com` cleared both the leading-slash and the `path[1]` test, then
+  collapsed to `//evil.com` in the browser. Reachable as
+  `/login?callbackUrl=/%09/evil.com`, which hard-navigates a user off-origin
+  immediately after a genuine successful login. The strip is deliberately
+  tab/LF/CR only and not the wider `URL_NORMALIZE_STRIP` used for scheme
+  inspection, because that range includes the space and would rewrite a
+  legitimate `/search?q=two words`; `safeCallbackUrl()` now returns the
+  normalised value, so the string that reaches `router.push()` is the one that
+  was judged safe. The OAuth path was never affected — better-auth applies its
+  own stricter allowlist. Carried as a local patch to a Sunrise-owned file
+  pending [sunrise#506](https://github.com/human-centric-engineering/sunrise/issues/506).
+
 - **The chat handler now refuses tool names outside the agent's advertised
   set.** Dispatch previously took the tool name straight off the model's emitted
   call, while the dispatcher synthesizes a default-ALLOW binding when no
@@ -551,7 +567,15 @@ release process.
   **wrong in both directions** — it would refuse a local provider that can now
   hold objects privately, and go on trusting any future provider that simply
   isn't called `local`. It now reads `getStorageCapabilities()`, where an
-  undeclared capability means "cannot".
+  undeclared capability means "cannot". **Upgrade note for S3 deployments:** S3
+  declares `privateObjects: useAcl || privateByDefault`, and both default to
+  false. An install on `STORAGE_PROVIDER=s3` with neither `S3_USE_ACL` nor
+  `S3_OBJECTS_PRIVATE_BY_DEFAULT` set, and `documentOriginals: 'retain'`, will
+  stop retaining new uploads _and_ start returning 404 from
+  `GET /api/v1/obsiddy/documents/[id]/download` for originals it already holds.
+  That is the correct fail-closed answer — nothing can distinguish that bucket
+  from a wide-open one — and the admin settings page names the reason on screen.
+  Set `S3_OBJECTS_PRIVATE_BY_DEFAULT=true` to restore retention.
 - **Obsiddy: `assertObsiddyModelMatchesStoredVectors` delegates to the platform
   guard** exported by #491, instead of carrying ~40 duplicated lines. The fork
   still supplies owner-scoped closures — an unscoped aggregate would make one

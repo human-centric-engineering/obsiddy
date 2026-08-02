@@ -615,6 +615,13 @@ export async function markSwept(
 export async function assertObsiddyModelMatchesStoredVectors(scope: OwnerScope): Promise<void> {
   /** Filled by `groupByDimension` on the way past, so the log can name buckets. */
   const buckets: Array<{ dimension: number | null; count: number }> = [];
+  /**
+   * Filled by `exemplarModel`, which the guard calls only for *mismatched*
+   * dimensions. Recording it here is what keeps the model name in the log —
+   * `buckets` alone cannot carry it, and naming the model that produced the
+   * stale vectors is the whole reason this log exists.
+   */
+  const exemplarModels = new Map<number | null, string | null>();
 
   try {
     await assertStoredVectorDimensions({
@@ -640,7 +647,9 @@ export async function assertObsiddyModelMatchesStoredVectors(scope: OwnerScope):
           where: { ...ownerWhere(scope), embeddingDimension: dimension },
           select: { embeddingModel: true },
         });
-        return row?.embeddingModel ?? null;
+        const model = row?.embeddingModel ?? null;
+        exemplarModels.set(dimension, model);
+        return model;
       },
     });
   } catch (error) {
@@ -648,10 +657,20 @@ export async function assertObsiddyModelMatchesStoredVectors(scope: OwnerScope):
     // call — the guard already resolves it, and this runs on every search.
     const active = await getActiveEmbeddingModelSummary().catch(() => null);
 
-    logger.error('Obsiddy embedding dimension guard failed', {
+    // Only the buckets the guard actually objected to. On a genuine DB fault
+    // `exemplarModels` is empty and this is `[]`, which is the honest answer:
+    // the guard failed before it could form an opinion.
+    const stored = buckets
+      .filter((bucket) => exemplarModels.has(bucket.dimension))
+      .map((bucket) => ({ ...bucket, model: exemplarModels.get(bucket.dimension) ?? 'unknown' }));
+
+    // `error` goes in the second slot, not the third: `logger.error` is
+    // `(message, error?, meta?)`, so passing context as the 2nd argument would
+    // bury it as a JSON blob inside `entry.error.message` and drop the cause.
+    logger.error('Obsiddy embedding dimension guard failed', error, {
       activeModel: active?.modelId,
       activeDimensions: active?.dimensions,
-      stored: buckets,
+      stored,
     });
     throw error;
   }

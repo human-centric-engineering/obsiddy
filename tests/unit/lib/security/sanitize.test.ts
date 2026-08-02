@@ -274,6 +274,25 @@ describe('Input Sanitization', () => {
       expect(safeCallbackUrl('/\\evil.com', '/dashboard')).toBe('/dashboard');
     });
 
+    it('should block tab/LF/CR-obfuscated protocol-relative URLs', () => {
+      // The WHATWG parser removes tab/LF/CR from anywhere before reading the
+      // authority, and trim() only reaches the ends — so these cleared both the
+      // startsWith('/') and the path[1] check, then collapsed to //evil.com.
+      // Asserted against the parser rather than a literal so the test states the
+      // property that matters: the result cannot resolve off-origin.
+      const base = 'https://good.example.com';
+      for (const payload of ['/\t/evil.com', '/\n/evil.com', '/\r/evil.com', '/\n\\evil.com']) {
+        const out = safeCallbackUrl(payload, '/dashboard');
+        expect(new URL(out, base).origin).toBe(base);
+      }
+    });
+
+    it('should not corrupt a legitimate path containing a space', () => {
+      // The strip is tab/LF/CR only. Widening it to the C0-plus-space range used
+      // for scheme inspection would silently rewrite this query.
+      expect(safeCallbackUrl('/search?q=two words')).toBe('/search?q=two words');
+    });
+
     it('should block dangerous protocols', () => {
       expect(safeCallbackUrl('javascript:alert(1)')).toBe('/');
       expect(safeCallbackUrl('data:text/html,<script>alert(1)</script>')).toBe('/');
@@ -300,6 +319,15 @@ describe('Input Sanitization', () => {
     it('should reject protocol-relative and backslash-prefixed paths', () => {
       expect(isRootRelativePath('//evil.com')).toBe(false);
       expect(isRootRelativePath('/\\evil.com')).toBe(false);
+    });
+
+    it('should reject paths the WHATWG parser collapses to protocol-relative', () => {
+      // Direct callers get the same guarantee as safeCallbackUrl:
+      // lib/auth-landing/route.ts validates the fork seam through this function.
+      expect(isRootRelativePath('/\t/evil.com')).toBe(false);
+      expect(isRootRelativePath('/\n/evil.com')).toBe(false);
+      expect(isRootRelativePath('/\r/evil.com')).toBe(false);
+      expect(isRootRelativePath('/\t\\evil.com')).toBe(false);
     });
 
     it('should reject paths with no leading slash', () => {
