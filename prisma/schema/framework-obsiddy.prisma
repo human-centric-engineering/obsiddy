@@ -708,7 +708,7 @@ model ObsiddyDocument {
   /// SHA-256 — a re-upload of the same bytes dedupes on this.
   fileHash String
 
-  mimeType String
+  mimeType   String
   /// Null when the original bytes were not retained — the default.
   ///
   /// Whether an upload's original file is kept is an **operator** decision
@@ -742,7 +742,6 @@ model ObsiddyDocument {
   /// removes every row here. Verified by scripts/smoke/obsiddy-isolation.ts.
   space ObsiddySpace @relation(fields: [userId], references: [userId], onDelete: Cascade)
 
-  @@index([userId, status])
   /// Dedupe is enforced by the DATABASE, not just by the lookup that precedes it.
   ///
   /// `ingestDocument` checks `findDocumentByHash` first, but check-then-insert has
@@ -752,6 +751,7 @@ model ObsiddyDocument {
   /// (a replayed webhook delivery); documents deserve it too. The unique index also
   /// serves the lookup, so it replaces the plain index rather than adding to it.
   @@unique([userId, fileHash])
+  @@index([userId, status])
   @@index([userId, archivedAt])
   @@map("framework_obsiddy_document")
 }

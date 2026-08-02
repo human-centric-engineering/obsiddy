@@ -11,7 +11,7 @@
  *
  *   - the deployment discards originals (`documentOriginals: 'discard'`, default);
  *   - the provider cannot store privately or cannot sign URLs
- *     (`canServeRetainedOriginals()` — the local provider and Vercel Blob today);
+ *     (`canServeRetainedOriginals()` — Vercel Blob today);
  *   - the document has no original because retention failed or was off when it
  *     was uploaded.
  *

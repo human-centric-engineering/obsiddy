@@ -14,11 +14,17 @@ step ever needs you to edit a Sunrise-owned file, that is a bug in Obsiddy —
 open an issue rather than making the edit, because you'd be re-making it on
 every upgrade.
 
-> **Status: phases 0–4.** The tier scaffold, the data model, the CRUD API, the
-> priority engine and the semantic layer (search, indexing, connections, document
-> ingestion) exist — §§1–6 are real and installable today. Steps still marked
-> _(phase N)_ are listed so the checklist grows in place rather than being
-> reconstructed later. This file is updated by every phase.
+> **Status: phases 0–5b.** The tier scaffold, the data model, the CRUD API, the
+> priority engine, the semantic layer (search, indexing, connections, document
+> ingestion) and the UI (twelve surfaces including the kanban board) exist —
+> §§1–6 are real and installable today. Steps still marked _(phase N)_ are listed
+> so the checklist grows in place rather than being reconstructed later. This file
+> is updated by every phase.
+>
+> **Phase 0b is done, upstream.** Both seams Obsiddy needed landed in Sunrise on
+> 2026-07-31 (#469, #473), so §2.10 and §2.11 are now one-line registrations
+> rather than documented workarounds, and installing Obsiddy no longer asks you to
+> edit a Sunrise-owned file at all.
 
 ---
 
@@ -47,12 +53,12 @@ merge cleanly on upgrade:
 | `prisma/schema/framework-obsiddy.prisma` | same path                                                                 |
 | `prisma/seeds/framework-obsiddy/**`      | same path _(phase 6)_                                                     |
 | `.context/framework/obsiddy/**`          | same path                                                                 |
-| `app/api/v1/obsiddy/**`                  | same path — 37 route files, most of them 2 lines                          |
+| `app/api/v1/obsiddy/**`                  | same path — 56 route files, most of them 2 lines                          |
 | `app/api/v1/admin/obsiddy/**`            | same path — the instance-settings pair                                    |
 | `app/admin/obsiddy/**`                   | same path — the settings page                                             |
-| `app/(protected)/obsiddy/**`             | same path _(phase 5)_                                                     |
+| `app/(protected)/obsiddy/**`             | same path — 16 pages across twelve surfaces                               |
 | `scripts/framework/obsiddy/**`           | same path — plus one `package.json` script line, below                    |
-| `components/obsiddy/**`                  | same path — the admin settings form; the rest arrives in _phase 5_        |
+| `components/obsiddy/**`                  | same path — the surfaces, the board, and the admin settings form          |
 
 **The `package.json` lines.** The smoke scripts need entries, and
 `package.json` is the single file Obsiddy cannot avoid touching — npm has no
@@ -68,10 +74,10 @@ include mechanism. Add them as the **last** entries in `scripts`, after
 Namespaced, and deliberately not in the `smoke:*` block:
 [`CUSTOMIZATION.md`](../../../CUSTOMIZATION.md) §7 reserves the unprefixed
 script names — `smoke:*` among them — for the platform, so a fork entry there
-conflicts the next time upstream adds a smoke script. §7 only names the leaf
-tier's `app:*`; the framework tier has no reserved namespace yet, which is ask
-#12 in [`sunrise-asks.md`](./sunrise-asks.md). `framework:<tier>:*` is the shape
-proposed there, and appending after `prepare` keeps the diff in a region
+conflicts the next time upstream adds a smoke script. §7 originally named only
+the leaf tier's `app:*`, leaving a framework tier with nowhere legitimate to put
+a script; that was ask #12 and Sunrise reserved `framework:<tier>:*` for it
+(#483, landed 2026-07-31). Appending after `prepare` keeps the diff in a region
 upstream never edits either way.
 
 If your project already has a framework tier (`lib/framework/daybreak/`, say),
@@ -224,26 +230,77 @@ reach the database. Keep anything you add here to the same rule.
 
 ### 2.9 Chat context — `lib/app/context-contributors.ts` _(phase 6)_
 
-### 2.10 Maintenance tasks — `lib/app/maintenance-tasks.ts` _(phase 7)_
+### 2.10 Recurring jobs — `lib/app/jobs.ts` _(phase 7)_
 
-Requires the `registerAppMaintenanceTask` seam (Sunrise phase 0b). Until it
-lands upstream, the connection sweep and retention pass need one line added to
-`lib/orchestration/maintenance/run-tick.ts` — the single documented exception to
-the zero-core-file rule, and a temporary one.
+The connection sweep and the retention pass register here, via the seam Sunrise
+landed for [#469] on 2026-07-31:
+
+```ts
+import { registerAppJob } from '@/lib/orchestration/maintenance/app-jobs';
+
+export function initAppJobs(): void {
+  registerAppJob({ name: 'obsiddy:sweep', intervalMs: 60 * 60 * 1000, run: … });
+}
+```
+
+Note it is `registerAppJob({ name, intervalMs, run })` and not the
+`registerAppMaintenanceTask` name `plan.md` originally proposed — the plan named
+a seam that did not exist yet, and the one that shipped is shaped slightly
+differently.
+
+**Read the semantics before relying on it.** `intervalMs` is a _minimum gap_, not
+a schedule, and last-run times live in process memory — so a multi-instance
+deployment runs each job roughly once per instance per interval, and a restart
+re-arms everything. Write Obsiddy's sweeps idempotent (they already claim rows
+with `SKIP LOCKED` and stamp `nextSyncAt` before working, which is what makes
+that safe). A job still in flight is skipped rather than started twice; a throw
+is contained and folded into the tick's summary.
+
+[#469]: https://github.com/human-centric-engineering/sunrise/issues/469
 
 ### 2.11 Nav — `lib/app/protected-nav.ts` _(phase 5, **required now**)_
 
-Requires the `protected-nav` seam (Sunrise phase 0b, [#473]). Until it lands, add
-one entry to the `navItems` array in `components/layouts/protected-nav.tsx`:
+Sunrise landed the seam for [#473] on 2026-07-31. Obsiddy offers the item; the
+host places it:
 
-```tsx
-{ href: '/obsiddy', label: 'Obsiddy', icon: Brain, adminOnly: false },
+```ts
+import { DEFAULT_PROTECTED_NAV } from '@/lib/protected-nav/types';
+import { OBSIDDY_NAV_ITEM } from '@/lib/framework/obsiddy/protected-nav';
+
+export const protectedNavItems = [
+  DEFAULT_PROTECTED_NAV[0],
+  OBSIDDY_NAV_ITEM,
+  ...DEFAULT_PROTECTED_NAV.slice(1),
+];
 ```
 
-**This is the only Sunrise-owned file Obsiddy edits.** It is commented in place
-with what to delete when the seam lands. Everything else — the admin nav, the
-rate-limit sub-caps, the drift probes, the boot hook — goes through a
-`lib/app/` seam.
+**The seam replaces the platform default wholesale**, so this spread is not
+optional decoration — omit `DEFAULT_PROTECTED_NAV` and the host loses Profile,
+Settings and Admin from its header. The trade-off you accept by spreading: the
+platform list is pinned as it stood at your upgrade, so a link Sunrise adds later
+needs a re-spread to appear.
+
+Until this landed, installing Obsiddy meant hand-editing
+`components/layouts/protected-nav.tsx` — the one Sunrise-owned file Obsiddy
+touched. **It touches none now.**
+
+#### Optional: land users on `/obsiddy` after login
+
+`lib/app/auth-landing.ts` landed with the same issue and is the other half of the
+problem: a nav link to a product users are never sent to is still a dead end.
+Sunrise hardcoded `/dashboard` at a dozen decision sites — login, OAuth, signup,
+invite acceptance, email verification, the admin "back to…" links, the error
+pages, `proxy.ts` — and this seam resolves all of them at once.
+
+```ts
+export const appAuthLandingRoute = '/obsiddy';
+export const appAuthLandingLabel = 'Obsiddy';
+```
+
+Set the label with the route: leaving it default sends users to `/obsiddy` behind
+a button still saying "Dashboard". **Obsiddy does not set this for you**, and
+deliberately: whether your product _is_ Obsiddy or merely contains it is your
+call, not a framework tier's. This repo leaves it `null`.
 
 [#473]: https://github.com/human-centric-engineering/sunrise/issues/473
 
@@ -272,25 +329,35 @@ what proves the tier is a guest rather than a dependency. Phase 0 stated that as
 it in phase 5 showed it is now incomplete in two ways.
 
 Deleting the tier-owned paths above is **not sufficient** — the build fails with
-eight `Module not found` errors, because the seam files a host _added_ when
-installing still import it. Uninstalling means undoing §2.1–§2.12, not just
-removing files:
+`Module not found`, because the seam files a host _added_ when installing still
+import it. Uninstalling means undoing §2.1–§2.12, not just removing files:
 
-| Revert                                              | What it registered             |
-| --------------------------------------------------- | ------------------------------ |
-| `lib/app/bootstrap.ts`, `lib/app/leaf-bootstrap.ts` | the boot hook                  |
-| `lib/app/env.ts`                                    | `obsiddyEnvSchema`             |
-| `lib/app/rate-limit.ts`                             | the four sub-caps              |
-| `lib/app/admin-nav.ts`                              | the admin section              |
-| `lib/app/db-drift.ts`                               | the six drift probes           |
-| `lib/app/protected-routes.ts`                       | `/obsiddy`                     |
-| `lib/app/eslint.config.mjs`                         | the tier lint boundary         |
-| `lib/framework/eslint.config.mjs`                   | (tier-owned; delete it)        |
-| `components/layouts/protected-nav.tsx`              | the one core-file line (§2.11) |
-| `app/api/v1/admin/obsiddy/**`                       | the admin settings pair        |
+| Revert                                              | What it registered                              |
+| --------------------------------------------------- | ----------------------------------------------- |
+| `lib/app/bootstrap.ts`, `lib/app/leaf-bootstrap.ts` | the boot hook                                   |
+| `lib/app/env.ts`                                    | `obsiddyEnvSchema`                              |
+| `lib/app/rate-limit.ts`                             | the four sub-caps                               |
+| `lib/app/admin-nav.ts`                              | the admin section                               |
+| `lib/app/db-drift.ts`                               | the six drift probes                            |
+| `lib/app/protected-routes.ts`                       | `/obsiddy`                                      |
+| `lib/app/protected-nav.ts`                          | the header link — back to `null` (§2.11)        |
+| `lib/app/auth-landing.ts`                           | only if you set it — back to `null` (§2.11)     |
+| `lib/app/jobs.ts`                                   | the sweep and retention jobs (phase 7, §2.10)   |
+| `lib/app/eslint.config.mjs`                         | the tier lint boundary                          |
+| `lib/framework/eslint.config.mjs`                   | (tier-owned; delete it)                         |
+| `tests/unit/lib/app/defaults.test.ts`               | the pinned `SEAM_DEFAULTS` rows — back to empty |
+| `app/api/v1/admin/obsiddy/**`                       | the admin settings pair                         |
 
-**Verified 2026-07-30**: with the table above deleted _and_ these ten reverted,
-`npm run build` compiles successfully. Anything less does not.
+**Verified 2026-07-30** against the pre-merge list (ten reverts, one of them the
+`protected-nav.tsx` core-file line): with the table above deleted and those
+reverted, `npm run build` compiles.
+
+**Updated 2026-07-31, not re-verified.** The 2026-07-31 upstream merge moved the
+nav entry off the core file and onto `lib/app/protected-nav.ts`, and added two
+rows a host may have filled. The list is right by construction — every row is a
+seam Obsiddy asks a host to fill in §2 — but the build has not been re-run
+against it since. **Re-verify before relying on it**, and treat that as the CI
+check risk 1b calls for rather than a one-off.
 
 Two consequences worth stating: the check needs a clean `.next` (stale generated
 route types reference deleted pages and produce misleading `tsc` errors), and a CI
@@ -367,24 +434,28 @@ load, first capture, first agent turn. It is idempotent and race-safe.
 extracted text and embeds it; the original file is optional and **discarded by
 default**.
 
-That default is a security decision, not a frugal one. Sunrise's
-`StorageProvider` interface has `upload`, `delete`, `deletePrefix` and an
-_optional_ `getSignedUrl` — **there is no read method at all** — and
-`LocalProvider` ignores `public: false`, writing into `public/uploads/`, which
-Next serves statically at a guessable URL. So on a default install, retaining a
-user's uploaded PDF would publish it.
+That default is a security decision, not a frugal one: retaining a file is only
+safe if the provider can hold it privately **and** hand it back, and not every
+one can. Obsiddy asks the provider rather than recognising it by name — it reads
+`getStorageCapabilities()`, where an undeclared capability means "cannot", so a
+provider added later is refused until it says otherwise.
 
-| Provider      | Retention                                                        |
-| ------------- | ---------------------------------------------------------------- |
-| `s3`          | Safe — private objects, signed download URLs                     |
-| `local`       | **Unsafe** — `public/uploads/` is world-readable                 |
-| `vercel-blob` | Unsupported — no `getSignedUrl`, so a private file is unreadable |
-| none          | Nothing to retain                                                |
+| Provider      | Retention                                                                                                              |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `s3`          | Safe — **provided** ACLs are on or `S3_OBJECTS_PRIVATE_BY_DEFAULT=true`; without either it declares no private objects |
+| `local`       | Safe since sunrise#490 — private root plus a signed read route. **Before that it published what it stored**            |
+| `vercel-blob` | Unsupported — cannot store an object privately                                                                         |
+| none          | Nothing to retain                                                                                                      |
 
 The settings page names your resolved provider, explains what it can do, and
 disables the retain option where it isn't safe — so this is a decision you can
-make from the screen without reading this table. Sunrise ask filed for a
-private-read seam; when it lands, retention becomes available everywhere.
+make from the screen without reading this table.
+
+**A capable provider makes retention possible, not advisable.** The default stays
+`discard` on every provider: bytes you don't keep can't leak, and the extracted
+text plus embedding chunks are what the product actually uses. The capability
+check exists so that choosing `retain` is informed, not so that it becomes the
+recommendation.
 
 The same page carries the **upload ceiling** (default 25 MB). Sunrise ships two
 contradictory caps — 5 MB global in `lib/validations/storage.ts` and 50 MB local

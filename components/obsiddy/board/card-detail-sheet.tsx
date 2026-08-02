@@ -140,7 +140,7 @@ function CardDetailBody({
 
     // The whole set, not a delta — the endpoint replaces for exactly this reason.
     const ok = await run(() =>
-      apiClient.patch(OBSIDDY_API.taskTags(taskId), { body: { tagIds: next } })
+      apiClient.put(OBSIDDY_API.taskTags(taskId), { body: { tagIds: next } })
     );
 
     if (ok) router.refresh();

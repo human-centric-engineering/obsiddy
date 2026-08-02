@@ -18,7 +18,7 @@ Namespaced _inside_ the tier, never at its root — so a project already running
 
 ## The two rules
 
-1. **Obsiddy touches zero Sunrise-owned files.** Every such edit is a merge conflict inflicted on every host project. Two seams need upstreaming to Sunrise before that holds (`lib/app/maintenance-tasks.ts`, `lib/app/protected-nav.ts`) — see the plan, phase 0b.
+1. **Obsiddy touches zero Sunrise-owned files** — as of the 2026-07-31 upstream merge, this is literally true rather than aspirational. Every such edit is a merge conflict inflicted on every host project. The two seams that were missing landed upstream: `lib/app/jobs.ts` + `registerAppJob` ([sunrise#469](https://github.com/human-centric-engineering/sunrise/issues/469)) and `lib/app/protected-nav.ts` ([sunrise#473](https://github.com/human-centric-engineering/sunrise/issues/473)). Neither carries the name `plan.md` proposed for it.
 2. **Seeds number from `001` inside `prisma/seeds/framework-obsiddy/`.** The runner discovers seeds recursively and `SeedHistory` keys on the path relative to `prisma/seeds/`, so Obsiddy's numbering cannot collide with a host's own seeds.
 
 ## Contents
@@ -45,7 +45,7 @@ Namespaced _inside_ the tier, never at its root — so a project already running
 | Rate-limit sub-caps                     | `lib/app/rate-limit.ts` → `registerObsiddyRateLimits()` (search, reindex, sweep, upload)                                                                                                                    |
 | Admin nav                               | `lib/app/admin-nav.ts` → `registerObsiddyAdminNav()`                                                                                                                                                        |
 | Drift probes                            | `lib/app/db-drift.ts` → `registerObsiddyDriftProbes()` (six, B1 + B3–B7)                                                                                                                                    |
-| Protected nav                           | one entry in `components/layouts/protected-nav.tsx` — **the PR's only core-file edit**, see ask #2                                                                                                          |
+| Protected nav                           | `lib/app/protected-nav.ts` spreads `OBSIDDY_NAV_ITEM` — was a core-file edit until sunrise#473 landed 2026-07-31                                                                                            |
 | Schema                                  | 19 models in `prisma/schema/framework-obsiddy.prisma`                                                                                                                                                       |
 | Migrations                              | `add_second_brain`, `obsiddy_space_cascade`, `obsiddy_document_originals`, `obsiddy_sweep_cursor`, `obsiddy_document_hash_unique`, `obsiddy_connection_floor` — all hand-edited, never regenerate           |
 | Repo layer                              | `lib/framework/obsiddy/repo/*` — `OwnerScope`, 16 modules                                                                                                                                                   |
@@ -133,16 +133,24 @@ Six properties, each invisible when it breaks:
 
 Proven by `npm run framework:obsiddy:smoke-search` against a real database: 26 assertions over the pgvector SQL, the tsvector ranking, cross-user isolation (including the case where another user's row is the _better_ vector match), the sweep, the tombstone and the archive transaction. It runs with real embeddings when a provider is configured and with deterministic synthetic vectors when not — printing which, because a green run should never claim more than it proved.
 
-Next: **phase 6** (the agent layer — capabilities, agents, the `obsiddy-core` profile, provenance and the chat page). **Phase 0b** (upstreaming two seams to Sunrise) is a separate PR against the template and is tracked in [`sunrise-asks.md`](./sunrise-asks.md).
+Next: **phase 6** (the agent layer — capabilities, agents, the `obsiddy-core`
+profile, provenance and the chat page). **Phase 0b is done** — Sunrise landed
+both seams itself on 2026-07-31, and the merge that brought them in also cleared
+phase 6's one known blocker ([sunrise#462](https://github.com/human-centric-engineering/sunrise/issues/462):
+boot-registered capabilities and context contributors were silently lost at
+request time under Turbopack, which is exactly what `initObsiddy()` does). Eleven
+upstream asks landed in that window; see [`sunrise-asks.md`](./sunrise-asks.md) →
+Landed for what each changed here.
 
-Two deviations from `plan.md` were recorded during phase 5:
+One deviation from `plan.md` stands from phase 5:
 
 - §16.8b's entity assertion now targets **`GET /obsiddy/entities/[id]/view`**. The
   generic `[id]` handler stays deliberately bare — threading `?include=` through
   `createItemHandlers` would push page-shaped concerns into the one factory that
   guarantees the isolation rules for twenty routes.
-- **Card aging measures `updatedAt`, not time-in-column.** §12 asks for the last
-  status-change event, but `ObsiddyEvent` records `updated` without recording _which
-  field_ changed, and a per-card event read would undo the board's batching. The UI
-  says "untouched for 11 days" — true, useful for the case that matters, and not a
-  claim the data can support otherwise.
+
+A second deviation — card aging measuring `updatedAt` rather than time-in-column —
+was **closed** by `14b6b324`, which added `{ statusFrom, statusTo }` to the
+`updated` event only when the status actually changed, and reads the newest per
+card in one `DISTINCT ON`. Cards with no such event still fall back to "untouched
+since", worded differently so the two are never confused.

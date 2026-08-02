@@ -23,7 +23,6 @@ import { NotFoundError } from '@/lib/api/errors';
 import { successResponse } from '@/lib/api/responses';
 import { validateQueryParams } from '@/lib/api/validation';
 import { withAuth } from '@/lib/auth/guards';
-import { PRIVATE_NO_CACHE } from '@/lib/framework/obsiddy/api/cache';
 import { ownerScope } from '@/lib/framework/obsiddy/repo/owner-scope';
 import { buildGraph } from '@/lib/framework/obsiddy/services/graph';
 import { graphQuerySchema } from '@/lib/framework/obsiddy/validations';
@@ -52,7 +51,5 @@ export const GET = withAuth(async (request, session) => {
     truncated: payload.truncated,
   });
 
-  return successResponse(payload, undefined, {
-    headers: { 'Cache-Control': PRIVATE_NO_CACHE },
-  });
+  return successResponse(payload);
 });

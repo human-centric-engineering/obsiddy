@@ -16,7 +16,357 @@ release process.
 
 ## [Unreleased]
 
+### Security
+
+- **`isRootRelativePath()` / `safeCallbackUrl()` no longer pass a tab, LF or CR
+  hidden inside a redirect path.** The guard judged `path[1]` on the raw string,
+  but the WHATWG URL parser removes those three characters from _anywhere_ in a
+  URL before it reads the authority, and `trim()` only reaches the ends — so
+  `/<TAB>/evil.com` cleared both the leading-slash and the `path[1]` test, then
+  collapsed to `//evil.com` in the browser. Reachable as
+  `/login?callbackUrl=/%09/evil.com`, which hard-navigates a user off-origin
+  immediately after a genuine successful login. The strip is deliberately
+  tab/LF/CR only and not the wider `URL_NORMALIZE_STRIP` used for scheme
+  inspection, because that range includes the space and would rewrite a
+  legitimate `/search?q=two words`; `safeCallbackUrl()` now returns the
+  normalised value, so the string that reaches `router.push()` is the one that
+  was judged safe. The OAuth path was never affected — better-auth applies its
+  own stricter allowlist. Carried as a local patch to a Sunrise-owned file
+  pending [sunrise#506](https://github.com/human-centric-engineering/sunrise/issues/506).
+
+- **The chat handler now refuses tool names outside the agent's advertised
+  set.** Dispatch previously took the tool name straight off the model's emitted
+  call, while the dispatcher synthesizes a default-ALLOW binding when no
+  `AiAgentCapability` row exists — so a capability an agent was never granted
+  would execute, unrestricted. Reachable via prompt injection, or via a
+  conversation resumed across a capability being revoked (the model's own
+  earlier calls sit in history and invite imitation). ([#476])
+
+- **`sanitizeUrl()` no longer passes control-character-obfuscated schemes.**
+  `java<TAB>script:`, `java<LF>script:`, `javascript<TAB>:` and a leading C0
+  control all bypassed the check, because it ran on `trim()` (leading/trailing
+  whitespace only) while browsers strip tab/newline/CR from anywhere in a URL
+  before parsing the scheme. The replacement character class also covers the
+  non-ASCII whitespace `trim()` used to remove (NBSP, BOM, U+2028, the U+2000
+  block, ideographic space), so the guard is nowhere narrower than the one it
+  replaced — those are not browser-executable, but leaving them out would have
+  been a silent narrowing. Only the inspected copy is normalised — the URL
+  returned to callers is unchanged. ([#437])
+
+- **`PATCH /api/v1/users/me` clears `emailVerified` when the address changes**
+  and re-sends verification. Previously an account that verified one address
+  could become a *verified* holder of any unregistered address in one request,
+  turning `user.email` from "an address this person controls" into "any unused
+  string they typed" — a privilege-escalation primitive for invitation
+  redemption and domain allowlists keyed on the address. ([#466])
+
+- **An API key can no longer change the account's email address** (#466,
+  found reviewing that fix). `withAuth` accepts an API key of **any** scope, and
+  keys are self-service — so a `chat`-scoped key handed to a third-party
+  integration could have moved the account to an attacker's address, and the new
+  verification mail would have delivered them a working token. With
+  `autoSignInAfterVerification` enabled that token mints a real session, turning
+  a read-ish scope into full account takeover. `PATCH /api/v1/users/me` now
+  returns 403 on the email path for key-authenticated callers, via the new
+  `isApiKeySession()` in `lib/auth/api-keys.ts`. Non-identity profile fields are
+  unaffected. Re-authentication, old-address notification and session revocation
+  remain open — tracked in #489.
+
+- **JSON API responses now carry `Cache-Control: private, no-cache`** (#487).
+  Nothing set a cache directive, and a response with a validator (an `ETag`,
+  which several routes send) but no freshness information is *heuristically
+  cacheable* — RFC 9111 §4.2.2 lets a shared cache store it and invent an expiry.
+  Applied in `successResponse`/`errorResponse` and the 304 from
+  `checkConditional`, so the 200 and 304 on an endpoint agree. Deliberately
+  `no-cache` rather than `no-store`, which would forbid the client copy and
+  defeat the conditional-GET path the ETags exist for. It is a default, spread
+  before caller headers, so a route serving genuinely public data can override
+  it; routes returning a raw `Response` never pass through here.
+
+- **`Cache-Control: private, no-cache` on Obsiddy's per-user read endpoints**
+  (`lib/framework/obsiddy/api/cache.ts`, applied by `/obsiddy/today`,
+  `/obsiddy/inbox` and `/obsiddy/space`). Sunrise sets no cache directive on
+  `/api/v1/**`, and a response carrying an `ETag` with no freshness information
+  is heuristically cacheable (RFC 9111 §4.2.2) — so a shared proxy could store
+  one person's dashboard and serve it to the next caller. `no-cache` rather than
+  `no-store`, so the browser may still keep a copy and revalidate, which is what
+  the ETag exists for. The 304 carries the directive too. A project-wide default
+  is upstream
+  [#487](https://github.com/human-centric-engineering/sunrise/issues/487).
+- **Uploaded document originals are discarded by default**
+  (`ObsiddySettings.documentOriginals = 'discard'`). Sunrise's `StorageProvider`
+  has no read method at all, and `LocalProvider` ignores `public: false` — it
+  writes into `public/uploads/`, which Next serves statically at a guessable URL.
+  Retaining a user's uploaded PDF on a default install would therefore publish it.
+  Obsiddy keeps the extracted text and the embedding chunks, which is what the
+  product actually queries, and drops the bytes. Retention is an operator setting
+  that the admin page **disables** on providers that cannot store privately or
+  cannot sign URLs, rather than warning and allowing it; when retained, the stored
+  URL is never returned to a client and downloads go through a 5-minute signed
+  URL. Upstream
+  [#490](https://github.com/human-centric-engineering/sunrise/issues/490).
+- **`GET /api/v1/obsiddy/search` does not log the query text.** It is the most
+  sensitive string a user sends this product, and a log line outlives the search;
+  the route logs its length and the hit count instead.
+
 ### Added
+
+- **`OBSIDDY_NAV_ITEM`** (`lib/framework/obsiddy/protected-nav.ts`) — Obsiddy's
+  header link, offered as a value rather than a registrar because the protected
+  nav is a `null`-or-array *override*, not a registry: a framework tier can only
+  offer an item the host places where it wants. The host spreads it in
+  `lib/app/protected-nav.ts`. This replaces the hand-edit of
+  `components/layouts/protected-nav.tsx` that Obsiddy carried since phase 5, so
+  **Obsiddy now touches zero Sunrise-owned files.**
+
+- **`lib/app/protected-nav.ts`, the authenticated-nav seam** (#473) — the nav a
+  fork's *users* see was a hardcoded array in
+  `components/layouts/protected-nav.tsx`, while the nav its *visitors* see had
+  had a seam since #347. Set `protectedNavItems` to a `ProtectedNavItem[]` (from
+  the new `lib/protected-nav/types.ts`) and it replaces `DEFAULT_PROTECTED_NAV`
+  wholesale; `null` keeps the default. Items gain `exact?` (matching the public
+  nav) and an optional `icon`, and the platform keeps owning admin filtering and
+  active-state, so `adminOnly` works on a fork's own items.
+
+- **`lib/app/auth-landing.ts`, the post-authentication landing seam** (#473) —
+  `/dashboard` was hardcoded at a dozen decision sites across twelve files, with
+  no config or scaffold, so an app whose product lives elsewhere edited all of them
+  and re-resolved them on every upgrade. `appAuthLandingRoute` /
+  `appAuthLandingLabel` (both `null` = platform default) resolve once through the
+  new `lib/auth-landing/route.ts` (`AUTH_LANDING_ROUTE`, `AUTH_LANDING_LABEL`),
+  now consumed by login, OAuth, signup, invite acceptance, email verification,
+  the protected layout's brand link, the admin header and sidebar, both error
+  pages and `proxy.ts`. The label moves with the route, so the user-visible copy
+  on those controls stops saying "Dashboard" once a fork has moved. A route that
+  is not root-relative throws at module load rather than becoming an off-site
+  redirect via `safeCallbackUrl()`'s unvalidated fallback.
+
+- **`apiClient.put()`** (#495) — the client exposed `get`/`post`/`patch`/`delete`
+  and no `put`, so a fork building a genuine whole-resource replacement (a
+  sub-resource collection such as tags, members or assignees) had to choose
+  between editing `lib/api/client.ts` — a merge conflict on every upgrade — and
+  shipping `PATCH` for something that is really a `PUT`. Same signature and same
+  `request()` plumbing as `patch`; no behaviour change for existing callers.
+
+- **`StorageCapabilities` on the storage provider interface** (#490) —
+  `getStorageCapabilities(provider)` in `lib/storage/providers/types.ts` resolves
+  what a backend can actually do (`privateObjects`, `signedUrls`, `download`), so
+  callers stop sniffing `provider.name` to find out. The field on `StorageProvider`
+  is an optional `Partial<StorageCapabilities>` and an undeclared capability reads
+  as **false**: a fork's custom provider keeps compiling across an upgrade and is
+  never assumed capable of something it does not implement. Read it through the
+  helper, never off the provider directly.
+
+- **`download(key)` on `StorageProvider`** (#490) — an optional, `Buffer`-based
+  read path returning the new `StorageObject`. Implemented by S3 and local;
+  Vercel Blob declares it unsupported. The interface could previously write and
+  delete an object but never read one back, which is what forced a fork keeping
+  a user's uploaded file to discard the original bytes after parsing.
+
+- **`GET /api/v1/storage/<key>?token=…`, the signed object read route** (#490) —
+  serves a privately stored object, with stateless HMAC tokens from the new
+  `lib/storage/access-tokens.ts` (`generateStorageAccessToken`,
+  `verifyStorageAccessToken`, `buildStorageAccessUrl`; no table, no migration).
+  `LocalProvider.getSignedUrl()` mints them, which is what completes the local
+  provider's private-object story. **The token is the only credential and
+  grants exactly one key — there is deliberately no session fallback**, because
+  storage keys encode no ownership and a bare `withAuth()` would let any
+  authenticated user read any private object. Rotating `BETTER_AUTH_SECRET`
+  invalidates every outstanding URL. Responses are always
+  `application/octet-stream` + `Content-Disposition: attachment`, so
+  user-uploaded HTML or SVG can't execute on the app's origin.
+
+- **A private root for the local provider** (#490) — `LocalProviderConfig.privateDir`
+  (default `.storage/private`, gitignored) holds anything uploaded with
+  `public: false`, outside the tree Next serves. `createLocalProvider()` now
+  takes a config argument and `createLocalProviderFromEnv()` reads
+  `STORAGE_LOCAL_BASE_DIR` / `STORAGE_LOCAL_BASE_URL` / `STORAGE_LOCAL_PRIVATE_DIR`
+  — the zero-argument factory meant `client.ts` could never configure the
+  provider at all.
+
+- **`S3_OBJECTS_PRIVATE_BY_DEFAULT`** (#490) — declares that the bucket blocks
+  public access, so every object is already private without ACLs. This is the
+  AWS-recommended posture and is invisible at the SDK level; setting it is what
+  lets `S3Provider` claim `privateObjects` while leaving `S3_USE_ACL=false`.
+
+- **`assertStoredVectorDimensions(subject)`** in
+  `lib/orchestration/knowledge/embedding-dimensions.ts` — the stored-vector
+  dimension guard, no longer hard-wired to `aiKnowledgeChunk` (#491). `pgvector`
+  fixes dimension at the column level, so changing the active embedding model
+  without re-embedding breaks every query against a vector table with a cast
+  error, after paying for the embedding round trip. The knowledge corpus was
+  guarded; a fork adding its own `vector(...)` table — the documented path,
+  since the platform KB is a global asset and per-user scoping there is an
+  anti-pattern — inherited the failure with none of the protection, and could
+  only get it by copying ~40 lines that would then never learn what the original
+  learns. The subject is two closures (`groupByDimension`, `exemplarModel`) plus
+  a `label` and a `remediation` string, so it carries no Prisma-delegate typing
+  and works for a table that is not a Prisma model at all. `search.ts` now binds
+  to it; behaviour and error text are unchanged.
+
+- **`capability.refused_not_advertised` hook event, and `warning` SSE frames on
+  a refused tool call** (#488). The handler already refused a tool name outside
+  the set advertised to the model for that turn, but said nothing: on the
+  single-call path no frame was emitted at all, so the turn carried on and the
+  UI showed an answer produced without the data the model asked for, with
+  nothing anywhere explaining why. Both refusal paths now yield
+  `{ type: 'warning', code }` — `tool_not_advertised` or `tool_unavailable` (the
+  repeated-failure breaker) — and the not-advertised case additionally emits the
+  new hook event, payload `{ conversationId, agentId, agentSlug, userId,
+  toolName, advertised }`. Only the not-advertised case is audited: a name
+  outside the advertised set is a hallucination or an injected tool call, which
+  is a security signal, whereas the breaker is operational and already logged.
+  `advertised` carries the tool set the model actually had, so a reviewer can
+  see what it invented the name from.
+
+- **`generatedColumnExists(table, column)`** in `lib/db/drift-probes.ts` — a
+  drift probe for a column that must be `GENERATED ALWAYS AS (...) STORED`
+  (#481). `columnExists` only asks whether a column of that name is present, so
+  a migration that dropped the column and recreated it as a plain one of the
+  same type passes the check while the column is never populated again. Probe A1
+  (`ai_knowledge_chunk.searchVector`) now uses it. That column backs the BM25
+  half of hybrid knowledge search, and the half-missing failure is worse than a
+  dropped index: a missing index means slow-but-correct, whereas a column that
+  stopped being generated means every row written after the migration holds
+  NULL — so search silently returns nothing for new content while old content
+  still matches, which reads as an ingestion bug. Forks probing their own
+  generated columns should prefer it over `columnExists`.
+
+- **`ChatRequest.openingTurn` — a turn the agent opens** (#474). `streamChat`
+  required a non-empty `message` and persisted it as a `role:'user'` row before
+  calling the model. Right for a support chatbot; wrong for a facilitated product
+  whose method is to orient the person first — the app had to send a stage
+  direction *as the user*, leaving text in someone's own transcript that they did
+  not write, in the model's history for the rest of the conversation, and
+  filterable only by exact string match against a list of every trigger string
+  ever shipped. With `openingTurn` set, `message` may be omitted: no user row is
+  persisted, no `message.created` fires for a user role, and the content reaches
+  the model as a `system` message. `message` wins if both are supplied. A turn
+  with no `message`, no `openingTurn` and no attachments is rejected — `message`
+  becoming optional made the empty turn expressible, so it is now refused
+  explicitly. Attachments count as a turn: the embed surface allows an empty
+  `message` when files are attached (a photo with no caption), so gating on
+  empty text alone would have rejected vision turns its own route already
+  accepted.
+  `ChatEvent` `start.messageId` is consequently optional; the shared validator in
+  `chat-events.ts` already had it optional, so the TS type was stricter than the
+  wire contract, and no bundled consumer reads it off `start`.
+
+- **`ChatRequest.messageMetadata` — caller metadata on the message row** (#475).
+  `costLogMetadata` lands on `AiCostLog`; there was nothing for the message
+  itself, so an app that caused a turn for its own reasons had nowhere to record
+  that fact except inside the message text or an `UPDATE` against a core-owned
+  table. Stored verbatim under `MessageMetadata.app`, namespaced so it can never
+  collide with a platform field including one a future release adds. The handler
+  never inspects it. Together with #474 this replaces sentinel-string detection
+  with a structural tag.
+
+- **`lib/app/user-created.ts` — a fork-owned seam at user creation** (#464). A
+  fork that needed to react to a new account (provision a profile row, seed a
+  workspace, start onboarding, push to a CRM) had to add code to
+  `userCreateAfterHook` in `lib/auth/config.ts` — a security-sensitive platform
+  file, and a merge conflict on every upstream sync. Register hooks with
+  `registerUserCreatedHook(key, hook)`; each receives
+  `{ userId, email, name, signupMethod, viaInvitation }`, so it can tell an OAuth
+  account (address already verified) from an email/password one. Dispatched last
+  in the after-hook, so a hook sees the account fully initialised. A hook
+  **cannot reject a signup** — it runs after the row exists, and a throw is
+  logged and swallowed rather than reporting a completed signup as an error. To
+  gate signup itself, see #463. Empty registry = today's behaviour.
+
+- **`lib/app/jobs.ts` — a fork-owned seam for recurring app work** (#469). The
+  scheduler ran workflow schedules only, so an app's own periodic job needed
+  either a second cron process and deployment target or an edit to `run-tick.ts`.
+  Register with `registerAppJob({ name, intervalMs, run })` and the existing
+  maintenance tick runs it when due; the return value is folded into the tick's
+  completion log line. Two honest limits, documented on the seam: `intervalMs` is
+  a **minimum** gap bounded below by the tick interval (60s), and last-run times
+  live in process memory — so a multi-instance deployment runs each job about
+  once per instance per interval, and a restart re-arms everything. Write jobs to
+  be idempotent; a job needing exactly-once cluster-wide semantics needs its own
+  lease. A job still running is never started again (per-job in-flight guard), a
+  non-positive `intervalMs` is refused at registration rather than silently
+  meaning "every tick", and a rejecting job is contained. Empty registry =
+  today's behaviour, byte-for-byte.
+
+- **`NavSection.titleNode` — a fork's own brand lockup in an admin nav section
+  header** (#448). Optional `ReactNode` on `registerNavSection({ … })`; when set,
+  the sidebar renders it in place of the default uppercase `title` label and
+  drops the uppercase treatment. `title` stays required — it remains the React
+  key, the registry's dedupe key, and the heading's `aria-label`, so a wordmark
+  image cannot degrade the accessible name. Converts a two-file platform edit
+  (`lib/admin-nav/registry.ts` + `components/admin/admin-sidebar.tsx`) that
+  conflicted on every upstream sync into a supported extension point.
+
+- **`lib/app/csp.ts` — a fork-owned seam for third-party iframe hosts** (#450).
+  `frame-src` was hardcoded to `'self'` in both policies, so a fork embedding a
+  YouTube or Vimeo player had to edit `lib/security/headers.ts` — a
+  security-sensitive platform file, and a recurring merge conflict. Export
+  origins from `appFrameSrc` and `getCSPConfig()` folds them into the global CSP.
+  Only exact `https://` origins are accepted (left-most wildcard and port
+  allowed); anything else is dropped and logged at warn at module load, since
+  these values are spliced into a response header. Empty in vanilla Sunrise —
+  locked by `tests/unit/lib/app/defaults.test.ts`. See
+  [`.context/security/overview.md`](./.context/security/overview.md#third-party-iframes--the-frame-src-seam).
+
+- **`ProcessImageOptions.fit` — an aspect-preserving mode for logos and
+  banners** (#447). `processImage()` hardcoded a centre-cropped square, which is
+  right for avatars (what it was built for) and wrong for every non-square
+  upload. `fit: 'inside'` treats `maxWidth` × `maxHeight` as a real bounding box
+  and preserves aspect ratio; `fit: 'cover'` (the default) keeps today's
+  behaviour exactly, so no existing caller changes. Both modes remain
+  shrink-only. See [`.context/storage/overview.md`](./.context/storage/overview.md).
+
+- **`<RouteErrorBoundary>` — one shared body for every route group's
+  `error.tsx`** (#434). New `components/errors/route-error-boundary.tsx` holds
+  the logging, Sentry reporting, optional session-expiry detection and recovery
+  card that the four `app/**/error.tsx` files each carried a near-identical copy
+  of; those files are now thin wrappers. A fork adding a route group writes a
+  ~10-line wrapper with its own `boundaryName`, `tag` and `fallback` instead of
+  a fifth copy. `fallback.navigate: 'reload'` opts into a full document load for
+  boundaries where the shell itself may be broken. `app/global-error.tsx` is
+  unchanged — it replaces the root layout and renders its own `<html>`/`<body>`.
+  See [`.context/ui/components.md`](./.context/ui/components.md).
+
+- **`slugify(value)`** in `lib/utils.ts` — filename/URL-safe slug. Returns the
+  bare slug including the empty string (callers apply their own fallback, e.g.
+  `slugify(title) || 'report'`); pure and client-safe, so the same helper works
+  in a download button and in a server-side filename. ([#451])
+
+- **`validatePathParam(raw, schema, options?)`** in `lib/api/validation.ts` —
+  completes the validation family alongside `validateRequestBody` and
+  `validateQueryParams`. Throws the same `ValidationError` that `handleAPIError`
+  maps to a 400. Sixteen `[id]` routes drop their hand-rolled copies. ([#435])
+
+- **`CAPABILITY_BINDING_MODE`** env var (`permissive` | `strict`, default
+  `permissive` — unchanged behaviour). `strict` makes a missing
+  `AiAgentCapability` row DENY instead of synthesizing a default-allow binding.
+  Opt-in because it retroactively revokes capabilities agents relied on
+  implicitly, including `mcp-system`. ([#476])
+
+- **`DATABASE_POOL_MAX`** — optional cap on pg connections per process, default
+  `10` (unchanged behaviour). Serverless deploys set `1` behind a transaction
+  pooler; every warm instance holds its own pool, so the default exhausts a
+  small Postgres under load. The pool also sets 10s idle and connection
+  timeouts, so exhaustion now fails fast instead of hanging until the platform
+  kills the request. ([#445])
+
+- **Workflow schedules show their last run time**, alongside the existing next
+  run. `AiWorkflowSchedule.lastRunAt` was already on the wire.
+
+[#436]: https://github.com/human-centric-engineering/sunrise/issues/436
+[#456]: https://github.com/human-centric-engineering/sunrise/issues/456
+[#461]: https://github.com/human-centric-engineering/sunrise/issues/461
+
+- **`framework:*` is now a reserved script namespace, and CI runs
+  `framework:ci-checks`** (#483). CUSTOMIZATION.md §7 reserved `app:*` for the
+  leaf-fork tier but left a framework-tier fork (one sitting between Sunrise and
+  its own forks) with nowhere to put a script — while `scripts/smoke/README.md`
+  actively told it to add to Sunrise-owned `smoke:*`. Both are corrected, and
+  `scripts/app/` + `scripts/framework/` are now documented as tier-owned
+  directories. The `lint` job calls `framework:ci-checks --if-present`, mirroring
+  the existing `app:ci-checks` seam, so the reservation is real rather than a
+  promise.
 
 - **Obsiddy phase 5 — the UI layer** (Release 1, phases 5 and 5b): twelve
   authenticated surfaces under `app/(protected)/obsiddy/**` — Today, Inbox,
@@ -205,11 +555,230 @@ release process.
 
 ### Changed
 
-- **`components/layouts/protected-nav.tsx` gains one `/obsiddy` entry.** The only
-  Sunrise-owned file Obsiddy edits, pre-authorised by `install.md` §2.11 while
-  [sunrise#473](https://github.com/human-centric-engineering/sunrise/issues/473)
-  (a `lib/app/protected-nav.ts` seam) is open. Commented in place with what to
-  delete when the seam lands.
+- **Obsiddy: `PATCH /api/v1/obsiddy/tasks/[id]/tags` is now `PUT`.** The route
+  always replaced the whole tag set; it used `PATCH` only because `apiClient` had
+  no `put` and adding one would have been a core-file edit. #495 landed the verb.
+  **Breaking for any caller built against the old verb** — the body and response
+  are unchanged.
+- **Obsiddy: retention capability is read from the provider, not inferred from
+  its name.** `resolveRetentionCapability()` named `local` and refused it, because
+  the local provider wrote into `public/uploads/` and ignored `public: false`.
+  #490 gave it a private root and a signed read route, which made the name check
+  **wrong in both directions** — it would refuse a local provider that can now
+  hold objects privately, and go on trusting any future provider that simply
+  isn't called `local`. It now reads `getStorageCapabilities()`, where an
+  undeclared capability means "cannot". **Upgrade note for S3 deployments:** S3
+  declares `privateObjects: useAcl || privateByDefault`, and both default to
+  false. An install on `STORAGE_PROVIDER=s3` with neither `S3_USE_ACL` nor
+  `S3_OBJECTS_PRIVATE_BY_DEFAULT` set, and `documentOriginals: 'retain'`, will
+  stop retaining new uploads _and_ start returning 404 from
+  `GET /api/v1/obsiddy/documents/[id]/download` for originals it already holds.
+  That is the correct fail-closed answer — nothing can distinguish that bucket
+  from a wide-open one — and the admin settings page names the reason on screen.
+  Set `S3_OBJECTS_PRIVATE_BY_DEFAULT=true` to restore retention.
+- **Obsiddy: `assertObsiddyModelMatchesStoredVectors` delegates to the platform
+  guard** exported by #491, instead of carrying ~40 duplicated lines. The fork
+  still supplies owner-scoped closures — an unscoped aggregate would make one
+  user's search latency grow with the whole install's corpus and let one user's
+  mismatched vectors throw for everybody — and keeps its structured `logger.error`
+  via catch/rethrow, because a thrown string is not queryable.
+- **Obsiddy: `lib/framework/obsiddy/db-drift.ts` imports `generatedColumnExists`**
+  from `@/lib/db/drift-probes` rather than defining its own. #481 landed it and
+  switched core's A1 probe to it, closing the same blind spot upstream.
+- **`upload_to_storage` refuses a private-upload binding the provider cannot
+  honour** (#490). A binding with `public: false` or `signedUrlTtlSeconds` now
+  fails with `private_objects_not_supported` — before any upload — when the
+  configured provider does not declare `privateObjects`. **This is a runtime
+  break worth planning for:** an agent binding with `signedUrlTtlSeconds` on S3
+  with ACLs off previously uploaded a *public* object and returned a signed URL
+  to it, which looked like it worked. Set `S3_OBJECTS_PRIVATE_BY_DEFAULT=true`
+  (or `S3_USE_ACL=true`) to restore it. `VercelBlobProvider.upload()` likewise
+  throws on `public: false` rather than storing the file publicly — that
+  provider has no private storage under any configuration.
+
+- **`getOrchestrationSettings()` reads before it writes, and caches for 30s**
+  (#442). It was an unconditional `upsert` — a write, taking a row lock, on every
+  call, including several per maintenance tick — for a row that is created once
+  in the lifetime of an install. It now does a `findUnique` and only upserts when
+  the row is absent (still an upsert there, so two instances booting at once
+  can't race the unique constraint on `slug`), behind a 30s TTL cache modelled on
+  `settings-resolver.ts`. The new `invalidateOrchestrationSettingsCache()` is
+  called from the settings PATCH route, so a save is visible immediately.
+
+- **`useHealthCheck` pauses polling while the tab is hidden** (#442). It ran two
+  bare `setInterval`s, so a forgotten admin tab issued `GET /api/health` — and
+  therefore `SELECT 1` — every 30 seconds indefinitely, enough on its own to keep
+  a scale-to-zero database awake. It now runs on `useAutoRefresh`, which already
+  pauses on `document.hidden` and handles being hidden at mount. **Two semantic
+  shifts for callers:** `isPolling` now means "polling is enabled" rather than "a
+  timer is armed", so it stays `true` across a visibility pause; and
+  `startPolling()` refreshes immediately instead of waiting out an interval.
+  `autoStart: false` still fetches once on mount.
+
+- **Deployment guidance for scale-to-zero databases** (#442).
+  `scheduling.md` prescribed `* * * * *` with no note about what that costs on a
+  Postgres that autosuspends when idle — a fork following the documented path
+  inherited a database that was never allowed to sleep, and a bill to match. The
+  recommended cadence is unchanged (the idle gate makes those ticks free), but
+  the trade is now stated, with a `*/5` recipe for cutting serverless
+  invocations and the price named plainly: a workflow schedule can only be as
+  punctual as the cron that drives it. `resilience.md` also now records that
+  `tickRunning` is per-instance, so the overlap guarantee does not hold on
+  serverless.
+
+- **The maintenance tick can now skip entirely, doing zero database work**
+  (#442). Per-task intervals cut how much a tick does; they cannot make it do
+  nothing, and nothing is what a scale-to-zero Postgres (Neon, Aurora Serverless
+  v2) needs before it will autosuspend — one query a minute defeats a 5-minute
+  timer exactly as well as twenty do. A sweep that finds nothing now arms an
+  **idle gate**, and subsequent ticks return `200 { skipped: true, reason:
+  'idle', resumesAt }` before any Prisma call. Skipping is bounded three ways:
+  the gate never skips past known future work (the next `nextRunAt`, via the new
+  `getNextScheduleRunAt()`, and the shortest registered app-job interval, via the
+  new `getAppJobsMinIntervalMs()`); it re-verifies against the database at least
+  every `MAINTENANCE_IDLE_MAX_SKIP_MS` (**new env var**, default 30 min, `0`
+  disables the gate); and request paths that create tick-owned work — a delivery
+  retry, a created or edited schedule, a queued evaluation run, an execution
+  enqueued by a webhook or inbound trigger — call the new `noteMaintenanceWork()`
+  to disarm it immediately. It refuses to arm unless the sweep proved there was
+  nothing to do: a task that found something, a task that failed, a fired
+  schedule, an errored sweep, or a failed horizon probe all leave it disarmed.
+  State is per-process, so a restart always sweeps and multi-instance forks
+  should lower the cap. **New:** `POST …/maintenance/tick?force=1` sweeps
+  regardless (it does not bypass the overlap guard), and the skip response now
+  carries `reason` — previously the only skip was the overlap guard and the
+  reason string was fixed.
+
+- **Maintenance-tick background tasks now run on per-task minimum intervals**
+  (#442). All eight ran on every tick, so at the documented 60s cadence the
+  retention sweep — whose windows are measured in days — ran 1,440 times a day
+  and the embedding backfill full-scanned the message table just as often. Each
+  task now declares the shortest gap at which it can still find work:
+  `webhookRetries`, `hookRetries` and `evaluationRuns` stay on every tick
+  (sub-minute backoff, one time-slice per tick); `orphanSweep` and
+  `pendingExecutionRecovery` 2 min; `zombieReaper` 5 min; `embeddingBackfill`
+  15 min; `retention` 1 hour. The table lives in
+  `lib/orchestration/maintenance/platform-jobs.ts` and
+  `BACKGROUND_TASK_NAMES` is now derived from it, so the route's published
+  `backgroundTasks` list cannot drift from what actually runs. **Two visible
+  effects:** a task held back by its interval reports the string `'skipped'`
+  under its own key in the `Maintenance tick background tasks completed` log
+  line (rather than its usual result object), so a log-based dashboard reading
+  e.g. `retention.deleted` will see `'skipped'` on most ticks; and a task still
+  running from an earlier tick is no longer started a second time when the
+  liveness watchdog releases the overlap guard. Intervals are start-to-start and
+  held in process memory — persisting them would cost a database round-trip per
+  task per tick, which is the cost this change exists to remove. Every throttled
+  task is idempotent, so on a multi-instance deployment the failure mode is
+  "runs more often than intended", never "misses work".
+
+- **`runStructuredCompletion`'s non-persistence is now contractual** (#472). The
+  module writes nothing — no database client imported, no row created, no prompt
+  or completion logged — but that was only *incidentally* true. Its docstring
+  promised layering neutrality ("no evaluation coupling, no Next.js imports"),
+  which says nothing about writes, while a downstream fork's user-facing privacy
+  claim (calendar-event titles categorised into aggregate buckets, only the
+  totals stored) depended on the stronger property. Adding prompt logging for
+  debugging or completion persistence for eval replay would have been consistent
+  with everything the file said about itself and would have broken that claim
+  without touching the fork's code. The guarantee is now stated explicitly and
+  enforced by `structured-completion-no-persistence.test.ts`, which fails on a
+  database/storage import or a `prisma.*` call. Cost metadata (token counts, USD)
+  is still returned to callers and is outside the guarantee — aggregate counts
+  carry no prompt content. Persisting here in future is a breaking change to a
+  documented guarantee: opt-in flag defaulting to off, CHANGELOG entry, and a
+  deliberate test update rather than a deletion.
+
+- **BREAKING: `HookEventType` is open to fork-owned events** (#465).
+  `HOOK_EVENT_TYPES` was a closed list, so a fork could neither emit its own
+  domain event through the hook registry nor subscribe a webhook to one — it had
+  to add entries to a platform array, conflicting on every sync and risking a
+  collision with a name a future release takes. `HookEventType` is now
+  `CoreHookEventType | \`app.${string}\` | \`framework.${string}\``, matching
+  the reserved tiers in CUSTOMIZATION.md, and the admin hook routes accept the
+  wider set so a fork can subscribe through the same API. **Forks:** an
+  exhaustive `switch` over `HookEventType` with an `assertNever` default now
+  fails to compile. That is the intended failure — a compile-time prompt to
+  decide what your code does with an event it doesn't know, instead of a silent
+  runtime fall-through. The core enum is kept as one arm of the Zod union rather
+  than replaced with `z.string()`, because that schema also validates
+  `AiEventHookDelivery.payload` read back from the database.
+  A namespaced union rather than a registration seam, deliberately: these schemas
+  are built at module load, before any `initApp()` runs, and #462 showed boot
+  order across module realms isn't guaranteed under Turbopack.
+  `WEBHOOK_EVENT_TYPES` stays **closed** and is now documented as such — a hook's
+  only action type *is* a webhook, so the hook registry already gives a fork the
+  whole path, and those values are rendered straight into `<select>` options and
+  cross-referenced against `WIRED_WEBHOOK_EVENT_TYPES`, where a fork-namespaced
+  value would have no label and no wired-ness answer.
+
+- **A fork can now ADD an email kind, not just override one** (#468).
+  `EmailPropsMap` is an `interface`, so declaration merging already worked in
+  principle — but `defaultTemplates` was a total mapped type over `EmailKind`,
+  which made every fork-added kind a compile error in a platform file the fork
+  can't edit without a conflict. It is now `Partial`, and `resolveEmailTemplate`
+  throws naming the kind when there is neither an override nor a default. Throwing
+  rather than rendering `undefined` is deliberate: a blank email is far harder to
+  diagnose than a failed send. The interface now documents the `declare module`
+  recipe and recommends namespacing keys `app.` / `framework.`. No runtime change
+  for the four platform kinds.
+
+- **`prisma/schema/app.prisma` is now genuinely fork-reserved and ships empty**
+  (#429). It shipped three platform models — `ContactSubmission`, `FeatureFlag`,
+  `AuthBootstrap` — while the fork-facing docs described it as the place for a
+  fork's own models, "clearly separate from the platform's". The three model
+  definitions move verbatim into the existing `prisma/schema/platform.prisma`.
+  Because the schema is multi-file, moving a model block between files changes
+  no table and produces **no migration** — the models, their `@@map` names, and
+  the generated client are unchanged. This makes the leaf tier symmetric with
+  the framework tier's `prisma/schema/framework-*.prisma`. Forks that already
+  added models to `app.prisma` need no action.
+
+- **Error-boundary log message is now `'Route error boundary triggered'` for all
+  four route groups** (#434), replacing the four per-group messages
+  (`'Root error boundary triggered'`, `'Admin route error boundary triggered'`,
+  …). The boundary is still identified by the structured `boundaryName` field,
+  which is what log queries should key on. `app/global-error.tsx` keeps its own
+  `'Global error boundary triggered'` message.
+
+- **CI heap ceiling is now the `CI_NODE_HEAP_MB` repo variable** (default
+  `5120`, unchanged). Forks whose lint job dies with exit 134 raise it in repo
+  settings instead of editing `ci.yml`, so the fix survives an upstream sync.
+  ([#452])
+
+- **`tests/unit/lib/app/defaults.test.ts` is table-driven.** Filling a
+  `lib/app/*` seam is expected to fail one row; pin the new value rather than
+  deleting the row. Coverage also rose from 9 seams to 14. ([#480])
+
+- **Vitest `testTimeout` raised to 30s** (from 10s) for forks with heavier
+  component and integration tests. ([#454])
+
+- **`streamChat` batches its three pre-token reads** (context, user memories,
+  capability definitions) into one `Promise.all`, cutting the delay before the
+  first token from three serial database round trips to one. No behavioural
+  change. ([#449])
+
+[#444]: https://github.com/human-centric-engineering/sunrise/issues/444
+[#445]: https://github.com/human-centric-engineering/sunrise/issues/445
+[#446]: https://github.com/human-centric-engineering/sunrise/issues/446
+[#449]: https://github.com/human-centric-engineering/sunrise/issues/449
+
+- **`CostSummaryModelRow` carries `provider`.** `GET /costs/summary`'s `byModel[]`
+  rows are now `{ model, provider, monthSpend }`, grouped by both columns of
+  `AiCostLog`. Consumers resolving a spend row to a catalogue entry must key on
+  `provider::modelId` — `components/admin/orchestration/costs/model-index.ts`
+  (`buildModelIndex` / `lookupModel`) is the shared helper. ([#436])
+
+- **The Azure `gpt-4o` seed row ships inactive.** It shares a model id with the
+  OpenAI row; an unconfigured example provider shouldn't compete for that id.
+  Applied on create only, so a re-seed never deactivates a row an operator
+  turned on. ([#436])
+
+- ~~**`components/layouts/protected-nav.tsx` gains one `/obsiddy` entry.**~~
+  **Reverted before release.** #473 landed the `lib/app/protected-nav.ts` seam
+  the entry was waiting on, so the core file is pristine again and Obsiddy
+  registers through the seam. Added and removed within the same unreleased cycle;
+  no released version carried the edit.
 - **Archiving an Obsiddy item now deletes its embedding rows in the same
   transaction** as the archive (`archiveAndDropVectors()`), rather than leaving
   them behind a `WHERE archivedAt IS NULL` filter. A filtered vector search
@@ -217,42 +786,165 @@ release process.
   only ever holds live data. The consequence, deliberately accepted, is that the
   archived corpus is keyword-searchable but not vector-searchable.
 
-### Dependencies
+### Removed
 
-- Added `d3-force` (+ `@types/d3-force`) for graph layout — `@xyflow/react` renders
-  but expects coordinates — and `@dnd-kit/core` + `@dnd-kit/sortable` for the kanban
-  board, chosen over native HTML5 drag-and-drop because that is inaccessible to
-  keyboard users and unusable on touch.
+- **`updateSpace()`** (`lib/framework/obsiddy/repo/space.ts`) — replaced by
+  `updateSpaceSettings()`, which takes the patch in domain terms and translates
+  a `null` Json column into `Prisma.DbNull`. Added and removed within the same
+  unreleased cycle; no released version exposed it.
 
-### Security
+- **`privateCacheHeaders()` and `withPrivateCache()`**
+  (`lib/framework/obsiddy/api/cache.ts`) — the per-route `Cache-Control`
+  workaround, redundant once #487 made `private, no-cache` the default on every
+  JSON envelope and on `checkConditional()`'s 304. Deleted rather than left as
+  no-ops a future route author would copy without knowing. `PRIVATE_NO_CACHE`
+  survives for the board export, which returns a raw `Response` and so never
+  passes through the envelope helpers. Same unreleased cycle.
 
-- **`Cache-Control: private, no-cache` on Obsiddy's per-user read endpoints**
-  (`lib/framework/obsiddy/api/cache.ts`, applied by `/obsiddy/today`,
-  `/obsiddy/inbox` and `/obsiddy/space`). Sunrise sets no cache directive on
-  `/api/v1/**`, and a response carrying an `ETag` with no freshness information
-  is heuristically cacheable (RFC 9111 §4.2.2) — so a shared proxy could store
-  one person's dashboard and serve it to the next caller. `no-cache` rather than
-  `no-store`, so the browser may still keep a copy and revalidate, which is what
-  the ETag exists for. The 304 carries the directive too. A project-wide default
-  is upstream
-  [#487](https://github.com/human-centric-engineering/sunrise/issues/487).
-- **Uploaded document originals are discarded by default**
-  (`ObsiddySettings.documentOriginals = 'discard'`). Sunrise's `StorageProvider`
-  has no read method at all, and `LocalProvider` ignores `public: false` — it
-  writes into `public/uploads/`, which Next serves statically at a guessable URL.
-  Retaining a user's uploaded PDF on a default install would therefore publish it.
-  Obsiddy keeps the extracted text and the embedding chunks, which is what the
-  product actually queries, and drops the bytes. Retention is an operator setting
-  that the admin page **disables** on providers that cannot store privately or
-  cannot sign URLs, rather than warning and allowing it; when retained, the stored
-  URL is never returned to a client and downloads go through a 5-minute signed
-  URL. Upstream
-  [#490](https://github.com/human-centric-engineering/sunrise/issues/490).
-- **`GET /api/v1/obsiddy/search` does not log the query text.** It is the most
-  sensitive string a user sends this product, and a log line outlives the search;
-  the route logs its length and the hit count instead.
+- **Obsiddy erasure cascade was incomplete** (`20260728232937_obsiddy_space_cascade`).
+  The phase-1 migration gave every scoped table a plain `userId` column with no
+  FK, so deleting a user removed only the `ObsiddySpace` row and left every
+  task, thought, project and event behind — personal data surviving an erasure
+  that reported success. Every scoped table now has a real FK to
+  `framework_obsiddy_space("userId") ON DELETE CASCADE`, and the migration
+  deletes rows already orphaned by its absence. Found by the isolation smoke
+  script against a real database; no mocked test could have caught it.
 
 ### Fixed
+
+- **`upload(file, { public: false })` is no longer silently ignored** (#490). The
+  option was accepted by every provider and honoured by roughly one: S3 dropped
+  it unless `S3_USE_ACL=true`, Vercel Blob dropped it always, and the local
+  provider wrote the file into `public/uploads/` where Next serves it statically
+  to anyone who can guess the key. A fork storing a user's document rather than a
+  public avatar got private storage, a public CDN URL, or a world-readable file
+  with no way to tell which apart from sniffing `provider.name`. Each provider
+  now declares what it can do, S3 warns once per process when it cannot enforce
+  the request, and Vercel Blob refuses outright.
+
+- **Local storage deletes now sweep the private root as well as the public one**
+  (#490). `delete()` and `deletePrefix()` only ever touched `baseDir`. With the
+  private root added, that would have made `eraseUser()` — which clears a user's
+  blobs via `deleteByPrefix('avatars/<userId>/')` — a partial delete, leaving
+  private files on disk after erasure. Both roots are swept, and a failure in
+  either is reported rather than masked by the other's success.
+
+- **The retention sweep reads the settings row once instead of eight times**
+  (#442). `resolveRetentionDays()` fetched the same singleton row per prune, so
+  one sweep spent eight round-trips retrieving six columns — 1,440 times a day at
+  the documented tick cadence, and all of it wasted on a default install where
+  every window is `null` and every prune no-ops. `enforceRetentionPolicies()` now
+  calls the new `loadRetentionWindows()` once and passes each window down. The
+  individual `pruneX()` functions are unchanged for direct callers, but their
+  first parameter widens to `number | null | undefined`: `undefined` still means
+  "resolve it yourself", an explicit `null` now means "skip". The coherence
+  warning reads from the same loaded windows rather than issuing its own query.
+
+- **The MCP config cache no longer collides with the maintenance-tick interval**
+  (#442). `CACHE_TTL_MS` was 60s — exactly the tick cadence — so the retention
+  sweep's `getMcpServerConfig()` call was a coin-flip between a hit and a miss,
+  and the miss path is an `upsert`, i.e. a write taking a row lock, roughly every
+  other tick. Raised to 5 minutes; invalidation on admin mutation was already
+  explicit, so nothing goes stale that wasn't already.
+
+- **The embedding backfill's anti-join has an index to use** (#442). It filters
+  `AiMessage` on `role` and orders by `createdAt`, but the table was indexed on
+  `role` alone, so proving the backlog empty meant a scan plus a sort that grew
+  with the table — every tick, forever. Adds `@@index([role, createdAt])` and
+  drops the now leading-column-redundant `@@index([role])`. **Migration:**
+  `20260730140000_add_message_role_createdat_index`.
+
+- **Tab titles and legal-page metadata now route through the `BRAND` seam**
+  (#432). `SETTINGS_TAB_TITLES` and `KNOWLEDGE_TAB_TITLES` hardcoded `"Sunrise"`,
+  and `useUrlTabs` writes them straight to `document.title` — so a fork with
+  `NEXT_PUBLIC_APP_NAME` set still showed "Sunrise" in the browser tab on
+  `/settings` and the admin knowledge base, overriding correct layout metadata.
+  The static metadata on `app/(public)/{privacy,terms,contact}` had the same
+  hardcode. All now interpolate `BRAND.name`. `about/` is deliberately left
+  alone — its copy describes the template itself and is fork-replaced body copy.
+
+- **The protected error boundary's "Session Expired" card now actually renders
+  when a session expires.** The session check tested `authClient.getSession()`
+  for truthiness, but better-auth always resolves that call to a
+  `{ data, error }` envelope — never `null` — so the condition never fired and
+  the sign-in prompt only appeared when the request itself threw. The check now
+  destructures `{ data: session }`, matching the other call sites in the repo.
+  Pre-existing on `main` (`app/(protected)/error.tsx`), carried into the shared
+  boundary by this release's refactor and fixed there.
+
+- **Route-group error boundaries no longer double-log and double-report on
+  session expiry** (#433). The logging effect included `isSessionExpired` in its
+  dependency array while also setting it, so a session-expiry error re-ran the
+  effect and produced two `logger.error` lines and two Sentry events. The shared
+  boundary reports once per error (deps `[error]`) and drops `isSessionExpired`
+  from the Sentry `extra` — it was always `false` at report time anyway.
+
+- **`next/font/google` and `next/font/local` now resolve under Vitest.** Font
+  loaders run at module scope, so a fork adding brand typography previously saw
+  every test importing that layout fail at import time. Loader names are derived
+  from Next's own declarations, so no fork edits a platform test file. ([#455])
+
+- **Secret scanning keeps `--results=verified,unknown`** and ships a
+  fixture/docs path allowlist instead, so forks do not have to trade away the
+  unverifiable-secret class to stop false positives on example DSNs. ([#453])
+
+[#435]: https://github.com/human-centric-engineering/sunrise/issues/435
+[#451]: https://github.com/human-centric-engineering/sunrise/issues/451
+[#452]: https://github.com/human-centric-engineering/sunrise/issues/452
+[#453]: https://github.com/human-centric-engineering/sunrise/issues/453
+[#454]: https://github.com/human-centric-engineering/sunrise/issues/454
+[#455]: https://github.com/human-centric-engineering/sunrise/issues/455
+[#480]: https://github.com/human-centric-engineering/sunrise/issues/480
+
+- **MCP tool dispatch warms the capability registry.** A process that had only
+  served MCP — no chat or workflow request yet — had an empty in-memory
+  registry, so every MCP tool call failed with `Unknown capability`, built-ins
+  included, while `tools/list` still listed them. ([#457])
+
+- **Boot-registered context contributors and capability handlers survive to
+  request time.** Both registries are now backed by `globalThis`, as the Prisma
+  client already was. Under Next 16 + Turbopack `instrumentation.ts` runs in a
+  separate module graph from route handlers, so a framework tier registering at
+  boot silently vanished on the request path. ([#462])
+
+[#437]: https://github.com/human-centric-engineering/sunrise/issues/437
+[#457]: https://github.com/human-centric-engineering/sunrise/issues/457
+[#462]: https://github.com/human-centric-engineering/sunrise/issues/462
+[#466]: https://github.com/human-centric-engineering/sunrise/issues/466
+[#476]: https://github.com/human-centric-engineering/sunrise/issues/476
+
+- **`LlmOptions.timeoutMs` and `signal` reach the provider SDKs.** Both were
+  documented but dropped, so a call that needed longer than the client default
+  died at the default with no indication the option had been ignored. All four
+  adapter paths (`chat` and `chatStream` on Anthropic and OpenAI-compatible)
+  now forward them; setting neither leaves the provider default in charge.
+  ([#444])
+
+- **PDF parsing survives serverless file tracing.** The pdfjs worker is
+  registered on `globalThis` from a literal import specifier, so it ships in the
+  function bundle — previously every PDF upload on Vercel failed with "Setting
+  up fake worker failed", while working locally. ([#446])
+
+- **`chatStreamEventSchema` models `budget_exceeded_per_turn`.** The variant was
+  missing, so `parseChatStreamEvent` returned null and consumers dropped the
+  frame — and on the tool-loop-abort path it is the last frame sent, leaving an
+  empty assistant turn with no explanation. ([#461])
+
+- **Per-model cost rows no longer borrow another provider's label.** Spend served
+  by OpenAI's `gpt-4o` could render as `microsoft` / "GPT-4o (Azure)". ([#436])
+
+- **`costLogRetentionDays` below `executionRetentionDays` is rejected** at all
+  three write paths (settings form, Zod schema, PATCH route against the persisted
+  row). Cost logs must outlive the executions that reference them or the
+  drill-down empties out under a retained execution. Installs already in that
+  state get a warning per retention sweep. ([#456])
+
+- **`prisma/schema/orchestration-agents.prisma` is formatted per the pinned
+  Prisma, and CI now enforces it** (#482). `model AiAgent`'s attribute column was
+  one short of what `prisma format` produces, so every fork's first `prisma format`
+  dirtied a core file it never edited. Prettier doesn't touch `.prisma`, so
+  `format:check` couldn't see the drift; the `lint` job now runs `prisma format`
+  and fails on a non-empty diff. Whitespace only — no schema or client change.
 
 - **Obsiddy's first write by any new user returned a 500.**
   `ensureObsiddySpace()` existed and was tested but was called from nowhere,
@@ -263,21 +955,12 @@ release process.
   routes and the phase-6 capabilities share — so it cannot be forgotten by a new
   entry point.
 
-### Removed
+### Dependencies
 
-- **`updateSpace()`** (`lib/framework/obsiddy/repo/space.ts`) — replaced by
-  `updateSpaceSettings()`, which takes the patch in domain terms and translates
-  a `null` Json column into `Prisma.DbNull`. Added and removed within the same
-  unreleased cycle; no released version exposed it.
-
-- **Obsiddy erasure cascade was incomplete** (`20260728232937_obsiddy_space_cascade`).
-  The phase-1 migration gave every scoped table a plain `userId` column with no
-  FK, so deleting a user removed only the `ObsiddySpace` row and left every
-  task, thought, project and event behind — personal data surviving an erasure
-  that reported success. Every scoped table now has a real FK to
-  `framework_obsiddy_space("userId") ON DELETE CASCADE`, and the migration
-  deletes rows already orphaned by its absence. Found by the isolation smoke
-  script against a real database; no mocked test could have caught it.
+- Added `d3-force` (+ `@types/d3-force`) for graph layout — `@xyflow/react` renders
+  but expects coordinates — and `@dnd-kit/core` + `@dnd-kit/sortable` for the kanban
+  board, chosen over native HTML5 drag-and-drop because that is inaccessible to
+  keyboard users and unusable on touch.
 
 ## [0.7.0] — 2026-07-09
 

@@ -17,6 +17,19 @@ Then run `npm run test:coverage`. This runs the full test suite and generates a 
 
 If either command fails, report the failures and stop. Do not proceed to the anti-pattern scan until automated checks pass.
 
+**Prisma schema format check.** `npm run validate` does NOT cover this, and neither does anything else you can run locally — Prettier has no `.prisma` parser, so schema drift from the pinned Prisma's own formatter is invisible to `format:check`. CI runs it as a separate step in the Lint & format job, so without this you get a green local run on a branch CI will reject:
+
+```bash
+npx prisma format --schema prisma/schema
+git diff --exit-code -- prisma/schema
+```
+
+A non-zero exit means the schema is not formatted per the pinned Prisma. Commit the reformat — do not hand-edit it back.
+
+Run this **whenever `package.json` changes**, not only when `prisma/` does. The drift is normally triggered by a Prisma version bump reformatting a schema file nobody touched: `@prisma/client` 7.8 → 7.9 changed field alignment and block-attribute ordering, which failed CI on `framework-obsiddy.prisma`, a file that branch never edited. Upstream hit the identical thing on `orchestration-agents.prisma` (#482).
+
+Filed upstream as [sunrise#510](https://github.com/human-centric-engineering/sunrise/issues/510) — the check belongs in `validate` so every fork gets it, rather than living only in CI where forks discover it the hard way.
+
 **Migration drift check (DB objects Prisma can't model).** Only if this branch touched `prisma/`:
 
 ```bash
@@ -148,7 +161,7 @@ For each changed file from Step 2, decide whether it touches the public surface 
   - `lib/api/server-fetch.ts` (serverFetch contract)
   - `lib/logging/index.ts` and `lib/logging/types.ts` (logger surface)
   - Anything under `app/api/v1/admin/orchestration/**` (orchestration admin API surface — see `.context/api/orchestration-endpoints.md`)
-- **Published Prisma model interfaces** — flag if `prisma/schema/` files change models the orchestration admin API exposes (`User`, `Ai*` models — see `.context/orchestration/admin-api.md`). Do NOT flag if only an `app.prisma` (fork-owned) model changes.
+- **Published Prisma model interfaces** — flag if `prisma/schema/` files change models the orchestration admin API exposes (`User`, `Ai*` models — see `.context/orchestration/admin-api.md`). Do NOT flag if only an `app.prisma` model changes — that file is fork-reserved and ships empty upstream, so a core PR touching it is itself worth questioning.
 - **The CHANGELOG / VERSIONING contract itself** — flag if `VERSIONING.md` or `CHANGELOG.md` is removed or has its `[Unreleased]` section deleted without a release-rename.
 
 If ANY public-surface path above is in the diff AND `CHANGELOG.md` is NOT in the diff, flag it as: `Public-surface change without CHANGELOG entry — intentional? See VERSIONING.md "Covered" list.` Include the specific files that triggered the flag.

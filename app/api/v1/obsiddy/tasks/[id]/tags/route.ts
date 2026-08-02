@@ -1,5 +1,5 @@
 /**
- * PATCH /api/v1/obsiddy/tasks/[id]/tags — set a task's labels.
+ * PUT /api/v1/obsiddy/tasks/[id]/tags — set a task's labels.
  *
  * **Replace semantics, not a delta**: the body carries the whole set, because a board
  * UI thinks in terms of "these are the labels now". Exposing add and remove
@@ -7,12 +7,11 @@
  * difference — the add landed, the remove didn't — is a state nobody would notice
  * until a label reappeared.
  *
- * `PATCH` rather than the more literal `PUT` for one practical reason: Sunrise's
- * `apiClient` exposes get/post/patch/delete and no `put`, and adding a verb to it
- * would be an edit to a Sunrise-owned file — a merge conflict inflicted on every host
- * project, for a naming preference. Filed upstream as
- * [sunrise#495](https://github.com/human-centric-engineering/sunrise/issues/495) and
- * tracked as ask #18; switch the verb when it lands.
+ * It was `PATCH` until sunrise#495 (ask #18) landed `apiClient.put()`. The
+ * behaviour never differed — the verb did, and only because Sunrise's client
+ * exposed get/post/patch/delete and adding one would have been an edit to a
+ * Sunrise-owned file. Now that the verb exists, the route says what it means:
+ * whole-resource replacement.
  *
  * The repo applies it as one transaction, and silently drops tag ids the caller does
  * not own rather than erroring: a stale board tab whose tag was deleted in another
@@ -30,7 +29,7 @@ import { ownerScope } from '@/lib/framework/obsiddy/repo/owner-scope';
 import { setTaskTags } from '@/lib/framework/obsiddy/repo/tags';
 import { setTaskTagsSchema } from '@/lib/framework/obsiddy/validations';
 
-export const PATCH = withAuth<{ id: string }>(async (request, session, { params }) => {
+export const PUT = withAuth<{ id: string }>(async (request, session, { params }) => {
   const log = await getRouteLogger(request);
   const scope = ownerScope(session.user.id);
   const { id } = await params;
