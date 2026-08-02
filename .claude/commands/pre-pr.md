@@ -17,6 +17,19 @@ Then run `npm run test:coverage`. This runs the full test suite and generates a 
 
 If either command fails, report the failures and stop. Do not proceed to the anti-pattern scan until automated checks pass.
 
+**Prisma schema format check.** `npm run validate` does NOT cover this, and neither does anything else you can run locally — Prettier has no `.prisma` parser, so schema drift from the pinned Prisma's own formatter is invisible to `format:check`. CI runs it as a separate step in the Lint & format job, so without this you get a green local run on a branch CI will reject:
+
+```bash
+npx prisma format --schema prisma/schema
+git diff --exit-code -- prisma/schema
+```
+
+A non-zero exit means the schema is not formatted per the pinned Prisma. Commit the reformat — do not hand-edit it back.
+
+Run this **whenever `package.json` changes**, not only when `prisma/` does. The drift is normally triggered by a Prisma version bump reformatting a schema file nobody touched: `@prisma/client` 7.8 → 7.9 changed field alignment and block-attribute ordering, which failed CI on `framework-obsiddy.prisma`, a file that branch never edited. Upstream hit the identical thing on `orchestration-agents.prisma` (#482).
+
+Filed upstream as [sunrise#510](https://github.com/human-centric-engineering/sunrise/issues/510) — the check belongs in `validate` so every fork gets it, rather than living only in CI where forks discover it the hard way.
+
 **Migration drift check (DB objects Prisma can't model).** Only if this branch touched `prisma/`:
 
 ```bash
