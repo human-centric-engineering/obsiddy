@@ -21,6 +21,17 @@ export const OBSIDDY_API = {
   SEARCH: '/api/v1/obsiddy/search',
   REINDEX: '/api/v1/obsiddy/reindex',
 
+  /** The idempotent front door. Narrower than `THOUGHTS`, and safe to retry. */
+  CAPTURE: '/api/v1/obsiddy/capture',
+  /** The whole brain, small enough for a prompt — what the agent layer reads. */
+  SNAPSHOT: '/api/v1/obsiddy/snapshot',
+  /** Framings on demand. The one endpoint here that makes an LLM call. */
+  IDEATE: '/api/v1/obsiddy/ideate',
+
+  /** Generated artefacts — reviews, briefings, digests. Append-only. */
+  REVIEWS: '/api/v1/obsiddy/reviews',
+  reviewById: (id: string): string => `/api/v1/obsiddy/reviews/${id}`,
+
   TASKS: '/api/v1/obsiddy/tasks',
   PROJECTS: '/api/v1/obsiddy/projects',
   GOALS: '/api/v1/obsiddy/goals',

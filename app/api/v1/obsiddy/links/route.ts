@@ -17,9 +17,9 @@ import { NotFoundError } from '@/lib/api/errors';
 import { successResponse } from '@/lib/api/responses';
 import { validateQueryParams, validateRequestBody } from '@/lib/api/validation';
 import { withAuth } from '@/lib/auth/guards';
-import { countLinks, createLink, listLinks } from '@/lib/framework/obsiddy/repo/links';
+import { countLinks, listLinks } from '@/lib/framework/obsiddy/repo/links';
 import { ownerScope } from '@/lib/framework/obsiddy/repo/owner-scope';
-import { entityExists } from '@/lib/framework/obsiddy/repo/summaries';
+import { linkEntities } from '@/lib/framework/obsiddy/services/links';
 import { createLinkSchema, linkListQuerySchema } from '@/lib/framework/obsiddy/validations';
 
 export const GET = withAuth(async (request, session) => {
@@ -51,30 +51,12 @@ export const POST = withAuth(async (request, session) => {
 
   const body = await validateRequestBody(request, createLinkSchema);
 
-  // Both endpoints must be the caller's own. Checked in parallel because they are
-  // independent, and reported identically because "that id isn't yours" and "that
-  // id doesn't exist" must not be distinguishable.
-  const [sourceOk, targetOk] = await Promise.all([
-    entityExists(scope, body.sourceType, body.sourceId),
-    entityExists(scope, body.targetType, body.targetId),
-  ]);
+  // The endpoint checks, the identical-404 rule and the server-pinned provenance
+  // all live in `linkEntities` — `obsiddy_link_entities` calls the same function,
+  // so a hand-made link and an agent-made one cannot diverge (§3).
+  const link = await linkEntities(scope, body);
 
-  if (!sourceOk || !targetOk) throw new NotFoundError('Link endpoint not found');
-
-  const link = await createLink(scope, {
-    sourceType: body.sourceType,
-    sourceId: body.sourceId,
-    targetType: body.targetType,
-    targetId: body.targetId,
-    kind: body.kind,
-    ...(body.rationale ? { rationale: body.rationale } : {}),
-    // Server-side, both of them. `origin: 'user'` is provenance — provenance the
-    // caller could choose is not provenance — and a hand-made link has no
-    // measured similarity, so `strength` stays null rather than being faked.
-    origin: 'user',
-    status: 'accepted',
-    reviewedAt: new Date(),
-  });
+  if (!link) throw new NotFoundError('Link endpoint not found');
 
   log.info('Obsiddy link created', { kind: link.kind });
 

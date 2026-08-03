@@ -1,11 +1,17 @@
 /**
- * Review repo — owner-scoped reads over the generated-artefact table.
+ * Review repo — owner-scoped reads and writes over the generated-artefact table.
  *
- * `ObsiddyReview` is how a background workflow persists something the UI can
- * render: the daily triage summary, the weekly review, the morning briefing.
- * Phase 3 only *reads* the latest one, so that `GET /obsiddy/today` can show it
- * if it exists and say nothing if it doesn't. The writes arrive with the
- * workflows in phase 7.
+ * `ObsiddyReview` is how something persists an artefact the UI can render: the
+ * daily triage summary, the weekly review, the morning briefing. Phase 3 only
+ * *read* the latest one, so that `GET /obsiddy/today` could show it if it
+ * existed and say nothing if it didn't.
+ *
+ * Phase 6 adds the write path, because `obsiddy_write_review` is one of the
+ * thirteen capabilities and a capability with nothing to call is not a
+ * capability. The workflows that will be its main caller arrive in phase 7; the
+ * table and the routes do not have to wait for them, and building them together
+ * would have meant the agent layer's only untested write path shipping inside a
+ * workflow PR.
  *
  * Reading the briefing rather than generating it on demand is the whole design:
  * the button serves a stored row instantly instead of making somebody wait
@@ -13,8 +19,35 @@
  */
 
 import { prisma } from '@/lib/db/client';
-import { liveOwnerWhere, type OwnerScope } from '@/lib/framework/obsiddy/repo/owner-scope';
-import type { ObsiddyReview } from '@prisma/client';
+import {
+  liveOwnerWhere,
+  ownerWhere,
+  type OwnerScope,
+} from '@/lib/framework/obsiddy/repo/owner-scope';
+import {
+  nullOnMiss,
+  pageArgs,
+  type ListOptions,
+  type WithoutOwner,
+} from '@/lib/framework/obsiddy/repo/shared';
+import type { ObsiddyReview, Prisma } from '@prisma/client';
+
+export interface ReviewFilters {
+  horizon?: string;
+}
+
+export type ReviewCreateData = WithoutOwner<Prisma.ObsiddyReviewUncheckedCreateInput>;
+
+function reviewWhere(
+  scope: OwnerScope,
+  filters: ReviewFilters = {},
+  includeArchived = false
+): Prisma.ObsiddyReviewWhereInput {
+  return {
+    ...liveOwnerWhere(scope, includeArchived),
+    ...(filters.horizon ? { horizon: filters.horizon } : {}),
+  };
+}
 
 /** The most recently generated review, optionally of one horizon. */
 export async function findLatestReview(
@@ -25,4 +58,57 @@ export async function findLatestReview(
     where: { ...liveOwnerWhere(scope), ...(horizon ? { horizon } : {}) },
     orderBy: { generatedAt: 'desc' },
   });
+}
+
+export async function listReviews(
+  scope: OwnerScope,
+  filters: ReviewFilters = {},
+  options: ListOptions = {}
+): Promise<ObsiddyReview[]> {
+  return prisma.obsiddyReview.findMany({
+    where: reviewWhere(scope, filters, options.includeArchived),
+    orderBy: { generatedAt: 'desc' },
+    ...pageArgs(options),
+  });
+}
+
+export async function countReviews(
+  scope: OwnerScope,
+  filters: ReviewFilters = {},
+  includeArchived = false
+): Promise<number> {
+  return prisma.obsiddyReview.count({ where: reviewWhere(scope, filters, includeArchived) });
+}
+
+export async function findReview(scope: OwnerScope, id: string): Promise<ObsiddyReview | null> {
+  return prisma.obsiddyReview.findFirst({ where: { ...ownerWhere(scope), id } });
+}
+
+export async function createReview(
+  scope: OwnerScope,
+  data: ReviewCreateData
+): Promise<ObsiddyReview> {
+  return prisma.obsiddyReview.create({ data: { ...data, ...ownerWhere(scope) } });
+}
+
+export async function archiveReview(
+  scope: OwnerScope,
+  id: string,
+  reason = 'manual'
+): Promise<ObsiddyReview | null> {
+  // No `archiveAndDropVectors` hop: `review` is not one of the six embedded
+  // types, so there are no `ObsiddyEmbedding` rows to drop. The `indexedHash`
+  // column on the model is dormant, carried for the same reason `rev` is.
+  return nullOnMiss(() =>
+    prisma.obsiddyReview.update({
+      where: { id, ...ownerWhere(scope) },
+      data: { archivedAt: new Date(), archivedReason: reason },
+    })
+  );
+}
+
+export async function deleteReview(scope: OwnerScope, id: string): Promise<ObsiddyReview | null> {
+  return nullOnMiss(() =>
+    prisma.obsiddyReview.delete({ where: { id, ...ownerWhere(scope) } })
+  );
 }

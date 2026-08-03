@@ -49,12 +49,12 @@ Namespaced _inside_ the tier, never at its root — so a project already running
 | Schema                                  | 19 models in `prisma/schema/framework-obsiddy.prisma`                                                                                                                                                       |
 | Migrations                              | `add_second_brain`, `obsiddy_space_cascade`, `obsiddy_document_originals`, `obsiddy_sweep_cursor`, `obsiddy_document_hash_unique`, `obsiddy_connection_floor` — all hand-edited, never regenerate           |
 | Repo layer                              | `lib/framework/obsiddy/repo/*` — `OwnerScope`, 16 modules                                                                                                                                                   |
-| Services                                | `lib/framework/obsiddy/services/*` — resources, slug, events, space, snooze, today, inbox, promote, details, graph, connections-view, board-view, board-export, fractional-position, counts, link-hydration |
+| Services                                | `lib/framework/obsiddy/services/*` — resources, slug, events, space, snooze, today, inbox, promote, details, graph, connections-view, board-view, board-export, fractional-position, counts, link-hydration, **capture, snapshot, ideate, reviews, links** (phase 6a) |
 | Priority engine                         | `lib/framework/obsiddy/priority/*` — pure scorer, batched reprioritise pass                                                                                                                                 |
 | Semantic layer                          | `lib/framework/obsiddy/{embedding,search,documents}/*` — indexer, hybrid search, sweep, ingest                                                                                                              |
 | Zoned time                              | `lib/framework/obsiddy/time/zoned.ts` — every schedule resolves in the user's zone                                                                                                                          |
 | UI contracts                            | `lib/framework/obsiddy/ui/*` — `OBSIDDY_ROUTES`, wire-shape schemas, the one server-read helper                                                                                                             |
-| API                                     | `app/api/v1/obsiddy/**` — 58 route files, plus one admin pair                                                                                                                                               |
+| API                                     | `app/api/v1/obsiddy/**` — 61 route files, plus one admin pair                                                                                                                                               |
 | User UI                                 | `app/(protected)/obsiddy/**` — 12 surfaces; components in `components/obsiddy/**`                                                                                                                           |
 | Admin UI                                | `/admin/obsiddy/settings` — document handling and the upload ceiling                                                                                                                                        |
 
@@ -133,8 +133,19 @@ Six properties, each invisible when it breaks:
 
 Proven by `npm run framework:obsiddy:smoke-search` against a real database: 26 assertions over the pgvector SQL, the tsvector ranking, cross-user isolation (including the case where another user's row is the _better_ vector match), the sweep, the tombstone and the archive transaction. It runs with real embeddings when a provider is configured and with deterministic synthetic vectors when not — printing which, because a green run should never claim more than it proved.
 
-Next: **phase 6** (the agent layer — capabilities, agents, the `obsiddy-core`
-profile, provenance and the chat page). **Phase 0b is done** — Sunrise landed
+**Phase 6a has landed** — the four write paths the capabilities need, built
+first so that every capability has an API-accessible twin rather than a private
+one: `POST /obsiddy/capture` (idempotent on `externalId`), `GET /obsiddy/snapshot`
+(the whole brain in an LLM-shaped payload, eight queries flat), `POST
+/obsiddy/ideate` (framings on demand, over a wider similarity floor than the
+sweep uses) and the `GET`/`POST /obsiddy/reviews` pair. `POST /obsiddy/links`
+moved its logic into `services/links.ts` in the same pass, so
+`obsiddy_link_entities` inherits the endpoint checks and the server-pinned
+provenance rather than reimplementing them.
+
+Next: **the rest of phase 6** — 6b (thirteen capabilities, five agents, the
+`obsiddy-core` profile and the seeds) and 6c (the context contributor, the chat
+route and the chat page). **Phase 0b is done** — Sunrise landed
 both seams itself on 2026-07-31, and the merge that brought them in also cleared
 phase 6's one known blocker ([sunrise#462](https://github.com/human-centric-engineering/sunrise/issues/462):
 boot-registered capabilities and context contributors were silently lost at
