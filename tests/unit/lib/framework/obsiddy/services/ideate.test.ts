@@ -101,6 +101,24 @@ function completionReturning(raw: string): void {
   });
 }
 
+/**
+ * Capture the options the service passed to `runStructuredCompletion` without
+ * running its parse callback.
+ *
+ * The parser is worth testing directly: its whole job is to survive whatever a
+ * model returns, and every rejection path exists because some model somewhere
+ * produced that shape. Driving it through a happy-path completion would only
+ * ever exercise the branch that works.
+ */
+function capturedOptions(): { parse: (raw: string) => unknown; messages: Array<{ content: string }> } {
+  const options = mockedCompletion.mock.calls[0]?.[0];
+  if (!options) throw new Error('runStructuredCompletion was not called');
+  return options as unknown as {
+    parse: (raw: string) => unknown;
+    messages: Array<{ content: string }>;
+  };
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   mockedExists.mockResolvedValue(true);
@@ -257,5 +275,168 @@ describe('ideate accounting', () => {
     // No agent id to attribute the spend to, so the key is omitted rather than
     // sent as undefined.
     expect(mockedCost.mock.calls[0]?.[0]).not.toHaveProperty('agentId');
+  });
+});
+
+describe('ideate response parsing', () => {
+  // Every branch below is a shape some model will eventually return. Returning
+  // `null` is not a failure — it is what triggers `runStructuredCompletion`'s
+  // single temperature-0 retry, so each of these buys one more attempt rather
+  // than a crash.
+
+  it('rejects a reply that is not JSON at all', async () => {
+    await ideate(SCOPE, INPUT);
+
+    // The commonest real failure: a model that wrapped its JSON in prose.
+    expect(capturedOptions().parse('Here are some ideas!')).toBeNull();
+  });
+
+  it('rejects a JSON null', async () => {
+    await ideate(SCOPE, INPUT);
+
+    // `typeof null === 'object'`, so this needs its own guard.
+    expect(capturedOptions().parse('null')).toBeNull();
+  });
+
+  it('rejects an object whose framings is not an array', async () => {
+    await ideate(SCOPE, INPUT);
+
+    expect(capturedOptions().parse('{"framings":"one good idea"}')).toBeNull();
+  });
+
+  it('rejects an object with no framings key', async () => {
+    await ideate(SCOPE, INPUT);
+
+    expect(capturedOptions().parse('{"ideas":[]}')).toBeNull();
+  });
+
+  it('skips a non-object entry rather than rejecting the whole reply', async () => {
+    await ideate(SCOPE, INPUT);
+
+    const parsed = capturedOptions().parse(
+      '{"framings":["just a string",{"title":"A","rationale":"r","drawsOn":[]}]}'
+    ) as { framings: unknown[] } | null;
+
+    // One bad entry must not cost the good ones — a retry would re-roll all of
+    // them for no reason.
+    expect(parsed?.framings).toHaveLength(1);
+  });
+
+  it('treats a non-array drawsOn as no citations', async () => {
+    await ideate(SCOPE, INPUT);
+
+    const parsed = capturedOptions().parse(
+      '{"framings":[{"title":"A","rationale":"r","drawsOn":"thought_9"}]}'
+    ) as { framings: Array<{ drawsOn: string[] }> } | null;
+
+    expect(parsed?.framings[0]?.drawsOn).toEqual([]);
+  });
+
+  it('rejects a reply whose every entry was unusable', async () => {
+    await ideate(SCOPE, INPUT);
+
+    // Nothing survived, so there is nothing to return — retry is the right call.
+    expect(capturedOptions().parse('{"framings":[{"title":"A"}]}')).toBeNull();
+  });
+
+  it('caps an over-long title and rationale rather than storing them whole', async () => {
+    await ideate(SCOPE, INPUT);
+
+    const parsed = capturedOptions().parse(
+      JSON.stringify({
+        framings: [{ title: 'x'.repeat(500), rationale: 'y'.repeat(2000), drawsOn: [] }],
+      })
+    ) as { framings: Array<{ title: string; rationale: string }> } | null;
+
+    expect(parsed?.framings[0]?.title).toHaveLength(200);
+    expect(parsed?.framings[0]?.rationale).toHaveLength(1000);
+  });
+});
+
+describe('ideate prompt shaping', () => {
+  it('includes the angle when one is given, and omits the line when not', async () => {
+    await ideate(SCOPE, { ...INPUT, angle: 'podcast episodes' });
+    const withAngle = capturedOptions().messages.map((m) => m.content).join('\n');
+    expect(withAngle).toContain('podcast episodes');
+
+    vi.clearAllMocks();
+    mockedExists.mockResolvedValue(true);
+    mockedSummaries.mockImplementation(async (_scope, entityType) =>
+      entityType === 'project' ? [SEED] : [NEIGHBOUR]
+    );
+    mockedConnections.mockResolvedValue([
+      {
+        sourceType: 'project',
+        sourceId: 'project_1',
+        targetType: 'thought',
+        targetId: 'thought_9',
+        strength: 0.51,
+      },
+    ]);
+    mockedAgent.mockResolvedValue({ id: 'agent_1', provider: '', model: '' });
+    mockedResolve.mockResolvedValue({ providerSlug: 'openai', model: 'gpt-x', fallbacks: [] });
+    mockedProvider.mockResolvedValue({} as Awaited<ReturnType<typeof getProvider>>);
+    completionReturning(
+      JSON.stringify({ framings: [{ title: 'A', rationale: 'r', drawsOn: [] }] })
+    );
+
+    await ideate(SCOPE, INPUT);
+    const without = capturedOptions().messages.map((m) => m.content).join('\n');
+    expect(without).not.toContain('The angle to pursue');
+  });
+
+  it('describes a neighbour with its subtitle and similarity', async () => {
+    mockedSummaries.mockImplementation(async (_scope, entityType) =>
+      entityType === 'project'
+        ? [SEED]
+        : [{ ...NEIGHBOUR, subtitle: 'captured on a train' }]
+    );
+
+    await ideate(SCOPE, INPUT);
+    const prompt = capturedOptions().messages.map((m) => m.content).join('\n');
+
+    // The id is what `drawsOn` cites back, so it has to be in the prompt; the
+    // similarity is what lets the model tell a near neighbour from a far one.
+    expect(prompt).toContain('[thought_9]');
+    expect(prompt).toContain('captured on a train');
+    expect(prompt).toContain('similarity 0.51');
+  });
+});
+
+describe('ideate edge cases', () => {
+  it('404s when the seed vanished between the existence check and the read', async () => {
+    // Two reads, no transaction — the row can be deleted in between. The answer
+    // must be the same 404 as "not yours", not a crash on an undefined seed.
+    mockedExists.mockResolvedValue(true);
+    mockedSummaries.mockResolvedValue([]);
+
+    await expect(ideate(SCOPE, INPUT)).rejects.toBeInstanceOf(NotFoundError);
+    expect(mockedCompletion).not.toHaveBeenCalled();
+  });
+
+  it('drops a neighbour whose summary could not be hydrated', async () => {
+    // The connection query returns ids from raw SQL; if a row was archived or
+    // deleted since, `findSummaries` returns nothing for it. Emitting a
+    // half-built neighbour would put an id in the prompt with no text behind it.
+    mockedConnections.mockResolvedValue([
+      {
+        sourceType: 'project',
+        sourceId: 'project_1',
+        targetType: 'thought',
+        targetId: 'thought_9',
+        strength: 0.51,
+      },
+      {
+        sourceType: 'project',
+        sourceId: 'project_1',
+        targetType: 'thought',
+        targetId: 'thought_gone',
+        strength: 0.48,
+      },
+    ]);
+
+    const result = await ideate(SCOPE, INPUT);
+
+    expect(result.neighbours.map((n) => n.id)).toEqual(['thought_9']);
   });
 });
