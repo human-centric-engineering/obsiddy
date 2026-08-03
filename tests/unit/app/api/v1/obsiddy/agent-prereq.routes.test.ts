@@ -47,10 +47,15 @@ import { POST as CAPTURE } from '@/app/api/v1/obsiddy/capture/route';
 import { GET as SNAPSHOT } from '@/app/api/v1/obsiddy/snapshot/route';
 import { POST as IDEATE } from '@/app/api/v1/obsiddy/ideate/route';
 import { GET as REVIEWS_GET, POST as REVIEWS_POST } from '@/app/api/v1/obsiddy/reviews/route';
+import { GET as REVIEW_GET } from '@/app/api/v1/obsiddy/reviews/[id]/route';
 import { captureThought } from '@/lib/framework/obsiddy/services/capture';
 import { buildSnapshot } from '@/lib/framework/obsiddy/services/snapshot';
 import { ideate } from '@/lib/framework/obsiddy/services/ideate';
-import { listObsiddyReviews, writeReview } from '@/lib/framework/obsiddy/services/reviews';
+import {
+  getObsiddyReview,
+  listObsiddyReviews,
+  writeReview,
+} from '@/lib/framework/obsiddy/services/reviews';
 
 const SESSION_A = { user: { id: 'user_a' }, session: { userId: 'user_a' } };
 
@@ -59,6 +64,7 @@ const mockedSnapshot = buildSnapshot as unknown as ReturnType<typeof vi.fn>;
 const mockedIdeate = ideate as unknown as ReturnType<typeof vi.fn>;
 const mockedWrite = writeReview as unknown as ReturnType<typeof vi.fn>;
 const mockedList = listObsiddyReviews as unknown as ReturnType<typeof vi.fn>;
+const mockedGetReview = getObsiddyReview as unknown as ReturnType<typeof vi.fn>;
 
 function postReq(url: string, body: unknown) {
   return {
@@ -109,9 +115,13 @@ beforeEach(() => {
 
 describe('POST /api/v1/obsiddy/capture', () => {
   it('creates and answers 201', async () => {
-    const response = await invoke(CAPTURE, postReq('/api/v1/obsiddy/capture', {
-      content: 'Ring the accountant',
-    }), SESSION_A);
+    const response = await invoke(
+      CAPTURE,
+      postReq('/api/v1/obsiddy/capture', {
+        content: 'Ring the accountant',
+      }),
+      SESSION_A
+    );
 
     expect(response.status).toBe(201);
   });
@@ -122,10 +132,14 @@ describe('POST /api/v1/obsiddy/capture', () => {
       deduped: true,
     });
 
-    const response = await invoke(CAPTURE, postReq('/api/v1/obsiddy/capture', {
-      content: 'x',
-      externalId: 'msg-42',
-    }), SESSION_A);
+    const response = await invoke(
+      CAPTURE,
+      postReq('/api/v1/obsiddy/capture', {
+        content: 'x',
+        externalId: 'msg-42',
+      }),
+      SESSION_A
+    );
 
     expect(response.status).toBe(200);
     const body = (await response.json()) as { data: { deduped: boolean } };
@@ -148,10 +162,14 @@ describe('POST /api/v1/obsiddy/capture', () => {
   it('rejects a userId smuggled into the body', async () => {
     // `.strict()` — an attempt to set someone else's id is a 400, not a silently
     // ignored key. Visible beats tolerated.
-    const response = await invoke(CAPTURE, postReq('/api/v1/obsiddy/capture', {
-      content: 'x',
-      userId: 'user_b',
-    }), SESSION_A);
+    const response = await invoke(
+      CAPTURE,
+      postReq('/api/v1/obsiddy/capture', {
+        content: 'x',
+        userId: 'user_b',
+      }),
+      SESSION_A
+    );
 
     expect(response.status).toBe(400);
     expect(mockedCapture).not.toHaveBeenCalled();
@@ -218,10 +236,14 @@ describe('GET /api/v1/obsiddy/snapshot', () => {
 
 describe('POST /api/v1/obsiddy/ideate', () => {
   it('passes the validated seed through and returns the framings', async () => {
-    const response = await invoke(IDEATE, postReq('/api/v1/obsiddy/ideate', {
-      seedType: 'project',
-      seedId: 'clh1234567890abcdefghijkl',
-    }), SESSION_A);
+    const response = await invoke(
+      IDEATE,
+      postReq('/api/v1/obsiddy/ideate', {
+        seedType: 'project',
+        seedId: 'clh1234567890abcdefghijkl',
+      }),
+      SESSION_A
+    );
 
     expect(response.status).toBe(200);
     expect(mockedIdeate.mock.calls[0]?.[1]).toMatchObject({
@@ -234,21 +256,29 @@ describe('POST /api/v1/obsiddy/ideate', () => {
   it('rejects a seed type that is not embedded, since it can have no neighbours', async () => {
     // `task` is searchable but deliberately not embedded — there is no vector to
     // find neighbours from, so ideation over one is meaningless rather than empty.
-    const response = await invoke(IDEATE, postReq('/api/v1/obsiddy/ideate', {
-      seedType: 'task',
-      seedId: 'clh1234567890abcdefghijkl',
-    }), SESSION_A);
+    const response = await invoke(
+      IDEATE,
+      postReq('/api/v1/obsiddy/ideate', {
+        seedType: 'task',
+        seedId: 'clh1234567890abcdefghijkl',
+      }),
+      SESSION_A
+    );
 
     expect(response.status).toBe(400);
     expect(mockedIdeate).not.toHaveBeenCalled();
   });
 
   it('rejects a count past the cap rather than clamping it', async () => {
-    const response = await invoke(IDEATE, postReq('/api/v1/obsiddy/ideate', {
-      seedType: 'project',
-      seedId: 'clh1234567890abcdefghijkl',
-      count: 500,
-    }), SESSION_A);
+    const response = await invoke(
+      IDEATE,
+      postReq('/api/v1/obsiddy/ideate', {
+        seedType: 'project',
+        seedId: 'clh1234567890abcdefghijkl',
+        count: 500,
+      }),
+      SESSION_A
+    );
 
     expect(response.status).toBe(400);
   });
@@ -282,11 +312,15 @@ describe('/api/v1/obsiddy/reviews', () => {
   });
 
   it('writes and answers 201', async () => {
-    const response = await invoke(REVIEWS_POST, postReq('/api/v1/obsiddy/reviews', {
-      horizon: 'weekly',
-      title: 'Week 31',
-      body: 'Three things moved.',
-    }), SESSION_A);
+    const response = await invoke(
+      REVIEWS_POST,
+      postReq('/api/v1/obsiddy/reviews', {
+        horizon: 'weekly',
+        title: 'Week 31',
+        body: 'Three things moved.',
+      }),
+      SESSION_A
+    );
 
     expect(response.status).toBe(201);
   });
@@ -294,14 +328,77 @@ describe('/api/v1/obsiddy/reviews', () => {
   it('refuses a caller-supplied visibility', async () => {
     // Visibility is the public-link surface (§13) and is never a body field on a
     // write an agent can reach.
-    const response = await invoke(REVIEWS_POST, postReq('/api/v1/obsiddy/reviews', {
-      horizon: 'weekly',
-      title: 'Week 31',
-      body: 'x',
-      visibility: 'link',
-    }), SESSION_A);
+    const response = await invoke(
+      REVIEWS_POST,
+      postReq('/api/v1/obsiddy/reviews', {
+        horizon: 'weekly',
+        title: 'Week 31',
+        body: 'x',
+        visibility: 'link',
+      }),
+      SESSION_A
+    );
 
     expect(response.status).toBe(400);
     expect(mockedWrite).not.toHaveBeenCalled();
+  });
+});
+
+describe('GET /api/v1/obsiddy/reviews/[id]', () => {
+  const params = { params: Promise.resolve({ id: 'review_1' }) };
+
+  it('returns the review', async () => {
+    mockedGetReview.mockResolvedValue({ id: 'review_1', horizon: 'weekly', body: 'x' });
+
+    const response = await invoke(
+      REVIEW_GET,
+      getReq('/api/v1/obsiddy/reviews/review_1'),
+      SESSION_A,
+      params
+    );
+    const body = (await response.json()) as { data: { id: string } };
+
+    expect(response.status).toBe(200);
+    expect(body.data.id).toBe('review_1');
+  });
+
+  it('scopes the read to the session user', async () => {
+    mockedGetReview.mockResolvedValue({ id: 'review_1', horizon: 'weekly' });
+
+    await invoke(REVIEW_GET, getReq('/api/v1/obsiddy/reviews/review_1'), SESSION_A, params);
+
+    const scope = mockedGetReview.mock.calls[0]?.[0] as { userId: string };
+    expect(scope.userId).toBe('user_a');
+    expect(mockedGetReview.mock.calls[0]?.[1]).toBe('review_1');
+  });
+
+  it('404s for another user’s review, never 403', async () => {
+    // The service returns null because the repo's `where` is `{ id, userId }`, so
+    // a foreign id matches no row. 403 would confirm the row exists — which is
+    // the whole reason this codebase answers 404 instead.
+    mockedGetReview.mockResolvedValue(null);
+
+    const response = await invoke(
+      REVIEW_GET,
+      getReq('/api/v1/obsiddy/reviews/review_of_user_b'),
+      SESSION_A,
+      { params: Promise.resolve({ id: 'review_of_user_b' }) }
+    );
+
+    expect(response.status).toBe(404);
+  });
+
+  it('404s for an id that does not exist, identically', async () => {
+    mockedGetReview.mockResolvedValue(null);
+
+    const missing = await invoke(
+      REVIEW_GET,
+      getReq('/api/v1/obsiddy/reviews/nope'),
+      SESSION_A,
+      { params: Promise.resolve({ id: 'nope' }) }
+    );
+
+    // Same status as the foreign-id case above, so the two are indistinguishable.
+    expect(missing.status).toBe(404);
   });
 });

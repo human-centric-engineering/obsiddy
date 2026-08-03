@@ -32,11 +32,7 @@ import { listTasks } from '@/lib/framework/obsiddy/repo/tasks';
 import { sumMinutesByArea } from '@/lib/framework/obsiddy/repo/time-blocks';
 import { buildCounts, type ObsiddyCounts } from '@/lib/framework/obsiddy/services/counts';
 import { getObsiddySettings } from '@/lib/framework/obsiddy/services/space';
-import {
-  daysBetween,
-  startOfZonedWeek,
-  wallClockAt,
-} from '@/lib/framework/obsiddy/time/zoned';
+import { daysBetween, startOfZonedWeek, wallClockAt } from '@/lib/framework/obsiddy/time/zoned';
 
 /** Per-section caps. Sized so the rendered context block fits its token budget. */
 const GOAL_LIMIT = 24;
@@ -155,10 +151,7 @@ function iso(value: Date | null | undefined): string | null {
   return value ? value.toISOString() : null;
 }
 
-export async function buildSnapshot(
-  scope: OwnerScope,
-  now = new Date()
-): Promise<SnapshotPayload> {
+export async function buildSnapshot(scope: OwnerScope, now = new Date()): Promise<SnapshotPayload> {
   // Also the space bootstrap — an agent's first act on a brand-new brain can be
   // a read, and every other table FKs the space row.
   const settings = await getObsiddySettings(scope.userId);
@@ -230,10 +223,7 @@ export async function buildSnapshot(
       name: area.name,
       targetWeeklyMinutes: target,
       minutesThisWeek,
-      neglect:
-        target && target > 0
-          ? Math.min(1, Math.max(0, 1 - minutesThisWeek / target))
-          : null,
+      neglect: target && target > 0 ? Math.min(1, Math.max(0, 1 - minutesThisWeek / target)) : null,
     };
   });
 

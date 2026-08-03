@@ -108,7 +108,5 @@ export async function archiveReview(
 }
 
 export async function deleteReview(scope: OwnerScope, id: string): Promise<ObsiddyReview | null> {
-  return nullOnMiss(() =>
-    prisma.obsiddyReview.delete({ where: { id, ...ownerWhere(scope) } })
-  );
+  return nullOnMiss(() => prisma.obsiddyReview.delete({ where: { id, ...ownerWhere(scope) } }));
 }

@@ -27,10 +27,7 @@ import type { OwnerScope } from '@/lib/framework/obsiddy/repo/owner-scope';
 import type { ListOptions } from '@/lib/framework/obsiddy/repo/shared';
 import { recordObsiddyEvent } from '@/lib/framework/obsiddy/services/events';
 import { ensureObsiddySpace } from '@/lib/framework/obsiddy/services/space';
-import type {
-  CreateReviewInput,
-  ReviewListQuery,
-} from '@/lib/framework/obsiddy/validations';
+import type { CreateReviewInput, ReviewListQuery } from '@/lib/framework/obsiddy/validations';
 import type { ObsiddyReview, Prisma } from '@prisma/client';
 
 /**

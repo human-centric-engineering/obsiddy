@@ -27,7 +27,11 @@ import { NotFoundError } from '@/lib/api/errors';
 import { logger } from '@/lib/logging';
 import { findAgentBinding } from '@/lib/framework/obsiddy/repo/agents';
 import type { OwnerScope } from '@/lib/framework/obsiddy/repo/owner-scope';
-import { entityExists, findSummaries, type EntitySummary } from '@/lib/framework/obsiddy/repo/summaries';
+import {
+  entityExists,
+  findSummaries,
+  type EntitySummary,
+} from '@/lib/framework/obsiddy/repo/summaries';
 import { findConnections, type Connection } from '@/lib/framework/obsiddy/search/connections';
 import { OBSIDDY_IDEATION_AGENT_SLUG } from '@/lib/framework/obsiddy/agents';
 import type { IdeateInput } from '@/lib/framework/obsiddy/validations';
@@ -223,7 +227,7 @@ export async function ideate(scope: OwnerScope, input: IdeateInput): Promise<Ide
       {
         role: 'system',
         content:
-          'You find non-obvious framings connecting a person\'s own notes. You are given one seed item ' +
+          "You find non-obvious framings connecting a person's own notes. You are given one seed item " +
           'and its nearest neighbours from their second brain. Propose distinct framings — an article ' +
           'angle, a podcast topic, a piece of work worth doing — that only make sense because these ' +
           'items sit together. Reject the merely topically similar: if a framing would be just as true ' +

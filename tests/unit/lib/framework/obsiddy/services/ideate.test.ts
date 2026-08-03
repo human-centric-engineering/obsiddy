@@ -176,9 +176,7 @@ describe('ideate output handling', () => {
   it('strips ids the model invented from drawsOn', async () => {
     completionReturning(
       JSON.stringify({
-        framings: [
-          { title: 'A', rationale: 'r', drawsOn: ['thought_9', 'thought_INVENTED'] },
-        ],
+        framings: [{ title: 'A', rationale: 'r', drawsOn: ['thought_9', 'thought_INVENTED'] }],
       })
     );
 

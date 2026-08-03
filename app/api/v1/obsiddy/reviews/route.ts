@@ -23,10 +23,7 @@ import { validateQueryParams, validateRequestBody } from '@/lib/api/validation';
 import { withAuth } from '@/lib/auth/guards';
 import { ownerScope } from '@/lib/framework/obsiddy/repo/owner-scope';
 import { listObsiddyReviews, writeReview } from '@/lib/framework/obsiddy/services/reviews';
-import {
-  createReviewSchema,
-  reviewListQuerySchema,
-} from '@/lib/framework/obsiddy/validations';
+import { createReviewSchema, reviewListQuerySchema } from '@/lib/framework/obsiddy/validations';
 
 export const GET = withAuth(async (request, session) => {
   const log = await getRouteLogger(request);

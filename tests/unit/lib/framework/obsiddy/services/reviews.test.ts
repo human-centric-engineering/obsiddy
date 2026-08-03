@@ -118,9 +118,9 @@ describe('writeReview', () => {
     const circular: Record<string, unknown> = {};
     circular.self = circular;
 
-    await expect(
-      writeReview(SCOPE, { ...BASE, payload: circular })
-    ).rejects.toBeInstanceOf(ValidationError);
+    await expect(writeReview(SCOPE, { ...BASE, payload: circular })).rejects.toBeInstanceOf(
+      ValidationError
+    );
     expect(mockedCreate).not.toHaveBeenCalled();
   });
 
