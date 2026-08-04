@@ -315,7 +315,10 @@ const horizonCheck: ObsiddyWorkflowSpec = {
         config: {
           agentSlug: A.strategist,
           message:
-            'Write the monthly horizon check. Lead with the goals scoring below 0.3 — those are the ones with nothing behind them, and naming them is the entire point of this review. Then the ones progressing well. Finish by calling obsiddy_write_review with horizon "monthly".\n\nAssessment:\n{{assess_goals.output}}\n\nScores:\n{{score_progress.output}}',
+            // `month`, not `monthly` — `REVIEW_HORIZONS` has no `monthly`, and
+            // `createReviewSchema` is a `z.enum` over it, so the obvious word
+            // here is rejected as `invalid_args` and the review is never stored.
+            'Write the monthly horizon check. Lead with the goals scoring below 0.3 — those are the ones with nothing behind them, and naming them is the entire point of this review. Then the ones progressing well. Finish by calling obsiddy_write_review with horizon "month".\n\nAssessment:\n{{assess_goals.output}}\n\nScores:\n{{score_progress.output}}',
           maxToolIterations: 8,
         },
         nextSteps: [{ targetStepId: 'notify' }],
