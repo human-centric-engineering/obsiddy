@@ -44,6 +44,18 @@ export const OBSIDDY_ROUTES = {
   BOARDS: `${BASE}/boards`,
   board: (slug: string): string => `${BASE}/boards/${slug}`,
 
+  /**
+   * Archived items, and what has gone quiet (§11, phase 8).
+   *
+   * **Deliberately not in the main nav.** §11 is explicit that the archived list
+   * views and `?includeArchived=true` are the only two ways to reach archived
+   * items — a permanent nav link to your own archive puts the things you decided
+   * to stop thinking about back in front of you every day, which is the opposite
+   * of what archiving is for. It is linked from Settings and from the monthly
+   * review, both of which are places you go on purpose.
+   */
+  ARCHIVE: `${BASE}/archive`,
+
   /** Search prefilled from the layout's box. */
   searchFor: (query: string): string => `${BASE}/search?q=${encodeURIComponent(query)}`,
 } as const;

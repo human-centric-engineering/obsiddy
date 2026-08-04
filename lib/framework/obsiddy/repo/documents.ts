@@ -20,6 +20,7 @@ import {
   liveOwnerWhere,
   ownerWhere,
   type OwnerScope,
+  type ArchiveVisibility,
 } from '@/lib/framework/obsiddy/repo/owner-scope';
 import {
   nullOnMiss,
@@ -39,7 +40,7 @@ export type DocumentUpdateData = WithoutOwner<Prisma.ObsiddyDocumentUncheckedUpd
 function documentWhere(
   scope: OwnerScope,
   filters: DocumentFilters = {},
-  includeArchived = false
+  includeArchived: ArchiveVisibility = false
 ): Prisma.ObsiddyDocumentWhereInput {
   return {
     ...liveOwnerWhere(scope, includeArchived),
@@ -62,7 +63,7 @@ export async function listDocuments(
 export async function countDocuments(
   scope: OwnerScope,
   filters: DocumentFilters = {},
-  includeArchived = false
+  includeArchived: ArchiveVisibility = false
 ): Promise<number> {
   return prisma.obsiddyDocument.count({ where: documentWhere(scope, filters, includeArchived) });
 }

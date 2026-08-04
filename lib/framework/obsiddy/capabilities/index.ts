@@ -44,6 +44,7 @@ import { ObsiddyPromoteThoughtCapability } from '@/lib/framework/obsiddy/capabil
 import { ObsiddyReprioritiseCapability } from '@/lib/framework/obsiddy/capabilities/reprioritise';
 import { ObsiddyWriteReviewCapability } from '@/lib/framework/obsiddy/capabilities/reviews';
 import { ObsiddySearchCapability } from '@/lib/framework/obsiddy/capabilities/search';
+import { ObsiddyGetStaleDigestCapability } from '@/lib/framework/obsiddy/capabilities/stale';
 import {
   ObsiddyListTasksCapability,
   ObsiddyUpsertTaskCapability,
@@ -78,10 +79,11 @@ export function obsiddyCapabilityHandlers(): BaseCapability[] {
     new ObsiddyGetBriefingCapability(),
     new ObsiddyGetBriefingInputsCapability(),
     new ObsiddyNotifyCapability(),
+    new ObsiddyGetStaleDigestCapability(),
   ];
 }
 
-/** Register the seventeen. Idempotent — the registry keys on slug. */
+/** Register the eighteen. Idempotent — the registry keys on slug. */
 export function registerObsiddyCapabilities(): void {
   for (const capability of obsiddyCapabilityHandlers()) {
     registerAppCapability(capability);

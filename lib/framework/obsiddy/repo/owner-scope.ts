@@ -96,18 +96,34 @@ export function ownerWhere(scope: OwnerScope): { userId: string } {
 }
 
 /**
+ * How much of the archive a query sees.
+ *
+ * `false` (the default everywhere) hides it, `true` mixes archived rows in with
+ * live ones, and `'only'` returns the archive alone. The third exists because
+ * "show me my archive" is a different question from "include archived", and
+ * answering it with `true` gives a list where the archived items are buried
+ * among everything still live — which is not an archive view, it is a longer
+ * list (§11 asks for the former).
+ */
+export type ArchiveVisibility = boolean | 'only';
+
+/**
  * Owner filter plus the archived-item exclusion, for the models that have one.
  *
  * **Every default query gains `archivedAt: null`** and it belongs here rather
  * than at each call site — the plan is explicit that scattering it is how one
  * list eventually forgets and starts showing a user their own archive (§11).
  *
- * @param includeArchived - Opt in explicitly. Only the archived-list views and
- *   `GET /obsiddy/search?includeArchived=true` should ever pass `true`.
+ * @param includeArchived - Opt in explicitly. Only the archived-list views,
+ *   `GET /obsiddy/search?includeArchived=true` and the retention pass should
+ *   ever pass anything but `false`.
  */
 export function liveOwnerWhere(
   scope: OwnerScope,
-  includeArchived = false
-): { userId: string; archivedAt?: null } {
+  includeArchived: ArchiveVisibility = false
+): { userId: string; archivedAt?: null | { not: null } } {
+  if (includeArchived === 'only') {
+    return { userId: scope.userId, archivedAt: { not: null } };
+  }
   return includeArchived ? { userId: scope.userId } : { userId: scope.userId, archivedAt: null };
 }

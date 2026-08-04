@@ -154,6 +154,9 @@ export const thoughtSchema = z.object({
   promotedToId: z.string().nullable(),
   snoozedUntil: isoDate.nullable(),
   snoozeCount: z.number(),
+  archivedAt: isoDate.nullable(),
+  /** `manual | aged_out | project_closed` — why it left (§11, phase 8). */
+  archivedReason: z.string().nullable().optional(),
   createdAt: isoDate,
   updatedAt: isoDate,
 });
@@ -193,6 +196,8 @@ export const searchHitSchema = z.object({
   title: z.string(),
   subtitle: z.string().nullable(),
   archivedAt: isoDate.nullable(),
+  /** `manual | aged_out | project_closed` — why it left (§11, phase 8). */
+  archivedReason: z.string().nullable().optional(),
   updatedAt: isoDate,
   score: z.number(),
   matchedBy: z.string(),
@@ -218,6 +223,8 @@ export const projectSchema = z.object({
   closedAt: isoDate.nullable(),
   snoozedUntil: isoDate.nullable(),
   archivedAt: isoDate.nullable(),
+  /** `manual | aged_out | project_closed` — why it left (§11, phase 8). */
+  archivedReason: z.string().nullable().optional(),
   createdAt: isoDate,
   updatedAt: isoDate,
 });
@@ -235,6 +242,8 @@ export const goalSchema = z.object({
   status: z.string(),
   lastActivityAt: isoDate.nullable(),
   archivedAt: isoDate.nullable(),
+  /** `manual | aged_out | project_closed` — why it left (§11, phase 8). */
+  archivedReason: z.string().nullable().optional(),
   createdAt: isoDate,
   updatedAt: isoDate,
 });
@@ -250,6 +259,8 @@ export const areaSchema = z.object({
   sortOrder: z.number(),
   targetWeeklyMinutes: z.number().nullable(),
   archivedAt: isoDate.nullable(),
+  /** `manual | aged_out | project_closed` — why it left (§11, phase 8). */
+  archivedReason: z.string().nullable().optional(),
   createdAt: isoDate,
   updatedAt: isoDate,
 });
@@ -267,6 +278,8 @@ export const entitySchema = z.object({
   lastActivityAt: isoDate.nullable(),
   snoozedUntil: isoDate.nullable(),
   archivedAt: isoDate.nullable(),
+  /** `manual | aged_out | project_closed` — why it left (§11, phase 8). */
+  archivedReason: z.string().nullable().optional(),
   createdAt: isoDate,
   updatedAt: isoDate,
 });
@@ -290,6 +303,8 @@ export const documentSchema = z.object({
   sourceUrl: z.string().nullable(),
   errorMessage: z.string().nullable(),
   archivedAt: isoDate.nullable(),
+  /** `manual | aged_out | project_closed` — why it left (§11, phase 8). */
+  archivedReason: z.string().nullable().optional(),
   hasOriginal: z.boolean(),
   createdAt: isoDate,
   updatedAt: isoDate,
@@ -316,6 +331,8 @@ export const taskSchema = z.object({
   snoozeCount: z.number(),
   completedAt: isoDate.nullable(),
   archivedAt: isoDate.nullable(),
+  /** `manual | aged_out | project_closed` — why it left (§11, phase 8). */
+  archivedReason: z.string().nullable().optional(),
   createdAt: isoDate,
   updatedAt: isoDate,
 });
@@ -338,6 +355,8 @@ export const linkEndpointSchema = z.object({
   title: z.string().nullable(),
   subtitle: z.string().nullable(),
   archivedAt: isoDate.nullable(),
+  /** `manual | aged_out | project_closed` — why it left (§11, phase 8). */
+  archivedReason: z.string().nullable().optional(),
 });
 
 /** A connection reduced to the end the viewing page is not. */
@@ -449,6 +468,8 @@ export const boardSchema = z.object({
   filter: jsonValue,
   swimlaneBy: z.string().nullable(),
   archivedAt: isoDate.nullable(),
+  /** `manual | aged_out | project_closed` — why it left (§11, phase 8). */
+  archivedReason: z.string().nullable().optional(),
   createdAt: isoDate,
   updatedAt: isoDate,
 });
@@ -519,3 +540,35 @@ export const boardViewSchema = z.object({
 });
 
 export type BoardViewWire = z.infer<typeof boardViewSchema>;
+
+// ─── Lifecycle (phase 8) ─────────────────────────────────────────────────────
+
+export const staleSectionSchema = z.object({
+  /** `project | goal | area | entity` — which question this section asks. */
+  type: z.string(),
+  windowDays: z.number(),
+  rows: z.array(
+    z.object({
+      id: z.string(),
+      title: z.string(),
+      lastSignalAt: isoDate.nullable(),
+      /**
+       * Whole days since the last signal, or `null` when there has never been
+       * one. The two render differently on purpose: "quiet for 94 days" and
+       * "nothing recorded yet" are different facts, and collapsing the second
+       * into "quiet for 0 days" would be a confident wrong number.
+       */
+      quietDays: z.number().nullable(),
+    })
+  ),
+});
+
+export type StaleSectionWire = z.infer<typeof staleSectionSchema>;
+
+export const staleDigestSchema = z.object({
+  generatedAt: isoDate,
+  sections: z.array(staleSectionSchema),
+  total: z.number(),
+});
+
+export type StaleDigestWire = z.infer<typeof staleDigestSchema>;

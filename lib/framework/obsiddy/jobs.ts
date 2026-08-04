@@ -1,7 +1,12 @@
 /**
- * The connection sweep, as a recurring job rather than a cron schedule.
+ * The per-brain rotation: connection sweep, schedule pass, retention.
  *
- * ## Why this one is not a workflow schedule
+ * One job, three passes, because they want the same thing — every brain's turn,
+ * reasonably often, a few brains per tick — and splitting them into three jobs
+ * would mean three cursors over the same table, three rotations drifting out of
+ * step, and three chances to page through every space in the system.
+ *
+ * ## Why none of these is a workflow schedule
  *
  * Four of Obsiddy's background workflows are calendar events — "9am on the 2nd",
  * "Friday at 16:00" — and a cron row expresses those exactly. The connection
@@ -13,6 +18,15 @@
  * It is also free. `sweepConnections` reads vectors that are already stored and
  * finds neighbour pairs in SQL (D4), so there is no embedding cost per run —
  * which is what makes leaving it on for ever affordable.
+ *
+ * Retention (phase 8) is the same shape and joined the rotation for the same
+ * reason, against a plan that had put it in the nightly workflow. Nothing about
+ * it is a moment: no user cares whether a 400-day-old event is deleted at 02:00
+ * or 14:00, only that it eventually is. Per-user cron rows would have bought
+ * that nothing, and cost a row each to create, correct after a DST change and
+ * delete on erasure — the exact three problems phase 7 spent its schedule code
+ * on. `install.md` §2.10 said "the retention pass joins it in phase 8"; this is
+ * that, and `plan.md` §11 has been corrected to match.
  *
  * ## The second cursor
  *
@@ -40,6 +54,12 @@
  * including the `rejected` tombstone, happens inside the query). **Any future
  * job registered here must clear the same bar**, and the seam gives no warning
  * if it does not.
+ *
+ * Retention clears it the same way, and it is the pass where clearing it
+ * matters most, because it is the only one that removes rows. Every rule filters
+ * on `archivedAt: null` or on rows that no longer exist after the first pass, so
+ * a duplicate run archives nothing twice and deletes nothing twice — it finds an
+ * empty batch and returns zero.
  */
 
 import { ownerScope } from '@/lib/framework/obsiddy/repo/owner-scope';
@@ -47,6 +67,7 @@ import { deleteOrphanedObsiddySchedules } from '@/lib/framework/obsiddy/repo/sch
 import { listSpacesDueSweep, markSpacesSwept } from '@/lib/framework/obsiddy/repo/space';
 import { ensureObsiddySchedules } from '@/lib/framework/obsiddy/schedules/ensure';
 import { sweepConnections } from '@/lib/framework/obsiddy/search/connections';
+import { enforceObsiddyRetention } from '@/lib/framework/obsiddy/services/retention';
 import { logger } from '@/lib/logging';
 import { registerAppJob } from '@/lib/orchestration/maintenance/app-jobs';
 
@@ -79,6 +100,17 @@ export interface SweepJobResult {
   schedulesCreated: number;
   /** Schedules this tick brought back in line with what the code writes today. */
   schedulesCorrected: number;
+  /** Rows the retention pass archived across every brain in the batch (phase 8). */
+  retentionArchived: number;
+  /** Derived and log rows the retention pass deleted (phase 8). */
+  retentionPruned: number;
+  /**
+   * At least one brain's retention pass stopped at a rule's batch cap, so there
+   * is more waiting for the next rotation. Surfaced rather than swallowed for
+   * the reason the sweep surfaces `cappedTypes`: a capped run and a complete run
+   * are otherwise the same green log line.
+   */
+  retentionCapped: boolean;
 }
 
 /**
@@ -135,6 +167,9 @@ export async function runObsiddySweepJob(now: Date = new Date()): Promise<SweepJ
       orphanedSchedules,
       schedulesCreated: 0,
       schedulesCorrected: 0,
+      retentionArchived: 0,
+      retentionPruned: 0,
+      retentionCapped: false,
     };
   }
 
@@ -142,6 +177,9 @@ export async function runObsiddySweepJob(now: Date = new Date()): Promise<SweepJ
   let failed = 0;
   let schedulesCreated = 0;
   let schedulesCorrected = 0;
+  let retentionArchived = 0;
+  let retentionPruned = 0;
+  let retentionCapped = false;
 
   for (const { userId, timezone } of due) {
     // Its own try, not the sweep's. A schedule pass that throws must not cost
@@ -167,6 +205,22 @@ export async function runObsiddySweepJob(now: Date = new Date()): Promise<SweepJ
         error: error instanceof Error ? error.message : String(error),
       });
     }
+
+    // Its own try again, and last in the turn. Retention is the only pass here
+    // that removes anything, so it is the one whose failure must cost the brain
+    // least: a sweep that produced connections and a schedule pass that fixed a
+    // cron should both stand even if a retention rule throws.
+    try {
+      const retention = await enforceObsiddyRetention(ownerScope(userId), { now });
+      retentionArchived += retention.archived;
+      retentionPruned += retention.pruned;
+      retentionCapped = retentionCapped || retention.capped;
+    } catch (error) {
+      logger.error('Obsiddy retention pass failed for one brain', {
+        userId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   // Stamped even for the failures, deliberately. A brain that throws every time
@@ -185,6 +239,9 @@ export async function runObsiddySweepJob(now: Date = new Date()): Promise<SweepJ
     orphanedSchedules,
     schedulesCreated,
     schedulesCorrected,
+    retentionArchived,
+    retentionPruned,
+    retentionCapped,
   };
 }
 

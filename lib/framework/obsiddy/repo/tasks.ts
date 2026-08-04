@@ -12,6 +12,7 @@ import {
   liveOwnerWhere,
   ownerWhere,
   type OwnerScope,
+  type ArchiveVisibility,
 } from '@/lib/framework/obsiddy/repo/owner-scope';
 import {
   nullOnMiss,
@@ -47,7 +48,7 @@ export type TaskUpdateData = WithoutOwner<Prisma.ObsiddyTaskUncheckedUpdateInput
 function taskWhere(
   scope: OwnerScope,
   filters: TaskFilters = {},
-  includeArchived = false
+  includeArchived: ArchiveVisibility = false
 ): Prisma.ObsiddyTaskWhereInput {
   return {
     ...liveOwnerWhere(scope, includeArchived),
@@ -95,7 +96,7 @@ export async function listTasks(
 export async function countTasks(
   scope: OwnerScope,
   filters: TaskFilters = {},
-  includeArchived = false
+  includeArchived: ArchiveVisibility = false
 ): Promise<number> {
   return prisma.obsiddyTask.count({ where: taskWhere(scope, filters, includeArchived) });
 }

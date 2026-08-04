@@ -52,6 +52,15 @@ export const ENTITY_STATUSES = ['active', 'dormant', 'former'] as const;
 export const ENERGY_LEVELS = ['low', 'medium', 'high'] as const;
 export const TIME_BLOCK_SOURCES = ['plan', 'actual', 'calendar'] as const;
 export const WORK_STYLES = ['structured', 'balanced', 'exploratory'] as const;
+/**
+ * The types a stale-digest row can be answered "still live" for (§11, phase 8).
+ *
+ * `area` is absent because it has no `lastActivityAt` to stamp, and giving it
+ * one would be a column that exists only to record a dismissal. An area is kept
+ * alive by booking time against it — the same answer, written in the data the
+ * question was asked from.
+ */
+export const STILL_LIVE_TYPES = ['project', 'goal', 'entity'] as const;
 
 /**
  * The notifications a background workflow may send the owner.
@@ -85,10 +94,17 @@ const titleSchema = z.string().trim().min(1, 'Required').max(500);
 export const obsiddyListQuerySchema = z.object({
   limit: z.coerce.number().int().positive().max(200).default(50),
   offset: z.coerce.number().int().min(0).default(0),
+  /**
+   * `false` hides the archive, `true` mixes it in, `only` shows it alone.
+   *
+   * The third value is what the archived-list views ask for. `true` would give
+   * them a longer list rather than an archive — the archived rows would be
+   * scattered among everything still live, which is not the view §11 describes.
+   */
   includeArchived: z
-    .enum(['true', 'false'])
+    .enum(['true', 'false', 'only'])
     .default('false')
-    .transform((value) => value === 'true'),
+    .transform((value) => (value === 'only' ? ('only' as const) : value === 'true')),
 });
 
 export type ObsiddyListQuery = z.infer<typeof obsiddyListQuerySchema>;
@@ -1086,6 +1102,38 @@ export const agentNotifySchema = z
   .strict();
 
 export type AgentNotifyInput = z.infer<typeof agentNotifySchema>;
+
+// ─── Lifecycle (phase 8) ─────────────────────────────────────────────────────
+
+/**
+ * `obsiddy_get_stale_digest` — the four dormancy questions, all of them, always.
+ *
+ * No window arguments, deliberately. §11's windows differ per type because the
+ * types go stale at different speeds, and letting a model pass its own would
+ * make "is this project dead?" mean something different on every run — so the
+ * monthly horizon check could not compare one month's digest with the last.
+ * There is nothing to ask for here either: the caller is the scope.
+ */
+export const agentStaleDigestSchema = z.object({}).strict();
+
+export type AgentStaleDigestInput = z.infer<typeof agentStaleDigestSchema>;
+
+/**
+ * `POST /obsiddy/stale/still-live`.
+ *
+ * The answer to one digest row, and the only write the digest surface makes.
+ * `type` is an enum of the three that have a `lastActivityAt` to stamp — an area
+ * is kept alive by booking time against it, which is the same answer written in
+ * the data the question was asked from.
+ */
+export const staleStillLiveSchema = z
+  .object({
+    type: z.enum(STILL_LIVE_TYPES),
+    id: z.string().min(1).max(64),
+  })
+  .strict();
+
+export type StaleStillLiveInput = z.infer<typeof staleStillLiveSchema>;
 
 // ─── Chat (phase 6c) ─────────────────────────────────────────────────────────
 

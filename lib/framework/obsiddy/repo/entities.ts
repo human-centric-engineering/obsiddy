@@ -22,6 +22,7 @@ import {
   liveOwnerWhere,
   ownerWhere,
   type OwnerScope,
+  type ArchiveVisibility,
 } from '@/lib/framework/obsiddy/repo/owner-scope';
 import {
   nullOnMiss,
@@ -42,7 +43,7 @@ export type EntityUpdateData = WithoutOwner<Prisma.ObsiddyEntityUncheckedUpdateI
 function entityWhere(
   scope: OwnerScope,
   filters: EntityFilters = {},
-  includeArchived = false
+  includeArchived: ArchiveVisibility = false
 ): Prisma.ObsiddyEntityWhereInput {
   return {
     ...liveOwnerWhere(scope, includeArchived),
@@ -66,7 +67,7 @@ export async function listEntities(
 export async function countEntities(
   scope: OwnerScope,
   filters: EntityFilters = {},
-  includeArchived = false
+  includeArchived: ArchiveVisibility = false
 ): Promise<number> {
   return prisma.obsiddyEntity.count({ where: entityWhere(scope, filters, includeArchived) });
 }

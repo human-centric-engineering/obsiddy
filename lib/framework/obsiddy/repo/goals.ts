@@ -16,6 +16,7 @@ import {
   liveOwnerWhere,
   ownerWhere,
   type OwnerScope,
+  type ArchiveVisibility,
 } from '@/lib/framework/obsiddy/repo/owner-scope';
 import {
   nullOnMiss,
@@ -45,7 +46,7 @@ export type GoalUpdateData = WithoutOwner<Prisma.ObsiddyGoalUncheckedUpdateInput
 function goalWhere(
   scope: OwnerScope,
   filters: GoalFilters = {},
-  includeArchived = false
+  includeArchived: ArchiveVisibility = false
 ): Prisma.ObsiddyGoalWhereInput {
   return {
     ...liveOwnerWhere(scope, includeArchived),
@@ -78,7 +79,7 @@ export async function listGoals(
 export async function countGoals(
   scope: OwnerScope,
   filters: GoalFilters = {},
-  includeArchived = false
+  includeArchived: ArchiveVisibility = false
 ): Promise<number> {
   return prisma.obsiddyGoal.count({ where: goalWhere(scope, filters, includeArchived) });
 }

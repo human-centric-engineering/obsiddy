@@ -55,6 +55,18 @@ const BALANCED_WEIGHTS = {
   staleness: 0.05,
 };
 
+/** The §11 defaults, as `GET /obsiddy/space` resolves them for an uncustomised brain. */
+const DEFAULT_WINDOWS = {
+  inboxThoughtDays: 90,
+  completedTaskDays: 180,
+  closedProjectDays: 180,
+  reviewDays: 730,
+  staleEntityDays: 365,
+  suggestedLinkDays: 60,
+  eventDays: 400,
+  planTimeBlockDays: 90,
+};
+
 function settings(overrides: Partial<SpaceSettings> = {}): SpaceSettings {
   return {
     timezone: 'Europe/London',
@@ -62,6 +74,7 @@ function settings(overrides: Partial<SpaceSettings> = {}): SpaceSettings {
     workStyle: 'balanced',
     priorityWeights: { ...BALANCED_WEIGHTS },
     connectionStrengthFloor: 0.55,
+    retentionPolicy: { ...DEFAULT_WINDOWS },
     ...overrides,
   };
 }
@@ -95,6 +108,11 @@ describe('SpaceSettingsForm', () => {
           workStyle: 'balanced',
           priorityWeights: BALANCED_WEIGHTS,
           connectionStrengthFloor: 0.55,
+          // Sent back unchanged. The form round-trips the resolved defaults
+          // rather than omitting them, so a save from a brain that never
+          // customised its windows writes the windows it was showing — not a
+          // null that would silently re-resolve to whatever the defaults become.
+          retentionPolicy: DEFAULT_WINDOWS,
         },
       });
     });

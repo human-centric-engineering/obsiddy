@@ -222,6 +222,7 @@ function makeThought(overrides: Record<string, unknown> = {}) {
     promotedToId: null,
     snoozedUntil: null,
     snoozeCount: 0,
+    archivedAt: null,
     createdAt: ISO,
     updatedAt: ISO,
     ...overrides,

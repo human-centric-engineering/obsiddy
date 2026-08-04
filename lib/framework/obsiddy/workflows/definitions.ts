@@ -280,6 +280,15 @@ const horizonCheck: ObsiddyWorkflowSpec = {
         name: 'Read the brain',
         type: 'tool_call',
         config: { capabilitySlug: C.getSnapshot, args: {} },
+        nextSteps: [{ targetStepId: 'stale_digest' }],
+      },
+      {
+        id: 'stale_digest',
+        name: 'Find what has gone quiet',
+        description:
+          'Phase 8. The digest is deterministic and free — four indexed queries, no model call — so it runs unconditionally rather than being something the strategist decides to look up. Entities appear here and nowhere else: retention never auto-archives a person, so if this step is dropped, a dormant contact is never raised by anything.',
+        type: 'tool_call',
+        config: { capabilitySlug: C.getStaleDigest, args: {} },
         nextSteps: [{ targetStepId: 'assess_goals' }],
       },
       {
@@ -318,7 +327,12 @@ const horizonCheck: ObsiddyWorkflowSpec = {
             // `month`, not `monthly` — `REVIEW_HORIZONS` has no `monthly`, and
             // `createReviewSchema` is a `z.enum` over it, so the obvious word
             // here is rejected as `invalid_args` and the review is never stored.
-            'Write the monthly horizon check. Lead with the goals scoring below 0.3 — those are the ones with nothing behind them, and naming them is the entire point of this review. Then the ones progressing well. Finish by calling obsiddy_write_review with horizon "month".\n\nAssessment:\n{{assess_goals.output}}\n\nScores:\n{{score_progress.output}}',
+            //
+            // The digest rows are questions, not conclusions (§11). "Still a
+            // client?" is fair; "this client is gone" is not the workflow's to
+            // say, and a digest that announces verdicts is one people stop
+            // reading rather than answering.
+            'Write the monthly horizon check. Lead with the goals scoring below 0.3 — those are the ones with nothing behind them, and naming them is the entire point of this review. Then the ones progressing well.\n\nFinish with a short "gone quiet" section from the digest: name each item, say how long it has been quiet, and ask whether it is still live. Ask — do not conclude. You cannot see why something went quiet, and the owner answers these on the Plan page, one click each. Say nothing at all about a section with no rows.\n\nThen call obsiddy_write_review with horizon "month".\n\nAssessment:\n{{assess_goals.output}}\n\nScores:\n{{score_progress.output}}\n\nGone quiet:\n{{stale_digest.output}}',
           maxToolIterations: 8,
         },
         nextSteps: [{ targetStepId: 'notify' }],

@@ -16,6 +16,7 @@ import {
   liveOwnerWhere,
   ownerWhere,
   type OwnerScope,
+  type ArchiveVisibility,
 } from '@/lib/framework/obsiddy/repo/owner-scope';
 import {
   nullOnMiss,
@@ -38,7 +39,7 @@ export type ProjectUpdateData = WithoutOwner<Prisma.ObsiddyProjectUncheckedUpdat
 function projectWhere(
   scope: OwnerScope,
   filters: ProjectFilters = {},
-  includeArchived = false
+  includeArchived: ArchiveVisibility = false
 ): Prisma.ObsiddyProjectWhereInput {
   return {
     ...liveOwnerWhere(scope, includeArchived),
@@ -65,7 +66,7 @@ export async function listProjects(
 export async function countProjects(
   scope: OwnerScope,
   filters: ProjectFilters = {},
-  includeArchived = false
+  includeArchived: ArchiveVisibility = false
 ): Promise<number> {
   return prisma.obsiddyProject.count({ where: projectWhere(scope, filters, includeArchived) });
 }

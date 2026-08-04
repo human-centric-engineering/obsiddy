@@ -11,7 +11,7 @@
  * project → **404 not 403**".
  */
 
-import type { OwnerScope } from '@/lib/framework/obsiddy/repo/owner-scope';
+import type { ArchiveVisibility, OwnerScope } from '@/lib/framework/obsiddy/repo/owner-scope';
 
 /** Sort direction accepted by the list endpoints. */
 export type SortDirection = 'asc' | 'desc';
@@ -24,7 +24,8 @@ export interface PageOptions {
 
 /** Everything a list call takes beyond its own filters. */
 export interface ListOptions extends PageOptions {
-  includeArchived?: boolean;
+  /** `false` hides the archive, `true` mixes it in, `'only'` shows it alone. */
+  includeArchived?: ArchiveVisibility;
 }
 
 export const DEFAULT_PAGE_SIZE = 50;
@@ -75,4 +76,4 @@ export function pageArgs(options: PageOptions = {}): { take: number; skip: numbe
 export type WithoutOwner<T> = Omit<T, 'userId' | 'id' | 'createdAt' | 'updatedAt'>;
 
 /** Re-exported for repo modules so they import one path, not two. */
-export type { OwnerScope };
+export type { ArchiveVisibility, OwnerScope };

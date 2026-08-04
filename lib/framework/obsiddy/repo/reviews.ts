@@ -23,6 +23,7 @@ import {
   liveOwnerWhere,
   ownerWhere,
   type OwnerScope,
+  type ArchiveVisibility,
 } from '@/lib/framework/obsiddy/repo/owner-scope';
 import {
   nullOnMiss,
@@ -41,7 +42,7 @@ export type ReviewCreateData = WithoutOwner<Prisma.ObsiddyReviewUncheckedCreateI
 function reviewWhere(
   scope: OwnerScope,
   filters: ReviewFilters = {},
-  includeArchived = false
+  includeArchived: ArchiveVisibility = false
 ): Prisma.ObsiddyReviewWhereInput {
   return {
     ...liveOwnerWhere(scope, includeArchived),
@@ -75,7 +76,7 @@ export async function listReviews(
 export async function countReviews(
   scope: OwnerScope,
   filters: ReviewFilters = {},
-  includeArchived = false
+  includeArchived: ArchiveVisibility = false
 ): Promise<number> {
   return prisma.obsiddyReview.count({ where: reviewWhere(scope, filters, includeArchived) });
 }

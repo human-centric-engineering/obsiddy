@@ -28,6 +28,8 @@ const settingsSchema = z.object({
   workStyle: z.string(),
   priorityWeights: z.record(z.string(), z.number()),
   connectionStrengthFloor: z.number(),
+  /** The eight §11 windows, resolved to defaults where the user has set none. */
+  retentionPolicy: z.record(z.string(), z.number()),
 });
 
 export default async function ObsiddySettingsPage() {
