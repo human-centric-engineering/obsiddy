@@ -28,6 +28,16 @@ export const OBSIDDY_API = {
   /** Framings on demand. The one endpoint here that makes an LLM call. */
   IDEATE: '/api/v1/obsiddy/ideate',
 
+  /**
+   * The app-owned chat stream (SSE).
+   *
+   * Its own route rather than the platform's `/api/v1/chat/stream`, because that
+   * one deliberately drops `contextType`/`contextId` — the two fields the whole
+   * "always knows my goals" block travels on — and the admin route requires
+   * `withAdminAuth`. See `app/api/v1/obsiddy/chat/stream/route.ts`.
+   */
+  CHAT_STREAM: '/api/v1/obsiddy/chat/stream',
+
   /** Generated artefacts — reviews, briefings, digests. Append-only. */
   REVIEWS: '/api/v1/obsiddy/reviews',
   reviewById: (id: string): string => `/api/v1/obsiddy/reviews/${id}`,

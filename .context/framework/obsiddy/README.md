@@ -35,7 +35,7 @@ Namespaced _inside_ the tier, never at its root — so a project already running
 
 ## Status
 
-**Release 1, phases 0–6b complete** — the tier is wired, the data model exists, every core type has an owner-scoped CRUD API, tasks are ranked by a deterministic scorer, the brain is searchable by meaning, there is a UI (twelve surfaces at `/obsiddy`, including a kanban board), and **there is now an agent layer**: fourteen capabilities, five agents and the shared profile they inherit. What is still missing is the way in — the context contributor, the chat route and the chat page are 6c.
+**Release 1, phases 0–6 complete** — the tier is wired, the data model exists, every core type has an owner-scoped CRUD API, tasks are ranked by a deterministic scorer, the brain is searchable by meaning, there is a UI (thirteen surfaces at `/obsiddy`, including a kanban board), and **you can now talk to it**: fourteen capabilities, five agents, the shared profile they inherit, a per-turn context block that means the agent already knows your goals, and a chat page at `/obsiddy/chat`. Next is phase 7 — the workflows, the morning briefing and the schedules that make it run on its own.
 
 | Wired                                   | Where                                                                                                                                                                                                                                                                                      |
 | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -58,14 +58,14 @@ Namespaced _inside_ the tier, never at its root — so a project already running
 | Zoned time                              | `lib/framework/obsiddy/time/zoned.ts` — every schedule resolves in the user's zone                                                                                                                                                                                                         |
 | UI contracts                            | `lib/framework/obsiddy/ui/*` — `OBSIDDY_ROUTES`, wire-shape schemas, the one server-read helper                                                                                                                                                                                            |
 | API                                     | `app/api/v1/obsiddy/**` — 61 route files, plus one admin pair                                                                                                                                                                                                                              |
-| User UI                                 | `app/(protected)/obsiddy/**` — 12 surfaces; components in `components/obsiddy/**`                                                                                                                                                                                                          |
+| User UI                                 | `app/(protected)/obsiddy/**` — 13 surfaces; components in `components/obsiddy/**`                                                                                                                                                                                                          |
 | Admin UI                                | `/admin/obsiddy/settings` — document handling and the upload ceiling                                                                                                                                                                                                                       |
 
 ## The UI, and the rules it follows (phase 5)
 
-Twelve surfaces under `app/(protected)/obsiddy/`: Today, Inbox, Search, Projects
-(+ detail), Goals, Areas, People (+ detail), Documents, Connections, Graph, Boards
-(+ board), Plan, Settings.
+Thirteen surfaces under `app/(protected)/obsiddy/`: Today, Inbox, **Chat**,
+Search, Projects (+ detail), Goals, Areas, People (+ detail), Documents,
+Connections, Graph, Boards (+ board), Plan, Settings.
 
 Four rules shape all of them, and each exists because breaking it is invisible:
 
@@ -173,8 +173,36 @@ structure (ids, statuses, horizons, counts) and masks prose (titles, notes,
 queries, a third party's name). An id resolves to nothing once the row is erased;
 a title would survive inside the audit bundle for ever.
 
-Next: **6c** — the context contributor, the app-owned chat route and the chat
-page. **Phase 0b is done** — Sunrise landed
+**Phase 6c has landed** — the way in. Three pieces, and the reasoning for each
+is in [`agents.md`](./agents.md) §§10–12:
+
+1. **The context block.** One `LOCKED CONTEXT` block per turn — today's date and
+   timezone, goals longest-horizon-first, active projects with days since
+   activity, the top five tasks with the scorer's word for why, load and area
+   balance. The loader reads `request.userId` and **ignores `id`**, because
+   `buildContext` caches on `type:id:userId` and a loader that trusted `id` would
+   render one person's goals into another's prompt and then cache the answer.
+   Capped twice — per-section rows, then a ~1200-token budget that truncates on
+   whole lines, because half an id in a prompt is worse than no id.
+2. **`POST /obsiddy/chat/stream`.** Its own route because the consumer one drops
+   `contextType`/`contextId` (exactly what the block travels on) and the admin
+   one wants `withAdminAuth`. Both context fields pinned server-side; `agentSlug`
+   checked against the chat allowlist, which is the only thing between a browser
+   and `obsiddy-triage` — `streamChat` does not gate on visibility.
+3. **`/obsiddy/chat`**, on Obsiddy's own chat component. Sunrise's is pinned to
+   the admin endpoint (ask #26), and most of what it carries — cost, token
+   breakdowns, the tool-argument trace — is admin-only anyway. What it adds is a
+   chip naming **which tools ran**, in plain terms: this agent can write, and one
+   that quietly created three tasks while answering a question is the thing
+   people stop trusting.
+
+Cache invalidation lives in `recordObsiddyEvent`, so no service can forget —
+every mutation in the tier records an event. `reprioritiseTasks` is the one
+exception and invalidates directly: it records no event, and it is precisely what
+reorders the block's task list.
+
+Next: **phase 7** — six workflows, the morning briefing, `workStyle`, and
+`ensureObsiddySchedules()`. **Phase 0b is done** — Sunrise landed
 both seams itself on 2026-07-31, and the merge that brought them in also cleared
 phase 6's one known blocker ([sunrise#462](https://github.com/human-centric-engineering/sunrise/issues/462):
 boot-registered capabilities and context contributors were silently lost at

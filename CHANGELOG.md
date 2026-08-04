@@ -111,6 +111,63 @@ release process.
 
 ### Added
 
+- **Obsiddy: the way in** (phase 6c) — the per-turn context block, the app-owned
+  chat route, and the page. This is what turns fourteen capabilities into
+  something you can talk to. Registered through the fork-owned
+  `lib/app/context-contributors.ts` scaffold; no Sunrise-owned source file is
+  touched. Rules and reasoning: `.context/framework/obsiddy/agents.md` §§10–12.
+  - **The `obsiddy` context block**, injected into every turn: today's date,
+    weekday, ISO week and timezone; goals ordered longest-horizon-first with
+    target dates as distances ("in 4d", "overdue by 2d") so the model never has
+    to subtract; active projects with days since activity; the top five tasks
+    with the scorer's own dominant factor; inbox, open tasks, unreviewed
+    connections, remaining weekly capacity; and area balance — **only for areas
+    that carry a weekly target**, since one without a target does not participate
+    in balancing at all and reporting it as attended would be a lie the agent
+    repeats back.
+  - **The loader reads `request.userId` and ignores the `id` argument.**
+    `buildContext` caches on `type:id:userId`, so a loader that trusted `id`
+    would render one person's goals into another person's prompt and then serve
+    the cached answer for the rest of the TTL. An absent `userId` yields `''`,
+    never a fallback.
+  - **Bounded twice.** Per-section row caps stop a four-hundred-project corpus
+    becoming four hundred lines, and a ~1200-token character budget catches what
+    they cannot — truncating on whole lines, because half an id in a prompt is
+    worse than no id: the model will try to use it. A capped section says so, so
+    the agent searches rather than assuming it has seen everything.
+  - **Invalidation lives in `recordObsiddyEvent`**, before the write and
+    regardless of whether it succeeds. Every mutation in the tier records an
+    event, so no service can forget — including ones written later.
+    `reprioritiseTasks` invalidates directly: it is the one mutation that records
+    no event, and precisely the one that reorders the block's task list.
+  - **`POST /api/v1/obsiddy/chat/stream`** — `withAuth`, `streamChat` directly,
+    `sseResponse`. Its own route because the consumer route deliberately drops
+    `contextType` / `contextId` and the admin route requires `withAdminAuth`.
+    Both context fields are pinned server-side (`contextId` is the session user,
+    and the request schema has no such key, so an attempt is a 400 rather than a
+    silently ignored field), and `agentSlug` is checked against
+    `OBSIDDY_CHAT_AGENT_SLUGS`. That check is the only thing between a browser
+    and `obsiddy-triage`: `streamChat` does not gate on `AiAgent.visibility`,
+    which is what lets the companion stay `internal`. An unknown slug and a
+    restricted one get an identical response.
+  - New rate-limit tier **`obsiddy-chat`** (20/min, session-user). Per-minute
+    rather than per-hour because chat is genuinely conversational; the per-turn
+    spend ceiling is separate and lives on the agent row.
+  - **`/obsiddy/chat`**, on Obsiddy's own chat component rather than Sunrise's
+    `<ChatInterface>` — that one posts to a hardcoded admin endpoint with no prop
+    for it (ask #26). It reuses the platform's `parseChatStreamEvent` and
+    `getUserFacingError` (the wire contract and the error map, both genuinely
+    shared) and rebuilds only the rendering, dropping the admin-only cost, token
+    and tool-argument-trace surfaces. It adds a chip naming **which tools ran**,
+    in plain terms — an agent that quietly created three tasks while answering a
+    question is the thing people stop trusting.
+  - New named exports: `registerObsiddyContextContributor`,
+    `invalidateObsiddyContext`, `OBSIDDY_CONTEXT_TYPE`
+    (`lib/framework/obsiddy/context`), `loadObsiddyContext`,
+    `renderObsiddyContext` (`…/context/contributor.ts`),
+    `obsiddyChatRequestSchema`, `OBSIDDY_API.CHAT_STREAM`,
+    `OBSIDDY_ROUTES.CHAT`, and `<ObsiddyChat>`.
+
 - **Obsiddy: the agent layer** (phase 6b) — fourteen capabilities, five agents,
   the shared `obsiddy-core` profile, and the four seeds that make them reachable.
   Registered through the fork-owned `lib/app/capabilities.ts` scaffold, so no

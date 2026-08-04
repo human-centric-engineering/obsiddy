@@ -1020,6 +1020,39 @@ export const agentReprioritiseSchema = z.object({}).strict();
 
 export type AgentReprioritiseInput = z.infer<typeof agentReprioritiseSchema>;
 
+// ─── Chat (phase 6c) ─────────────────────────────────────────────────────────
+
+/**
+ * `POST /obsiddy/chat/stream`.
+ *
+ * Four fields, and the absences are the design:
+ *
+ *   - **No `contextType` / `contextId`.** The route pins both server-side to the
+ *     signed-in user. A client-supplied `contextId` is the one field that would
+ *     let a browser ask for another person's goals to be rendered into its own
+ *     prompt — and `buildContext` would then cache the answer.
+ *   - **No `agentId`, no model, no temperature.** Those are operator settings on
+ *     the `AiAgent` row, and a chat box that could override them is a chat box
+ *     that can spend more than the operator agreed to.
+ *   - **No attachments.** Voice and image capture arrive in phase 9 with their
+ *     own magic-byte validation and their own rate-limit bucket; accepting a
+ *     base64 blob here before any of that exists would be a hole with a UI on it.
+ *
+ * `agentSlug` is validated against `OBSIDDY_CHAT_AGENT_SLUGS` in the route rather
+ * than here, because that list is a security boundary that belongs next to the
+ * reasoning for it (`lib/framework/obsiddy/agents.ts`), not in a schema file.
+ */
+export const obsiddyChatRequestSchema = z
+  .object({
+    message: z.string().trim().min(1, 'Required').max(10_000),
+    agentSlug: z.string().trim().min(1).max(100),
+    /** Continues an existing conversation; omitted starts a new one. */
+    conversationId: cuidSchema.optional(),
+  })
+  .strict();
+
+export type ObsiddyChatRequest = z.infer<typeof obsiddyChatRequestSchema>;
+
 // ─── Instance settings (admin) ────────────────────────────────────────────────
 
 export const DOCUMENT_ORIGINALS_MODES = ['discard', 'retain'] as const;

@@ -9,9 +9,14 @@
  *
  * That asymmetry is deliberate and worth stating: this is the one place in
  * Obsiddy where a failed DB write is swallowed.
+ *
+ * It is also where the chat context block is invalidated (phase 6c). Every
+ * mutation in the tier records an event, so doing it here means no service can
+ * forget — including ones written after this file. See `context/invalidate.ts`.
  */
 
 import { logger } from '@/lib/logging';
+import { invalidateObsiddyContext } from '@/lib/framework/obsiddy/context/invalidate';
 import {
   insertEvent,
   type ObsiddyEventKind,
@@ -34,6 +39,12 @@ export async function recordObsiddyEvent(
   scope: OwnerScope,
   input: RecordEventInput
 ): Promise<void> {
+  // Before the write, not after: the cache drop is what stops an agent
+  // confidently reporting a task the person finished a minute ago, and it must
+  // happen even on the branch where the log insert loses a race. It is a
+  // synchronous `Map.delete` — there is nothing to fail and nothing to await.
+  invalidateObsiddyContext(scope.userId);
+
   try {
     await insertEvent(scope, input);
   } catch (error) {

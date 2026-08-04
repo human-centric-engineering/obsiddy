@@ -8,7 +8,7 @@
  * one import and one call. When Obsiddy adds a fifth expensive route, hosts get
  * it on upgrade without editing anything.
  *
- * ## Why these five routes need their own caps at all
+ * ## Why these six routes need their own caps at all
  *
  * `/api/v1/**` already inherits 100/min keyed on the session user from
  * `proxy.ts`, and CLAUDE.md is explicit that handlers must not call section
@@ -23,6 +23,8 @@
  *   - **`/ideate`** makes a chat-completion call — the most expensive single
  *     request in the tier, and the only one whose cost is measured in cents
  *     rather than fractions of one.
+ *   - **`/chat/stream`** holds an SSE connection open for a multi-step tool
+ *     loop, and each turn is an LLM call plus whatever tools it decides to run.
  *
  * None of these is a per-second interaction — a person searches a few times a
  * minute and reindexes once a week — so the caps are comfortably above real use
@@ -82,6 +84,25 @@ const obsiddyIdeateLimiter = createRateLimiter({
 });
 
 /**
+ * Chat: 20/min.
+ *
+ * A per-minute cap rather than a per-hour one, because chat is genuinely
+ * conversational — a long working session is a hundred turns, and an hourly cap
+ * generous enough for that would be no cap at all for a loop. Twenty a minute is
+ * three times faster than anyone types and holds the ceiling on a client bug
+ * that re-sends on every render.
+ *
+ * The per-turn spend ceiling is separate and lives on the agent
+ * (`maxCostPerTurnUsd` on `obsiddy-companion`): this bounds how many turns, that
+ * bounds how expensive one turn can get. Neither substitutes for the other.
+ */
+const obsiddyChatLimiter = createRateLimiter({
+  interval: MINUTE,
+  maxRequests: 20,
+  uniqueTokenPerInterval: 500,
+});
+
+/**
  * Register Obsiddy's tiers and rules.
  *
  * Idempotent: both registrars dedupe (by identical limiter instance and by rule
@@ -93,6 +114,7 @@ export function registerObsiddyRateLimits(): void {
   registerRateLimitTier('obsiddy-batch', obsiddyBatchLimiter);
   registerRateLimitTier('obsiddy-upload', obsiddyUploadLimiter);
   registerRateLimitTier('obsiddy-ideate', obsiddyIdeateLimiter);
+  registerRateLimitTier('obsiddy-chat', obsiddyChatLimiter);
 
   // Keyed on the session user, not the IP: this is authenticated, per-person
   // work, and IP keying would make one household share a search budget.
@@ -123,6 +145,12 @@ export function registerObsiddyRateLimits(): void {
   registerRateLimitRule({
     match: /^\/api\/v1\/obsiddy\/ideate(?:\/|$)/,
     tier: 'obsiddy-ideate',
+    key: 'session-user',
+  });
+
+  registerRateLimitRule({
+    match: /^\/api\/v1\/obsiddy\/chat(?:\/|$)/,
+    tier: 'obsiddy-chat',
     key: 'session-user',
   });
 }

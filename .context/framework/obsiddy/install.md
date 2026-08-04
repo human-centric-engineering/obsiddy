@@ -14,11 +14,12 @@ step ever needs you to edit a Sunrise-owned file, that is a bug in Obsiddy —
 open an issue rather than making the edit, because you'd be re-making it on
 every upgrade.
 
-> **Status: phases 0–6b.** The tier scaffold, the data model, the CRUD API, the
+> **Status: phases 0–6c.** The tier scaffold, the data model, the CRUD API, the
 > priority engine, the semantic layer (search, indexing, connections, document
-> ingestion), the UI (twelve surfaces including the kanban board) and the agent
-> layer (fourteen capabilities, five agents, four seeds) exist — §§1–6 are real
-> and installable today. Steps still marked _(phase N)_ are listed so the
+> ingestion), the UI (thirteen surfaces including the kanban board and chat) and
+> the agent layer (fourteen capabilities, five agents, four seeds, the per-turn
+> context block and the app-owned chat route) exist — §§1–6 are real and
+> installable today. Steps still marked _(phase N)_ are listed so the
 > checklist grows in place rather than being reconstructed later. This file is
 > updated by every phase.
 >
@@ -57,7 +58,7 @@ merge cleanly on upgrade:
 | `app/api/v1/obsiddy/**`                  | same path — 56 route files, most of them 2 lines                          |
 | `app/api/v1/admin/obsiddy/**`            | same path — the instance-settings pair                                    |
 | `app/admin/obsiddy/**`                   | same path — the settings page                                             |
-| `app/(protected)/obsiddy/**`             | same path — 16 pages across twelve surfaces                               |
+| `app/(protected)/obsiddy/**`             | same path — 17 pages across thirteen surfaces                             |
 | `scripts/framework/obsiddy/**`           | same path — plus one `package.json` script line, below                    |
 | `components/obsiddy/**`                  | same path — the surfaces, the board, and the admin settings form          |
 
@@ -260,7 +261,35 @@ operator who turned a tool off has turned it off.
 
 [462]: https://github.com/human-centric-engineering/sunrise/issues/462
 
-### 2.9 Chat context — `lib/app/context-contributors.ts` _(phase 6c)_
+### 2.9 Chat context — `lib/app/context-contributors.ts`
+
+```ts
+import { registerObsiddyContextContributor } from '@/lib/framework/obsiddy/context';
+
+export function initAppContextContributors(): void {
+  registerObsiddyContextContributor();
+}
+```
+
+Registers the `obsiddy` context type — the `LOCKED CONTEXT` block injected into
+every turn of `/obsiddy/chat`: today's date and timezone, the person's goals,
+active projects with days since activity, top-ranked tasks, load and area
+balance.
+
+Static import, and for the same reason as §2.8: core calls
+`initAppContextContributors()` lazily from `buildContext`, on the chat-turn hot
+path, with nowhere to await.
+
+**Core catches anything this throws** and degrades to "no app contributors"
+rather than failing the turn. That is right for a chat surface and a trap for a
+registrar: a mistake here has no symptom except an agent that has quietly stopped
+knowing anything about the person. Keep whatever you add synchronous and
+failure-free.
+
+The contributor itself reads `request.userId` and **ignores the `id` argument**.
+`buildContext` caches on `type:id:userId`, so a loader that trusted `id` would
+render one person's goals into another person's prompt and then serve the cached
+answer. If you write your own contributor for a different type, copy that rule.
 
 ### 2.10 Recurring jobs — `lib/app/jobs.ts` _(phase 7)_
 
@@ -613,13 +642,14 @@ The app must build with the tier removed — that's what proves the boot import
 is genuinely dynamic. Four seams import the tier **statically** by necessity, so
 back those lines out as part of the test:
 
-| Seam                               | Why it cannot be dynamic                                               |
-| ---------------------------------- | ---------------------------------------------------------------------- |
-| `lib/app/env.ts` (§2.2)            | `lib/env.ts` parses the merged schema during a synchronous module load |
-| `lib/app/eslint.config.mjs` (§2.3) | Flat config is a static default export                                 |
-| `lib/app/rate-limit.ts` (§2.6)     | Runs in the middleware bundle, where there is nowhere to `await`       |
-| `lib/app/admin-nav.ts` (§2.7)      | The sidebar reads the registry during client render                    |
-| `lib/app/capabilities.ts` (§2.8)   | Called synchronously on the request path, before the first dispatch    |
+| Seam                                     | Why it cannot be dynamic                                               |
+| ---------------------------------------- | ---------------------------------------------------------------------- |
+| `lib/app/env.ts` (§2.2)                  | `lib/env.ts` parses the merged schema during a synchronous module load |
+| `lib/app/eslint.config.mjs` (§2.3)       | Flat config is a static default export                                 |
+| `lib/app/rate-limit.ts` (§2.6)           | Runs in the middleware bundle, where there is nowhere to `await`       |
+| `lib/app/admin-nav.ts` (§2.7)            | The sidebar reads the registry during client render                    |
+| `lib/app/capabilities.ts` (§2.8)         | Called synchronously on the request path, before the first dispatch    |
+| `lib/app/context-contributors.ts` (§2.9) | Called synchronously from `buildContext` on the chat-turn hot path     |
 
 Only `bootstrap.ts` must stay dynamic, and that is the one
 `tests/unit/lib/framework/obsiddy/scaffold.test.ts` asserts by reading the file's

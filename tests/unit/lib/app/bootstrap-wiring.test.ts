@@ -98,12 +98,18 @@ describe('rate-limit auto-wire (lib/app/rate-limit.ts → middleware realm)', ()
     const eff = getEffectiveRateLimitPolicy();
     const appRules = eff.filter((rule) => !RATE_LIMIT_POLICY.includes(rule));
 
-    expect(appRules).toHaveLength(5);
+    expect(appRules).toHaveLength(6);
     expect(
       appRules.every(
         (rule) => rule.match instanceof RegExp && String(rule.match).includes('obsiddy')
       )
     ).toBe(true);
+
+    // The Obsiddy chat path resolves to an Obsiddy rule — the positive half of
+    // the same property, and the one worth stating explicitly now that the tier
+    // has a route whose path could be confused with the platform's own
+    // `/api/v1/chat/stream` (asserted NOT to match, two blocks down).
+    expect(appRules.includes(findRateLimitRule('/api/v1/obsiddy/chat/stream', eff)!)).toBe(true);
 
     // A protected Sunrise path still resolves to a Sunrise rule, not an app one.
     for (const path of [

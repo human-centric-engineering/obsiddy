@@ -20,6 +20,7 @@ export const OBSIDDY_ROUTES = {
   TODAY: BASE,
   INBOX: `${BASE}/inbox`,
   SEARCH: `${BASE}/search`,
+  CHAT: `${BASE}/chat`,
   SETTINGS: `${BASE}/settings`,
   PLAN: `${BASE}/plan`,
 

@@ -29,6 +29,7 @@ import { usePathname } from 'next/navigation';
 import {
   Compass,
   FileText,
+  MessageSquare,
   FolderKanban,
   Inbox,
   LayoutGrid,
@@ -56,6 +57,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { href: OBSIDDY_ROUTES.TODAY, label: 'Today', icon: Sun, exact: true },
   { href: OBSIDDY_ROUTES.INBOX, label: 'Inbox', icon: Inbox },
+  { href: OBSIDDY_ROUTES.CHAT, label: 'Chat', icon: MessageSquare },
   { href: OBSIDDY_ROUTES.BOARDS, label: 'Boards', icon: LayoutGrid },
   { href: OBSIDDY_ROUTES.PROJECTS, label: 'Projects', icon: FolderKanban },
   { href: OBSIDDY_ROUTES.GOALS, label: 'Goals', icon: Target },

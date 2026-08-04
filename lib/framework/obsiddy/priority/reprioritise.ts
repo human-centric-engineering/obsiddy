@@ -19,6 +19,7 @@
  *     without ever supplying a number (phase 6)
  */
 
+import { invalidateObsiddyContext } from '@/lib/framework/obsiddy/context/invalidate';
 import { findAreasByIds } from '@/lib/framework/obsiddy/repo/areas';
 import { findGoalsByIds } from '@/lib/framework/obsiddy/repo/goals';
 import { findAcceptedGoalLinks } from '@/lib/framework/obsiddy/repo/links';
@@ -110,6 +111,13 @@ export async function reprioritiseTasks(
   });
 
   const scored = await writeTaskScores(scope, updates);
+
+  // The one mutation in the tier that records no event, so the invalidation in
+  // `recordObsiddyEvent` never fires for it — and it is precisely the one that
+  // reorders the `TOP TASKS` section of the chat context block. A batch pass
+  // triggered on its own (`obsiddy_reprioritise`, the nightly workflow) would
+  // otherwise leave the agent reciting yesterday's order for the rest of the TTL.
+  if (scored > 0) invalidateObsiddyContext(scope.userId);
 
   logger.info('Obsiddy reprioritise complete', { scored, scoped: Boolean(options.taskIds) });
 

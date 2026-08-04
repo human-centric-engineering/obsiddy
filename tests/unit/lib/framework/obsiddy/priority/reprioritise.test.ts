@@ -26,6 +26,9 @@ vi.mock('@/lib/framework/obsiddy/repo/time-blocks', () => ({
   sumMinutesByArea: vi.fn(),
 }));
 vi.mock('@/lib/framework/obsiddy/services/space', () => ({ getObsiddySpace: vi.fn() }));
+vi.mock('@/lib/framework/obsiddy/context/invalidate', () => ({
+  invalidateObsiddyContext: vi.fn(),
+}));
 
 import { reprioritiseTasks, rescoreTask } from '@/lib/framework/obsiddy/priority/reprioritise';
 import { findAreasByIds } from '@/lib/framework/obsiddy/repo/areas';
@@ -41,6 +44,7 @@ import {
 } from '@/lib/framework/obsiddy/repo/tasks';
 import { listTimeBlocks, sumMinutesByArea } from '@/lib/framework/obsiddy/repo/time-blocks';
 import { getObsiddySpace } from '@/lib/framework/obsiddy/services/space';
+import { invalidateObsiddyContext } from '@/lib/framework/obsiddy/context/invalidate';
 import type {
   ObsiddyArea,
   ObsiddyGoal,
@@ -433,5 +437,28 @@ describe('reprioritiseTasks — the resulting order', () => {
 
     expect(writtenScore('deferred')).toBe(0);
     expect(writtenScore('ordinary')).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * The chat context block renders the top of the ranking, and this is the one
+ * mutation in the tier that records no `ObsiddyEvent` — so the blanket
+ * invalidation in `recordObsiddyEvent` never fires for it. A batch pass on its
+ * own (the `obsiddy_reprioritise` capability, the nightly workflow) would
+ * otherwise leave the agent reciting yesterday's order for the rest of the TTL.
+ */
+describe('chat context invalidation', () => {
+  it('drops the cached context block after a scoring pass', async () => {
+    await reprioritiseTasks(scope);
+
+    expect(invalidateObsiddyContext).toHaveBeenCalledWith('user_x');
+  });
+
+  it('does not invalidate when nothing was scored', async () => {
+    (getObsiddySpace as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+
+    await reprioritiseTasks(scope);
+
+    expect(invalidateObsiddyContext).not.toHaveBeenCalled();
   });
 });

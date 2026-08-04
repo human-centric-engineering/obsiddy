@@ -23,10 +23,12 @@
  * row loses it silently. The table below is the whole surface — one row per
  * seam — so a fork's diff here is a line, not a rewrite. See CUSTOMIZATION.md §4.
  *
- * FORK NOTE (Obsiddy): this fork fills seven of these seams — `eslint.config.mjs`
+ * FORK NOTE (Obsiddy): this fork fills nine of these seams — `eslint.config.mjs`
  * (spreads the framework tier), `bootstrap.ts` (boots Obsiddy), `rate-limit.ts`
- * (four per-flow sub-caps), `admin-nav.ts` (the Obsiddy section),
- * `protected-routes.ts` (`/obsiddy`), `protected-nav.ts` and `auth-landing.ts`.
+ * (six per-flow sub-caps), `capabilities.ts` (the fourteen agent tools),
+ * `context-contributors.ts` (the per-turn `obsiddy` context block),
+ * `admin-nav.ts` (the Obsiddy section), `protected-routes.ts` (`/obsiddy`),
+ * `protected-nav.ts` and `auth-landing.ts`.
  * Each row below is pinned rather than deleted, so a stray addition to a filled
  * seam still fails. The Obsiddy boot chain itself is covered by
  * tests/unit/lib/framework/obsiddy/scaffold.test.ts.
@@ -38,6 +40,11 @@ import { readdirSync } from 'node:fs';
 import path from 'node:path';
 import { describe, it, expect, afterEach } from 'vitest';
 import { registerAppRateLimits } from '@/lib/app/rate-limit';
+import { registerAppCapabilities } from '@/lib/orchestration/capabilities';
+import { capabilityDispatcher } from '@/lib/orchestration/capabilities/dispatcher';
+import { buildContext } from '@/lib/orchestration/chat/context-builder';
+import { OBSIDDY_CAPABILITIES } from '@/lib/framework/obsiddy/capabilities/catalogue';
+import { OBSIDDY_CONTEXT_TYPE } from '@/lib/framework/obsiddy/context/type';
 import { initAppCapabilities } from '@/lib/app/capabilities';
 import { initAppContextContributors } from '@/lib/app/context-contributors';
 import { initAppNav } from '@/lib/app/admin-nav';
@@ -96,11 +103,12 @@ const SEAM_DEFAULTS: SeamDefault[] = [
     risk: 'a stray tier or rule would re-cap every install',
     // FORK (Obsiddy): Sunrise asserts the effective policy is the base policy BY
     // IDENTITY — no app rules at all. Obsiddy fills this seam with per-flow
-    // sub-caps for its five expensive routes (every `/search` request embeds the
+    // sub-caps for its six expensive routes (every `/search` request embeds the
     // query; `/reindex` and `/connections/sweep` start batch jobs; `/documents`
-    // parses an upload; `/ideate` makes a chat-completion call). Asserting the
-    // exact set keeps the original intent: a stray rule still fails, and so does
-    // one that escapes the namespace.
+    // parses an upload; `/ideate` makes a chat-completion call; `/chat` holds an
+    // SSE connection open for a tool loop). Asserting the exact set keeps the
+    // original intent: a stray rule still fails, and so does one that escapes
+    // the namespace.
     assert: () => {
       registerAppRateLimits();
 
@@ -113,6 +121,7 @@ const SEAM_DEFAULTS: SeamDefault[] = [
         String(/^\/api\/v1\/obsiddy\/connections\/sweep(?:\/|$)/),
         String(/^\/api\/v1\/obsiddy\/documents(?:\/|$)/),
         String(/^\/api\/v1\/obsiddy\/ideate(?:\/|$)/),
+        String(/^\/api\/v1\/obsiddy\/chat(?:\/|$)/),
       ]);
 
       // Every Obsiddy rule is keyed on the session user, not the IP: this is
@@ -128,14 +137,38 @@ const SEAM_DEFAULTS: SeamDefault[] = [
   {
     seam: 'lib/app/capabilities.ts',
     risk: 'a stray capability would be dispatchable on every install',
-    // Behavioural reach into the dispatcher is covered by bootstrap-wiring.test.ts.
-    assert: () => expect(initAppCapabilities()).toBeUndefined(),
+    // FORK (Obsiddy): Sunrise asserts this returns undefined, which was a proxy
+    // for "registers nothing" only while the seam was empty. Obsiddy fills it,
+    // so a `toBeUndefined()` here would pass no matter WHAT was registered —
+    // vacuous, and vacuous in the seam whose stray registration is dispatchable
+    // on every install. Pin the set instead: an extra tool fails, and so does
+    // one that escapes the `obsiddy_` namespace.
+    assert: () => {
+      initAppCapabilities();
+      registerAppCapabilities();
+
+      for (const spec of OBSIDDY_CAPABILITIES) {
+        expect(capabilityDispatcher.has(spec.slug), spec.slug).toBe(true);
+      }
+    },
   },
   {
     seam: 'lib/app/context-contributors.ts',
     risk: 'a stray contributor would inject prompt context into every chat turn',
-    // Behavioural reach into buildContext is covered by context-builder.test.ts.
-    assert: () => expect(initAppContextContributors()).toBeUndefined(),
+    // FORK (Obsiddy): same reasoning as the row above. Obsiddy registers exactly
+    // one type, and the assertion is behavioural — `buildContext` for that type
+    // must reach a loader rather than the "no context loader" placeholder core
+    // falls back to.
+    assert: async () => {
+      initAppContextContributors();
+
+      // No `userId` on the request, so the Obsiddy loader returns '' without
+      // touching the database — enough to prove the type resolves to a loader.
+      const framed = await buildContext(OBSIDDY_CONTEXT_TYPE, 'unused');
+
+      expect(framed).toContain(`type: ${OBSIDDY_CONTEXT_TYPE}`);
+      expect(framed).not.toContain('No context loader');
+    },
   },
   {
     seam: 'lib/app/admin-nav.ts',

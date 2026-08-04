@@ -1,14 +1,16 @@
 # The agent layer, and the rules it follows
 
 Phase 6b: fourteen capabilities, five agents, one shared profile, four seeds.
-This is what turns a searchable database into something you can talk to — and
+Phase 6c: the context block, the app-owned chat route, and the page. Together
+they are what turns a searchable database into something you can talk to — and
 the place where the isolation contract (D5) has to hold against an input nobody
 wrote by hand.
 
-Everything here lives in `lib/framework/obsiddy/capabilities/**` and
-`prisma/seeds/framework-obsiddy/**`. Nothing in it touches a Sunrise-owned file:
-the single registration goes through `lib/app/capabilities.ts`, the fork-owned
-scaffold Sunrise ships empty and never changes.
+Everything here lives in `lib/framework/obsiddy/{capabilities,context}/**`,
+`app/api/v1/obsiddy/chat/**` and `prisma/seeds/framework-obsiddy/**`. Nothing in
+it touches a Sunrise-owned file: the two registrations go through
+`lib/app/capabilities.ts` and `lib/app/context-contributors.ts`, both fork-owned
+scaffolds Sunrise ships empty and never changes.
 
 ## The one-line summary
 
@@ -237,6 +239,79 @@ change, and without it a host upgrading Obsiddy gets the new tool's code and no
 row for it — which the dispatcher then refuses at `capability_inactive`.
 
 ---
+
+## 10. The context block (6c)
+
+An agent with tools but no orientation is a search box with a personality. The
+`obsiddy` context contributor injects one `LOCKED CONTEXT` block per turn:
+today's date and timezone, goals longest-horizon-first, active projects with days
+since activity, the top five tasks with the scorer's own word for why, inbox and
+capacity, and area balance.
+
+Three rules, each because breaking it is invisible:
+
+1. **The loader reads `request.userId` and ignores `id`.** `buildContext` caches
+   on `type:id:userId`. A loader that trusted `id` would render one person's
+   goals into another person's prompt — and then serve the cached answer for the
+   rest of the TTL. The chat route also pins `contextId` server-side; both halves
+   exist because either alone is one refactor from being wrong.
+2. **It is capped, twice.** Per-section row caps stop a corpus of four hundred
+   projects becoming four hundred lines; a ~1200-token character budget catches
+   what those cannot, and truncates on whole lines because half an id in a prompt
+   is worse than no id — the model will try to use it.
+3. **Invalidation lives in `recordObsiddyEvent`, not at each call site.** Every
+   mutation in the tier records an event, so no service can forget — including
+   ones written later. `reprioritiseTasks` is the one exception (it records no
+   event and is precisely what reorders `TOP TASKS`), so it invalidates directly.
+
+What the block deliberately omits: task notes, thought bodies, document text.
+That is what `obsiddy_search` is for, and carrying it here would spend the budget
+on whatever happened to be recent rather than on what the person is trying to do.
+
+## 11. The chat route, and why it exists
+
+`POST /api/v1/obsiddy/chat/stream`. The platform ships two chat routes and
+neither fits: the consumer route **drops `contextType`/`contextId`** (admin-only
+concepts there — and they are exactly what the block travels on), and the admin
+route requires `withAdminAuth`.
+
+Two things are pinned server-side, and one is checked:
+
+- `contextType` / `contextId` — the latter is `session.user.id`, never a body
+  field. The request schema has no such key, so an attempt is a 400 rather than a
+  silently ignored one.
+- `agentSlug` against `OBSIDDY_CHAT_AGENT_SLUGS`, which today is the companion
+  alone. `streamChat` does **not** gate on `AiAgent.visibility` — that is what
+  lets the companion stay `internal` — so this route is the only thing between a
+  browser and `obsiddy-triage`, an agent with write capabilities tuned for an
+  unattended run. An unknown slug and a restricted one get the same answer.
+
+Rate limit: `obsiddy-chat`, 20/min on the session user. A per-minute cap because
+chat is genuinely conversational; the per-_turn_ spend ceiling is separate and
+lives on the agent row (`maxCostPerTurnUsd`). Neither substitutes for the other.
+
+## 12. The chat UI is Obsiddy's own
+
+`components/obsiddy/chat/obsiddy-chat.tsx`, not Sunrise's `<ChatInterface>`.
+That component posts to a hardcoded `API.ADMIN.ORCHESTRATION.CHAT_STREAM` with no
+prop for the endpoint (ask #26), so reusing it would mean editing a Sunrise-owned
+file.
+
+The rebuild turned out to be the right shape anyway: most of what the admin
+component carries is admin-only — per-turn cost, token breakdowns, the
+tool-argument trace strip. On a personal brain the trace strip would render the
+user's own note text back through a surface with different redaction rules, and a
+cost readout puts a price tag on thinking out loud.
+
+What it does keep from the platform is the part that is genuinely shared:
+`parseChatStreamEvent` (the wire contract — a second copy of that Zod union is a
+second thing to keep in step with the handler) and `getUserFacingError`.
+
+What it adds: **a chip naming which tools ran**, in the user's terms — "searched
+your brain", "captured a thought". This agent can write, and an assistant that
+quietly created three tasks while answering a question is the thing people stop
+trusting. Naming the writes is cheaper than an approval gate and catches the same
+surprise.
 
 ## Where the rest of it lives
 
