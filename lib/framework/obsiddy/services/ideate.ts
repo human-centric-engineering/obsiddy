@@ -32,7 +32,8 @@ import {
   findSummaries,
   type EntitySummary,
 } from '@/lib/framework/obsiddy/repo/summaries';
-import { findConnections, type Connection } from '@/lib/framework/obsiddy/search/connections';
+import { findConnections } from '@/lib/framework/obsiddy/search/connections';
+import { hydrateNeighbours } from '@/lib/framework/obsiddy/services/neighbours';
 import { OBSIDDY_IDEATION_AGENT_SLUG } from '@/lib/framework/obsiddy/agents';
 import type { IdeateInput } from '@/lib/framework/obsiddy/validations';
 import { resolveAgentProviderAndModel } from '@/lib/orchestration/llm/agent-resolver';
@@ -168,38 +169,6 @@ function describe(summary: EntitySummary, strength?: number): string {
   const suffix = strength === undefined ? '' : ` (similarity ${strength.toFixed(2)})`;
   const subtitle = summary.subtitle ? ` — ${summary.subtitle}` : '';
   return `[${summary.id}] ${summary.entityType}: ${summary.title}${subtitle}${suffix}`;
-}
-
-/**
- * Hydrate the connection rows into summaries, one query per distinct type.
- *
- * Batched by type rather than one lookup per neighbour — the `hydrateLinks`
- * shape the tier already uses. Twelve neighbours across six types is at most six
- * queries, and never twelve.
- */
-async function hydrateNeighbours(
-  scope: OwnerScope,
-  connections: Connection[]
-): Promise<Array<EntitySummary & { strength: number }>> {
-  const idsByType = new Map<EmbeddedType, string[]>();
-  for (const connection of connections) {
-    const ids = idsByType.get(connection.targetType) ?? [];
-    ids.push(connection.targetId);
-    idsByType.set(connection.targetType, ids);
-  }
-
-  const batches = await Promise.all(
-    [...idsByType.entries()].map(([entityType, ids]) => findSummaries(scope, entityType, ids))
-  );
-
-  const summaryById = new Map<string, EntitySummary>();
-  for (const summary of batches.flat()) summaryById.set(summary.id, summary);
-
-  // Keep the connection ordering — it is by descending similarity.
-  return connections.flatMap((connection) => {
-    const summary = summaryById.get(connection.targetId);
-    return summary ? [{ ...summary, strength: connection.strength }] : [];
-  });
 }
 
 export async function ideate(scope: OwnerScope, input: IdeateInput): Promise<IdeateResult> {

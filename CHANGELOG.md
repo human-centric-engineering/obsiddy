@@ -111,6 +111,75 @@ release process.
 
 ### Added
 
+- **Obsiddy: the agent layer** (phase 6b) — thirteen capabilities, five agents,
+  the shared `obsiddy-core` profile, and the four seeds that make them reachable.
+  Registered through the fork-owned `lib/app/capabilities.ts` scaffold, so no
+  Sunrise-owned file is touched. Full rules and reasoning:
+  `.context/framework/obsiddy/agents.md`.
+  - **Thirteen capabilities** — `obsiddy_capture`, `obsiddy_search`,
+    `obsiddy_list_tasks`, `obsiddy_upsert_task` / `_project` / `_goal` /
+    `_entity`, `obsiddy_link_entities`, `obsiddy_find_connections`,
+    `obsiddy_get_snapshot`, `obsiddy_write_review`, `obsiddy_reprioritise`,
+    `obsiddy_ideate`. Each calls the same service the matching HTTP route does,
+    so an agent-created task carries the same events, `completedAt` stamping and
+    project-momentum bump as one created in the UI.
+  - **The owner is resolved before a capability body runs.** `ObsiddyCapability`
+    mints the `OwnerScope` from `CapabilityContext.userId` — set by the platform
+    from the session, the schedule's `createdBy`, or the MCP key's owner, none of
+    them reachable from a model — and hands it to `run()`. A subclass cannot
+    express an unscoped read, which matters more than the check itself: the
+    failure it prevents is a fourteenth capability that never had one.
+  - **The model cannot influence the ranking.** All three `manualBoost*` fields
+    are `omit()`ed from every upsert schema, so writing one is a type error
+    rather than a review note, and `obsiddy_reprioritise` accepts **no arguments
+    at all** — not a weight, not a filter, not an id. It triggers the
+    deterministic scorer; it cannot steer it.
+  - **Provenance is pinned server-side.** `obsiddy_capture` sets
+    `source: 'agent'` rather than accepting one, and `obsiddy_link_entities`
+    cannot choose `origin` or `status`. Provenance the caller chooses is not
+    provenance — and a link the model invented would move tasks up the user's
+    ranking, since the scorer's goal-alignment walk follows accepted links.
+  - **Every capability redacts its own audit row.** `AiMessage.provenance` sits
+    outside the Obsiddy erasure cascade, so the thirteen overrides keep structure
+    (ids, `type:id` refs, statuses, horizons, counts) and mask prose (titles,
+    note bodies, search queries, and a third party's name **and** website). An id
+    resolves to nothing once the row is erased; a title would survive in the
+    audit bundle for ever. `obsiddy_get_snapshot` keeps nothing at all.
+  - **Reads carry `output.sources`**, which the engine lifts onto the workflow
+    trace so the approval and trace UI can render "because of these four notes"
+    as typed pills rather than free text. Confidence tracks the retrieval score
+    instead of being asserted flat.
+  - **Five agents** — `obsiddy-companion` (0.4), `obsiddy-triage` (0.1),
+    `obsiddy-connector` (0.6, the one tuned for divergence), `obsiddy-strategist`
+    (0.3) and `obsiddy-judge` (`kind: 'judge'`, 0.0, the target of the horizon
+    check's `judge_call`). All inherit the `obsiddy-core` `AiAgentProfile` with
+    `guardrailsMode: 'append'`, all are `knowledgeAccessMode: 'restricted'` (the
+    global KB is not the user's notes), and all three guard modes are set
+    explicitly rather than inheriting a deployment default.
+  - **Bindings are the enforcement, not the prompts.** The connector cannot write
+    a link, triage cannot create a project, goal or person, the strategist writes
+    only reviews, and `obsiddy-judge` is bound to nothing — zero rows means zero
+    advertised tools. Revocation is `isEnabled: false`, never deleting the row: a
+    missing pivot row synthesizes a default-ALLOW binding in the dispatcher.
+  - New seeds `prisma/seeds/framework-obsiddy/001-capabilities`,
+    `002-agent-profile`, `003-agents`, `004-agent-capabilities`. Capability rows
+    are written **from the code catalogue**, so a row cannot drift from its
+    handler; re-seeding rewrites prompts and function definitions (code
+    artefacts) and leaves `isActive`, `rateLimit`, `requiresApproval`,
+    `quarantineState`, `model`, `provider`, `temperature`, `maxTokens` and
+    `AiAgentCapability.isEnabled` untouched.
+  - New named exports: `registerObsiddyCapabilities`,
+    `obsiddyCapabilityHandlers` (`lib/framework/obsiddy/capabilities`),
+    `OBSIDDY_CAPABILITIES`, `OBSIDDY_CAPABILITY_SLUGS`,
+    `OBSIDDY_CAPABILITY_CATEGORY`, `obsiddyCapabilitySpec`
+    (`…/capabilities/catalogue.ts`), `ObsiddyCapability`, `requireObsiddyUser`,
+    `MissingObsiddyUserError`, `maskFreeText`, `brainSources`
+    (`…/capabilities/base.ts`), `findNeighbours` / `hydrateNeighbours`
+    (`…/services/neighbours.ts` — extracted from `services/ideate.ts` so the
+    ideation path and `obsiddy_find_connections` agree on what an empty result
+    means), and the `agent*Schema` argument schemas in
+    `lib/framework/obsiddy/validations.ts`.
+
 - **Obsiddy: the write paths the agent layer needs** (phase 6a) — four services
   and their HTTP routes, added ahead of the capabilities that call them so that
   every capability has an API-accessible twin rather than a private one. Each

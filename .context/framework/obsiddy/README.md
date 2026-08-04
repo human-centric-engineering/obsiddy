@@ -28,35 +28,38 @@ Namespaced _inside_ the tier, never at its root — so a project already running
 | [`plan.md`](./plan.md)                 | The full implementation plan — data model, migrations, API, agents, workflows, prioritisation, lifecycle, boards, sharing, Obsidian sync, **Cross-Pollination (§18)**, phasing, verification, risks |
 | [`install.md`](./install.md)           | How a host Sunrise project installs Obsiddy — tier directories, one-line seam registrations, env vars, migration, verification. Kept current by every phase                                         |
 | [`ui.md`](./ui.md)                     | The UI's rules and why each exists — one fetch per surface, read/mutate split, wire-shape parsing, the fork-owned primitives, and the checklist for adding a surface                                |
+| [`agents.md`](./agents.md)             | The agent layer's rules — one truth for four places, the owner-scope guard, what an agent deliberately cannot do, the redaction line, the five agents, and why bindings are the enforcement         |
 | [`sunrise-asks.md`](./sunrise-asks.md) | What Obsiddy needs from upstream Sunrise — missing seams, core files a fork is forced to edit, platform gaps. Every row also gets an issue on the Sunrise repo                                      |
 
 `plan.md` is the working copy that travels with the code. It is not auto-synced with any copy held outside the repository.
 
 ## Status
 
-**Release 1, phases 0–5 complete (including 5b)** — the tier is wired, the data model exists, every core type has an owner-scoped CRUD API, tasks are ranked by a deterministic scorer, the brain is searchable by meaning, and **there is now a UI**: twelve surfaces at `/obsiddy`, including a kanban board. There is still no agent layer.
+**Release 1, phases 0–6b complete** — the tier is wired, the data model exists, every core type has an owner-scoped CRUD API, tasks are ranked by a deterministic scorer, the brain is searchable by meaning, there is a UI (twelve surfaces at `/obsiddy`, including a kanban board), and **there is now an agent layer**: thirteen capabilities, five agents and the shared profile they inherit. What is still missing is the way in — the context contributor, the chat route and the chat page are 6c.
 
-| Wired                                   | Where                                                                                                                                                                                                                                                                 |
-| --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Boot (dynamic import → `initLeafApp()`) | `lib/app/bootstrap.ts` → `lib/framework/obsiddy/index.ts`                                                                                                                                                                                                             |
-| Env schema                              | `lib/app/env.ts` merges `obsiddyEnvSchema` (currently empty)                                                                                                                                                                                                          |
-| Lint boundary                           | `lib/app/eslint.config.mjs` spreads `lib/framework/eslint.config.mjs`                                                                                                                                                                                                 |
-| Protected route                         | `/obsiddy` in `lib/app/protected-routes.ts`                                                                                                                                                                                                                           |
-| Rate-limit sub-caps                     | `lib/app/rate-limit.ts` → `registerObsiddyRateLimits()` (search, reindex, sweep, upload)                                                                                                                                                                              |
-| Admin nav                               | `lib/app/admin-nav.ts` → `registerObsiddyAdminNav()`                                                                                                                                                                                                                  |
-| Drift probes                            | `lib/app/db-drift.ts` → `registerObsiddyDriftProbes()` (six, B1 + B3–B7)                                                                                                                                                                                              |
-| Protected nav                           | `lib/app/protected-nav.ts` spreads `OBSIDDY_NAV_ITEM` — was a core-file edit until sunrise#473 landed 2026-07-31                                                                                                                                                      |
-| Schema                                  | 19 models in `prisma/schema/framework-obsiddy.prisma`                                                                                                                                                                                                                 |
-| Migrations                              | `add_second_brain`, `obsiddy_space_cascade`, `obsiddy_document_originals`, `obsiddy_sweep_cursor`, `obsiddy_document_hash_unique`, `obsiddy_connection_floor` — all hand-edited, never regenerate                                                                     |
-| Repo layer                              | `lib/framework/obsiddy/repo/*` — `OwnerScope`, 16 modules                                                                                                                                                                                                             |
-| Services                                | `lib/framework/obsiddy/services/*` — resources, slug, events, space, snooze, today, inbox, promote, details, graph, connections-view, board-view, board-export, fractional-position, counts, link-hydration, **capture, snapshot, ideate, reviews, links** (phase 6a) |
-| Priority engine                         | `lib/framework/obsiddy/priority/*` — pure scorer, batched reprioritise pass                                                                                                                                                                                           |
-| Semantic layer                          | `lib/framework/obsiddy/{embedding,search,documents}/*` — indexer, hybrid search, sweep, ingest                                                                                                                                                                        |
-| Zoned time                              | `lib/framework/obsiddy/time/zoned.ts` — every schedule resolves in the user's zone                                                                                                                                                                                    |
-| UI contracts                            | `lib/framework/obsiddy/ui/*` — `OBSIDDY_ROUTES`, wire-shape schemas, the one server-read helper                                                                                                                                                                       |
-| API                                     | `app/api/v1/obsiddy/**` — 61 route files, plus one admin pair                                                                                                                                                                                                         |
-| User UI                                 | `app/(protected)/obsiddy/**` — 12 surfaces; components in `components/obsiddy/**`                                                                                                                                                                                     |
-| Admin UI                                | `/admin/obsiddy/settings` — document handling and the upload ceiling                                                                                                                                                                                                  |
+| Wired                                   | Where                                                                                                                                                                                                                                                                                      |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Boot (dynamic import → `initLeafApp()`) | `lib/app/bootstrap.ts` → `lib/framework/obsiddy/index.ts`                                                                                                                                                                                                                                  |
+| Env schema                              | `lib/app/env.ts` merges `obsiddyEnvSchema` (currently empty)                                                                                                                                                                                                                               |
+| Lint boundary                           | `lib/app/eslint.config.mjs` spreads `lib/framework/eslint.config.mjs`                                                                                                                                                                                                                      |
+| Protected route                         | `/obsiddy` in `lib/app/protected-routes.ts`                                                                                                                                                                                                                                                |
+| Rate-limit sub-caps                     | `lib/app/rate-limit.ts` → `registerObsiddyRateLimits()` (search, reindex, sweep, upload)                                                                                                                                                                                                   |
+| Admin nav                               | `lib/app/admin-nav.ts` → `registerObsiddyAdminNav()`                                                                                                                                                                                                                                       |
+| Drift probes                            | `lib/app/db-drift.ts` → `registerObsiddyDriftProbes()` (six, B1 + B3–B7)                                                                                                                                                                                                                   |
+| Protected nav                           | `lib/app/protected-nav.ts` spreads `OBSIDDY_NAV_ITEM` — was a core-file edit until sunrise#473 landed 2026-07-31                                                                                                                                                                           |
+| Schema                                  | 19 models in `prisma/schema/framework-obsiddy.prisma`                                                                                                                                                                                                                                      |
+| Migrations                              | `add_second_brain`, `obsiddy_space_cascade`, `obsiddy_document_originals`, `obsiddy_sweep_cursor`, `obsiddy_document_hash_unique`, `obsiddy_connection_floor` — all hand-edited, never regenerate                                                                                          |
+| Repo layer                              | `lib/framework/obsiddy/repo/*` — `OwnerScope`, 16 modules                                                                                                                                                                                                                                  |
+| Capabilities                            | `lib/app/capabilities.ts` → `registerObsiddyCapabilities()` (thirteen, phase 6b)                                                                                                                                                                                                           |
+| Services                                | `lib/framework/obsiddy/services/*` — resources, slug, events, space, snooze, today, inbox, promote, details, graph, connections-view, board-view, board-export, fractional-position, counts, link-hydration, **capture, snapshot, ideate, reviews, links** (phase 6a), **neighbours** (6b) |
+| Agent layer                             | `lib/framework/obsiddy/capabilities/*` — catalogue, scope guard, thirteen handlers; seeds in `prisma/seeds/framework-obsiddy/001–004`                                                                                                                                                      |
+| Priority engine                         | `lib/framework/obsiddy/priority/*` — pure scorer, batched reprioritise pass                                                                                                                                                                                                                |
+| Semantic layer                          | `lib/framework/obsiddy/{embedding,search,documents}/*` — indexer, hybrid search, sweep, ingest                                                                                                                                                                                             |
+| Zoned time                              | `lib/framework/obsiddy/time/zoned.ts` — every schedule resolves in the user's zone                                                                                                                                                                                                         |
+| UI contracts                            | `lib/framework/obsiddy/ui/*` — `OBSIDDY_ROUTES`, wire-shape schemas, the one server-read helper                                                                                                                                                                                            |
+| API                                     | `app/api/v1/obsiddy/**` — 61 route files, plus one admin pair                                                                                                                                                                                                                              |
+| User UI                                 | `app/(protected)/obsiddy/**` — 12 surfaces; components in `components/obsiddy/**`                                                                                                                                                                                                          |
+| Admin UI                                | `/admin/obsiddy/settings` — document handling and the upload ceiling                                                                                                                                                                                                                       |
 
 ## The UI, and the rules it follows (phase 5)
 
@@ -143,9 +146,35 @@ moved its logic into `services/links.ts` in the same pass, so
 `obsiddy_link_entities` inherits the endpoint checks and the server-pinned
 provenance rather than reimplementing them.
 
-Next: **the rest of phase 6** — 6b (thirteen capabilities, five agents, the
-`obsiddy-core` profile and the seeds) and 6c (the context contributor, the chat
-route and the chat page). **Phase 0b is done** — Sunrise landed
+**Phase 6b has landed** — the agent layer. Thirteen capabilities, five agents,
+the shared `obsiddy-core` profile and four seeds; the rules and the reasoning are
+in [`agents.md`](./agents.md), and the three that matter most are:
+
+1. **The owner is resolved before a subclass runs.** `ObsiddyCapability` mints
+   the `OwnerScope` from `CapabilityContext.userId` and hands it to `run()`, so a
+   capability cannot express an unscoped read. That is stronger than a check per
+   class, because the failure it guards against is not a wrong check but a
+   fourteenth capability that never had one — asserted as a sweep over all
+   thirteen rather than a case per class.
+2. **The model can read the brain, write most of it, and influence none of the
+   ranking.** `manualBoost` is `omit()`ed from every upsert schema (a type error,
+   not a review note) and `obsiddy_reprioritise` takes no arguments at all — not a
+   weight, not a filter, not an id. It triggers the deterministic ranker; it
+   cannot steer it.
+3. **Bindings are the enforcement, not the prompts.** The triage prompt says
+   "never create a project or a goal"; a model having a bad day ignores advice.
+   The absent `obsiddy_upsert_project` binding is what holds, because the chat
+   handler advertises only what an agent has an enabled row for. `obsiddy-judge`
+   is bound to nothing at all, asserted at the seed level.
+
+One thing worth knowing before phase 7: **`AiMessage.provenance` is outside the
+Obsiddy erasure cascade**, so every capability's `redactProvenance` keeps
+structure (ids, statuses, horizons, counts) and masks prose (titles, notes,
+queries, a third party's name). An id resolves to nothing once the row is erased;
+a title would survive inside the audit bundle for ever.
+
+Next: **6c** — the context contributor, the app-owned chat route and the chat
+page. **Phase 0b is done** — Sunrise landed
 both seams itself on 2026-07-31, and the merge that brought them in also cleared
 phase 6's one known blocker ([sunrise#462](https://github.com/human-centric-engineering/sunrise/issues/462):
 boot-registered capabilities and context contributors were silently lost at

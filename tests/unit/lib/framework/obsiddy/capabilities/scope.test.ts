@@ -1,0 +1,159 @@
+/**
+ * Unit Tests: the owner-scope guard, across every capability.
+ *
+ * This is the isolation test for the agent layer, and it is deliberately a
+ * sweep over all thirteen rather than a case per class. The failure it guards
+ * against is not "someone wrote the check wrong" — it is "someone added a
+ * fourteenth capability and forgot the check entirely", which no per-class test
+ * can catch because the missing test is the one nobody wrote.
+ *
+ * `CapabilityContext.userId` is `string | null`. Null is a real, reachable state
+ * — a system-initiated workflow run with no owner — and a capability that
+ * shrugged and read the whole table would be the largest leak in the product.
+ * The base class resolves the scope before `run` is ever entered, so the
+ * assertion below holds for any subclass that exists or ever will.
+ *
+ * Test Coverage:
+ * - Every capability refuses a null `userId` with `no_user_context`
+ * - Refusal happens before any service call — nothing is read, nothing written
+ * - `requireObsiddyUser` mints a scope from a present id and throws otherwise
+ * - The minted scope carries the context's id, not one from anywhere else
+ *
+ * @see lib/framework/obsiddy/capabilities/base.ts
+ */
+
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+// Every service the thirteen reach for. All are `vi.fn()` with no
+// implementation, so any capability that got past the guard would reject on
+// `undefined` rather than quietly returning a plausible-looking success.
+vi.mock('@/lib/framework/obsiddy/services/capture', () => ({ captureThought: vi.fn() }));
+vi.mock('@/lib/framework/obsiddy/search/hybrid-search', () => ({ searchObsiddy: vi.fn() }));
+vi.mock('@/lib/framework/obsiddy/services/links', () => ({ linkEntities: vi.fn() }));
+vi.mock('@/lib/framework/obsiddy/services/neighbours', () => ({ findNeighbours: vi.fn() }));
+vi.mock('@/lib/framework/obsiddy/services/snapshot', () => ({ buildSnapshot: vi.fn() }));
+vi.mock('@/lib/framework/obsiddy/services/reviews', () => ({ writeReview: vi.fn() }));
+vi.mock('@/lib/framework/obsiddy/services/ideate', () => ({ ideate: vi.fn() }));
+vi.mock('@/lib/framework/obsiddy/priority/reprioritise', () => ({
+  reprioritiseTasks: vi.fn(),
+  rescoreTask: vi.fn(),
+}));
+vi.mock('@/lib/framework/obsiddy/services/resources', () => {
+  const resource = {
+    name: 'stub',
+    createSchema: { parse: vi.fn() },
+    updateSchema: { parse: vi.fn() },
+    listQuerySchema: { parse: vi.fn() },
+    list: vi.fn(),
+    get: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+    remove: vi.fn(),
+  };
+  return {
+    taskResource: resource,
+    projectResource: resource,
+    goalResource: resource,
+    entityResource: resource,
+  };
+});
+
+import {
+  MissingObsiddyUserError,
+  requireObsiddyUser,
+} from '@/lib/framework/obsiddy/capabilities/base';
+import { obsiddyCapabilityHandlers } from '@/lib/framework/obsiddy/capabilities';
+import { captureThought } from '@/lib/framework/obsiddy/services/capture';
+import { searchObsiddy } from '@/lib/framework/obsiddy/search/hybrid-search';
+import { linkEntities } from '@/lib/framework/obsiddy/services/links';
+import { findNeighbours } from '@/lib/framework/obsiddy/services/neighbours';
+import { buildSnapshot } from '@/lib/framework/obsiddy/services/snapshot';
+import { writeReview } from '@/lib/framework/obsiddy/services/reviews';
+import { ideate } from '@/lib/framework/obsiddy/services/ideate';
+import { reprioritiseTasks } from '@/lib/framework/obsiddy/priority/reprioritise';
+import { taskResource } from '@/lib/framework/obsiddy/services/resources';
+import type { CapabilityContext } from '@/lib/orchestration/capabilities/types';
+
+const ownerlessContext: CapabilityContext = { userId: null, agentId: 'agent-1' };
+
+/**
+ * Arguments good enough to pass each schema, so a capability that failed to
+ * check the owner would proceed to its service rather than stopping at
+ * validation. A validation error here would make this suite pass for the wrong
+ * reason.
+ */
+const VALID_ARGS: Record<string, unknown> = {
+  obsiddy_capture: { content: 'a thought' },
+  obsiddy_search: { query: 'pricing' },
+  obsiddy_list_tasks: {},
+  obsiddy_upsert_task: { title: 'do the thing' },
+  obsiddy_upsert_project: { name: 'a project' },
+  obsiddy_upsert_goal: { title: 'a goal', horizon: 'quarter' },
+  obsiddy_upsert_entity: { name: 'a person' },
+  obsiddy_link_entities: {
+    sourceType: 'project',
+    sourceId: 'clh0000000000000000000001',
+    targetType: 'goal',
+    targetId: 'clh0000000000000000000002',
+  },
+  obsiddy_find_connections: { entityType: 'thought', entityId: 'clh0000000000000000000003' },
+  obsiddy_get_snapshot: {},
+  obsiddy_write_review: { horizon: 'weekly', title: 'Week 12', body: 'prose' },
+  obsiddy_reprioritise: {},
+  obsiddy_ideate: { seedType: 'project', seedId: 'clh0000000000000000000004' },
+};
+
+const ALL_SERVICES = [
+  captureThought,
+  searchObsiddy,
+  linkEntities,
+  findNeighbours,
+  buildSnapshot,
+  writeReview,
+  ideate,
+  reprioritiseTasks,
+  taskResource.list,
+  taskResource.create,
+  taskResource.update,
+];
+
+describe('requireObsiddyUser', () => {
+  it('mints a scope carrying the context user id', () => {
+    expect(requireObsiddyUser({ userId: 'user-a', agentId: 'agent-1' })).toMatchObject({
+      userId: 'user-a',
+    });
+  });
+
+  it('throws MissingObsiddyUserError when the run has no owner', () => {
+    expect(() => requireObsiddyUser(ownerlessContext)).toThrow(MissingObsiddyUserError);
+  });
+
+  it('throws on an empty string, which would otherwise build WHERE userId = ""', () => {
+    expect(() => requireObsiddyUser({ userId: '', agentId: 'agent-1' })).toThrow(
+      MissingObsiddyUserError
+    );
+  });
+});
+
+describe('every Obsiddy capability refuses an ownerless run', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  for (const handler of obsiddyCapabilityHandlers()) {
+    it(`${handler.slug} returns no_user_context and touches nothing`, async () => {
+      const args = handler.validate(VALID_ARGS[handler.slug]);
+
+      const result = await handler.execute(args, ownerlessContext);
+
+      expect(result.success).toBe(false);
+      expect(result.error?.code).toBe('no_user_context');
+      for (const service of ALL_SERVICES) {
+        expect(
+          service,
+          `${handler.slug} reached a service without an owner`
+        ).not.toHaveBeenCalled();
+      }
+    });
+  }
+});
