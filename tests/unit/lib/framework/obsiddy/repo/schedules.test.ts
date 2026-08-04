@@ -72,6 +72,7 @@ import {
 } from '@/lib/framework/obsiddy/repo/schedules';
 import { findOwnerContact } from '@/lib/framework/obsiddy/repo/owner-contact';
 import type { OwnerScope } from '@/lib/framework/obsiddy/repo/owner-scope';
+import { WorkflowStatus } from '@/types/orchestration';
 
 const SCOPE = { userId: 'user_a' } as OwnerScope;
 
@@ -332,10 +333,32 @@ describe('queueObsiddyWorkflowRun', () => {
     expect(data).toMatchObject({
       workflowId: 'wf1',
       versionId: 'v1',
-      status: 'PENDING',
+      status: WorkflowStatus.PENDING,
       userId: 'user_a',
       budgetLimitUsd: 0.25,
     });
+  });
+
+  it('writes the status the tick actually selects on, not an upper-cased lookalike', async () => {
+    // `AiWorkflowExecution.status` is a plain `String`, so the comparison is
+    // byte-exact. An earlier version wrote the literal `'PENDING'`, which every
+    // consumer — `processPendingExecutions`, the reaper, the stuck-execution
+    // dashboard — filters past, so the row was never run, never failed and
+    // never shown, while the route answered `queued`. Asserting the constant
+    // alone would not have caught it: `toMatchObject` would still have passed
+    // had the constant itself been upper-case. This pins the wire value.
+    vi.mocked(prisma.aiWorkflow.findUnique).mockResolvedValue({
+      id: 'wf1',
+      isActive: true,
+      maxCostPerExecutionUsd: null,
+      publishedVersionId: 'v1',
+    } as never);
+    vi.mocked(prisma.aiWorkflowExecution.create).mockResolvedValue({ id: 'exec1' } as never);
+
+    await queueObsiddyWorkflowRun('obsiddy-morning-briefing', 'user_a', {});
+
+    const data = vi.mocked(prisma.aiWorkflowExecution.create).mock.calls[0]?.[0]?.data;
+    expect(data).toMatchObject({ status: 'pending' });
   });
 
   it('returns null rather than queueing a run nothing will execute', async () => {

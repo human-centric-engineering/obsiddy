@@ -28,6 +28,7 @@
  */
 
 import { prisma } from '@/lib/db/client';
+import { WorkflowStatus } from '@/types/orchestration';
 import type { Prisma } from '@prisma/client';
 
 /**
@@ -316,7 +317,13 @@ export async function queueObsiddyWorkflowRun(
     data: {
       workflowId: workflow.id,
       versionId: workflow.publishedVersionId,
-      status: 'PENDING',
+      // `WorkflowStatus.PENDING`, never the literal. The column is a plain
+      // `String`, and the value is lower-case `'pending'` — a hand-written
+      // `'PENDING'` is accepted by the write and matched by nothing: not
+      // `processPendingExecutions`, not the reaper, not the stuck-execution
+      // dashboard. The row would sit there for ever while the route reported
+      // `queued` and the card told the user to reload in a minute.
+      status: WorkflowStatus.PENDING,
       inputData,
       executionTrace: [],
       // The same field the scheduler stamps from `createdBy` — this is how the
