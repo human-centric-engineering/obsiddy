@@ -18,6 +18,31 @@ release process.
 
 ### Added
 
+- **Obsiddy phase 8 — the lifecycle.** `enforceObsiddyRetention(scope)` enforces the
+  eight `ObsiddySpace.retentionPolicy` windows that phase 1 shipped and nothing had
+  applied, running on the connection sweep's per-brain rotation
+  (`registerObsiddyJobs()`). New `GET /api/v1/obsiddy/stale` and
+  `POST /api/v1/obsiddy/stale/still-live`, an eighteenth capability
+  (`obsiddy_get_stale_digest`, read-only), a `stale_digest` step on
+  `obsiddy-horizon-check`, the retention windows in `/obsiddy/settings`, and a new
+  `/obsiddy/archive` surface holding both the digest and the archived-item lists.
+  `includeArchived` gains a third value, `only`, which is what makes an archive view
+  an archive rather than a longer list. No migration — every column this needed has
+  existed since the first one.
+
+  **The rule the design turns on: nothing a human wrote is ever deleted by a clock.**
+  Notes, tasks, projects, goals and reviews auto-*archive* and stay restorable for
+  ever; only derived and log data is deleted. Archiving drops the entity's vectors in
+  the same transaction as the stamp, so recall does not degrade as history grows, and
+  every rule caps at 500 rows per pass and reports `capped` — a run that stopped at
+  its limit is otherwise indistinguishable from one that found everything.
+
+  One departure from the plan: `plan.md` §11 put retention in the nightly workflow and
+  `install.md` §2.10 put it on the app jobs. The job is right, and §11 has been
+  corrected — nothing about retention is a moment, so per-user cron rows would buy
+  nothing and cost a row each to create, correct after a DST change and delete on
+  erasure.
+
 - **Obsiddy phase 7 — the background.** Four scheduled workflows
   (`obsiddy-nightly-triage`, `obsiddy-morning-briefing`, `obsiddy-weekly-review`,
   `obsiddy-horizon-check`) on per-user `AiWorkflowSchedule` rows created by
@@ -54,6 +79,14 @@ release process.
   no body — and every word a recipient reads is rendered server-side. A free-text
   notifier bound to an agent would be an exfiltration channel for the brain and a
   phishing primitive sent from the product's own address.
+
+- **Rejected connection suggestions are never pruned by retention.** The connection
+  sweep excludes any pair that already has an `ObsiddyLink` row, so a `rejected` row
+  is the tombstone that stops a suggestion the user turned down being proposed again
+  every week for ever. `pruneStaleSuggestedLinks` matches `status: 'suggested'`
+  positively rather than excluding `'rejected'`, because the negative form is one
+  careless edit from deleting the tombstones — and the damage surfaces weeks later, as
+  a nag loop with no way for the user to make it stop.
 
 - **`isRootRelativePath()` / `safeCallbackUrl()` no longer pass a tab, LF or CR
   hidden inside a redirect path.** The guard judged `path[1]` on the raw string,

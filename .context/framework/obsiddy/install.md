@@ -14,15 +14,16 @@ step ever needs you to edit a Sunrise-owned file, that is a bug in Obsiddy —
 open an issue rather than making the edit, because you'd be re-making it on
 every upgrade.
 
-> **Status: phases 0–7.** The tier scaffold, the data model, the CRUD API, the
+> **Status: phases 0–8.** The tier scaffold, the data model, the CRUD API, the
 > priority engine, the semantic layer (search, indexing, connections, document
-> ingestion), the UI (thirteen surfaces including the kanban board and chat),
-> the agent layer (seventeen capabilities, six agents, five seeds, the per-turn
-> context block and the app-owned chat route) and the background (four scheduled
+> ingestion), the UI (fourteen surfaces including the kanban board and chat),
+> the agent layer (eighteen capabilities, six agents, five seeds, the per-turn
+> context block and the app-owned chat route), the background (four scheduled
 > workflows, the connection sweep as an app job, the morning briefing and the
-> erasure hook) exist — §§1–7 are real and installable today. Steps still marked _(phase N)_ are listed so the
-> checklist grows in place rather than being reconstructed later. This file is
-> updated by every phase.
+> erasure hook) and the lifecycle (retention on the same rotation, the stale
+> digest, the archive surface) exist — §§1–8 are real and installable today.
+> Steps still marked _(phase N)_ are listed so the checklist grows in place
+> rather than being reconstructed later. This file is updated by every phase.
 >
 > **Phase 0b is done, upstream.** Both seams Obsiddy needed landed in Sunrise on
 > 2026-07-31 (#469, #473), so §2.10 and §2.11 are now one-line registrations
@@ -56,10 +57,10 @@ merge cleanly on upgrade:
 | `prisma/schema/framework-obsiddy.prisma` | same path                                                                  |
 | `prisma/seeds/framework-obsiddy/**`      | same path — five units: capabilities, profile, agents, bindings, workflows |
 | `.context/framework/obsiddy/**`          | same path                                                                  |
-| `app/api/v1/obsiddy/**`                  | same path — 56 route files, most of them 2 lines                           |
+| `app/api/v1/obsiddy/**`                  | same path — 66 route files, most of them 2 lines                           |
 | `app/api/v1/admin/obsiddy/**`            | same path — the instance-settings pair                                     |
 | `app/admin/obsiddy/**`                   | same path — the settings page                                              |
-| `app/(protected)/obsiddy/**`             | same path — 17 pages across thirteen surfaces                              |
+| `app/(protected)/obsiddy/**`             | same path — 18 pages across fourteen surfaces                              |
 | `scripts/framework/obsiddy/**`           | same path — plus one `package.json` script line, below                     |
 | `components/obsiddy/**`                  | same path — the surfaces, the board, and the admin settings form           |
 
@@ -294,8 +295,9 @@ answer. If you write your own contributor for a different type, copy that rule.
 
 ### 2.10 Recurring jobs — `lib/app/jobs.ts` _(phase 7)_
 
-The connection sweep registers here (the retention pass joins it in phase 8),
-via the seam Sunrise landed for [#469] on 2026-07-31. One import, one call:
+The per-brain rotation registers here, via the seam Sunrise landed for [#469] on
+2026-07-31. One import, one call, three passes: the connection sweep and the
+schedule pass (phase 7), and retention (phase 8, as promised here).
 
 ```ts
 import { registerObsiddyJobs } from '@/lib/framework/obsiddy/jobs';
@@ -305,11 +307,26 @@ export function initAppJobs(): void {
 }
 ```
 
-**Why the sweep is a job and the other four are schedules.** Obsiddy's nightly
+**Why these are jobs and the other four are schedules.** Obsiddy's nightly
 triage, morning briefing, weekly review and horizon check are calendar events —
 "9am on the 2nd", "Friday at 16:00" — and live on per-user `AiWorkflowSchedule`
 rows created by `ensureObsiddySchedules()`. The connection sweep is a continuous
 per-user pass with its own rotation cursor, which a cron field expresses badly.
+
+Retention is the same shape, and joined the rotation in phase 8 against a plan
+that had put it in the nightly workflow. Nothing about it is a moment: no user
+cares whether a 400-day-old event is deleted at 02:00 or 14:00, only that it
+eventually is. `plan.md` §11 has been corrected to match.
+
+**What retention will do to your data, stated plainly**, because this is the pass
+that removes things. Notes, tasks, projects, goals and reviews **archive** — they
+are hidden from every list, search and prompt, stay readable, and restore with one
+click, for ever. Nothing a user wrote is ever deleted by a clock. Only derived and
+log data is deleted: connection suggestions nobody looked at, the activity log
+past its window, past planning blocks, and board cards pointing at archived tasks.
+Windows are per-user, default to the §11 table, and are editable at
+`/obsiddy/settings`. Every rule caps at 500 rows per brain per pass, so a first
+run over an old corpus drains across several rotations rather than in one tick.
 
 **The sweep's rotation also carries the schedule pass**, and that is not
 incidental. `ensureObsiddySchedules()` is idempotent and self-correcting, but

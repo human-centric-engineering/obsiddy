@@ -1,7 +1,11 @@
 # The agent layer, and the rules it follows
 
 Phase 6b: fourteen capabilities, five agents, one shared profile, four seeds.
-Phase 6c: the context block, the app-owned chat route, and the page. Together
+Phase 6c: the context block, the app-owned chat route, and the page. Phase 7 added
+three (the briefing pair and the notifier) and a sixth agent; phase 8 added the
+stale digest, taking the catalogue to **eighteen**. Every rule below holds for all
+of them — the counts in the prose are the phase that introduced a rule, not a
+ceiling. Together
 they are what turns a searchable database into something you can talk to — and
 the place where the isolation contract (D5) has to hold against an input nobody
 wrote by hand.
@@ -70,7 +74,9 @@ capability that never had one.
 
 `userId` is `string | null`, and null is real: a system-initiated run with no
 owner. Every capability returns `no_user_context` for it, asserted as a sweep
-over all fourteen rather than a case per class.
+over the whole catalogue rather than a case per class — which is what makes it
+hold for the fifteenth capability nobody has written yet, the failure being
+guarded against not being a wrong check but a new class that never had one.
 
 ---
 
@@ -125,7 +131,7 @@ Every Obsiddy capability sets `processesPii = true` — a brain is nothing but P
 — so the dispatcher refuses to register one that does not override
 `redactProvenance`. Its check is an own-property test on the **immediate**
 prototype, so an override inherited from `ObsiddyCapability` would not satisfy
-it. That is why there are fourteen overrides rather than one, and it is the right
+it. That is why there is an override per capability rather than one shared, and it is the right
 outcome: what is safe to keep for ever differs per tool.
 
 The line every one of them draws: **`AiMessage.provenance` is outside the Obsiddy
