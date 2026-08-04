@@ -98,7 +98,7 @@ describe('rate-limit auto-wire (lib/app/rate-limit.ts → middleware realm)', ()
     const eff = getEffectiveRateLimitPolicy();
     const appRules = eff.filter((rule) => !RATE_LIMIT_POLICY.includes(rule));
 
-    expect(appRules).toHaveLength(4);
+    expect(appRules).toHaveLength(5);
     expect(
       appRules.every(
         (rule) => rule.match instanceof RegExp && String(rule.match).includes('obsiddy')

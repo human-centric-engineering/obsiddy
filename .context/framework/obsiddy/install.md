@@ -193,11 +193,11 @@ export function registerAppRateLimits(): void {
 }
 ```
 
-Four per-flow sub-caps, on top of the 100/min section cap `/api/v1/**` already
+Five per-flow sub-caps, on top of the 100/min section cap `/api/v1/**` already
 inherits from `proxy.ts`. They exist because a single request on these paths is
 expensive rather than cheap: `/search` embeds the query (one paid API call each),
 `/reindex` and `/connections/sweep` start batch jobs, `/documents` parses an
-upload.
+upload, and `/ideate` makes a chat-completion call.
 
 | Path                            | Cap     | Keyed on     |
 | ------------------------------- | ------- | ------------ |
@@ -205,6 +205,11 @@ upload.
 | `/api/v1/obsiddy/reindex`       | 5/hour  | session user |
 | `/api/v1/obsiddy/connections/*` | 5/hour  | session user |
 | `/api/v1/obsiddy/documents`     | 20/hour | session user |
+| `/api/v1/obsiddy/ideate`        | 10/hour | session user |
+
+`/ideate` is the tightest of the five because it is the only flow that buys
+tokens per request — the shape it guards against is a UI bug or an agent loop
+calling it in a cycle, where the bill rather than the load is the damage.
 
 Static import, like §2.2 — this runs in the middleware bundle, where there is
 nowhere to `await`. `registerRateLimitRule` throws at boot if a matcher could

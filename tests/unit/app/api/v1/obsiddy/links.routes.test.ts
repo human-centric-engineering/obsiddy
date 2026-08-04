@@ -8,10 +8,15 @@
  * `ObsiddyLink` has no foreign keys to its endpoints (it's polymorphic), so
  * `POST /links` has to check both endpoints itself, scoped to the caller —
  * and report a missing/foreign endpoint as 404, never 403, because "that id
- * isn't yours" and "that id doesn't exist" must not be distinguishable. The
- * route also forces `origin: 'user'` / `status: 'accepted'` server-side and
- * refuses a client-supplied `strength`, because a hand-made link has no
- * measured similarity to report.
+ * isn't yours" and "that id doesn't exist" must not be distinguishable. It also
+ * forces `origin: 'user'` / `status: 'accepted'` server-side and refuses a
+ * client-supplied `strength`, because a hand-made link has no measured
+ * similarity to report.
+ *
+ * Since phase 6a that logic lives in `services/links.linkEntities`, so
+ * `obsiddy_link_entities` gets the same guarantees rather than a second
+ * implementation of them. This file still drives it end to end through the
+ * route; the service's own suite covers it directly.
  *
  * `PATCH /links/[id]` has deliberately no DELETE export: rejecting a
  * suggestion sets `status: 'rejected'`, which is the tombstone that stops the
@@ -51,6 +56,19 @@ vi.mock('@/lib/framework/obsiddy/repo/summaries', () => ({
 
 vi.mock('@/lib/framework/obsiddy/search/connections', () => ({
   sweepConnections: vi.fn(),
+}));
+
+// `POST /links` delegates to `services/links.linkEntities`, which bootstraps the
+// space and records a `linked` event. Both are stubbed rather than the service
+// itself, so this file keeps testing the whole route→service→repo path — the
+// server-pinned `origin` / `status` assertions below only mean something if the
+// real service is the thing producing them.
+vi.mock('@/lib/framework/obsiddy/services/space', () => ({
+  ensureObsiddySpace: vi.fn().mockResolvedValue({}),
+}));
+
+vi.mock('@/lib/framework/obsiddy/services/events', () => ({
+  recordObsiddyEvent: vi.fn(),
 }));
 
 import { GET as LINKS_GET, POST as LINKS_POST } from '@/app/api/v1/obsiddy/links/route';

@@ -111,6 +111,39 @@ release process.
 
 ### Added
 
+- **Obsiddy: the write paths the agent layer needs** (phase 6a) — four services
+  and their HTTP routes, added ahead of the capabilities that call them so that
+  every capability has an API-accessible twin rather than a private one. Each
+  service is the single implementation the web UI, the agent layer and MCP all
+  go through, which is what stops agent writes and UI writes diverging.
+  - `POST /api/v1/obsiddy/capture` — the idempotent front door. Deduping on
+    `externalId` means a redelivered webhook, a retried phone request and a
+    double-tapped Shortcut return the original row (`200`) instead of creating a
+    second inbox item (`201` for a genuine create). A deduped capture records no
+    second `captured` event, so the weekly review's "what you finished" count
+    stays honest.
+  - `GET /api/v1/obsiddy/snapshot` — the whole brain in an LLM-shaped payload:
+    goals, active projects, top tasks, area balance and capacity, at a fixed
+    eight queries however many rows exist. Every section reports `truncated`
+    when it stopped at its cap, because a section that silently stopped looks
+    exactly like one that found everything. ETag'd.
+  - `POST /api/v1/obsiddy/ideate` — framings on demand, over a **wider**
+    similarity floor than the nightly sweep uses, because the interesting
+    framings come from the nearly-unrelated pairs. Read-only; the only thing it
+    persists is an `AiCostLog` row. Ids the model invents are stripped from each
+    framing's `drawsOn`, since a hallucinated id is worse than no id — it looks
+    like provenance.
+  - `GET`/`POST /api/v1/obsiddy/reviews` and `GET /api/v1/obsiddy/reviews/[id]` —
+    the write path for generated artefacts. Append-only by design: regenerating
+    writes a new row, because "what did the strategist say three weeks ago" is
+    the question the table exists to answer.
+  - New rate-limit tier **`obsiddy-ideate`** (10/hour, session-user), tighter
+    than the tier's other sub-caps because it is the only flow that buys tokens
+    per request.
+  - New named exports: `OBSIDDY_AGENT_SLUGS`, `OBSIDDY_PROFILE_SLUG`,
+    `OBSIDDY_CHAT_AGENT_SLUGS` (`lib/framework/obsiddy/agents.ts`), and
+    `OBSIDDY_API.CAPTURE` / `.SNAPSHOT` / `.IDEATE` / `.REVIEWS` / `.reviewById`.
+
 - **`OBSIDDY_NAV_ITEM`** (`lib/framework/obsiddy/protected-nav.ts`) — Obsiddy's
   header link, offered as a value rather than a registrar because the protected
   nav is a `null`-or-array *override*, not a registry: a framework tier can only
@@ -555,6 +588,13 @@ release process.
 
 ### Changed
 
+- **Obsiddy: `POST /api/v1/obsiddy/links` now goes through `linkEntities`**
+  (`lib/framework/obsiddy/services/links.ts`). The endpoint checks, the
+  identical-404 rule and the server-pinned `origin` / `status` / `reviewedAt`
+  were inline in the route; `obsiddy_link_entities` needs all three, and a
+  capability that reimplemented them would drift — which is exactly the
+  divergence the "handlers stay thin" rule exists to prevent. Behaviour change:
+  a hand-asserted link now records a `linked` `ObsiddyEvent`, which it never did.
 - **Obsiddy: `PATCH /api/v1/obsiddy/tasks/[id]/tags` is now `PUT`.** The route
   always replaced the whole tag set; it used `PATCH` only because `apiClient` had
   no `put` and adding one would have been a core-file edit. #495 landed the verb.

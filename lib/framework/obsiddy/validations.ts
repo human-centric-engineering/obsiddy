@@ -738,6 +738,98 @@ export const documentListQuerySchema = obsiddyListQuerySchema.extend({
   status: z.enum(['processing', 'ready', 'failed']).optional(),
 });
 
+// ─── Capture (phase 6) ───────────────────────────────────────────────────────
+
+/**
+ * `POST /obsiddy/capture` — the front door.
+ *
+ * Deliberately narrower than `POST /obsiddy/thoughts`. Capture is the path a
+ * phone, a share sheet, an email and an agent all take, and every field it does
+ * not accept is a field none of them can get wrong. Status, promotion targets
+ * and snooze state are triage decisions, not capture ones.
+ *
+ * `externalId` is what makes a replay idempotent (`@@unique([userId, externalId])`),
+ * so a double-tapped Shortcut or a redelivered webhook returns the original row
+ * rather than a duplicate or a 409.
+ */
+export const captureSchema = z
+  .object({
+    content: z.string().trim().min(1, 'Required').max(100_000),
+    source: z.enum(THOUGHT_SOURCES).default('web'),
+    externalId: z.string().trim().min(1).max(200).optional(),
+  })
+  .strict();
+
+export type CaptureInput = z.infer<typeof captureSchema>;
+
+// ─── Reviews (phase 6) ───────────────────────────────────────────────────────
+
+export const REVIEW_HORIZONS = [
+  'daily',
+  'weekly',
+  'month',
+  'quarter',
+  'briefing',
+  'connections',
+] as const;
+
+/**
+ * `POST /obsiddy/reviews`.
+ *
+ * `payload` is the structured half the UI renders as cards next to the prose.
+ * It is `unknown` rather than a described shape because each horizon carries a
+ * different one and the renderer is per-horizon; the cap is on the serialised
+ * size, enforced in the service, not on the shape.
+ *
+ * `workflowExecutionId` is accepted so a phase-7 workflow step can point the
+ * artefact back at the run that produced it. It is not a cuid — orchestration
+ * execution ids are core's to shape, so this only bounds the length.
+ */
+export const createReviewSchema = z
+  .object({
+    horizon: z.enum(REVIEW_HORIZONS),
+    title: titleSchema,
+    body: noteBodySchema,
+    payload: z.unknown().optional(),
+    workflowExecutionId: z.string().trim().min(1).max(64).optional(),
+  })
+  .strict();
+
+export type CreateReviewInput = z.infer<typeof createReviewSchema>;
+
+export const reviewListQuerySchema = obsiddyListQuerySchema.extend({
+  horizon: z.enum(REVIEW_HORIZONS).optional(),
+});
+
+export type ReviewListQuery = z.infer<typeof reviewListQuerySchema>;
+
+// ─── Ideate (phase 6) ────────────────────────────────────────────────────────
+
+/** The node types `obsiddy_ideate` will accept as a seed — the embedded ones. */
+export const IDEATE_SEED_TYPES = EMBEDDED_ENTITY_TYPES;
+
+/**
+ * `POST /obsiddy/ideate` — the active counterpart to the nightly sweep.
+ *
+ * The sweep *notices* connections on its own schedule; this is a person asking
+ * for them. It is read-only: it returns framings and writes nothing, which is
+ * why it has no `status`, no link creation and no side effect to undo.
+ *
+ * `count` is capped low on purpose. Ten framings is already more than anyone
+ * reads, and each one costs tokens.
+ */
+export const ideateSchema = z
+  .object({
+    seedType: z.enum(IDEATE_SEED_TYPES),
+    seedId: cuidSchema,
+    /** An optional lens — "podcast episodes", "objections a CFO would raise". */
+    angle: z.string().trim().max(280).optional(),
+    count: z.number().int().min(1).max(10).default(5),
+  })
+  .strict();
+
+export type IdeateInput = z.infer<typeof ideateSchema>;
+
 // ─── Instance settings (admin) ────────────────────────────────────────────────
 
 export const DOCUMENT_ORIGINALS_MODES = ['discard', 'retain'] as const;

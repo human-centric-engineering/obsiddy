@@ -8,7 +8,7 @@
  * one import and one call. When Obsiddy adds a fifth expensive route, hosts get
  * it on upgrade without editing anything.
  *
- * ## Why these four routes need their own caps at all
+ * ## Why these five routes need their own caps at all
  *
  * `/api/v1/**` already inherits 100/min keyed on the session user from
  * `proxy.ts`, and CLAUDE.md is explicit that handlers must not call section
@@ -20,6 +20,9 @@
  *   - **`/reindex`** can queue the entire corpus for re-embedding.
  *   - **`/documents`** parses and stores a file up to the upload ceiling.
  *   - **`/connections/sweep`** runs hundreds of vector queries.
+ *   - **`/ideate`** makes a chat-completion call — the most expensive single
+ *     request in the tier, and the only one whose cost is measured in cents
+ *     rather than fractions of one.
  *
  * None of these is a per-second interaction — a person searches a few times a
  * minute and reindexes once a week — so the caps are comfortably above real use
@@ -65,6 +68,20 @@ const obsiddyUploadLimiter = createRateLimiter({
 });
 
 /**
+ * Ideation: 10/hour.
+ *
+ * Tighter than everything above because it is the only flow that buys tokens per
+ * request. Ten framings sessions an hour is well past what anyone does
+ * deliberately — the shape this is guarding against is a UI bug or an agent loop
+ * calling it in a tight cycle, where the bill, not the load, is the damage.
+ */
+const obsiddyIdeateLimiter = createRateLimiter({
+  interval: HOUR,
+  maxRequests: 10,
+  uniqueTokenPerInterval: 500,
+});
+
+/**
  * Register Obsiddy's tiers and rules.
  *
  * Idempotent: both registrars dedupe (by identical limiter instance and by rule
@@ -75,6 +92,7 @@ export function registerObsiddyRateLimits(): void {
   registerRateLimitTier('obsiddy-search', obsiddySearchLimiter);
   registerRateLimitTier('obsiddy-batch', obsiddyBatchLimiter);
   registerRateLimitTier('obsiddy-upload', obsiddyUploadLimiter);
+  registerRateLimitTier('obsiddy-ideate', obsiddyIdeateLimiter);
 
   // Keyed on the session user, not the IP: this is authenticated, per-person
   // work, and IP keying would make one household share a search budget.
@@ -99,6 +117,12 @@ export function registerObsiddyRateLimits(): void {
   registerRateLimitRule({
     match: /^\/api\/v1\/obsiddy\/documents(?:\/|$)/,
     tier: 'obsiddy-upload',
+    key: 'session-user',
+  });
+
+  registerRateLimitRule({
+    match: /^\/api\/v1\/obsiddy\/ideate(?:\/|$)/,
+    tier: 'obsiddy-ideate',
     key: 'session-user',
   });
 }

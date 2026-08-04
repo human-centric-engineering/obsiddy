@@ -96,10 +96,11 @@ const SEAM_DEFAULTS: SeamDefault[] = [
     risk: 'a stray tier or rule would re-cap every install',
     // FORK (Obsiddy): Sunrise asserts the effective policy is the base policy BY
     // IDENTITY — no app rules at all. Obsiddy fills this seam with per-flow
-    // sub-caps for its four expensive routes (every `/search` request embeds the
+    // sub-caps for its five expensive routes (every `/search` request embeds the
     // query; `/reindex` and `/connections/sweep` start batch jobs; `/documents`
-    // parses an upload). Asserting the exact set keeps the original intent: a
-    // stray rule still fails, and so does one that escapes the namespace.
+    // parses an upload; `/ideate` makes a chat-completion call). Asserting the
+    // exact set keeps the original intent: a stray rule still fails, and so does
+    // one that escapes the namespace.
     assert: () => {
       registerAppRateLimits();
 
@@ -111,6 +112,7 @@ const SEAM_DEFAULTS: SeamDefault[] = [
         String(/^\/api\/v1\/obsiddy\/reindex(?:\/|$)/),
         String(/^\/api\/v1\/obsiddy\/connections\/sweep(?:\/|$)/),
         String(/^\/api\/v1\/obsiddy\/documents(?:\/|$)/),
+        String(/^\/api\/v1\/obsiddy\/ideate(?:\/|$)/),
       ]);
 
       // Every Obsiddy rule is keyed on the session user, not the IP: this is
