@@ -272,15 +272,21 @@ Contents, in order, each section truncated: today's date + timezone + week numbe
 
 Workflows seeded as `AiWorkflow` rows + `createInitialVersion`, following `prisma/seeds/004-builtin-templates.ts`. Schedules are **per-user rows** created by `ensureObsiddySchedules(userId)` when a `ObsiddySpace` is first created.
 
-**The userId mechanism (verified):** `processDueSchedules` stamps `execution.userId = schedule.createdBy` (`scheduler.ts:314`), and the engine threads that into `CapabilityContext.userId` (`executors/tool-call.ts:102`). So one schedule row per user with `createdBy = userId` is exactly how a background workflow acts on the right person's data, with no userId ever in an LLM-visible argument.
+**The userId mechanism (verified):** `processDueSchedules` stamps `execution.userId = schedule.createdBy` (`scheduler.ts:335` after the 2026-07-31 merge; `:314` before it), and the engine threads that into `CapabilityContext.userId` (`executors/tool-call.ts:102`). So one schedule row per user with `createdBy = userId` is exactly how a background workflow acts on the right person's data, with no userId ever in an LLM-visible argument.
+
+**A per-user schedule row outlives the user, and that is phase 7's one privacy defect to close.** `AiWorkflowSchedule.createdBy` is `onDelete: SetNull`, so after `eraseUser()` a deleted person's rows survive `isEnabled: true` with a live `nextRunAt`. Two rules follow: `inputTemplate` carries `{ userId }` and **never an email address** — resolve the address at send time inside the tier — and phase 7 registers the tier's **first `registerErasureCleanupHook`** to delete the rows. Every Obsiddy table to date cascades off `ObsiddySpace`, which is why none has been needed before now.
 
 | Workflow                    | Cron         | Steps                                                                                                                        |
 | --------------------------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------- |
 | `obsiddy-nightly-triage`    | `15 3 * * *` | reindex → `agent_call obsiddy-triage` → `obsiddy_reprioritise` → daily review → **pre-compute tomorrow's briefing** → notify |
-| `obsiddy-connection-finder` | `0 4 * * 0`  | deterministic sweep (free) → **`orchestrator`** → connections review → notify                                                |
+| `obsiddy-connection-finder` | **app job**  | deterministic sweep (free) → **`orchestrator`** → connections review → notify. **Not a cron row** — see below                |
 | `obsiddy-weekly-review`     | `0 16 * * 5` | snapshot → `llm_call` (moved / stalled / at risk vs month+quarter goals) → `reflect` → review → notify                       |
 | `obsiddy-horizon-check`     | `0 9 1 * *`  | snapshot → `llm_call` → `judge_call` scoring each goal 0–1 on evidenced activity → `guard` flags < 0.3 → month review        |
 | `obsiddy-capture-intake`    | inbound      | `obsiddy_capture_for_token` → `agent_call obsiddy-triage` single-thought mode                                                |
+
+**Four of the five are calendar events; the connection finder is not.** "9am on the 1st" and "Friday at 16:00" are exactly what a cron row expresses, and they have to resolve in the user's timezone. The connection sweep is a continuous per-user pass over stored vectors with its own rotation cursor — the shape ask #1 argued for `registerAppJob({ intervalMs })` and the shape a cron field fits badly. It moves to `lib/app/jobs.ts`.
+
+That move is not a relocation. `registerAppJob` fires **one process-wide callback** while `sweepConnections` takes an `OwnerScope`, so the job must choose whose brain to sweep — and "the first N spaces" re-sweeps the same N for ever, which is the bug the per-type cursor already exists to prevent, reappearing one level up. The job therefore pages through spaces oldest-swept-first in small batches, which needs a `lastSweptAt` cursor on `ObsiddySpace` (phase 7's one migration) and a paged listing in `repo/space.ts`, which has no enumeration function today.
 
 ### Morning briefing — the one on-demand workflow
 
@@ -310,17 +316,19 @@ The rule that makes this real: **`workStyle` changes what data the briefing sele
 
 `obsiddy-morning-briefing` — chained off the nightly run, and re-runnable on demand:
 
-1. `tool_call obsiddy_get_snapshot`
-2. **`report`** — the factual half rendered deterministically, **no LLM**: completed counts and titles, overdue list, capacity remaining, WIP state (§7)
-3. **`route`** on `workStyle` → three branches
-4. `llm_call` per branch — different prompt _and_ different input selection, per the table above
-5. `tool_call obsiddy_write_review{ horizon: 'briefing' }`
+1. `tool_call obsiddy_get_briefing_inputs` — reads `workStyle` server-side, applies the selection table above, returns the selected data plus the deterministic factual half
+2. `llm_call` — one call, prompt chosen by the returned prompt key
+3. `tool_call obsiddy_write_review{ horizon: 'briefing' }`
 
-Seeded agent **`obsiddy-briefer`** (temp 0.3 structured / 0.7 exploratory via the branch), sharing the `obsiddy-core` profile. Its voice brief matters: short, concrete, no preamble, no motivational filler. Plain English, actions you could start in the next ten minutes.
+> **Corrected 2026-08-04, against the executor source.** This section previously specified five steps: `report` for the factual half and `route` on `workStyle` for a three-way branch. Neither step type does what was assumed. **`report`** renders the workflow's own execution trace via `renderExecutionMarkdown` — steps, tokens, cost, supervisor verdict — so pointed at a briefing it describes the briefing's own machinery. **`route`** is an LLM classifier: branching on `workStyle` through it spends a model call to read a `VarChar(16)` already in the row, and can return the wrong one. The factual half is therefore a service (`services/briefing-facts.ts`) called by the capability, and the branch is deleted in favour of server-side selection. See [`phase-7-plan.md`](./phase-7-plan.md) §1.
+
+Seeded agent **`obsiddy-briefer`** (temp 0.3 structured / 0.7 exploratory, set per prompt key rather than per branch), sharing the `obsiddy-core` profile. Its voice brief matters: short, concrete, no preamble, no motivational filler. Plain English, actions you could start in the next ten minutes.
 
 Routes: `GET /obsiddy/briefing` (today's, instant) and `POST /obsiddy/briefing/regenerate` (`{ workStyleOverride? }`). Capability `obsiddy_get_briefing` so it's reachable from chat and MCP — _"what's my briefing?"_ from Claude Code is exactly the frictionless path §7 is chasing.
 
-Because `report` carries the factual half for free, the daily LLM cost is one small call — roughly **£0.30–0.90/month** depending on model.
+Because the facts are rendered deterministically in the tier, the daily LLM cost is one small call — roughly **£0.30–0.90/month** depending on model. The correction above changes the mechanism, not the price.
+
+**The notification links to the briefing; it does not contain it.** `emails/workflow-notification.tsx` renders its `body` as plain text (newlines survive, Markdown does not), but the deciding reason is that mailing the whole briefing copies goals, project names and overdue task titles into an inbox — durably, unrevocably, outside every guarantee the rest of the tier makes. A sentence and a link cost nothing.
 
 `orchestrator` config: `availableAgentSlugs: ['obsiddy-connector','obsiddy-strategist']`, `maxRounds: 3`, `maxDelegationsPerRound: 3`, `budgetLimitUsd: 0.50`, `timeoutMs: 180000`, planner prompt instructing it to **reject connections that are merely topically similar but carry no action implication**. Also set `AiWorkflow.maxCostPerExecutionUsd` on every workflow — the step budget only caps the orchestrator step.
 
