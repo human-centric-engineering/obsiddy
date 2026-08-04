@@ -57,18 +57,23 @@ vi.mock('@/lib/framework/obsiddy/repo/schedules', () => ({
 }));
 vi.mock('@/lib/framework/obsiddy/search/connections', () => ({ sweepConnections: vi.fn() }));
 vi.mock('@/lib/framework/obsiddy/schedules/ensure', () => ({ ensureObsiddySchedules: vi.fn() }));
+vi.mock('@/lib/logging', () => ({
+  logger: { warn: vi.fn(), info: vi.fn(), error: vi.fn(), debug: vi.fn() },
+}));
 
 import { runObsiddySweepJob } from '@/lib/framework/obsiddy/jobs';
 import { listSpacesDueSweep, markSpacesSwept } from '@/lib/framework/obsiddy/repo/space';
 import { deleteOrphanedObsiddySchedules } from '@/lib/framework/obsiddy/repo/schedules';
 import { ensureObsiddySchedules } from '@/lib/framework/obsiddy/schedules/ensure';
 import { sweepConnections } from '@/lib/framework/obsiddy/search/connections';
+import { logger } from '@/lib/logging';
 
 const mockedList = vi.mocked(listSpacesDueSweep);
 const mockedMark = vi.mocked(markSpacesSwept);
 const mockedOrphans = vi.mocked(deleteOrphanedObsiddySchedules);
 const mockedSweep = vi.mocked(sweepConnections);
 const mockedEnsure = vi.mocked(ensureObsiddySchedules);
+const mockedLoggerError = vi.mocked(logger.error);
 
 const NOW = new Date('2026-08-04T09:00:00.000Z');
 
@@ -138,6 +143,27 @@ describe('runObsiddySweepJob', () => {
     // And BOTH ids are stamped. Skipping the failure would park it at the head
     // of the queue for ever and starve everybody behind it.
     expect(mockedMark).toHaveBeenCalledWith(['user_bad', 'user_good'], NOW);
+  });
+
+  it('handles a sweep rejection that is not an Error instance', async () => {
+    // A thrown string or a rejected promise carrying a plain object is exactly
+    // the case naive `error.message` handling blows up on — and that would
+    // take the rest of the batch down with it, which is the one thing this
+    // job exists to prevent.
+    mockedList.mockResolvedValue([due('user_bad'), due('user_good')]);
+    mockedSweep
+      .mockRejectedValueOnce('vector store unreachable')
+      .mockResolvedValueOnce(sweepResult(4));
+
+    const result = await runObsiddySweepJob(NOW);
+
+    expect(result).toMatchObject({ swept: 2, created: 4, failed: 1 });
+    expect(mockedSweep).toHaveBeenCalledTimes(2);
+    expect(mockedMark).toHaveBeenCalledWith(['user_bad', 'user_good'], NOW);
+    expect(mockedLoggerError).toHaveBeenCalledWith(
+      'Obsiddy connection sweep failed for one brain',
+      expect.objectContaining({ userId: 'user_bad', error: 'vector store unreachable' })
+    );
   });
 
   it('stamps the whole batch even when every brain fails', async () => {
@@ -229,6 +255,24 @@ describe('runObsiddySweepJob — the schedule pass', () => {
     // would make one number mean two things.
     expect(result.failed).toBe(0);
     expect(result.schedulesCorrected).toBe(0);
+  });
+
+  it('handles a schedule-pass rejection that is not an Error instance', async () => {
+    // Same fallback, other catch block. A thrown string here must not cost the
+    // brain its connection sweep — the two passes are failure-isolated in both
+    // directions, and `error.message` on a string is `undefined`.
+    mockedList.mockResolvedValue([due('user_bad'), due('user_good')]);
+    mockedEnsure.mockRejectedValueOnce({ reason: 'schedule table unavailable' });
+
+    const result = await runObsiddySweepJob(NOW);
+
+    expect(mockedSweep).toHaveBeenCalledTimes(2);
+    expect(mockedMark).toHaveBeenCalledWith(['user_bad', 'user_good'], NOW);
+    expect(result.failed).toBe(0);
+    expect(mockedLoggerError).toHaveBeenCalledWith(
+      'Obsiddy schedule pass failed for one brain',
+      expect.objectContaining({ userId: 'user_bad', error: '[object Object]' })
+    );
   });
 
   it('still runs the schedule pass for a brain whose sweep throws', async () => {
