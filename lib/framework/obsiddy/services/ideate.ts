@@ -40,7 +40,11 @@ import { logCost } from '@/lib/orchestration/llm/cost-tracker';
 import { getProvider } from '@/lib/orchestration/llm/provider-manager';
 import { runStructuredCompletion } from '@/lib/orchestration/llm/structured-completion';
 import { CostOperation } from '@/types/orchestration';
-import type { EmbeddedType } from '@/lib/framework/obsiddy/repo/embeddings';
+import {
+  countChunks,
+  EMBEDDED_TYPES,
+  type EmbeddedType,
+} from '@/lib/framework/obsiddy/repo/embeddings';
 
 /**
  * Wider than the sweep's floor, on purpose — see the header. Still above the
@@ -49,6 +53,22 @@ import type { EmbeddedType } from '@/lib/framework/obsiddy/repo/embeddings';
  * everything.
  */
 const IDEATION_FLOOR = 0.42;
+
+/**
+ * **Every embedded type, thoughts included** — and this has to be passed
+ * explicitly.
+ *
+ * `findConnections` defaults to `SWEEP_TYPES`, which omits `thought` because the
+ * nightly sweep runs a separate, bounded thought-to-thought pass to keep the
+ * pair count from growing quadratically (§4). Inheriting that default here made
+ * ideation unable to surface a thought as a neighbour at all — which killed the
+ * exact case the plan calls the payoff: "two half-formed fragments captured six
+ * weeks apart that turn out to be the same idea".
+ *
+ * The sweep's reason for splitting thoughts out does not apply to a single seed:
+ * one on-demand query is linear, not quadratic, so there is nothing to bound.
+ */
+const IDEATION_TARGET_TYPES: readonly EmbeddedType[] = EMBEDDED_TYPES;
 
 /** Neighbours fetched before the model sees anything. */
 const NEIGHBOUR_LIMIT = 12;
@@ -70,7 +90,15 @@ export interface IdeateResult {
   seed: EntitySummary;
   neighbours: Array<EntitySummary & { strength: number }>;
   framings: IdeationFraming[];
-  /** True when the seed has no stored vector yet, so there was nothing to work from. */
+  /**
+   * True when the seed has no stored vector yet, so there was nothing to work
+   * from and retrying after the next indexing pass will help.
+   *
+   * **Read this only alongside an empty `neighbours`.** An empty result has more
+   * than one cause — the seed may be fully indexed and simply have no neighbour
+   * above the floor, or every candidate pair may already carry a link row — and
+   * those are not fixed by waiting. This flag distinguishes the one that is.
+   */
   notIndexedYet: boolean;
   costUsd: number;
 }
@@ -187,19 +215,25 @@ export async function ideate(scope: OwnerScope, input: IdeateInput): Promise<Ide
     scope,
     entityType: input.seedType,
     entityId: input.seedId,
+    targetTypes: IDEATION_TARGET_TYPES,
     limit: NEIGHBOUR_LIMIT,
     strengthFloor: IDEATION_FLOOR,
   });
 
-  // `findConnections` returns `[]` both when the seed has no vector yet and when
-  // it genuinely has no neighbours. Neither is an error, and neither is worth an
-  // LLM call — but they are different answers, so say which.
+  // `findConnections` returns `[]` for more than one reason: the seed may have no
+  // stored vector, or it may be fully indexed with nothing above the floor, or
+  // every candidate pair may already carry a link row. None is an error and none
+  // is worth an LLM call — but only the first is fixed by waiting, so ask which
+  // one it was rather than guessing. The extra count runs *only* on this branch,
+  // so the happy path pays nothing for it.
   if (connections.length === 0) {
+    const chunks = await countChunks(scope, input.seedType, input.seedId);
+
     return {
       seed: seedSummary,
       neighbours: [],
       framings: [],
-      notIndexedYet: true,
+      notIndexedYet: chunks === 0,
       costUsd: 0,
     };
   }

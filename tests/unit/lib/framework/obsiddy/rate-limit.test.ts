@@ -59,7 +59,12 @@ describe('registerObsiddyRateLimits', () => {
 
     const names = mockedTier.mock.calls.map((call) => call[0]);
     expect(names).toEqual(
-      expect.arrayContaining(['obsiddy-search', 'obsiddy-batch', 'obsiddy-upload', 'obsiddy-ideate'])
+      expect.arrayContaining([
+        'obsiddy-search',
+        'obsiddy-batch',
+        'obsiddy-upload',
+        'obsiddy-ideate',
+      ])
     );
   });
 

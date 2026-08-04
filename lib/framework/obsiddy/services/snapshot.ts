@@ -20,7 +20,7 @@
  * cap and reports `truncated` when it hit it, because a section that silently
  * stopped at its cap looks exactly like a section that found everything — the
  * same rule the sweep's `cappedTypes` and the graph's `truncated` follow
- * (`ui.md` §7). Query count is fixed at eight regardless of how many rows exist.
+ * (`ui.md` §7). Query count is fixed at nine regardless of how many rows exist.
  */
 
 import { listAreas } from '@/lib/framework/obsiddy/repo/areas';
@@ -32,13 +32,29 @@ import { listTasks } from '@/lib/framework/obsiddy/repo/tasks';
 import { sumMinutesByArea } from '@/lib/framework/obsiddy/repo/time-blocks';
 import { buildCounts, type ObsiddyCounts } from '@/lib/framework/obsiddy/services/counts';
 import { getObsiddySettings } from '@/lib/framework/obsiddy/services/space';
-import { daysBetween, startOfZonedWeek, wallClockAt } from '@/lib/framework/obsiddy/time/zoned';
+import {
+  addZonedDays,
+  daysBetween,
+  startOfZonedWeek,
+  wallClockAt,
+} from '@/lib/framework/obsiddy/time/zoned';
 
 /** Per-section caps. Sized so the rendered context block fits its token budget. */
 const GOAL_LIMIT = 24;
 const PROJECT_LIMIT = 12;
 const TASK_LIMIT = 5;
 const AREA_LIMIT = 12;
+
+/**
+ * How many areas are *read* before the emitted list is capped at `AREA_LIMIT`.
+ *
+ * `mostNeglectedArea` is a superlative over the whole set, so ranking it over
+ * the emitted page would answer a different question — "the most neglected of
+ * the first twelve **in the user's own sort order**", which has no relationship
+ * to neglect. Areas are life domains and there are a handful of them, so reading
+ * a wider set costs nothing and makes the claim true.
+ */
+const AREA_SCAN_LIMIT = 200;
 
 /** Statuses that are finished business — mirrors `services/today.ts`. */
 const CLOSED_TASK_STATUSES = ['done', 'dropped'];
@@ -158,28 +174,46 @@ export async function buildSnapshot(scope: OwnerScope, now = new Date()): Promis
   const { timezone } = settings;
 
   const weekStart = startOfZonedWeek(now, timezone);
+  const weekEnd = addZonedDays(weekStart, 7, timezone);
   const wall = wallClockAt(now, timezone);
 
   const openTaskFilters = { excludeStatuses: CLOSED_TASK_STATUSES, hideDeferred: true };
 
   // Caps are requested as `limit + 1` so "did we stop early?" is answerable
   // without a second counting query.
-  const [goalRows, projectRows, taskRows, areaRows, minuteRows, counts, latestReview] =
-    await Promise.all([
-      listGoals(scope, { status: 'active' }, { take: GOAL_LIMIT + 1 }),
-      listProjects(scope, { status: 'active', hideSnoozed: true }, { take: PROJECT_LIMIT + 1 }),
-      listTasks(scope, openTaskFilters, { take: TASK_LIMIT }),
-      listAreas(scope, { take: AREA_LIMIT + 1 }),
-      sumMinutesByArea(scope, weekStart, now),
-      buildCounts(scope, now),
-      findLatestReview(scope),
-    ]);
+  //
+  // **Two time-block reads, because `neglect` and `capacity` ask different
+  // questions of the same table.** `neglect` is attention *already given*, so it
+  // must stop at `now` — counting Friday's not-yet-happened block as attention
+  // paid would make an untouched area read as attended and suppress the priority
+  // lift that makes this a life organiser (`priority/reprioritise.ts` uses the
+  // same window for `areaBalance`). `capacity` is the opposite: how much of the
+  // week is already *committed*, which has to span the whole week or a fully
+  // booked Monday reports itself as free. One query cannot serve both, and
+  // `services/today.ts` computes the identically-named field over the full week.
+  const [
+    goalRows,
+    projectRows,
+    taskRows,
+    areaRows,
+    elapsedMinuteRows,
+    weekMinuteRows,
+    counts,
+    latestReview,
+  ] = await Promise.all([
+    listGoals(scope, { status: 'active' }, { take: GOAL_LIMIT + 1 }),
+    listProjects(scope, { status: 'active', hideSnoozed: true }, { take: PROJECT_LIMIT + 1 }),
+    listTasks(scope, openTaskFilters, { take: TASK_LIMIT + 1 }),
+    listAreas(scope, { take: AREA_SCAN_LIMIT }),
+    sumMinutesByArea(scope, weekStart, now),
+    sumMinutesByArea(scope, weekStart, weekEnd),
+    buildCounts(scope, now),
+    findLatestReview(scope),
+  ]);
 
-  // `sumMinutesByArea` returns grouped rows, including one with a null `areaId`
-  // for blocks not attributed to any area. Those minutes count against weekly
-  // capacity but belong to no area's balance.
+  // Per-area minutes come from the elapsed window — see above.
   const minutesByAreaId = new Map<string, number>();
-  for (const row of minuteRows) {
+  for (const row of elapsedMinuteRows) {
     if (row.areaId !== null) minutesByAreaId.set(row.areaId, row.minutes);
   }
 
@@ -204,7 +238,7 @@ export async function buildSnapshot(scope: OwnerScope, now = new Date()): Promis
       : null,
   }));
 
-  const topTasks = taskRows.map<SnapshotTask>((task) => ({
+  const topTasks = taskRows.slice(0, TASK_LIMIT).map<SnapshotTask>((task) => ({
     id: task.id,
     title: task.title,
     status: task.status,
@@ -215,7 +249,9 @@ export async function buildSnapshot(scope: OwnerScope, now = new Date()): Promis
     dominantFactor: dominantFactorOf(task.priorityFactors),
   }));
 
-  const areas = areaRows.slice(0, AREA_LIMIT).map<SnapshotArea>((area) => {
+  // Every area is scored, not just the ones that will be emitted — the
+  // superlative below has to range over all of them.
+  const scoredAreas = areaRows.map<SnapshotArea>((area) => {
     const minutesThisWeek = minutesByAreaId.get(area.id) ?? 0;
     const target = area.targetWeeklyMinutes;
     return {
@@ -227,16 +263,25 @@ export async function buildSnapshot(scope: OwnerScope, now = new Date()): Promis
     };
   });
 
-  // Only areas that actually participate in balancing can be "most neglected".
-  const mostNeglected = areas
+  const areas = scoredAreas.slice(0, AREA_LIMIT);
+
+  // Ranked over **every** area, not the emitted page. `listAreas` orders by
+  // `sortOrder` then name — a display order with no relationship to neglect — so
+  // ranking the page would have answered "the most neglected of the first twelve
+  // alphabetically" while presenting it as an unqualified claim. Only areas with
+  // a weekly target participate in balancing at all.
+  const mostNeglected = scoredAreas
     .filter((area): area is SnapshotArea & { neglect: number } => area.neglect !== null)
     .sort((a, b) => b.neglect - a.neglect)[0];
 
-  // Summed from the raw rows, **not** from `minutesByAreaId` — that map drops the
-  // null-`areaId` group. Time you spent on something you never filed against an
-  // area is still time you spent, and excluding it would report capacity
-  // remaining that you have already used.
-  const plannedMinutesThisWeek = minuteRows.reduce((total, row) => total + row.minutes, 0);
+  // Summed from the **whole-week** rows, and from the raw rows rather than
+  // `minutesByAreaId` — that map drops the null-`areaId` group, and time you
+  // spent on something you never filed against an area is still time you spent.
+  // Rounded for parity with `services/today.ts`: the SQL divides an epoch
+  // interval by 60, so the raw value is a float.
+  const plannedMinutesThisWeek = Math.round(
+    weekMinuteRows.reduce((total, row) => total + row.minutes, 0)
+  );
 
   return {
     generatedAt: now.toISOString(),
@@ -258,8 +303,12 @@ export async function buildSnapshot(scope: OwnerScope, now = new Date()): Promis
     },
     goals: { items: goals, truncated: goalRows.length > GOAL_LIMIT },
     projects: { items: projects, truncated: projectRows.length > PROJECT_LIMIT },
-    topTasks: { items: topTasks, truncated: false },
-    areas: { items: areas, truncated: areaRows.length > AREA_LIMIT },
+    // `topTasks` is a deliberate top-5 rather than a section that runs out, so
+    // this is nearly always true — but it was hardcoded `false`, which asserted
+    // the opposite. A payload claiming five tasks are all of them while
+    // `counts.openTasks` says forty is worse than either answer alone.
+    topTasks: { items: topTasks, truncated: taskRows.length > TASK_LIMIT },
+    areas: { items: areas, truncated: scoredAreas.length > AREA_LIMIT },
     mostNeglectedArea: mostNeglected
       ? { id: mostNeglected.id, name: mostNeglected.name, neglect: mostNeglected.neglect }
       : null,

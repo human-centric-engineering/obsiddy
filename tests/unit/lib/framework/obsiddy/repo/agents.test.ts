@@ -26,6 +26,15 @@ import { findAgentBinding } from '@/lib/framework/obsiddy/repo/agents';
 
 const findUnique = vi.mocked(prisma.aiAgent.findUnique);
 
+/**
+ * The mock resolves to a whole `AiAgent` row, but the repo `select`s three
+ * columns — so the fixtures are deliberately narrower than the type. Casting
+ * once here beats repeating a 40-field literal that says nothing.
+ */
+type AgentRow = Awaited<ReturnType<typeof prisma.aiAgent.findUnique>>;
+const agentRow = (binding: { id: string; provider: string; model: string }): AgentRow =>
+  binding as unknown as AgentRow;
+
 beforeEach(() => {
   vi.clearAllMocks();
   findUnique.mockResolvedValue(null);
@@ -58,11 +67,9 @@ describe('findAgentBinding', () => {
   });
 
   it('returns the binding when the agent exists', async () => {
-    findUnique.mockResolvedValue({
-      id: 'agent_1',
-      provider: 'anthropic',
-      model: 'claude-x',
-    } as Awaited<ReturnType<typeof findAgentBinding>>);
+    findUnique.mockResolvedValue(
+      agentRow({ id: 'agent_1', provider: 'anthropic', model: 'claude-x' })
+    );
 
     await expect(findAgentBinding('obsiddy-connector')).resolves.toEqual({
       id: 'agent_1',
@@ -75,9 +82,7 @@ describe('findAgentBinding', () => {
     // Every system agent is seeded with `provider: ''` / `model: ''` so the
     // platform picks. The repo must not helpfully turn those into nulls — the
     // resolver distinguishes them.
-    findUnique.mockResolvedValue({ id: 'agent_1', provider: '', model: '' } as Awaited<
-      ReturnType<typeof findAgentBinding>
-    >);
+    findUnique.mockResolvedValue(agentRow({ id: 'agent_1', provider: '', model: '' }));
 
     const binding = await findAgentBinding('obsiddy-connector');
 

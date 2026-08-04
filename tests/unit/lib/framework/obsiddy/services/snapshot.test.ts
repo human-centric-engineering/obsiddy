@@ -16,10 +16,14 @@
  *      most expensive N+1 in the product.
  *
  * Test Coverage:
- * - Exactly eight queries, whatever the row counts are
- * - `truncated` is set per section when the cap was hit, and only then
+ * - Exactly nine queries, whatever the row counts are
+ * - `truncated` is set per section when the cap was hit, and only then —
+ *   including `topTasks`, which asserted `false` unconditionally
  * - `neglect` is null for an area with no target, a ratio for one with a target
- * - `mostNeglectedArea` ignores areas that do not participate
+ * - `mostNeglectedArea` ignores areas that do not participate, and ranks over
+ *   ALL areas rather than the emitted page
+ * - `capacity` spans the whole week while `neglect` stops at now — two windows
+ *   of the same table, because they answer opposite questions
  * - Time-block minutes with a null areaId count toward capacity, not any area
  * - Every repo call is scoped — the isolation contract (D5)
  *
@@ -65,7 +69,20 @@ function area(id: string, targetWeeklyMinutes: number | null): ObsiddyArea {
   return { id, name: `Area ${id}`, targetWeeklyMinutes } as ObsiddyArea;
 }
 
-/** All eight reads the snapshot is allowed to make. */
+function task(id: string): ObsiddyTask {
+  return {
+    id,
+    title: `Task ${id}`,
+    status: 'todo',
+    dueAt: null,
+    estimateMinutes: null,
+    projectId: null,
+    priorityScore: 0.5,
+    priorityFactors: null,
+  } as unknown as ObsiddyTask;
+}
+
+/** Every repo/service the snapshot is allowed to read — nine calls across eight mocks. */
 const ALL_MOCKS = [
   mockedAreas,
   mockedGoals,
@@ -94,14 +111,16 @@ beforeEach(() => {
 });
 
 describe('buildSnapshot query cost', () => {
-  it('issues exactly eight reads on an empty brain', async () => {
+  it('issues exactly nine reads on an empty brain', async () => {
     await buildSnapshot(SCOPE, NOW);
 
+    // Nine, not eight: `sumMinutesByArea` runs twice because `neglect` and
+    // `capacity` need different windows of the same table (see below).
     const total = ALL_MOCKS.reduce((sum, mock) => sum + mock.mock.calls.length, 0);
-    expect(total).toBe(8);
+    expect(total).toBe(9);
   });
 
-  it('issues the same eight reads however many rows exist', async () => {
+  it('issues the same nine reads however many rows exist', async () => {
     mockedGoals.mockResolvedValue(
       Array.from({ length: 200 }, (_, i) => ({ id: `g${i}`, title: 't' }) as ObsiddyGoal)
     );
@@ -110,12 +129,12 @@ describe('buildSnapshot query cost', () => {
     );
     mockedAreas.mockResolvedValue(Array.from({ length: 200 }, (_, i) => area(`a${i}`, 60)));
 
-    await buildSnapshot(SCOPE, NOW);
-
     // The number that must not move with the row count — this payload is built
     // on every chat turn.
+    await buildSnapshot(SCOPE, NOW);
+
     const total = ALL_MOCKS.reduce((sum, mock) => sum + mock.mock.calls.length, 0);
-    expect(total).toBe(8);
+    expect(total).toBe(9);
   });
 
   it('scopes every read', async () => {
@@ -152,6 +171,27 @@ describe('buildSnapshot truncation', () => {
 
     expect(snapshot.goals.truncated).toBe(true);
     expect(snapshot.goals.items).toHaveLength(24);
+  });
+
+  it('flags truncation on topTasks — it was hardcoded false', async () => {
+    // A payload claiming the five tasks shown are all of them, while
+    // `counts.openTasks` in the same object says forty, is worse than either
+    // answer alone: an LLM reading both gets a contradiction.
+    mockedTasks.mockResolvedValue(Array.from({ length: 6 }, (_, i) => task(`t${i}`)));
+
+    const snapshot = await buildSnapshot(SCOPE, NOW);
+
+    expect(snapshot.topTasks.items).toHaveLength(5);
+    expect(snapshot.topTasks.truncated).toBe(true);
+  });
+
+  it('does not flag topTasks when the brain really has five or fewer', async () => {
+    mockedTasks.mockResolvedValue(Array.from({ length: 3 }, (_, i) => task(`t${i}`)));
+
+    const snapshot = await buildSnapshot(SCOPE, NOW);
+
+    expect(snapshot.topTasks.items).toHaveLength(3);
+    expect(snapshot.topTasks.truncated).toBe(false);
   });
 });
 
@@ -224,6 +264,81 @@ describe('buildSnapshot area balance', () => {
     const snapshot = await buildSnapshot(SCOPE, NOW);
 
     expect(snapshot.capacity.remainingMinutes).toBe(0);
+  });
+
+  it('ranks the most neglected area over ALL areas, not just the emitted page', async () => {
+    // `listAreas` orders by `sortOrder` then name — a display order unrelated to
+    // neglect. Ranking the capped page would answer "most neglected of the first
+    // twelve alphabetically" while presenting it as an unqualified claim.
+    // Thirteen areas: the first twelve are nearly on target, the last is untouched.
+    const areas = [...Array.from({ length: 12 }, (_, i) => area(`a${i}`, 100)), area('a12', 100)];
+    mockedAreas.mockResolvedValue(areas);
+    mockedMinutes.mockResolvedValue(
+      Array.from({ length: 12 }, (_, i) => ({ areaId: `a${i}`, minutes: 95 }))
+    );
+
+    const snapshot = await buildSnapshot(SCOPE, NOW);
+
+    expect(snapshot.mostNeglectedArea?.id).toBe('a12');
+    expect(snapshot.mostNeglectedArea?.neglect).toBe(1);
+    // Still only twelve emitted, and it says it stopped.
+    expect(snapshot.areas.items).toHaveLength(12);
+    expect(snapshot.areas.truncated).toBe(true);
+  });
+});
+
+describe('buildSnapshot capacity window', () => {
+  /** Distinguish the two `sumMinutesByArea` calls by their `to` argument. */
+  function splitWindows(elapsed: number, wholeWeek: number): void {
+    mockedMinutes.mockImplementation(async (_scope, _from, to) =>
+      to.getTime() <= NOW.getTime()
+        ? [{ areaId: 'a1', minutes: elapsed }]
+        : [{ areaId: 'a1', minutes: wholeWeek }]
+    );
+  }
+
+  it('counts committed time across the whole week, not just what has elapsed', async () => {
+    // A fully booked week read on Monday morning: nothing has happened yet, but
+    // the capacity is spent. Reading only the elapsed window reported the week
+    // as free and invited an agent to double-book it.
+    mockedAreas.mockResolvedValue([area('a1', 100)]);
+    splitWindows(0, 900);
+
+    const snapshot = await buildSnapshot(SCOPE, NOW);
+
+    expect(snapshot.capacity.plannedMinutesThisWeek).toBe(900);
+    expect(snapshot.capacity.remainingMinutes).toBe(2400 - 900);
+  });
+
+  it('measures neglect on elapsed time only, so future blocks are not attention paid', async () => {
+    // The mirror of the rule above: counting Friday's not-yet-happened block as
+    // attention already given would make an untouched area read as attended and
+    // suppress the priority lift that makes this a life organiser.
+    mockedAreas.mockResolvedValue([area('a1', 100)]);
+    splitWindows(0, 900);
+
+    const snapshot = await buildSnapshot(SCOPE, NOW);
+
+    expect(snapshot.areas.items[0]?.minutesThisWeek).toBe(0);
+    expect(snapshot.areas.items[0]?.neglect).toBe(1);
+  });
+
+  it('asks for both windows off the same week start', async () => {
+    await buildSnapshot(SCOPE, NOW);
+
+    const [elapsedCall, weekCall] = mockedMinutes.mock.calls;
+    expect(elapsedCall?.[1]).toEqual(weekCall?.[1]);
+    expect(elapsedCall?.[2]?.getTime()).toBeLessThanOrEqual(NOW.getTime());
+    expect(weekCall?.[2]?.getTime()).toBeGreaterThan(NOW.getTime());
+  });
+
+  it('rounds planned minutes, since the SQL returns a float', async () => {
+    mockedMinutes.mockResolvedValue([{ areaId: null, minutes: 90.4 }]);
+
+    const snapshot = await buildSnapshot(SCOPE, NOW);
+
+    expect(Number.isInteger(snapshot.capacity.plannedMinutesThisWeek)).toBe(true);
+    expect(snapshot.capacity.plannedMinutesThisWeek).toBe(90);
   });
 });
 

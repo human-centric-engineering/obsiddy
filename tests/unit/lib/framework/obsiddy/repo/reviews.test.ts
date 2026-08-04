@@ -44,6 +44,15 @@ const count = vi.mocked(prisma.obsiddyReview.count);
 const create = vi.mocked(prisma.obsiddyReview.create);
 const update = vi.mocked(prisma.obsiddyReview.update);
 
+/**
+ * Prisma's `update`/`delete` resolve to a whole row, while the repo wrappers
+ * return `Row | null` — so a fixture typed off the wrapper's return is one
+ * `| null` too wide for the mock. These tests only ever read `where` and `data`,
+ * so a narrow stub cast once here is enough.
+ */
+type ReviewRow = Awaited<ReturnType<typeof prisma.obsiddyReview.update>>;
+const reviewRow = (row: { id: string }): ReviewRow => row as unknown as ReviewRow;
+
 beforeEach(() => {
   vi.clearAllMocks();
   findFirst.mockResolvedValue(null);
@@ -163,7 +172,7 @@ describe('findReview', () => {
 
 describe('archiveReview', () => {
   it('scopes the update by id and userId', async () => {
-    update.mockResolvedValue({ id: 'review_1' } as Awaited<ReturnType<typeof archiveReview>>);
+    update.mockResolvedValue(reviewRow({ id: 'review_1' }));
 
     await archiveReview(SCOPE, 'review_1');
 
@@ -173,7 +182,7 @@ describe('archiveReview', () => {
   it('sets archivedAt and a reason without touching indexedHash', async () => {
     // `review` is not one of the six embedded types, so there are no embedding
     // rows to drop and no hash to re-queue — unlike every other archive path.
-    update.mockResolvedValue({ id: 'review_1' } as Awaited<ReturnType<typeof archiveReview>>);
+    update.mockResolvedValue(reviewRow({ id: 'review_1' }));
 
     await archiveReview(SCOPE, 'review_1', 'retention');
 
@@ -185,7 +194,10 @@ describe('archiveReview', () => {
 
   it('returns null rather than throwing when the row is not the caller’s', async () => {
     update.mockRejectedValue(
-      Object.assign(new Error('not found'), { code: 'P2025', name: 'PrismaClientKnownRequestError' })
+      Object.assign(new Error('not found'), {
+        code: 'P2025',
+        name: 'PrismaClientKnownRequestError',
+      })
     );
 
     await expect(archiveReview(SCOPE, 'review_of_user_b')).resolves.toBeNull();
@@ -194,9 +206,7 @@ describe('archiveReview', () => {
 
 describe('deleteReview', () => {
   it('scopes the delete by id and userId', async () => {
-    vi.mocked(prisma.obsiddyReview.delete).mockResolvedValue({
-      id: 'review_1',
-    } as Awaited<ReturnType<typeof deleteReview>>);
+    vi.mocked(prisma.obsiddyReview.delete).mockResolvedValue(reviewRow({ id: 'review_1' }));
 
     await deleteReview(SCOPE, 'review_1');
 

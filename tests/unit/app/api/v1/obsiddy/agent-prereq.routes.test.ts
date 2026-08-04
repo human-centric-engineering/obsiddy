@@ -391,12 +391,9 @@ describe('GET /api/v1/obsiddy/reviews/[id]', () => {
   it('404s for an id that does not exist, identically', async () => {
     mockedGetReview.mockResolvedValue(null);
 
-    const missing = await invoke(
-      REVIEW_GET,
-      getReq('/api/v1/obsiddy/reviews/nope'),
-      SESSION_A,
-      { params: Promise.resolve({ id: 'nope' }) }
-    );
+    const missing = await invoke(REVIEW_GET, getReq('/api/v1/obsiddy/reviews/nope'), SESSION_A, {
+      params: Promise.resolve({ id: 'nope' }),
+    });
 
     // Same status as the foreign-id case above, so the two are indistinguishable.
     expect(missing.status).toBe(404);

@@ -36,6 +36,12 @@ vi.mock('@/lib/framework/obsiddy/repo/summaries', () => ({
 }));
 vi.mock('@/lib/framework/obsiddy/search/connections', () => ({ findConnections: vi.fn() }));
 vi.mock('@/lib/framework/obsiddy/repo/agents', () => ({ findAgentBinding: vi.fn() }));
+vi.mock('@/lib/framework/obsiddy/repo/embeddings', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/framework/obsiddy/repo/embeddings')>();
+  // `EMBEDDED_TYPES` stays real — the point of one test below is that ideation
+  // passes the genuine six-type list rather than inheriting the sweep's five.
+  return { ...actual, countChunks: vi.fn() };
+});
 vi.mock('@/lib/orchestration/llm/agent-resolver', () => ({
   resolveAgentProviderAndModel: vi.fn(),
 }));
@@ -49,6 +55,7 @@ import { ideate } from '@/lib/framework/obsiddy/services/ideate';
 import { entityExists, findSummaries } from '@/lib/framework/obsiddy/repo/summaries';
 import { findConnections } from '@/lib/framework/obsiddy/search/connections';
 import { findAgentBinding } from '@/lib/framework/obsiddy/repo/agents';
+import { countChunks } from '@/lib/framework/obsiddy/repo/embeddings';
 import { resolveAgentProviderAndModel } from '@/lib/orchestration/llm/agent-resolver';
 import { getProvider } from '@/lib/orchestration/llm/provider-manager';
 import { runStructuredCompletion } from '@/lib/orchestration/llm/structured-completion';
@@ -61,6 +68,7 @@ const mockedExists = vi.mocked(entityExists);
 const mockedSummaries = vi.mocked(findSummaries);
 const mockedConnections = vi.mocked(findConnections);
 const mockedAgent = vi.mocked(findAgentBinding);
+const mockedChunks = vi.mocked(countChunks);
 const mockedResolve = vi.mocked(resolveAgentProviderAndModel);
 const mockedProvider = vi.mocked(getProvider);
 const mockedCompletion = vi.mocked(runStructuredCompletion);
@@ -110,7 +118,10 @@ function completionReturning(raw: string): void {
  * produced that shape. Driving it through a happy-path completion would only
  * ever exercise the branch that works.
  */
-function capturedOptions(): { parse: (raw: string) => unknown; messages: Array<{ content: string }> } {
+function capturedOptions(): {
+  parse: (raw: string) => unknown;
+  messages: Array<{ content: string }>;
+} {
   const options = mockedCompletion.mock.calls[0]?.[0];
   if (!options) throw new Error('runStructuredCompletion was not called');
   return options as unknown as {
@@ -121,6 +132,7 @@ function capturedOptions(): { parse: (raw: string) => unknown; messages: Array<{
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockedChunks.mockResolvedValue(0);
   mockedExists.mockResolvedValue(true);
   mockedSummaries.mockImplementation(async (_scope, entityType) =>
     entityType === 'project' ? [SEED] : [NEIGHBOUR]
@@ -165,7 +177,7 @@ describe('ideate access', () => {
 });
 
 describe('ideate cost avoidance', () => {
-  it('makes no LLM call when the seed has no neighbours yet', async () => {
+  it('makes no LLM call when the seed has no neighbours', async () => {
     mockedConnections.mockResolvedValue([]);
 
     const result = await ideate(SCOPE, INPUT);
@@ -173,9 +185,6 @@ describe('ideate cost avoidance', () => {
     expect(mockedCompletion).not.toHaveBeenCalled();
     expect(mockedCost).not.toHaveBeenCalled();
     expect(result.costUsd).toBe(0);
-    // Says *why* there is nothing, rather than returning an empty list that
-    // looks like "no ideas exist".
-    expect(result.notIndexedYet).toBe(true);
     expect(result.framings).toEqual([]);
   });
 
@@ -187,6 +196,57 @@ describe('ideate cost avoidance', () => {
     // every Sunday. Ideation wants the nearly-unrelated middle.
     expect(call?.strengthFloor).toBeLessThan(0.55);
     expect(call?.entityId).toBe('project_1');
+  });
+
+  it('searches every embedded type, thoughts included', async () => {
+    await ideate(SCOPE, INPUT);
+
+    // `findConnections` defaults to `SWEEP_TYPES`, which omits `thought` because
+    // the nightly sweep runs its own bounded thought pass. Inheriting that
+    // default made the plan's flagship case — two half-formed thoughts captured
+    // weeks apart — unreachable from ideation, so the list is passed explicitly.
+    // Asserted on the argument because the module is mocked: nothing else here
+    // can catch it.
+    const targetTypes = mockedConnections.mock.calls[0]?.[0]?.targetTypes;
+    expect(targetTypes).toBeDefined();
+    expect(targetTypes).toContain('thought');
+    expect([...(targetTypes ?? [])].sort()).toEqual(
+      ['area', 'document', 'entity', 'goal', 'project', 'thought'].sort()
+    );
+  });
+});
+
+describe('ideate empty-result diagnosis', () => {
+  // An empty neighbour list has more than one cause and only one of them is
+  // fixed by waiting. Reporting them all as "not indexed yet" told the user to
+  // retry forever.
+
+  it('reports notIndexedYet when the seed genuinely has no vector', async () => {
+    mockedConnections.mockResolvedValue([]);
+    mockedChunks.mockResolvedValue(0);
+
+    const result = await ideate(SCOPE, INPUT);
+
+    expect(result.notIndexedYet).toBe(true);
+    expect(mockedChunks).toHaveBeenCalledWith(SCOPE, 'project', 'project_1');
+  });
+
+  it('does NOT report notIndexedYet when the seed is indexed but has no neighbours', async () => {
+    // The common case for a small or topically isolated brain, and the one that
+    // never resolves by waiting.
+    mockedConnections.mockResolvedValue([]);
+    mockedChunks.mockResolvedValue(4);
+
+    const result = await ideate(SCOPE, INPUT);
+
+    expect(result.notIndexedYet).toBe(false);
+    expect(result.neighbours).toEqual([]);
+  });
+
+  it('does not spend a count query on the happy path', async () => {
+    await ideate(SCOPE, INPUT);
+
+    expect(mockedChunks).not.toHaveBeenCalled();
   });
 });
 
@@ -356,7 +416,9 @@ describe('ideate response parsing', () => {
 describe('ideate prompt shaping', () => {
   it('includes the angle when one is given, and omits the line when not', async () => {
     await ideate(SCOPE, { ...INPUT, angle: 'podcast episodes' });
-    const withAngle = capturedOptions().messages.map((m) => m.content).join('\n');
+    const withAngle = capturedOptions()
+      .messages.map((m) => m.content)
+      .join('\n');
     expect(withAngle).toContain('podcast episodes');
 
     vi.clearAllMocks();
@@ -381,19 +443,21 @@ describe('ideate prompt shaping', () => {
     );
 
     await ideate(SCOPE, INPUT);
-    const without = capturedOptions().messages.map((m) => m.content).join('\n');
+    const without = capturedOptions()
+      .messages.map((m) => m.content)
+      .join('\n');
     expect(without).not.toContain('The angle to pursue');
   });
 
   it('describes a neighbour with its subtitle and similarity', async () => {
     mockedSummaries.mockImplementation(async (_scope, entityType) =>
-      entityType === 'project'
-        ? [SEED]
-        : [{ ...NEIGHBOUR, subtitle: 'captured on a train' }]
+      entityType === 'project' ? [SEED] : [{ ...NEIGHBOUR, subtitle: 'captured on a train' }]
     );
 
     await ideate(SCOPE, INPUT);
-    const prompt = capturedOptions().messages.map((m) => m.content).join('\n');
+    const prompt = capturedOptions()
+      .messages.map((m) => m.content)
+      .join('\n');
 
     // The id is what `drawsOn` cites back, so it has to be in the prompt; the
     // similarity is what lets the model tell a near neighbour from a far one.
