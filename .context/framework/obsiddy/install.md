@@ -14,12 +14,14 @@ step ever needs you to edit a Sunrise-owned file, that is a bug in Obsiddy —
 open an issue rather than making the edit, because you'd be re-making it on
 every upgrade.
 
-> **Status: phases 0–5b.** The tier scaffold, the data model, the CRUD API, the
+> **Status: phases 0–6c.** The tier scaffold, the data model, the CRUD API, the
 > priority engine, the semantic layer (search, indexing, connections, document
-> ingestion) and the UI (twelve surfaces including the kanban board) exist —
-> §§1–6 are real and installable today. Steps still marked _(phase N)_ are listed
-> so the checklist grows in place rather than being reconstructed later. This file
-> is updated by every phase.
+> ingestion), the UI (thirteen surfaces including the kanban board and chat) and
+> the agent layer (fourteen capabilities, five agents, four seeds, the per-turn
+> context block and the app-owned chat route) exist — §§1–6 are real and
+> installable today. Steps still marked _(phase N)_ are listed so the
+> checklist grows in place rather than being reconstructed later. This file is
+> updated by every phase.
 >
 > **Phase 0b is done, upstream.** Both seams Obsiddy needed landed in Sunrise on
 > 2026-07-31 (#469, #473), so §2.10 and §2.11 are now one-line registrations
@@ -51,12 +53,12 @@ merge cleanly on upgrade:
 | `lib/framework/obsiddy/**`               | same path                                                                 |
 | `lib/framework/eslint.config.mjs`        | same path — **merge** if your project already runs another framework tier |
 | `prisma/schema/framework-obsiddy.prisma` | same path                                                                 |
-| `prisma/seeds/framework-obsiddy/**`      | same path _(phase 6)_                                                     |
+| `prisma/seeds/framework-obsiddy/**`      | same path — four units: capabilities, profile, agents, bindings           |
 | `.context/framework/obsiddy/**`          | same path                                                                 |
 | `app/api/v1/obsiddy/**`                  | same path — 56 route files, most of them 2 lines                          |
 | `app/api/v1/admin/obsiddy/**`            | same path — the instance-settings pair                                    |
 | `app/admin/obsiddy/**`                   | same path — the settings page                                             |
-| `app/(protected)/obsiddy/**`             | same path — 16 pages across twelve surfaces                               |
+| `app/(protected)/obsiddy/**`             | same path — 17 pages across thirteen surfaces                             |
 | `scripts/framework/obsiddy/**`           | same path — plus one `package.json` script line, below                    |
 | `components/obsiddy/**`                  | same path — the surfaces, the board, and the admin settings form          |
 
@@ -231,9 +233,63 @@ registrar is client-safe by necessity — `components/admin/admin-sidebar.tsx`
 reads the registry during render, so registration cannot be async and cannot
 reach the database. Keep anything you add here to the same rule.
 
-### 2.8 Capabilities — `lib/app/capabilities.ts` _(phase 6)_
+### 2.8 Capabilities — `lib/app/capabilities.ts` _(phase 6b)_
 
-### 2.9 Chat context — `lib/app/context-contributors.ts` _(phase 6)_
+```ts
+import { registerObsiddyCapabilities } from '@/lib/framework/obsiddy/capabilities';
+
+export function initAppCapabilities(): void {
+  registerObsiddyCapabilities();
+}
+```
+
+Registers the fourteen agent tools. Static import, like §2.2 and §2.6: Sunrise
+calls `initAppCapabilities()` from `registerBuiltInCapabilities()` **lazily, in
+the server route-handler realm, immediately before the first dispatch** — not at
+boot. There is nowhere to `await`, and the lazy call site is the fix for
+[sunrise#462][462], where boot-registered capabilities were silently lost at
+request time under Turbopack because the two realms hold separate module graphs.
+
+Keep whatever you add here cheap and synchronous for the same reason: it runs on
+the request path the first time an agent dispatches.
+
+**Registration is not availability.** A registered handler still needs an active
+`AiCapability` row and an `AiAgentCapability` binding before any agent can call
+it — both arrive with the seeds in §3. Register without seeding and the
+dispatcher refuses at `capability_inactive`, which is the correct failure: an
+operator who turned a tool off has turned it off.
+
+[462]: https://github.com/human-centric-engineering/sunrise/issues/462
+
+### 2.9 Chat context — `lib/app/context-contributors.ts`
+
+```ts
+import { registerObsiddyContextContributor } from '@/lib/framework/obsiddy/context';
+
+export function initAppContextContributors(): void {
+  registerObsiddyContextContributor();
+}
+```
+
+Registers the `obsiddy` context type — the `LOCKED CONTEXT` block injected into
+every turn of `/obsiddy/chat`: today's date and timezone, the person's goals,
+active projects with days since activity, top-ranked tasks, load and area
+balance.
+
+Static import, and for the same reason as §2.8: core calls
+`initAppContextContributors()` lazily from `buildContext`, on the chat-turn hot
+path, with nowhere to await.
+
+**Core catches anything this throws** and degrades to "no app contributors"
+rather than failing the turn. That is right for a chat surface and a trap for a
+registrar: a mistake here has no symptom except an agent that has quietly stopped
+knowing anything about the person. Keep whatever you add synchronous and
+failure-free.
+
+The contributor itself reads `request.userId` and **ignores the `id` argument**.
+`buildContext` caches on `type:id:userId`, so a loader that trusted `id` would
+render one person's goals into another person's prompt and then serve the cached
+answer. If you write your own contributor for a different type, copy that rule.
 
 ### 2.10 Recurring jobs — `lib/app/jobs.ts` _(phase 7)_
 
@@ -386,8 +442,38 @@ board is operable by keyboard at all.
 ```bash
 npm run db:migrate:deploy    # applies all six Obsiddy migrations
 npm run db:drift-check       # MUST be green before you go further
-npm run db:seed              # applies prisma/seeds/framework-obsiddy/* (phase 6)
+npm run db:seed              # applies prisma/seeds/framework-obsiddy/*
 ```
+
+The seed step is not optional once §2.8 is wired: the four units below are what
+turn fourteen registered handlers into fourteen tools an agent can actually
+reach. They are idempotent, keyed on slug, and re-runnable.
+
+| Seed                     | Writes                                                                                                          |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| `001-capabilities`       | 13 `AiCapability` rows, written **from the code catalogue** so a row cannot drift from its handler              |
+| `002-agent-profile`      | The `obsiddy-core` `AiAgentProfile` — the persona, guardrails and voice all five agents inherit                 |
+| `003-agents`             | 5 `AiAgent` rows: companion, triage, connector, strategist, and the `kind: 'judge'` one a `judge_call` resolves |
+| `004-agent-capabilities` | The bindings. This table is where "the triage agent must not create projects" stops being advice                |
+
+**What re-seeding does and does not overwrite.** Prompts, descriptions and
+function definitions are rewritten — they are code artefacts, and a stale
+function definition silently steers the model toward a parameter that no longer
+exists. Everything an operator legitimately tunes is left alone: `isActive`,
+`rateLimit`, `requiresApproval`, `quarantineState`, `model`, `provider`,
+`temperature`, `maxTokens`, and `AiAgentCapability.isEnabled`.
+
+**To revoke a capability from an agent, set `isEnabled: false` — do not delete
+the row.** A missing pivot row synthesizes a default-ALLOW binding in the
+dispatcher, so the intuitive action is the one that widens access.
+
+`001-capabilities` and `004-agent-capabilities` declare
+`hashInputs: ['…/capabilities/catalogue.ts']`. The seed runner hashes a unit's
+own source to decide whether to re-run it, and those two files barely change —
+the capability definitions all live in the catalogue. Without it, upgrading
+Obsiddy gets you a new tool's _code_ and no new row, and the dispatcher then
+refuses it at `capability_inactive`. Keep the declaration if you fork either
+file.
 
 Three migrations:
 
@@ -517,7 +603,7 @@ ranking, cross-user isolation, the connection sweep and the archive transaction.
 What that mode cannot tell you is whether the embeddings are any _good_, so run it
 once with a provider before trusting search quality.
 
-**Three Sunrise tests will fail, and they're supposed to.** All assert that a
+**Four Sunrise tests will fail, and they're supposed to.** All assert that a
 `lib/app/*` seam ships empty — the vanilla contract — so filling the seam, which
 is the entire point of the seam, breaks them. This is upstream
 [#480](https://github.com/human-centric-engineering/sunrise/issues/480); until it
@@ -525,11 +611,20 @@ lands, adjust the assertion rather than deleting the test, so the rest of each
 file still protects you against a stray registration in the seams you have _not_
 filled.
 
-| Test                                          | Broken by                                                       | Adjust to                                                         |
-| --------------------------------------------- | --------------------------------------------------------------- | ----------------------------------------------------------------- |
-| `tests/unit/lib/app/defaults.test.ts`         | the ESLint (§2.3), rate-limit (§2.6) and admin-nav (§2.7) seams | the exact set each registrar owns                                 |
-| `tests/unit/lib/db/drift-probes.test.ts`      | the drift-probe scaffold (§2.5)                                 | identity with what `registerObsiddyDriftProbes()` alone registers |
-| `tests/unit/lib/app/bootstrap-wiring.test.ts` | the rate-limit seam (§2.6)                                      | Obsiddy's rules reaching only `/api/v1/obsiddy/*`                 |
+| Test                                                         | Broken by                                                       | Adjust to                                                           |
+| ------------------------------------------------------------ | --------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `tests/unit/lib/app/defaults.test.ts`                        | the ESLint (§2.3), rate-limit (§2.6) and admin-nav (§2.7) seams | the exact set each registrar owns                                   |
+| `tests/unit/lib/db/drift-probes.test.ts`                     | the drift-probe scaffold (§2.5)                                 | identity with what `registerObsiddyDriftProbes()` alone registers   |
+| `tests/unit/lib/app/bootstrap-wiring.test.ts`                | the rate-limit seam (§2.6)                                      | Obsiddy's rules reaching only `/api/v1/obsiddy/*`                   |
+| `tests/unit/lib/orchestration/capabilities/registry.test.ts` | the capability seam (§2.8)                                      | stub the seam: `vi.mock('@/lib/app/capabilities')` — [ask #25][a25] |
+
+[a25]: https://github.com/human-centric-engineering/sunrise/issues/525
+
+The fourth is worth calling out because its failure message points away from the
+cause: the suite asserts `register` was called thirteen times, so a fork adding
+its own capabilities sees "expected 13, got 26" reported as an **idempotency**
+failure for a registry that was perfectly idempotent. Stubbing the seam makes the
+test measure core, which is what it was always trying to measure.
 
 Assert **identity with the thing your tier owns**, not a literal list — that way
 a probe or block added straight to the leaf seam still fails, which is the
@@ -547,12 +642,14 @@ The app must build with the tier removed — that's what proves the boot import
 is genuinely dynamic. Four seams import the tier **statically** by necessity, so
 back those lines out as part of the test:
 
-| Seam                               | Why it cannot be dynamic                                               |
-| ---------------------------------- | ---------------------------------------------------------------------- |
-| `lib/app/env.ts` (§2.2)            | `lib/env.ts` parses the merged schema during a synchronous module load |
-| `lib/app/eslint.config.mjs` (§2.3) | Flat config is a static default export                                 |
-| `lib/app/rate-limit.ts` (§2.6)     | Runs in the middleware bundle, where there is nowhere to `await`       |
-| `lib/app/admin-nav.ts` (§2.7)      | The sidebar reads the registry during client render                    |
+| Seam                                     | Why it cannot be dynamic                                               |
+| ---------------------------------------- | ---------------------------------------------------------------------- |
+| `lib/app/env.ts` (§2.2)                  | `lib/env.ts` parses the merged schema during a synchronous module load |
+| `lib/app/eslint.config.mjs` (§2.3)       | Flat config is a static default export                                 |
+| `lib/app/rate-limit.ts` (§2.6)           | Runs in the middleware bundle, where there is nowhere to `await`       |
+| `lib/app/admin-nav.ts` (§2.7)            | The sidebar reads the registry during client render                    |
+| `lib/app/capabilities.ts` (§2.8)         | Called synchronously on the request path, before the first dispatch    |
+| `lib/app/context-contributors.ts` (§2.9) | Called synchronously from `buildContext` on the chat-turn hot path     |
 
 Only `bootstrap.ts` must stay dynamic, and that is the one
 `tests/unit/lib/framework/obsiddy/scaffold.test.ts` asserts by reading the file's

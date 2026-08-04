@@ -1354,10 +1354,15 @@ describe('ManageTab', () => {
         const searchInput = screen.getByPlaceholderText(/search by name or filename/i);
         fireEvent.change(searchInput, { target: { value: 'hello' } });
 
-        // Advance past the 300ms debounce then flush pending microtasks so the
-        // queued fetch call lands before we assert on it.
-        await vi.advanceTimersByTimeAsync(350);
-        await vi.runAllTimersAsync();
+        // Advance past the 300ms debounce inside act(). The debounce callback
+        // calls setSearchQuery, and the resulting re-render + fetch effect are
+        // scheduled on React's own scheduler (a MessageChannel macrotask that
+        // fake timers do not control) — so awaiting the timer alone only
+        // *happens* to flush them when the event loop is idle. act() flushes
+        // the render and its passive effects deterministically instead.
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(350);
+        });
 
         expect(listFetchUrls().some((u) => u.includes('q=hello'))).toBe(true);
       } finally {

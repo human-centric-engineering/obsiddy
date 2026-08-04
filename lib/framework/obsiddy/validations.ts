@@ -216,33 +216,49 @@ export const updateThoughtSchema = z
  *     take an area. `.strict()` on each branch makes the wrong combination a 400
  *     rather than a silently ignored field.
  */
+const promoteTaskShape = {
+  target: z.literal('task'),
+  title: titleSchema.optional(),
+  /** "File this under the Q4 launch" — the most common triage action. */
+  projectId: cuidSchema.optional(),
+} as const;
+
+const promoteProjectShape = {
+  target: z.literal('project'),
+  title: titleSchema.optional(),
+  areaId: cuidSchema.optional(),
+} as const;
+
+const promoteGoalShape = {
+  target: z.literal('goal'),
+  title: titleSchema.optional(),
+  areaId: cuidSchema.optional(),
+  horizon: z.enum(GOAL_HORIZONS),
+} as const;
+
 export const promoteThoughtSchema = z.discriminatedUnion('target', [
-  z
-    .object({
-      target: z.literal('task'),
-      title: titleSchema.optional(),
-      /** "File this under the Q4 launch" — the most common triage action. */
-      projectId: cuidSchema.optional(),
-    })
-    .strict(),
-  z
-    .object({
-      target: z.literal('project'),
-      title: titleSchema.optional(),
-      areaId: cuidSchema.optional(),
-    })
-    .strict(),
-  z
-    .object({
-      target: z.literal('goal'),
-      title: titleSchema.optional(),
-      areaId: cuidSchema.optional(),
-      horizon: z.enum(GOAL_HORIZONS),
-    })
-    .strict(),
+  z.object(promoteTaskShape).strict(),
+  z.object(promoteProjectShape).strict(),
+  z.object(promoteGoalShape).strict(),
 ]);
 
 export type PromoteThoughtInput = z.infer<typeof promoteThoughtSchema>;
+
+/**
+ * `obsiddy_promote_thought` — the same three branches, plus the id.
+ *
+ * Built from the same shapes as the route schema rather than retyped, because
+ * the per-target rules above are the whole reason this is a union and a second
+ * copy would drift on the branch nobody exercises. The HTTP path carries the id
+ * in the URL; a tool call has no URL, so it carries it in the arguments.
+ */
+export const agentPromoteThoughtSchema = z.discriminatedUnion('target', [
+  z.object({ thoughtId: cuidSchema, ...promoteTaskShape }).strict(),
+  z.object({ thoughtId: cuidSchema, ...promoteProjectShape }).strict(),
+  z.object({ thoughtId: cuidSchema, ...promoteGoalShape }).strict(),
+]);
+
+export type AgentPromoteThoughtInput = z.infer<typeof agentPromoteThoughtSchema>;
 
 export const thoughtListQuerySchema = obsiddyListQuerySchema.extend({
   status: z.enum(THOUGHT_STATUSES).optional(),
@@ -829,6 +845,213 @@ export const ideateSchema = z
   .strict();
 
 export type IdeateInput = z.infer<typeof ideateSchema>;
+
+// ─── Agent capability arguments (phase 6b) ───────────────────────────────────
+//
+// The schemas an LLM's tool arguments are validated against. They are separate
+// from the route schemas above for three reasons, and the separation is load-
+// bearing rather than tidiness:
+//
+//   1. **A tool argument is JSON, not a query string.** The route schemas coerce
+//      `'true'` and `'20'` because a URL has no types. A model that emits
+//      `includeArchived: "true"` has made a mistake worth reporting, not one
+//      worth papering over.
+//   2. **Every field an LLM cannot set is a field it cannot get wrong.**
+//      `manualBoost` is absent by the rule at the top of this file; `source` on
+//      capture and `origin` on a link are pinned server-side, because provenance
+//      the caller chooses is not provenance.
+//   3. **Upsert is not a route verb.** HTTP has `POST` and `PATCH`; a model has
+//      one call and the id it either has or hasn't. Folding both into one tool
+//      halves the number of ways it can pick the wrong one.
+//
+// The create path re-parses through the matching `create*Schema`, so an
+// agent-created row lands with exactly the defaults an HTTP-created one does.
+
+/** Anything an agent may ask for a page of. Smaller cap than HTTP: this is context, not a table. */
+const agentLimitSchema = z.number().int().min(1).max(50);
+
+/**
+ * `obsiddy_capture`.
+ *
+ * No `source`: the capability pins `'agent'`. A model that could claim its own
+ * capture came from a phone would make the one field that says "where did this
+ * come from" worthless — and `source` is what the briefing and the triage prompt
+ * both read to decide how much to trust a thought.
+ */
+export const agentCaptureSchema = z
+  .object({
+    content: z.string().trim().min(1, 'Required').max(100_000),
+    /** Supplied by an inbound adapter replaying a message; makes a retry safe. */
+    externalId: z.string().trim().min(1).max(200).optional(),
+  })
+  .strict();
+
+export type AgentCaptureInput = z.infer<typeof agentCaptureSchema>;
+
+/** `obsiddy_search` — the same hybrid pass the `/search` endpoint runs. */
+export const agentSearchSchema = z
+  .object({
+    query: z.string().trim().min(1, 'Required').max(500),
+    entityTypes: z.array(z.enum(SEARCHABLE_ENTITY_TYPES)).min(1).optional(),
+    limit: agentLimitSchema.default(10),
+    /**
+     * Archived items are found by keyword only — the archive transaction deletes
+     * their vectors (§11) — so this widens recall in one pass and not the other.
+     */
+    includeArchived: z.boolean().default(false),
+  })
+  .strict();
+
+export type AgentSearchInput = z.infer<typeof agentSearchSchema>;
+
+/** `obsiddy_list_tasks` — ranked by `priorityScore`, which the scorer already wrote. */
+export const agentListTasksSchema = z
+  .object({
+    status: z.enum(TASK_STATUSES).optional(),
+    projectId: cuidSchema.optional(),
+    /** Hide tasks whose `deferUntil` is still in the future. */
+    hideDeferred: z.boolean().optional(),
+    limit: agentLimitSchema.default(20),
+  })
+  .strict();
+
+export type AgentListTasksInput = z.infer<typeof agentListTasksSchema>;
+
+/**
+ * The upsert pair-builder.
+ *
+ * `id` present → update; absent → create. The `requiredOnCreate` keys are the
+ * ones the create schema has no default for, checked here so the model gets
+ * "provide `title` to create a task" rather than a shape error from a second
+ * parse it cannot see.
+ */
+function upsertSchema<Shape extends z.ZodRawShape>(
+  base: z.ZodObject<Shape>,
+  requiredOnCreate: readonly (keyof Shape & string)[]
+) {
+  return base
+    .partial()
+    .extend({ id: cuidSchema.optional() })
+    .strict()
+    .superRefine((value, ctx) => {
+      // Read through an index signature rather than the inferred shape: the
+      // generic parameter makes the narrowed type unreadable here, and the two
+      // keys we touch are both declared above.
+      const fields = value as Record<string, unknown>;
+      if (fields.id !== undefined) return;
+      for (const key of requiredOnCreate) {
+        if (fields[key] === undefined) {
+          ctx.addIssue({
+            code: 'custom',
+            path: [key],
+            message: `Provide \`id\` to update an existing record, or \`${key}\` to create one`,
+          });
+        }
+      }
+    });
+}
+
+/**
+ * `obsiddy_upsert_task`.
+ *
+ * The three `manualBoost*` fields are stripped before the shape is built, not
+ * merely undocumented: a pin is a human veto over the machine's ranking, so a
+ * machine that could write one has defeated the point (§10, and rule 2 at the
+ * top of this file). `omit()` makes that a type error rather than a review note.
+ */
+export const agentUpsertTaskSchema = upsertSchema(
+  createTaskSchema.omit({
+    manualBoost: true,
+    manualBoostExpiresAt: true,
+    manualBoostReason: true,
+  }),
+  ['title']
+);
+
+export type AgentUpsertTaskInput = z.infer<typeof agentUpsertTaskSchema>;
+
+/** `obsiddy_upsert_project`. `slug` is omitted — the service derives it from the name. */
+export const agentUpsertProjectSchema = upsertSchema(createProjectSchema.omit({ slug: true }), [
+  'name',
+]);
+
+export type AgentUpsertProjectInput = z.infer<typeof agentUpsertProjectSchema>;
+
+/** `obsiddy_upsert_goal`. `horizon` has no default, so creating without one is an error. */
+export const agentUpsertGoalSchema = upsertSchema(createGoalSchema, ['title', 'horizon']);
+
+export type AgentUpsertGoalInput = z.infer<typeof agentUpsertGoalSchema>;
+
+/** `obsiddy_upsert_entity` — people, companies and segments. */
+export const agentUpsertEntitySchema = upsertSchema(createEntitySchema.omit({ slug: true }), [
+  'name',
+]);
+
+export type AgentUpsertEntityInput = z.infer<typeof agentUpsertEntitySchema>;
+
+/**
+ * `obsiddy_find_connections`.
+ *
+ * Embedded types only: a connection is a distance between two stored vectors and
+ * tasks have none (§1). Asking for one is a validation error rather than an
+ * empty result, because the two are indistinguishable to a model that then
+ * concludes the item has no neighbours.
+ */
+export const agentFindConnectionsSchema = z
+  .object({
+    entityType: z.enum(EMBEDDED_ENTITY_TYPES),
+    entityId: cuidSchema,
+    limit: z.number().int().min(1).max(20).default(10),
+  })
+  .strict();
+
+export type AgentFindConnectionsInput = z.infer<typeof agentFindConnectionsSchema>;
+
+/**
+ * `obsiddy_reprioritise` — and it takes nothing at all.
+ *
+ * It *triggers* the deterministic ranker (D3); it does not steer it. The empty
+ * `.strict()` object is the point rather than an oversight: there is no argument
+ * through which a model could nudge the ordering, not even a filter that would
+ * let it rescore one favoured task and leave the rest stale. `{ scores: … }`
+ * from a hopeful model is a validation error, not a silently dropped key.
+ */
+export const agentReprioritiseSchema = z.object({}).strict();
+
+export type AgentReprioritiseInput = z.infer<typeof agentReprioritiseSchema>;
+
+// ─── Chat (phase 6c) ─────────────────────────────────────────────────────────
+
+/**
+ * `POST /obsiddy/chat/stream`.
+ *
+ * Four fields, and the absences are the design:
+ *
+ *   - **No `contextType` / `contextId`.** The route pins both server-side to the
+ *     signed-in user. A client-supplied `contextId` is the one field that would
+ *     let a browser ask for another person's goals to be rendered into its own
+ *     prompt — and `buildContext` would then cache the answer.
+ *   - **No `agentId`, no model, no temperature.** Those are operator settings on
+ *     the `AiAgent` row, and a chat box that could override them is a chat box
+ *     that can spend more than the operator agreed to.
+ *   - **No attachments.** Voice and image capture arrive in phase 9 with their
+ *     own magic-byte validation and their own rate-limit bucket; accepting a
+ *     base64 blob here before any of that exists would be a hole with a UI on it.
+ *
+ * `agentSlug` is validated against `OBSIDDY_CHAT_AGENT_SLUGS` in the route rather
+ * than here, because that list is a security boundary that belongs next to the
+ * reasoning for it (`lib/framework/obsiddy/agents.ts`), not in a schema file.
+ */
+export const obsiddyChatRequestSchema = z
+  .object({
+    message: z.string().trim().min(1, 'Required').max(10_000),
+    agentSlug: z.string().trim().min(1).max(100),
+    /** Continues an existing conversation; omitted starts a new one. */
+    conversationId: cuidSchema.optional(),
+  })
+  .strict();
+
+export type ObsiddyChatRequest = z.infer<typeof obsiddyChatRequestSchema>;
 
 // ─── Instance settings (admin) ────────────────────────────────────────────────
 

@@ -13,6 +13,17 @@
  *
  * Full guide + example: CUSTOMIZATION.md §4 · .context/orchestration/capabilities.md
  */
+import { registerObsiddyCapabilities } from '@/lib/framework/obsiddy/capabilities';
+
 export function initAppCapabilities(): void {
-  // No app capabilities by default.
+  // Obsiddy's thirteen brain tools. One call, not a pasted list: Obsiddy owns
+  // the set, so a later Obsiddy release can add a fourteenth without every host
+  // project editing this file.
+  //
+  // Static import on purpose. This runs in the server route-handler realm, from
+  // `registerBuiltInCapabilities()` immediately before the first dispatch —
+  // there is nowhere to await, and this repo IS the Obsiddy tier so the path
+  // always resolves. A host project adds the same two lines; see
+  // `.context/framework/obsiddy/install.md`.
+  registerObsiddyCapabilities();
 }

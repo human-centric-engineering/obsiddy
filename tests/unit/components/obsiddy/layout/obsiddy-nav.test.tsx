@@ -93,4 +93,14 @@ describe('ObsiddyNav', () => {
       expect(link.getAttribute('href')).toMatch(/^\/obsiddy/);
     }
   });
+
+  it('links to Chat, and keeps it current on that surface', () => {
+    mockedPathname.mockReturnValue('/obsiddy/chat');
+    render(<ObsiddyNav />);
+
+    expect(screen.getByRole('link', { name: 'Chat' })).toHaveAttribute('href', '/obsiddy/chat');
+    expect(screen.getByRole('link', { name: 'Chat' })).toHaveAttribute('aria-current', 'page');
+    // And "Today" is not, despite every Obsiddy path starting with `/obsiddy`.
+    expect(screen.getByRole('link', { name: 'Today' })).not.toHaveAttribute('aria-current');
+  });
 });
