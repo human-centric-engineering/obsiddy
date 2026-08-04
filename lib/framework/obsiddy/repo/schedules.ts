@@ -52,6 +52,33 @@ export interface ObsiddyScheduleRow {
   workflowSlug: string;
   cronExpression: string;
   isEnabled: boolean;
+  /**
+   * Whether the row's `inputTemplate` holds anything at all.
+   *
+   * An Obsiddy schedule's template must be empty (see
+   * {@link createObsiddySchedule}), so `true` here is never a preference to
+   * respect — it is a row written by an older version, or by a hand edit, and
+   * the correction pass clears it. The boolean rather than the value itself
+   * keeps the "what counts as empty" judgement in this file, next to the
+   * invariant it enforces, and keeps the caller out of `Prisma.JsonValue`.
+   */
+  hasInputTemplateData: boolean;
+}
+
+/**
+ * Does a stored `inputTemplate` hold anything?
+ *
+ * `null` and `{}` are the two shapes that mean "nothing"; the column is
+ * `Json @default("{}")` so both occur in practice. Anything else — keys, array
+ * elements, or a bare scalar sitting where an object belongs — is data that
+ * will be handed to a step as `ctx.inputData`, and therefore data that has to
+ * go.
+ */
+function carriesInputTemplateData(value: Prisma.JsonValue): boolean {
+  if (value === null) return false;
+  if (Array.isArray(value)) return value.length > 0;
+  if (typeof value === 'object') return Object.keys(value).length > 0;
+  return true;
 }
 
 /** Every Obsiddy schedule belonging to one user. */
@@ -62,6 +89,7 @@ export async function listObsiddySchedules(userId: string): Promise<ObsiddySched
       id: true,
       cronExpression: true,
       isEnabled: true,
+      inputTemplate: true,
       workflow: { select: { slug: true } },
     },
   });
@@ -71,6 +99,7 @@ export async function listObsiddySchedules(userId: string): Promise<ObsiddySched
     workflowSlug: row.workflow.slug,
     cronExpression: row.cronExpression,
     isEnabled: row.isEnabled,
+    hasInputTemplateData: carriesInputTemplateData(row.inputTemplate),
   }));
 }
 
@@ -138,6 +167,35 @@ export async function updateObsiddyScheduleCron(
   await prisma.aiWorkflowSchedule.update({
     where: { id },
     data: { cronExpression, nextRunAt },
+  });
+}
+
+/**
+ * Empty a schedule's `inputTemplate`.
+ *
+ * The counterpart to {@link createObsiddySchedule}'s `inputTemplate: {}`, for
+ * rows that predate it. An earlier version stamped `{ userId }` here, which the
+ * scheduler turns into the execution's `inputData` and `tool-call.ts` forwards
+ * to any step declaring no `args` — so `obsiddy_get_briefing_inputs` receives an
+ * argument its `.strict()` schema rejects, and the briefing fails on every
+ * scheduled run. It fails in a background job at 04:30, which is to say it fails
+ * where nobody is looking; the row cannot be left to be noticed.
+ *
+ * **Unconditionally safe, and that rests on two things.** The id always comes
+ * from {@link listObsiddySchedules}, which is scoped by `createdBy` *and* the
+ * `obsiddy-` slug prefix, so this cannot reach a host project's own schedules.
+ * And an empty template is a stated invariant of Obsiddy's rows rather than a
+ * default someone might have deliberately overridden — a non-empty one is both a
+ * broken workflow and a place personal data can outlive the account
+ * (`repo/owner-contact.ts`), so there is no intent here worth preserving.
+ *
+ * `isEnabled` and the cron are untouched, for the same reason
+ * {@link updateObsiddyScheduleCron} leaves `isEnabled` alone.
+ */
+export async function clearObsiddyScheduleInputTemplate(id: string): Promise<void> {
+  await prisma.aiWorkflowSchedule.update({
+    where: { id },
+    data: { inputTemplate: {} },
   });
 }
 

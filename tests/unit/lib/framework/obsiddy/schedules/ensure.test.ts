@@ -11,16 +11,26 @@
  * The other cluster is what must *not* be in these rows. `AiWorkflowSchedule`
  * is core-owned with `createdBy: onDelete: SetNull`, so the row outlives the
  * account; anything personal stamped into `inputTemplate` outlives it too, as an
- * orphan no erasure can reach. `inputTemplate` is `{ userId }` and the test
+ * orphan no erasure can reach. The template is written empty, and the test
  * asserts the *absence* of an address, because the natural implementation —
  * `send_notification` resolving `{{input.userEmail}}` — puts one there.
  *
+ * That template is also the second half of the correction pass. An earlier
+ * version stamped `{ userId }` there, which becomes the execution's `inputData`
+ * and is forwarded to any step declaring no `args` — so
+ * `obsiddy_get_briefing_inputs` rejects it under `.strict()` and the briefing
+ * fails on every scheduled run, in a background job before dawn where the only
+ * symptom is a briefing that stops arriving. Correcting it here is what reaches
+ * rows already written, in this install and in anybody else's.
+ *
  * Test Coverage:
  * - Creates one schedule per workflow, with `createdBy` set to the owner
- * - `inputTemplate` carries the userId and no email address
+ * - The stored template carries no email address
  * - Cron expressions are built in the user's timezone, not the server's
  * - A second call creates nothing — it is safe on every login
  * - A schedule whose cron no longer matches the zone's offset is rewritten
+ * - A schedule carrying a stale `inputTemplate` is cleared
+ * - A row needing both fixes is reported once, not twice
  * - Rewriting does not touch `isEnabled` — an off schedule stays off
  * - A missing workflow row is reported, not thrown
  *
@@ -34,6 +44,7 @@ vi.mock('@/lib/framework/obsiddy/repo/schedules', () => ({
   findObsiddyWorkflowIds: vi.fn(),
   createObsiddySchedule: vi.fn(),
   updateObsiddyScheduleCron: vi.fn(),
+  clearObsiddyScheduleInputTemplate: vi.fn(),
 }));
 
 import {
@@ -41,6 +52,7 @@ import {
   OBSIDDY_SCHEDULED_WORKFLOWS,
 } from '@/lib/framework/obsiddy/schedules/ensure';
 import {
+  clearObsiddyScheduleInputTemplate,
   createObsiddySchedule,
   findObsiddyWorkflowIds,
   listObsiddySchedules,
@@ -52,6 +64,7 @@ const mockedList = vi.mocked(listObsiddySchedules);
 const mockedWorkflowIds = vi.mocked(findObsiddyWorkflowIds);
 const mockedCreate = vi.mocked(createObsiddySchedule);
 const mockedUpdate = vi.mocked(updateObsiddyScheduleCron);
+const mockedClear = vi.mocked(clearObsiddyScheduleInputTemplate);
 
 const USER = 'user_a';
 /** Mutable so a test can switch zone without threading it through every call. */
@@ -116,18 +129,14 @@ describe('ensureObsiddySchedules — first run', () => {
 describe('ensureObsiddySchedules — repeat runs', () => {
   it('creates nothing on a second call, so it is safe on every login', async () => {
     mockedList.mockResolvedValue(
-      ALL_SLUGS.map((slug, i) => ({
-        id: `sched_${i}`,
-        workflowSlug: slug,
-        cronExpression: expectedCronFor(slug, 'UTC', SUMMER),
-        isEnabled: true,
-      }))
+      ALL_SLUGS.map((slug, i) => existingRow(slug, i, expectedCronFor(slug, 'UTC', SUMMER)))
     );
 
     const result = await ensureObsiddySchedules(USER, TZ.current, SUMMER);
 
     expect(mockedCreate).not.toHaveBeenCalled();
     expect(mockedUpdate).not.toHaveBeenCalled();
+    expect(mockedClear).not.toHaveBeenCalled();
     expect(result.created).toEqual([]);
     expect(result.corrected).toEqual([]);
   });
@@ -137,12 +146,9 @@ describe('ensureObsiddySchedules — repeat runs', () => {
     // Stored in winter (GMT), now running in summer (BST) — the DST drift the
     // cron module documents, corrected on the next visit.
     mockedList.mockResolvedValue(
-      ALL_SLUGS.map((slug, i) => ({
-        id: `sched_${i}`,
-        workflowSlug: slug,
-        cronExpression: expectedCronFor(slug, 'Europe/London', WINTER),
-        isEnabled: true,
-      }))
+      ALL_SLUGS.map((slug, i) =>
+        existingRow(slug, i, expectedCronFor(slug, 'Europe/London', WINTER))
+      )
     );
 
     const result = await ensureObsiddySchedules(USER, TZ.current, SUMMER);
@@ -152,15 +158,51 @@ describe('ensureObsiddySchedules — repeat runs', () => {
     expect(mockedUpdate).toHaveBeenCalled();
   });
 
+  it('clears a schedule still carrying the old { userId } template', async () => {
+    // The row is otherwise correct — right cron, right zone — so nothing else
+    // about it looks wrong. What is wrong is invisible until 04:30, when the
+    // template arrives at `obsiddy_get_briefing_inputs` as an unexpected argument
+    // and `.strict()` fails the briefing.
+    mockedList.mockResolvedValue([
+      existingRow(
+        OBSIDDY_SCHEDULED_WORKFLOWS.morningBriefing,
+        0,
+        expectedCronFor(OBSIDDY_SCHEDULED_WORKFLOWS.morningBriefing, 'UTC', SUMMER),
+        { hasInputTemplateData: true }
+      ),
+    ]);
+
+    const result = await ensureObsiddySchedules(USER, TZ.current, SUMMER);
+
+    expect(mockedClear).toHaveBeenCalledWith('sched_0');
+    expect(result.corrected).toContain(OBSIDDY_SCHEDULED_WORKFLOWS.morningBriefing);
+    // The cron was already right — clearing the template is not a reason to
+    // rewrite and re-arm it.
+    expect(mockedUpdate).not.toHaveBeenCalled();
+  });
+
+  it('reports a row needing both fixes once, not twice', async () => {
+    TZ.current = 'Europe/London';
+    const slug = OBSIDDY_SCHEDULED_WORKFLOWS.morningBriefing;
+    mockedList.mockResolvedValue([
+      existingRow(slug, 0, expectedCronFor(slug, 'Europe/London', WINTER), {
+        hasInputTemplateData: true,
+      }),
+    ]);
+
+    const result = await ensureObsiddySchedules(USER, TZ.current, SUMMER);
+
+    expect(mockedUpdate).toHaveBeenCalledTimes(1);
+    expect(mockedClear).toHaveBeenCalledTimes(1);
+    expect(result.corrected).toEqual([slug]);
+  });
+
   it('does not re-enable a schedule it rewrites', async () => {
     TZ.current = 'Europe/London';
     mockedList.mockResolvedValue([
-      {
-        id: 'sched_off',
-        workflowSlug: OBSIDDY_SCHEDULED_WORKFLOWS.nightlyTriage,
-        cronExpression: 'nonsense that will not match',
+      existingRow(OBSIDDY_SCHEDULED_WORKFLOWS.nightlyTriage, 0, 'nonsense that will not match', {
         isEnabled: false,
-      },
+      }),
     ]);
 
     await ensureObsiddySchedules(USER, TZ.current, SUMMER);
@@ -168,8 +210,26 @@ describe('ensureObsiddySchedules — repeat runs', () => {
     // `updateObsiddyScheduleCron` takes (id, cron, nextRunAt) and nothing else —
     // an operator or user who turned a schedule off has turned it off, and a
     // correction pass is not a reason to turn it back on.
-    expect(mockedUpdate).toHaveBeenCalledWith('sched_off', expect.any(String), expect.anything());
+    expect(mockedUpdate).toHaveBeenCalledWith('sched_0', expect.any(String), expect.anything());
     expect(mockedUpdate.mock.calls[0]).toHaveLength(3);
+  });
+
+  it('does not touch a disabled schedule’s enablement when clearing its template', async () => {
+    mockedList.mockResolvedValue([
+      existingRow(
+        OBSIDDY_SCHEDULED_WORKFLOWS.nightlyTriage,
+        0,
+        expectedCronFor(OBSIDDY_SCHEDULED_WORKFLOWS.nightlyTriage, 'UTC', SUMMER),
+        { isEnabled: false, hasInputTemplateData: true }
+      ),
+    ]);
+
+    await ensureObsiddySchedules(USER, TZ.current, SUMMER);
+
+    // The clear takes an id and nothing else, so there is no route by which it
+    // could re-arm a schedule somebody switched off.
+    expect(mockedClear).toHaveBeenCalledWith('sched_0');
+    expect(mockedClear.mock.calls[0]).toHaveLength(1);
   });
 });
 
@@ -195,6 +255,26 @@ describe('ensureObsiddySchedules — missing seeds', () => {
     expect(result.missing).toHaveLength(ALL_SLUGS.length - 1);
   });
 });
+
+/**
+ * A schedule row as `listObsiddySchedules` returns it — correct by default, so
+ * each test states only the one thing it is about being wrong with.
+ */
+function existingRow(
+  slug: string,
+  index: number,
+  cronExpression: string,
+  overrides: Partial<{ isEnabled: boolean; hasInputTemplateData: boolean }> = {}
+) {
+  return {
+    id: `sched_${index}`,
+    workflowSlug: slug,
+    cronExpression,
+    isEnabled: true,
+    hasInputTemplateData: false,
+    ...overrides,
+  };
+}
 
 /**
  * Re-derives what the module should produce, so the repeat-run tests assert

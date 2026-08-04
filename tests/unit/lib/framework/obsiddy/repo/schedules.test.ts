@@ -18,14 +18,19 @@
  * tested, because the second exists precisely because the first cannot be
  * relied on.
  *
- * The third property is the absence of an email address. `inputTemplate` carries
- * `{ userId }` and nothing else — an address stamped there would outlive its
- * owner as an orphan no erasure can reach, which is the whole reason
- * `findOwnerContact` resolves it at send time instead.
+ * The third property is that `inputTemplate` is **empty**, and stays empty.
+ * Anything stamped there outlives its owner as an orphan no erasure can reach —
+ * which is why `findOwnerContact` resolves the address at send time instead —
+ * and it is also handed to any workflow step declaring no `args`, so a stray
+ * `{ userId }` fails the briefing on every scheduled run. Rows written before
+ * that was understood are cleared by `clearObsiddyScheduleInputTemplate`, and
+ * `hasInputTemplateData` is how the correction pass finds them.
  *
  * Test Coverage:
  * - Every read and delete is scoped by BOTH createdBy and the obsiddy- slug prefix
- * - `inputTemplate` is exactly `{ userId }` — no address, no name
+ * - `inputTemplate` is stored empty — no address, no name, no userId
+ * - `hasInputTemplateData` distinguishes an empty template from a populated one
+ * - Clearing writes `{}` and touches nothing else
  * - Creating sets `createdBy`, which is the only route by which a run knows its owner
  * - Deleting resolves to ids first, and no-ops cleanly on an empty match
  * - The erasure delete uses the transaction client it is handed, not the global one
@@ -55,6 +60,7 @@ vi.mock('@/lib/db/client', () => ({
 
 import { prisma } from '@/lib/db/client';
 import {
+  clearObsiddyScheduleInputTemplate,
   createObsiddySchedule,
   deleteObsiddySchedulesForUser,
   deleteOrphanedObsiddySchedules,
@@ -92,6 +98,7 @@ describe('listObsiddySchedules', () => {
         id: 's1',
         cronExpression: '15 3 * * *',
         isEnabled: true,
+        inputTemplate: {},
         workflow: { slug: 'obsiddy-nightly-triage' },
       },
     ] as never);
@@ -104,8 +111,48 @@ describe('listObsiddySchedules', () => {
         workflowSlug: 'obsiddy-nightly-triage',
         cronExpression: '15 3 * * *',
         isEnabled: true,
+        hasInputTemplateData: false,
       },
     ]);
+  });
+
+  it('flags a row whose inputTemplate still carries data', async () => {
+    // The shape an earlier version wrote. It becomes the execution's `inputData`
+    // and is forwarded to any step declaring no `args`, so
+    // `obsiddy_get_briefing_inputs` rejects it under `.strict()` and the briefing
+    // fails on every run — from a job at 04:30, where nothing surfaces it.
+    vi.mocked(prisma.aiWorkflowSchedule.findMany).mockResolvedValue([
+      {
+        id: 's1',
+        cronExpression: '15 3 * * *',
+        isEnabled: true,
+        inputTemplate: { userId: 'user_a' },
+        workflow: { slug: 'obsiddy-nightly-triage' },
+      },
+    ] as never);
+
+    const rows = await listObsiddySchedules('user_a');
+
+    expect(rows[0]?.hasInputTemplateData).toBe(true);
+  });
+
+  it('treats a JSON null as empty, not as data', async () => {
+    // The column is `Json @default("{}")`, but a hand-edited or imported row can
+    // hold a JSON null. Flagging it would make the correction pass rewrite the
+    // same rows on every rotation for ever.
+    vi.mocked(prisma.aiWorkflowSchedule.findMany).mockResolvedValue([
+      {
+        id: 's1',
+        cronExpression: '15 3 * * *',
+        isEnabled: true,
+        inputTemplate: null,
+        workflow: { slug: 'obsiddy-nightly-triage' },
+      },
+    ] as never);
+
+    const rows = await listObsiddySchedules('user_a');
+
+    expect(rows[0]?.hasInputTemplateData).toBe(false);
   });
 });
 
@@ -161,6 +208,21 @@ describe('updateObsiddyScheduleCron', () => {
 
     const call = vi.mocked(prisma.aiWorkflowSchedule.update).mock.calls[0]?.[0];
     expect(Object.keys(call?.data ?? {}).sort()).toEqual(['cronExpression', 'nextRunAt']);
+  });
+});
+
+describe('clearObsiddyScheduleInputTemplate', () => {
+  it('empties the template and touches nothing else', async () => {
+    vi.mocked(prisma.aiWorkflowSchedule.update).mockResolvedValue({} as never);
+
+    await clearObsiddyScheduleInputTemplate('s1');
+
+    const call = vi.mocked(prisma.aiWorkflowSchedule.update).mock.calls[0]?.[0];
+    expect(call?.where).toEqual({ id: 's1' });
+    // Not the cron, and above all not `isEnabled`: a correction pass is not a
+    // reason to turn a schedule somebody switched off back on.
+    expect(Object.keys(call?.data ?? {})).toEqual(['inputTemplate']);
+    expect(call?.data?.inputTemplate).toEqual({});
   });
 });
 

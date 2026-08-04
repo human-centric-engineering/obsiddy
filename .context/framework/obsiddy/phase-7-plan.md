@@ -90,9 +90,19 @@ that resolves to nothing. Two consequences:
 - **The schedule must not carry the email address.** `send_notification`
   resolves `to` from `{{input.userEmail}}`, so the obvious implementation stamps
   the address into `AiWorkflowSchedule.inputTemplate` — where it becomes exactly
-  the orphaned-PII shape `plan.md` §7 rejected `logEvent()` for. `inputTemplate`
-  carries `{ userId }` only; the address is resolved at send time from the
-  userId, inside the tier, by `obsiddy_notify`.
+  the orphaned-PII shape `plan.md` §7 rejected `logEvent()` for. The address is
+  resolved at send time from the userId, inside the tier, by `obsiddy_notify`.
+
+  **`inputTemplate` ended up empty rather than `{ userId }`** — a correction to
+  this plan, not a detail of it. The template becomes the execution's
+  `inputData`, and `tool-call.ts` forwards that to any step declaring no `args`,
+  so a `{ userId }` template reaches `obsiddy_get_briefing_inputs`, whose
+  `.strict()` schema rejects it — failing the briefing on every scheduled run.
+  The owner was never needed there: it travels on `execution.userId`, which the
+  scheduler stamps from `createdBy`. Rows written before that was understood are
+  cleared by the correction pass in `schedules/ensure.ts`, which the sweep job
+  runs over every brain on its rotation.
+
 - **Phase 7 registers the tier's first erasure cleanup hook**, deleting the
   user's Obsiddy schedule rows. `registerErasureCleanupHook`
   (`lib/privacy/erasure-hooks.ts:74`) is the seam. This is a phase 7 deliverable,
@@ -192,9 +202,19 @@ body and a subject key, and it is bound to no agent the user can talk to.
 
 Idempotent creation of the per-user schedule rows, called from the stub at
 `services/space.ts:80`, keyed so a second call is a no-op. `inputTemplate` is
-`{ userId }` and nothing else. Registers the tier's first erasure cleanup hook in
-the same change — the hook and the rows it cleans up should never exist in
+empty — see the correction above. Registers the tier's first erasure cleanup hook
+in the same change — the hook and the rows it cleans up should never exist in
 different commits.
+
+**Idempotent is not the same as reached.** `ensureObsiddySpace` calls the pass
+only on the branch that _creates_ a space, so on its own it never runs twice for
+anybody and "self-correcting" is a property nothing exercises — the DST rewrite
+and the stale-template clear would both be unreachable. The sweep job's rotation
+therefore runs the pass for each brain it takes (`jobs.ts`), which is what makes
+a correction reach existing rows, dormant users, and installs other than the one
+where a bug was noticed. It stays off the `existing` branch deliberately: that is
+the hot read path under capture, chat and every resource service, and two queries
+there to catch a twice-a-year offset change is the wrong trade.
 
 **`obsiddy-connection-finder` rides `registerAppJob`, not a cron schedule.**
 `sweepConnections(scope)` is already a per-user sweep over stored vectors with an

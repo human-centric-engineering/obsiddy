@@ -30,27 +30,39 @@ export async function createSpace(data: {
   return prisma.obsiddySpace.create({ data });
 }
 
+/** One brain's turn in the rotation: who, and the zone their schedules run in. */
+export interface SpaceDueSweep {
+  userId: string;
+  timezone: string;
+}
+
 /**
  * The next brains due a connection sweep, oldest-swept first.
  *
  * **The one unscoped read in the tier, and it is unscoped by necessity rather
  * than by omission.** `registerAppJob` fires a single process-wide callback, so
  * something has to answer "whose brain next?" — a question no `OwnerScope` can
- * express. It is safe precisely because of what it returns: user ids and nothing
- * else. Each id is then minted into its own scope and every subsequent read goes
- * back through the normal owner-scoped path, so no brain content is ever read
- * across users (D5 is untouched — this chooses a scope, it does not bypass one).
+ * express. It is safe precisely because of how little it returns: a user id and
+ * the zone their schedules are built in, and no brain content whatsoever. Each
+ * id is then minted into its own scope and every subsequent read goes back
+ * through the normal owner-scoped path (D5 is untouched — this chooses a scope,
+ * it does not bypass one).
+ *
+ * `timezone` rides along because the tick is also where `ensureObsiddySchedules`
+ * reaches existing brains, and it takes the zone as an argument rather than
+ * looking it up — deliberately, to keep `services/space` and `schedules/ensure`
+ * out of an import cycle. One extra column on a query already being made is the
+ * cheapest way to honour that; the alternative is a second read per brain.
  *
  * `NULLS FIRST` is Postgres's default for `ASC`, and it is the behaviour we
  * want: a never-swept brain is the most overdue one there is.
  */
-export async function listSpacesDueSweep(limit: number): Promise<string[]> {
-  const rows = await prisma.obsiddySpace.findMany({
-    select: { userId: true },
+export async function listSpacesDueSweep(limit: number): Promise<SpaceDueSweep[]> {
+  return prisma.obsiddySpace.findMany({
+    select: { userId: true, timezone: true },
     orderBy: { lastSweptAt: 'asc' },
     take: limit,
   });
-  return rows.map((row) => row.userId);
 }
 
 /**

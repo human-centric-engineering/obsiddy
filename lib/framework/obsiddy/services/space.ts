@@ -83,8 +83,15 @@ export async function ensureObsiddySpace(userId: string): Promise<ObsiddySpace> 
     // Fire-and-forget, and never allowed to fail the create. This runs on the
     // read path of a brand-new brain — a first page load must not 500 because
     // the workflow seeds have not been applied yet, or because the schedule
-    // table is briefly unavailable. `ensureObsiddySchedules` is idempotent and
-    // self-correcting, so the next visit picks up whatever this missed.
+    // table is briefly unavailable.
+    //
+    // Nothing is lost if it does fail, and nothing is lost by this being the
+    // only call site on the create branch: the sweep job runs the same pass over
+    // every existing brain as its rotation reaches them (`jobs.ts`), so whatever
+    // this missed gets created — and any later drift corrected — within a
+    // rotation. Deliberately *not* called on the `existing` branch above, which
+    // is the hot read path under capture, chat and every resource service; two
+    // queries there to catch a twice-a-year offset change is the wrong trade.
     await ensureObsiddySchedules(userId, created.timezone).catch((error: unknown) => {
       logger.warn('Obsiddy schedules could not be created for a new space', {
         userId,

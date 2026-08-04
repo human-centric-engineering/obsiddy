@@ -14,12 +14,25 @@
  *
  * ## Idempotent, and self-correcting
  *
- * Called from `ensureObsiddySpace` on first use and safe to call on every
- * login. A second call creates nothing; what it *does* do is notice a schedule
- * whose cron no longer matches the user's current UTC offset and rewrite it.
- * That is how the DST drift described in `schedules/cron.ts` gets corrected —
- * on the next visit, rather than needing anyone to spot that their briefing
- * arrived an hour late.
+ * Called from `ensureObsiddySpace` when a brain is created, and again for every
+ * existing brain as the sweep job's rotation reaches it (`jobs.ts`). A repeat
+ * call creates nothing; what it *does* do is notice a row that has drifted from
+ * what this module would write today, and fix it. Two kinds of drift:
+ *
+ * - **The cron no longer matches the user's UTC offset** — the DST drift
+ *   `schedules/cron.ts` describes. Rewritten, so nobody has to spot that their
+ *   briefing arrived an hour late.
+ * - **`inputTemplate` is not empty** — the row was written by a version that
+ *   stamped `{ userId }` there. That becomes the execution's `inputData`, which
+ *   `tool-call.ts` forwards to any step declaring no `args`, so
+ *   `obsiddy_get_briefing_inputs` is handed an argument its `.strict()` schema
+ *   rejects and the briefing fails on every run. Cleared.
+ *
+ * The second is why the pass runs from the sweep rather than only on first use.
+ * A schedule created before the fix is broken for ever otherwise, and it breaks
+ * in a background job before dawn — where the only symptom is a briefing that
+ * quietly stops arriving. This is also the correction that reaches installs
+ * other than the one where the bug was noticed.
  *
  * ## Why the connection sweep is absent from this list
  *
@@ -31,6 +44,7 @@
  */
 
 import {
+  clearObsiddyScheduleInputTemplate,
   createObsiddySchedule,
   findObsiddyWorkflowIds,
   listObsiddySchedules,
@@ -146,11 +160,30 @@ export async function ensureObsiddySchedules(
       continue;
     }
 
+    // Both corrections are independent, and a row can need either or both. The
+    // slug is reported once regardless — `corrected` means "this row was not
+    // what it should be", and the specific fix goes to the log.
+    let corrected = false;
+
     if (current.cronExpression !== cronExpression) {
       // The user moved zone, or their zone changed offset. Rewrite and re-arm.
       await updateObsiddyScheduleCron(current.id, cronExpression, nextRunFor(cronExpression, now));
-      result.corrected.push(spec.slug);
+      corrected = true;
     }
+
+    if (current.hasInputTemplateData) {
+      // A row from before the template was emptied. Left alone it fails its
+      // workflow on every run, silently, from a job nobody watches.
+      await clearObsiddyScheduleInputTemplate(current.id);
+      logger.info('Obsiddy cleared a schedule’s stale inputTemplate', {
+        userId,
+        slug: spec.slug,
+        scheduleId: current.id,
+      });
+      corrected = true;
+    }
+
+    if (corrected) result.corrected.push(spec.slug);
   }
 
   if (result.missing.length > 0) {

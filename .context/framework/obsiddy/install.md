@@ -311,6 +311,17 @@ triage, morning briefing, weekly review and horizon check are calendar events �
 rows created by `ensureObsiddySchedules()`. The connection sweep is a continuous
 per-user pass with its own rotation cursor, which a cron field expresses badly.
 
+**The sweep's rotation also carries the schedule pass**, and that is not
+incidental. `ensureObsiddySchedules()` is idempotent and self-correcting, but
+`ensureObsiddySpace` only calls it when a space is _created_ — so without a
+second call site it never runs twice for anybody, and both corrections it exists
+to make (a cron that no longer matches the user's UTC offset after a DST change;
+an `inputTemplate` written by an older version, which fails its workflow on every
+run) would be unreachable. Running it once per brain per rotation is what lets a
+fix to schedule-writing reach rows that already exist — in your install, not just
+the one where the bug was found. If you register these jobs, you get that; if you
+skip `lib/app/jobs.ts` entirely, be aware that you are also skipping it.
+
 Note it is `registerAppJob({ name, intervalMs, run })` and not the
 `registerAppMaintenanceTask` name `plan.md` originally proposed — the plan named
 a seam that did not exist yet, and the one that shipped is shaped slightly

@@ -45,6 +45,7 @@
 import { ownerScope } from '@/lib/framework/obsiddy/repo/owner-scope';
 import { deleteOrphanedObsiddySchedules } from '@/lib/framework/obsiddy/repo/schedules';
 import { listSpacesDueSweep, markSpacesSwept } from '@/lib/framework/obsiddy/repo/space';
+import { ensureObsiddySchedules } from '@/lib/framework/obsiddy/schedules/ensure';
 import { sweepConnections } from '@/lib/framework/obsiddy/search/connections';
 import { logger } from '@/lib/logging';
 import { registerAppJob } from '@/lib/orchestration/maintenance/app-jobs';
@@ -66,9 +67,18 @@ const SWEEP_BATCH = 4;
 export interface SweepJobResult {
   swept: number;
   created: number;
+  /**
+   * Brains whose **connection sweep** threw. A schedule pass that throws is
+   * logged rather than counted here: this field's meaning predates that pass,
+   * and quietly widening it would make an existing number mean two things.
+   */
   failed: number;
   /** Schedules belonging to erased users, cleaned up on this tick. */
   orphanedSchedules: number;
+  /** Schedules this tick created for brains that had none. */
+  schedulesCreated: number;
+  /** Schedules this tick brought back in line with what the code writes today. */
+  schedulesCorrected: number;
 }
 
 /**
@@ -82,6 +92,24 @@ export interface SweepJobResult {
  * from being swept, and must not stop the cursor moving past it. Otherwise a
  * single bad corpus wedges the rotation for everybody, which is the same
  * class of silent stall the cursor exists to prevent.
+ *
+ * ## Why the schedule pass rides along here
+ *
+ * `ensureObsiddySchedules` is idempotent and self-correcting, but until it runs
+ * it corrects nothing — and `ensureObsiddySpace` only calls it on the branch
+ * that *creates* a space, so an existing brain would never see it again. That
+ * left the DST rewrite unreachable in practice, and would have left a schedule
+ * carrying a stale `inputTemplate` failing its workflow for ever.
+ *
+ * Putting it on the rotation is what makes "self-correcting" true: every brain
+ * gets the pass once per rotation, including the dormant ones, and it costs two
+ * indexed queries against a batch of four. The read path stays untouched —
+ * `ensureObsiddySpace` is called at the top of capture, chat and every resource
+ * service, and adding two queries to all of them to catch a twice-a-year offset
+ * change would be the wrong trade.
+ *
+ * It is failure-isolated from the connection sweep in both directions: neither
+ * half of a brain's turn can cost it the other.
  */
 export async function runObsiddySweepJob(now: Date = new Date()): Promise<SweepJobResult> {
   // The safety net under the erasure hook, run first so it happens even on a
@@ -98,13 +126,37 @@ export async function runObsiddySweepJob(now: Date = new Date()): Promise<SweepJ
     });
   }
 
-  const userIds = await listSpacesDueSweep(SWEEP_BATCH);
-  if (userIds.length === 0) return { swept: 0, created: 0, failed: 0, orphanedSchedules };
+  const due = await listSpacesDueSweep(SWEEP_BATCH);
+  if (due.length === 0) {
+    return {
+      swept: 0,
+      created: 0,
+      failed: 0,
+      orphanedSchedules,
+      schedulesCreated: 0,
+      schedulesCorrected: 0,
+    };
+  }
 
   let created = 0;
   let failed = 0;
+  let schedulesCreated = 0;
+  let schedulesCorrected = 0;
 
-  for (const userId of userIds) {
+  for (const { userId, timezone } of due) {
+    // Its own try, not the sweep's. A schedule pass that throws must not cost
+    // this brain its connection sweep, and vice versa — they share only the turn.
+    try {
+      const schedules = await ensureObsiddySchedules(userId, timezone, now);
+      schedulesCreated += schedules.created.length;
+      schedulesCorrected += schedules.corrected.length;
+    } catch (error) {
+      logger.error('Obsiddy schedule pass failed for one brain', {
+        userId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
     try {
       const result = await sweepConnections(ownerScope(userId), now);
       created += result.created;
@@ -121,9 +173,19 @@ export async function runObsiddySweepJob(now: Date = new Date()): Promise<SweepJ
   // would otherwise sit at the head of the queue for ever and starve everyone
   // behind it — the failure is logged, and it gets its next turn one rotation
   // later like everybody else.
-  await markSpacesSwept(userIds, now);
+  await markSpacesSwept(
+    due.map((space) => space.userId),
+    now
+  );
 
-  return { swept: userIds.length, created, failed, orphanedSchedules };
+  return {
+    swept: due.length,
+    created,
+    failed,
+    orphanedSchedules,
+    schedulesCreated,
+    schedulesCorrected,
+  };
 }
 
 /** Register the sweep on the maintenance tick. Called from `initObsiddy()`. */
