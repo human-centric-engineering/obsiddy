@@ -52,6 +52,30 @@ const MAX_TASKS = 5;
 const MAX_AREAS = 6;
 
 /**
+ * Per-line cap, and it is the cap that actually keeps the block balanced.
+ *
+ * Titles are bounded at 500 characters by `titleSchema`, so the row caps alone
+ * do not bound the block: eight goals and eight projects with long names is
+ * already past the budget on their own, and the line loop below would then stop
+ * before it ever reached `LOAD` — dropping the inbox count, the remaining
+ * capacity and the area balance, which are the cheapest and most useful lines in
+ * the whole block.
+ *
+ * Truncating the line instead is safe here because **every id is rendered before
+ * the prose on the line it belongs to** (`- <id> · <title> · <when>`), so a cut
+ * tail never takes an id with it.
+ */
+const MAX_LINE_CHARS = 160;
+
+/** Room reserved for the truncation notice, so the notice cannot breach the cap it announces. */
+const TRUNCATION_NOTICE = '(Context truncated — use the tools for anything not shown above.)';
+
+/** One rendered line, bounded. The ellipsis says the tail was cut rather than absent. */
+function line(text: string): string {
+  return text.length <= MAX_LINE_CHARS ? text : `${text.slice(0, MAX_LINE_CHARS - 1)}…`;
+}
+
+/**
  * The goal horizons worth carrying, longest first.
  *
  * Life and year goals are the "why" behind everything else and change rarely;
@@ -106,7 +130,7 @@ export function renderObsiddyContext(snapshot: SnapshotPayload): string {
   if (goals.length > 0) {
     lines.push('', 'GOALS');
     for (const goal of goals) {
-      lines.push(`- [${goal.horizon}] ${goal.title}${relativeDays(goal.daysUntilTarget)}`);
+      lines.push(line(`- [${goal.horizon}] ${goal.title}${relativeDays(goal.daysUntilTarget)}`));
     }
     if (snapshot.goals.truncated || snapshot.goals.items.length > goals.length) {
       lines.push('- (more goals exist — search for them rather than assuming these are all)');
@@ -122,7 +146,7 @@ export function renderObsiddyContext(snapshot: SnapshotPayload): string {
     for (const project of projects) {
       const quiet =
         project.daysSinceActivity === null ? 'no activity yet' : `${project.daysSinceActivity}d`;
-      lines.push(`- ${project.id} · ${project.name} · ${quiet}`);
+      lines.push(line(`- ${project.id} · ${project.name} · ${quiet}`));
     }
     if (snapshot.projects.truncated || snapshot.projects.items.length > projects.length) {
       lines.push('- (more projects exist)');
@@ -137,7 +161,7 @@ export function renderObsiddyContext(snapshot: SnapshotPayload): string {
     for (const task of tasks) {
       const why = task.dominantFactor ? ` · ${task.dominantFactor}` : '';
       const due = task.dueAt ? ` · due ${task.dueAt.slice(0, 10)}` : '';
-      lines.push(`- ${task.id} · ${task.title}${due}${why}`);
+      lines.push(line(`- ${task.id} · ${task.title}${due}${why}`));
     }
   }
 
@@ -159,35 +183,45 @@ export function renderObsiddyContext(snapshot: SnapshotPayload): string {
     lines.push('', 'AREA BALANCE (this week, against target)');
     for (const area of areas) {
       lines.push(
-        `- ${area.name}: ${duration(area.minutesThisWeek)} of ${duration(area.targetWeeklyMinutes ?? 0)}`
+        line(
+          `- ${area.name}: ${duration(area.minutesThisWeek)} of ${duration(area.targetWeeklyMinutes ?? 0)}`
+        )
       );
     }
   }
   if (snapshot.mostNeglectedArea) {
-    lines.push(`- Most neglected: ${snapshot.mostNeglectedArea.name}`);
+    lines.push(line(`- Most neglected: ${snapshot.mostNeglectedArea.name}`));
   }
 
   if (snapshot.latestReview) {
     lines.push(
       '',
-      `Last review: ${snapshot.latestReview.horizon} — "${snapshot.latestReview.title}" (${snapshot.latestReview.generatedAt.slice(0, 10)}), id ${snapshot.latestReview.id}`
+      // The id leads so a cut tail cannot take it: the agent can fetch the
+      // review rather than paraphrase a half-title back at the person.
+      line(
+        `Last review: ${snapshot.latestReview.id} · ${snapshot.latestReview.horizon} (${snapshot.latestReview.generatedAt.slice(0, 10)}) — "${snapshot.latestReview.title}"`
+      )
     );
   }
 
   const body = lines.join('\n');
   if (body.length <= CONTEXT_CHAR_BUDGET) return body;
 
-  // Truncating mid-line would hand the model half an id. Drop whole lines from
-  // the end — the sections are ordered by how much they orient, so what goes
-  // first is what matters least.
+  // The backstop, now that every line is individually bounded. Drop whole lines
+  // from the end rather than cutting mid-line; the sections are ordered by how
+  // much they orient, so what goes first is what matters least.
+  //
+  // The notice's own length is reserved up front — a cap that its own "you hit
+  // the cap" message breaches is not a cap.
+  const allowance = CONTEXT_CHAR_BUDGET - TRUNCATION_NOTICE.length - 2;
   const kept: string[] = [];
   let used = 0;
-  for (const line of lines) {
-    if (used + line.length + 1 > CONTEXT_CHAR_BUDGET) break;
-    kept.push(line);
-    used += line.length + 1;
+  for (const entry of lines) {
+    if (used + entry.length + 1 > allowance) break;
+    kept.push(entry);
+    used += entry.length + 1;
   }
-  kept.push('', '(Context truncated — use the tools for anything not shown above.)');
+  kept.push('', TRUNCATION_NOTICE);
   return kept.join('\n');
 }
 

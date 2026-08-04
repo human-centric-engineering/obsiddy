@@ -76,7 +76,11 @@ import {
   ObsiddyListTasksCapability,
   ObsiddyUpsertTaskCapability,
 } from '@/lib/framework/obsiddy/capabilities/tasks';
-import { ObsiddyUpsertGoalCapability } from '@/lib/framework/obsiddy/capabilities/records';
+import {
+  ObsiddyUpsertEntityCapability,
+  ObsiddyUpsertGoalCapability,
+  ObsiddyUpsertProjectCapability,
+} from '@/lib/framework/obsiddy/capabilities/records';
 import {
   ObsiddyFindConnectionsCapability,
   ObsiddyLinkEntitiesCapability,
@@ -96,7 +100,12 @@ import { buildSnapshot } from '@/lib/framework/obsiddy/services/snapshot';
 import { writeReview } from '@/lib/framework/obsiddy/services/reviews';
 import { ideate } from '@/lib/framework/obsiddy/services/ideate';
 import { reprioritiseTasks } from '@/lib/framework/obsiddy/priority/reprioritise';
-import { goalResource, taskResource } from '@/lib/framework/obsiddy/services/resources';
+import {
+  entityResource,
+  goalResource,
+  projectResource,
+  taskResource,
+} from '@/lib/framework/obsiddy/services/resources';
 import { ValidationError, NotFoundError } from '@/lib/api/errors';
 import type { CapabilityContext } from '@/lib/orchestration/capabilities/types';
 
@@ -204,6 +213,26 @@ describe('obsiddy_search', () => {
     ]);
   });
 
+  it('narrows the search when told which types to look in', async () => {
+    mocked(searchObsiddy).mockResolvedValue({ hits: [], embedding: null });
+
+    await call(capability, { query: 'pricing', entityTypes: ['thought', 'document'], limit: 3 });
+
+    expect(searchObsiddy).toHaveBeenCalledWith(
+      expect.objectContaining({ entityTypes: ['thought', 'document'], limit: 3 })
+    );
+  });
+
+  it('omits entityTypes entirely when unset, rather than passing undefined', async () => {
+    mocked(searchObsiddy).mockResolvedValue({ hits: [], embedding: null });
+
+    await call(capability, { query: 'pricing' });
+
+    // `searchObsiddy` defaults to every type; an explicit `undefined` would be a
+    // different code path the day that default moves.
+    expect(mocked(searchObsiddy).mock.calls[0]?.[0]).not.toHaveProperty('entityTypes');
+  });
+
   it('rejects a string boolean — a tool argument is JSON, not a query string', () => {
     expect(() => capability.validate({ query: 'x', includeArchived: 'true' })).toThrow();
   });
@@ -253,6 +282,45 @@ describe('obsiddy_list_tasks', () => {
     );
   });
 
+  it('forwards the status and project filters it was given', async () => {
+    mocked(taskResource.list).mockResolvedValue({ items: [], total: 0 });
+
+    await call(capability, { status: 'next', projectId: ID(2), hideDeferred: true, limit: 5 });
+
+    expect(taskResource.list).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        status: 'next',
+        projectId: ID(2),
+        hideDeferred: true,
+        limit: 5,
+      })
+    );
+  });
+
+  it('never returns archived tasks, whatever it is asked', () => {
+    // No `includeArchived` argument exists: the agent reads the live list, and
+    // the archive is reached through search with an explicit opt-in.
+    expect(() => capability.validate({ includeArchived: true })).toThrow();
+  });
+
+  it('falls back rather than inventing a score when the column is unreadable', async () => {
+    mocked(taskResource.list).mockResolvedValue({
+      items: [{ id: ID(1), title: 'Untitled work', priorityFactors: 'not an object' }],
+      total: 1,
+    });
+
+    const result = await call(capability, {});
+
+    expect(
+      (result as { data: { tasks: Array<{ priorityScore: number }> } }).data.tasks[0]
+    ).toMatchObject({
+      priorityScore: 0,
+      dominantFactor: null,
+      status: 'todo',
+    });
+  });
+
   it('drops a row that does not carry the fields it claims to', async () => {
     mocked(taskResource.list).mockResolvedValue({ items: [{ id: ID(1) }, null], total: 2 });
 
@@ -294,6 +362,20 @@ describe('obsiddy_upsert_task', () => {
 
     expect(result).toMatchObject({ success: false, error: { code: 'not_found' } });
     expect(taskResource.create).not.toHaveBeenCalled();
+  });
+
+  /**
+   * The resource descriptors return `unknown` — typing their rows would force
+   * seven generic parameters through the factory. A row that does not carry the
+   * fields the label reader expects must therefore degrade, not throw.
+   */
+  it('tolerates a resource row that is not shaped the way it expects', async () => {
+    mocked(taskResource.create).mockResolvedValue('not a row at all');
+
+    expect(await call(capability, { title: 'Draft the brief' })).toMatchObject({
+      success: true,
+      data: { id: '', label: '', action: 'created' },
+    });
   });
 
   it('refuses a create with no title, naming the field the model must send', () => {
@@ -348,6 +430,14 @@ describe('obsiddy_promote_thought', () => {
    * its job, not a fault. It gets its own code so the model stops rather than
    * retrying with a different title and producing a second copy of the work.
    */
+  it('lets a fault that is not the idempotency guard escape', async () => {
+    mocked(promoteThought).mockRejectedValue(new Error('deadlock detected'));
+
+    await expect(call(capability, { thoughtId: ID(1), target: 'task' })).rejects.toThrow(
+      'deadlock detected'
+    );
+  });
+
   it('reports an already-triaged thought distinctly from a missing one', async () => {
     mocked(promoteThought).mockRejectedValue(new NotFoundError('already promoted'));
 
@@ -381,6 +471,67 @@ describe('obsiddy_upsert_goal', () => {
   });
 });
 
+describe('obsiddy_upsert_project', () => {
+  const capability = new ObsiddyUpsertProjectCapability();
+
+  it('creates with the schema default status and derives the slug itself', async () => {
+    mocked(projectResource.create).mockResolvedValue({ id: ID(3), name: 'Course launch' });
+
+    const result = await call(capability, { name: 'Course launch' });
+
+    expect(projectResource.create).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ name: 'Course launch', status: 'active' })
+    );
+    // The service resolves and de-duplicates the slug; an LLM-supplied one could
+    // only ever disagree with what actually gets stored.
+    expect(mocked(projectResource.create).mock.calls[0]?.[1]).not.toHaveProperty('slug');
+    expect(result).toMatchObject({ success: true, data: { action: 'created', id: ID(3) } });
+  });
+
+  it('cannot be asked to set a slug', () => {
+    expect(() => capability.validate({ name: 'x', slug: 'chosen-by-the-model' })).toThrow();
+  });
+
+  it('404s on an unknown id', async () => {
+    mocked(projectResource.update).mockResolvedValue(null);
+
+    expect(await call(capability, { id: ID(9), status: 'paused' })).toMatchObject({
+      success: false,
+      error: { code: 'not_found' },
+    });
+  });
+});
+
+describe('obsiddy_upsert_entity', () => {
+  const capability = new ObsiddyUpsertEntityCapability();
+
+  it('creates a person by default', async () => {
+    mocked(entityResource.create).mockResolvedValue({ id: ID(4), name: 'Priya Raman' });
+
+    const result = await call(capability, { name: 'Priya Raman' });
+
+    expect(entityResource.create).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ name: 'Priya Raman', kind: 'person', status: 'active' })
+    );
+    expect(result).toMatchObject({ success: true, data: { action: 'created' } });
+  });
+
+  it('rejects a website that is not a URL', () => {
+    expect(() => capability.validate({ name: 'Acme', website: 'not a url' })).toThrow();
+  });
+
+  it('404s on an unknown id', async () => {
+    mocked(entityResource.update).mockResolvedValue(null);
+
+    expect(await call(capability, { id: ID(9), status: 'former' })).toMatchObject({
+      success: false,
+      error: { code: 'not_found' },
+    });
+  });
+});
+
 describe('obsiddy_link_entities', () => {
   const capability = new ObsiddyLinkEntitiesCapability();
 
@@ -394,6 +545,42 @@ describe('obsiddy_link_entities', () => {
         origin: 'rule',
       })
     ).toThrow();
+  });
+
+  it('refuses to link an item to itself', () => {
+    expect(() =>
+      capability.validate({
+        sourceType: 'project',
+        sourceId: ID(1),
+        targetType: 'project',
+        targetId: ID(1),
+      })
+    ).toThrow();
+  });
+
+  it('returns the created link, with the kind the service actually stored', async () => {
+    mocked(linkEntities).mockResolvedValue({
+      id: ID(3),
+      sourceType: 'project',
+      sourceId: ID(1),
+      targetType: 'goal',
+      targetId: ID(2),
+      kind: 'supports',
+    });
+
+    const result = await call(capability, {
+      sourceType: 'project',
+      sourceId: ID(1),
+      targetType: 'goal',
+      targetId: ID(2),
+      kind: 'supports',
+      rationale: 'the launch pays for the sabbatical',
+    });
+
+    expect(result).toMatchObject({
+      success: true,
+      data: { id: ID(3), kind: 'supports', sourceId: ID(1), targetId: ID(2) },
+    });
   });
 
   it('returns one indistinguishable not_found for missing and not-yours alike', async () => {
@@ -437,6 +624,15 @@ describe('obsiddy_find_connections', () => {
     // Tasks carry no vectors (§1). An empty result would read as "no neighbours"
     // and lead a model to the opposite conclusion from the true one.
     expect(() => capability.validate({ entityType: 'task', entityId: ID(1) })).toThrow();
+  });
+
+  it('surfaces a missing seed as not_found rather than an empty neighbour list', async () => {
+    mocked(findNeighbours).mockResolvedValue(null);
+
+    expect(await call(capability, { entityType: 'thought', entityId: ID(9) })).toMatchObject({
+      success: false,
+      error: { code: 'not_found' },
+    });
   });
 
   it('emits one provenance source per hydrated neighbour', async () => {
@@ -502,6 +698,26 @@ describe('obsiddy_write_review', () => {
       call(capability, { horizon: 'weekly', title: 'Week 12', body: 'x' })
     ).rejects.toThrow('connection reset');
   });
+
+  it('stores the artefact and reports where it landed', async () => {
+    mocked(writeReview).mockResolvedValue({
+      id: ID(4),
+      horizon: 'weekly',
+      generatedAt: new Date('2026-08-04T09:00:00Z'),
+    });
+
+    const result = await call(capability, {
+      horizon: 'weekly',
+      title: 'Week 32',
+      body: 'prose',
+      payload: { taskIds: [ID(1)] },
+    });
+
+    expect(result).toMatchObject({
+      success: true,
+      data: { id: ID(4), horizon: 'weekly', generatedAt: '2026-08-04T09:00:00.000Z' },
+    });
+  });
 });
 
 describe('obsiddy_reprioritise', () => {
@@ -531,6 +747,36 @@ describe('obsiddy_ideate', () => {
     const result = await call(capability, { seedType: 'project', seedId: ID(1) });
 
     expect(result).toMatchObject({ success: false, error: { code: 'not_found' } });
+  });
+
+  it('lets an unexpected fault escape rather than reporting it as not_found', async () => {
+    mocked(ideate).mockRejectedValue(new Error('provider timeout'));
+
+    await expect(call(capability, { seedType: 'project', seedId: ID(1) })).rejects.toThrow(
+      'provider timeout'
+    );
+  });
+
+  it('reports notIndexedYet so the caller knows retrying will help', async () => {
+    mocked(ideate).mockResolvedValue({
+      seed: { id: ID(1) },
+      neighbours: [],
+      framings: [],
+      notIndexedYet: true,
+      costUsd: 0,
+    });
+
+    expect(await call(capability, { seedType: 'thought', seedId: ID(1) })).toMatchObject({
+      success: true,
+      data: { framings: [], neighbours: [], notIndexedYet: true },
+    });
+  });
+
+  it('caps count at ten — more framings than anyone reads costs tokens', () => {
+    expect(() => capability.validate({ seedType: 'project', seedId: ID(1), count: 11 })).toThrow();
+    expect(() =>
+      capability.validate({ seedType: 'project', seedId: ID(1), count: 10 })
+    ).not.toThrow();
   });
 
   it('returns framings alongside the neighbours they were drawn from', async () => {

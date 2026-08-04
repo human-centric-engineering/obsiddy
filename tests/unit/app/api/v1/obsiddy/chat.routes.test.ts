@@ -55,7 +55,6 @@ const mockedStream = streamChat as unknown as ReturnType<typeof vi.fn>;
 const mockedSpace = ensureObsiddySpace as unknown as ReturnType<typeof vi.fn>;
 
 /** An empty async iterable — enough for `sseResponse` to build a Response. */
-// eslint-disable-next-line @typescript-eslint/require-await
 async function* noEvents(): AsyncGenerator<{ type: string }> {
   // Intentionally yields nothing.
 }

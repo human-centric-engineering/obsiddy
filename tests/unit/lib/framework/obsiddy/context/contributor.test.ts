@@ -89,6 +89,14 @@ describe('loadObsiddyContext', () => {
 
     expect(await loadObsiddyContext('ignored', { userId: 'user-a' })).toBe('');
   });
+
+  it('degrades the same way when what was thrown is not an Error', async () => {
+    // A rejected non-Error is what a driver-level failure looks like, and it is
+    // the shape that turns a defensive `error.message` into a second throw.
+    mocked.mockRejectedValue('a string, thrown');
+
+    expect(await loadObsiddyContext('ignored', { userId: 'user-a' })).toBe('');
+  });
 });
 
 describe('renderObsiddyContext', () => {
@@ -204,6 +212,156 @@ describe('renderObsiddyContext', () => {
     expect(block).not.toContain('Admin');
   });
 
+  /**
+   * Minutes as something a person would say. An agent that reports "your health
+   * area got 90 minutes of 180 minutes" reads like a machine; "1h 30m of 3h"
+   * reads like a colleague, and it is the same number.
+   */
+  it('renders durations the way a person would say them', () => {
+    const block = renderObsiddyContext(
+      snapshot({
+        capacity: {
+          weeklyCapacityMinutes: 90,
+          plannedMinutesThisWeek: 90,
+          remainingMinutes: 0,
+        },
+        areas: {
+          items: [
+            { id: 'a1', name: 'Health', targetWeeklyMinutes: 45, minutesThisWeek: 120, neglect: 0 },
+          ],
+          truncated: false,
+        },
+      })
+    );
+
+    expect(block).toContain('0m left of 1h 30m');
+    expect(block).toContain('Health: 2h of 45m');
+  });
+
+  it('says "today" rather than "in 0d" for something due now', () => {
+    const block = renderObsiddyContext(
+      snapshot({
+        goals: {
+          items: [
+            {
+              id: 'g1',
+              title: 'Ship it',
+              horizon: 'week',
+              status: 'active',
+              targetDate: '2026-08-04',
+              daysUntilTarget: 0,
+            },
+          ],
+          truncated: false,
+        },
+      })
+    );
+
+    expect(block).toContain('Ship it (today)');
+  });
+
+  it('sorts a horizon it does not recognise to the end rather than dropping it', () => {
+    const block = renderObsiddyContext(
+      snapshot({
+        goals: {
+          items: [
+            {
+              id: 'g1',
+              title: 'Made-up horizon',
+              horizon: 'decade',
+              status: 'active',
+              targetDate: null,
+              daysUntilTarget: null,
+            },
+            {
+              id: 'g2',
+              title: 'Life goal',
+              horizon: 'life',
+              status: 'active',
+              targetDate: null,
+              daysUntilTarget: null,
+            },
+          ],
+          truncated: false,
+        },
+      })
+    );
+
+    // A goal the enum has grown past should still reach the agent — silently
+    // dropping it is how someone's most important goal disappears after a
+    // schema change nobody connected to this file.
+    expect(block).toContain('Made-up horizon');
+    expect(block.indexOf('Life goal')).toBeLessThan(block.indexOf('Made-up horizon'));
+  });
+
+  it('says a project has never been touched rather than reporting zero days', () => {
+    const block = renderObsiddyContext(
+      snapshot({
+        projects: {
+          items: [
+            {
+              id: 'p1',
+              name: 'Brand new',
+              status: 'active',
+              areaId: null,
+              daysSinceActivity: null,
+            },
+          ],
+          truncated: false,
+        },
+      })
+    );
+
+    // "0d" would read as "worked on today", which is the opposite of the truth.
+    expect(block).toContain('Brand new · no activity yet');
+  });
+
+  it('renders a task with neither a due date nor a dominant factor', () => {
+    const block = renderObsiddyContext(
+      snapshot({
+        topTasks: {
+          items: [
+            {
+              id: 't1',
+              title: 'Something vague',
+              status: 'todo',
+              dueAt: null,
+              estimateMinutes: null,
+              projectId: null,
+              priorityScore: 0.1,
+              dominantFactor: null,
+            },
+          ],
+          truncated: false,
+        },
+      })
+    );
+
+    expect(block).toContain('- t1 · Something vague');
+    expect(block).not.toContain('due null');
+  });
+
+  it('names the most neglected area and the last review, when there are any', () => {
+    const block = renderObsiddyContext(
+      snapshot({
+        mostNeglectedArea: { id: 'a1', name: 'Health', neglect: 0.8 },
+        latestReview: {
+          id: 'rev_1',
+          horizon: 'weekly',
+          title: 'Week 31',
+          generatedAt: '2026-07-28T09:00:00.000Z',
+        },
+      })
+    );
+
+    expect(block).toContain('Most neglected: Health');
+    // The id leads the line so the agent can fetch the review rather than
+    // paraphrasing a title back at the person — and so a cut tail cannot take
+    // the id with it.
+    expect(block).toContain('Last review: rev_1');
+    expect(block).toContain('2026-07-28');
+  });
+
   it('says the ranking is not the agent’s to produce', () => {
     const block = renderObsiddyContext(
       snapshot({
@@ -276,26 +434,126 @@ describe('renderObsiddyContext', () => {
     expect(block).toContain('more projects exist');
   });
 
-  it('stays inside its budget when a few rows carry very long text', () => {
-    // The realistic overflow: someone pastes a paragraph as a project name.
-    const verbose = Array.from({ length: 8 }, (_, index) => ({
-      id: `p${index}`,
-      name: `Project ${index} ${'x'.repeat(900)}`,
-      status: 'active',
-      areaId: null,
-      daysSinceActivity: index,
-    }));
-
+  /**
+   * The failure the per-line cap exists to prevent. Titles are bounded at 500
+   * chars by `titleSchema`, so eight long goals plus eight long projects clears
+   * the whole budget on their own — and without the line cap the loop would stop
+   * before `LOAD`, dropping the inbox count and remaining capacity, which are
+   * the cheapest and most useful lines in the block.
+   */
+  it('keeps the cheap high-value sections when the titles are long', () => {
+    const long = (prefix: string) => `${prefix} ${'x'.repeat(480)}`;
     const block = renderObsiddyContext(
-      snapshot({ projects: { items: verbose, truncated: false } })
+      snapshot({
+        goals: {
+          items: Array.from({ length: 8 }, (_, i) => ({
+            id: `g${i}`,
+            title: long(`Goal ${i}`),
+            horizon: 'year',
+            status: 'active',
+            targetDate: null,
+            daysUntilTarget: null,
+          })),
+          truncated: false,
+        },
+        projects: {
+          items: Array.from({ length: 8 }, (_, i) => ({
+            id: `p${i}`,
+            name: long(`Project ${i}`),
+            status: 'active',
+            areaId: null,
+            daysSinceActivity: i,
+          })),
+          truncated: false,
+        },
+      })
     );
 
-    expect(block.length).toBeLessThanOrEqual(5000);
-    expect(block).toContain('Context truncated');
-    // Cut on line boundaries: half an id in a prompt is worse than no id,
-    // because the model will try to use it.
-    for (const line of block.split('\n')) {
-      if (line.startsWith('- p')) expect(line).toMatch(/·.*·/);
-    }
+    expect(block.length).toBeLessThanOrEqual(4800);
+    expect(block).toContain('LOAD');
+    expect(block).toContain('Capacity this week');
+    // Every id still survives, because ids lead their line and only the tail
+    // is cut.
+    for (let i = 0; i < 8; i += 1) expect(block).toContain(`- p${i} · `);
+  });
+
+  it('cuts the tail of a long line, never the id at its head', () => {
+    const block = renderObsiddyContext(
+      snapshot({
+        topTasks: {
+          items: [
+            {
+              id: 'task_abc',
+              title: 'x'.repeat(500),
+              status: 'todo',
+              dueAt: null,
+              estimateMinutes: null,
+              projectId: null,
+              priorityScore: 0.5,
+              dominantFactor: 'urgency',
+            },
+          ],
+          truncated: false,
+        },
+      })
+    );
+
+    const taskLine = block.split('\n').find((l) => l.startsWith('- task_abc'));
+    expect(taskLine).toBeDefined();
+    expect(taskLine).toContain('task_abc');
+    expect(taskLine?.endsWith('…')).toBe(true);
+    expect(taskLine?.length).toBeLessThanOrEqual(160);
+  });
+
+  it('reserves room for its own truncation notice inside the budget', () => {
+    // A cap that its own "you hit the cap" message breaches is not a cap.
+    const many = Array.from({ length: 8 }, (_, i) => ({
+      id: `p${i}`,
+      name: 'y'.repeat(150),
+      status: 'active',
+      areaId: null,
+      daysSinceActivity: i,
+    }));
+    const block = renderObsiddyContext(
+      snapshot({
+        projects: { items: many, truncated: false },
+        goals: {
+          items: Array.from({ length: 8 }, (_, i) => ({
+            id: `g${i}`,
+            title: 'z'.repeat(150),
+            horizon: 'year',
+            status: 'active',
+            targetDate: null,
+            daysUntilTarget: null,
+          })),
+          truncated: false,
+        },
+        areas: {
+          items: Array.from({ length: 6 }, (_, i) => ({
+            id: `a${i}`,
+            name: 'w'.repeat(150),
+            targetWeeklyMinutes: 60,
+            minutesThisWeek: 30,
+            neglect: 0.5,
+          })),
+          truncated: false,
+        },
+        topTasks: {
+          items: Array.from({ length: 5 }, (_, i) => ({
+            id: `t${i}`,
+            title: 'v'.repeat(150),
+            status: 'todo',
+            dueAt: null,
+            estimateMinutes: null,
+            projectId: null,
+            priorityScore: 0.5,
+            dominantFactor: 'urgency',
+          })),
+          truncated: false,
+        },
+      })
+    );
+
+    expect(block.length).toBeLessThanOrEqual(4800);
   });
 });

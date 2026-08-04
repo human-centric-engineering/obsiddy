@@ -20,6 +20,10 @@
  * - A person's name AND website are masked — a third party never opted in
  * - The snapshot keeps nothing at all, because there is no useful partial form
  * - A key the caller never sent is not invented by the masking
+ * - Read capabilities keep refs, counts and rounded scores; never titles
+ * - Promote keeps both ids and the horizon — the sentence someone comes back to
+ * - `obsiddy_reprioritise` has nothing to hide, and keeps everything explicitly
+ * - A failed call records the failure without inventing a result
  *
  * @see lib/framework/obsiddy/capabilities/base.ts — `maskFreeText`
  */
@@ -28,12 +32,25 @@ import { describe, it, expect } from 'vitest';
 
 import { maskFreeText } from '@/lib/framework/obsiddy/capabilities/base';
 import { ObsiddyCaptureCapability } from '@/lib/framework/obsiddy/capabilities/capture';
-import { ObsiddySearchCapability } from '@/lib/framework/obsiddy/capabilities/search';
-import { ObsiddyUpsertTaskCapability } from '@/lib/framework/obsiddy/capabilities/tasks';
-import { ObsiddyUpsertEntityCapability } from '@/lib/framework/obsiddy/capabilities/records';
-import { ObsiddyGetSnapshotCapability } from '@/lib/framework/obsiddy/capabilities/snapshot';
+import { ObsiddyIdeateCapability } from '@/lib/framework/obsiddy/capabilities/ideate';
+import {
+  ObsiddyFindConnectionsCapability,
+  ObsiddyLinkEntitiesCapability,
+} from '@/lib/framework/obsiddy/capabilities/links';
+import { ObsiddyPromoteThoughtCapability } from '@/lib/framework/obsiddy/capabilities/promote';
+import {
+  ObsiddyUpsertEntityCapability,
+  ObsiddyUpsertGoalCapability,
+  ObsiddyUpsertProjectCapability,
+} from '@/lib/framework/obsiddy/capabilities/records';
+import { ObsiddyReprioritiseCapability } from '@/lib/framework/obsiddy/capabilities/reprioritise';
 import { ObsiddyWriteReviewCapability } from '@/lib/framework/obsiddy/capabilities/reviews';
-import { ObsiddyLinkEntitiesCapability } from '@/lib/framework/obsiddy/capabilities/links';
+import { ObsiddySearchCapability } from '@/lib/framework/obsiddy/capabilities/search';
+import { ObsiddyGetSnapshotCapability } from '@/lib/framework/obsiddy/capabilities/snapshot';
+import {
+  ObsiddyListTasksCapability,
+  ObsiddyUpsertTaskCapability,
+} from '@/lib/framework/obsiddy/capabilities/tasks';
 
 const ID = (n: number) => `clh000000000000000000000${n}`;
 
@@ -84,6 +101,46 @@ describe('obsiddy_capture provenance', () => {
     );
 
     expect(JSON.stringify(redaction.args)).toContain('postmark-abc');
+  });
+});
+
+describe('failed-call provenance', () => {
+  /**
+   * A capability that errored still writes an audit row, and the redaction has
+   * to cope with `result.data` being absent. Getting this wrong throws inside
+   * the audit path — which the chat handler runs *after* the turn has already
+   * succeeded, so the user sees a working answer and a missing audit trail.
+   */
+  it('obsiddy_search records the failure without inventing hits', () => {
+    const redaction = new ObsiddySearchCapability().redactProvenance(
+      { query: 'anything', entityTypes: ['thought'], limit: 10, includeArchived: false },
+      { success: false, error: { code: 'no_user_context', message: 'no owner' } }
+    );
+
+    expect(redaction.resultPreview).toContain('"hitCount":0');
+    // The requested types are structure, not content, and are worth keeping.
+    expect(JSON.stringify(redaction.args)).toContain('thought');
+  });
+
+  it('obsiddy_find_connections records the failure without inventing neighbours', () => {
+    const redaction = new ObsiddyFindConnectionsCapability().redactProvenance(
+      { entityType: 'thought', entityId: ID(1), limit: 10 },
+      { success: false, error: { code: 'not_found', message: 'no such item' } }
+    );
+
+    expect(redaction.resultPreview).toContain('"neighbours":[]');
+    expect(redaction.resultPreview).toContain('"notIndexedYet":null');
+  });
+
+  it('obsiddy_ideate records the failure without inventing framings', () => {
+    const redaction = new ObsiddyIdeateCapability().redactProvenance(
+      { seedType: 'project', seedId: ID(1), count: 5 },
+      { success: false, error: { code: 'not_found', message: 'no such seed' } }
+    );
+
+    expect(redaction.resultPreview).toContain('"framings":0');
+    // No angle was sent, so none is claimed.
+    expect(JSON.stringify(redaction.args)).not.toContain('angle');
   });
 });
 
@@ -244,5 +301,179 @@ describe('obsiddy_get_snapshot provenance', () => {
 
     expect(persisted(redaction)).not.toContain('sabbatical');
     expect(redaction.resultPreview).toContain('full brain snapshot');
+  });
+});
+
+describe('read-capability provenance', () => {
+  it('obsiddy_list_tasks keeps the filter and the ids, drops every title', () => {
+    const redaction = new ObsiddyListTasksCapability().redactProvenance(
+      { status: 'next', limit: 20 },
+      {
+        success: true,
+        data: {
+          total: 9,
+          tasks: [
+            {
+              id: ID(1),
+              title: 'Draft the redundancy letter',
+              status: 'next',
+              projectId: null,
+              dueAt: null,
+              deferUntil: null,
+              estimateMinutes: null,
+              energy: null,
+              priorityScore: 0.7,
+              dominantFactor: 'urgency',
+            },
+          ],
+        },
+      }
+    );
+
+    const row = persisted(redaction);
+    expect(row).not.toContain('redundancy');
+    expect(row).toContain('"status":"next"');
+    expect(row).toContain(ID(1));
+    expect(row).toContain('"total":9');
+  });
+
+  it('obsiddy_find_connections keeps refs and rounded strengths, not titles', () => {
+    const redaction = new ObsiddyFindConnectionsCapability().redactProvenance(
+      { entityType: 'thought', entityId: ID(1), limit: 10 },
+      {
+        success: true,
+        data: {
+          notIndexedYet: false,
+          sources: [],
+          neighbours: [
+            {
+              entityType: 'project',
+              id: ID(2),
+              title: 'The sabbatical fund',
+              subtitle: null,
+              strength: 0.6789,
+            },
+          ],
+        },
+      }
+    );
+
+    const row = persisted(redaction);
+    expect(row).not.toContain('sabbatical');
+    expect(row).toContain(`project:${ID(2)}`);
+    // Rounded: a float with fifteen digits in an audit row is noise, and the
+    // third decimal is already past what anyone reads a similarity to.
+    expect(row).toContain('0.679');
+  });
+
+  it('obsiddy_ideate keeps the seed and the counts, masks the angle', () => {
+    const redaction = new ObsiddyIdeateCapability().redactProvenance(
+      { seedType: 'project', seedId: ID(1), angle: 'objections a CFO would raise', count: 5 },
+      {
+        success: true,
+        data: {
+          framings: [{ title: 'A podcast on pricing', rationale: 'because', drawsOn: [ID(2)] }],
+          neighbours: [{ entityType: 'thought', id: ID(2), title: 'Half an idea', strength: 0.5 }],
+          notIndexedYet: false,
+        },
+      }
+    );
+
+    const row = persisted(redaction);
+    expect(row).not.toContain('CFO');
+    expect(row).not.toContain('podcast');
+    // The one capability that bills per call, so "which item was this spent on"
+    // is the question someone will ask of the bill.
+    expect(row).toContain(ID(1));
+    expect(row).toContain('"framings":1');
+  });
+
+  it('obsiddy_reprioritise has nothing to hide, and says so by keeping everything', () => {
+    const redaction = new ObsiddyReprioritiseCapability().redactProvenance(
+      {},
+      { success: true, data: { scored: 42 } }
+    );
+
+    expect(redaction.args).toEqual({});
+    expect(redaction.resultPreview).toContain('42');
+  });
+});
+
+describe('write-capability provenance', () => {
+  it('obsiddy_promote_thought keeps both ids and the horizon, masks the title', () => {
+    const redaction = new ObsiddyPromoteThoughtCapability().redactProvenance(
+      { thoughtId: ID(1), target: 'goal', horizon: 'quarter', title: 'Take a sabbatical' },
+      {
+        success: true,
+        data: { thoughtId: ID(1), target: { type: 'goal', id: ID(2) } },
+      }
+    );
+
+    const row = persisted(redaction);
+    // "The nightly run turned this note into a life goal" is exactly the
+    // sentence someone comes back to check, and every value in it is structure.
+    expect(row).toContain(ID(1));
+    expect(row).toContain(ID(2));
+    expect(row).toContain('"horizon":"quarter"');
+    expect(row).not.toContain('sabbatical');
+  });
+
+  it('obsiddy_upsert_project masks the name and description, keeps the status', () => {
+    const redaction = new ObsiddyUpsertProjectCapability().redactProvenance(
+      { name: 'Redundancy consultation', description: 'the March timeline', status: 'active' },
+      { success: true, data: { id: ID(1), action: 'created', label: 'Redundancy consultation' } }
+    );
+
+    const row = persisted(redaction);
+    expect(row).not.toContain('Redundancy');
+    expect(row).not.toContain('March');
+    expect(row).toContain('"status":"active"');
+  });
+
+  it('obsiddy_write_review masks a payload only when one was sent', () => {
+    const capability = new ObsiddyWriteReviewCapability();
+    const withPayload = capability.redactProvenance(
+      { horizon: 'daily', title: 'T', body: 'B', payload: { taskIds: [ID(1)] } },
+      {
+        success: true,
+        data: { id: ID(2), horizon: 'daily', generatedAt: '2026-08-04T09:00:00.000Z' },
+      }
+    );
+    const withoutPayload = capability.redactProvenance(
+      { horizon: 'daily', title: 'T', body: 'B' },
+      {
+        success: true,
+        data: { id: ID(2), horizon: 'daily', generatedAt: '2026-08-04T09:00:00.000Z' },
+      }
+    );
+
+    expect(withPayload.args).toHaveProperty('payload');
+    // A masked key that was never supplied would make the row claim a field was
+    // sent — worse than omitting it, because it reads as fact.
+    expect(withoutPayload.args).not.toHaveProperty('payload');
+  });
+
+  it('obsiddy_upsert_goal keeps the horizon and parent, masks the wording', () => {
+    const redaction = new ObsiddyUpsertGoalCapability().redactProvenance(
+      { title: 'Take a sabbatical', horizon: 'life', parentGoalId: ID(3) },
+      { success: true, data: { id: ID(1), action: 'created', label: 'Take a sabbatical' } }
+    );
+
+    const row = persisted(redaction);
+    expect(row).not.toContain('sabbatical');
+    // An auditor tracing "did the agent quietly re-parent a life goal" needs
+    // exactly these.
+    expect(row).toContain('"horizon":"life"');
+    expect(row).toContain(ID(3));
+  });
+
+  it('records a failure without inventing a result', () => {
+    const redaction = new ObsiddyUpsertEntityCapability().redactProvenance(
+      { name: 'Priya Raman' },
+      { success: false, error: { code: 'not_found', message: 'No person with that id.' } }
+    );
+
+    expect(redaction.resultPreview).toContain('not_found');
+    expect(redaction.resultPreview).not.toContain('action');
   });
 });

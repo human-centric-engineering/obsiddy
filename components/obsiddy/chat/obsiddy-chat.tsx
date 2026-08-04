@@ -137,6 +137,9 @@ export function ObsiddyChat({
       // state on every token would re-render the whole transcript per character.
       let assistant = '';
       const tools: string[] = [];
+      // Cleared by anything that makes the turn worth keeping on screen —
+      // text, or a tool call. See the rollback in `finally`.
+      let deliveredNothing = true;
 
       const updateAssistant = (): void => {
         setMessages((prior) => {
@@ -201,6 +204,7 @@ export function ObsiddyChat({
                 break;
               case 'content':
                 assistant += event.delta;
+                deliveredNothing = false;
                 setStatus(null);
                 updateAssistant();
                 break;
@@ -215,12 +219,18 @@ export function ObsiddyChat({
                 break;
               case 'capability_result':
                 if (!tools.includes(event.capabilitySlug)) tools.push(event.capabilitySlug);
+                // A tool ran, so the turn happened whether or not the model
+                // went on to say anything — and several of these tools WRITE.
+                // Rolling the turn back would erase the only record the person
+                // has that their brain was changed.
+                deliveredNothing = false;
                 updateAssistant();
                 break;
               case 'capability_results':
                 for (const entry of event.results) {
                   if (!tools.includes(entry.capabilitySlug)) tools.push(entry.capabilitySlug);
                 }
+                deliveredNothing = false;
                 updateAssistant();
                 break;
               case 'warning':
@@ -252,6 +262,25 @@ export function ObsiddyChat({
         setStreaming(false);
         setStatus(null);
         abortRef.current = null;
+
+        // Give the message back when the turn produced nothing.
+        //
+        // The input is cleared optimistically, which is right on the happy path
+        // — but a rate-limited or failed send would otherwise take the user's
+        // words with it, and this is a surface people are told to think out loud
+        // into. Retyping a thought you have already had is exactly the friction
+        // a capture tool exists to remove.
+        //
+        // Restoring only when the turn did nothing at all is deliberate. A
+        // partial answer followed by an error is still an answer, and pushing
+        // the question back into the box under it reads as though nothing
+        // happened — and a turn that ran a tool must never be rolled back at
+        // all, because several of these tools write to the brain and the chip
+        // is the only record the person has that they did.
+        if (deliveredNothing) {
+          setMessages((prior) => prior.slice(0, -2));
+          setInput((current) => (current.length > 0 ? current : message));
+        }
       }
     },
     [agentSlug, streaming]

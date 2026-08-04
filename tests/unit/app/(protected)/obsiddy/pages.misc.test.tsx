@@ -16,6 +16,7 @@
  * @see app/(protected)/obsiddy/search/page.tsx
  * @see app/(protected)/obsiddy/graph/page.tsx
  * @see app/(protected)/obsiddy/connections/page.tsx
+ * @see app/(protected)/obsiddy/chat/page.tsx
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -27,6 +28,12 @@ import { OBSIDDY_API } from '@/lib/framework/obsiddy/api/endpoints';
 
 vi.mock('@/lib/framework/obsiddy/ui/server-read', () => ({
   readObsiddy: vi.fn(),
+}));
+
+vi.mock('@/components/obsiddy/chat/obsiddy-chat', () => ({
+  ObsiddyChat: (props: { agentSlug: string; starterPrompts?: readonly string[] }) => (
+    <div data-testid="obsiddy-chat" data-props={JSON.stringify(props)} />
+  ),
 }));
 
 vi.mock('@/components/obsiddy/today/today-view', () => ({
@@ -523,5 +530,41 @@ describe('ObsiddyConnectionsPage', () => {
       total: number;
     };
     expect(props.total).toBe(3);
+  });
+});
+
+describe('Chat page', () => {
+  /**
+   * The one Obsiddy surface with no server read. The transcript lives in the
+   * stream, and the orientation an agent needs is injected server-side as the
+   * context block on every turn — fetching a snapshot here to render around the
+   * chat would show a second, staler copy of what the agent is already reading.
+   */
+  it('renders without reading anything from the API', async () => {
+    const { default: ChatPage } = await import('@/app/(protected)/obsiddy/chat/page');
+
+    render(await Promise.resolve(ChatPage()));
+
+    expect(screen.getByTestId('obsiddy-chat')).toBeInTheDocument();
+    expect(readObsiddy).not.toHaveBeenCalled();
+  });
+
+  /**
+   * A constant, not a picker. The other four agents hold write capabilities and
+   * the route refuses them, so a page offering one would be offering something
+   * the API rejects.
+   */
+  it('addresses the companion and nothing else', async () => {
+    const { default: ChatPage } = await import('@/app/(protected)/obsiddy/chat/page');
+    const { OBSIDDY_AGENT_SLUGS } = await import('@/lib/framework/obsiddy/agents');
+
+    render(await Promise.resolve(ChatPage()));
+
+    const props = JSON.parse(
+      screen.getByTestId('obsiddy-chat').getAttribute('data-props') ?? '{}'
+    ) as { agentSlug: string; starterPrompts: string[] };
+
+    expect(props.agentSlug).toBe(OBSIDDY_AGENT_SLUGS.companion);
+    expect(props.starterPrompts.length).toBeGreaterThan(0);
   });
 });
