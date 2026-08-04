@@ -1,5 +1,5 @@
 /**
- * The thirteen capability rows, as data.
+ * The fourteen capability rows, as data.
  *
  * **One source of truth for a capability's identity, and it is not the class.**
  * A capability exists in three places at once — a TypeScript handler, an
@@ -42,7 +42,7 @@ import type { CapabilityFunctionDefinition } from '@/lib/orchestration/capabilit
  *
  * Namespaced rather than reusing core's `internal` / `knowledge` so an operator
  * looking at a capability list with a host project's own tools in it can tell at
- * a glance which thirteen reach into someone's brain.
+ * a glance which fourteen reach into someone's brain.
  */
 export const OBSIDDY_CAPABILITY_CATEGORY = 'obsiddy';
 
@@ -51,6 +51,7 @@ export const OBSIDDY_CAPABILITY_SLUGS = {
   capture: 'obsiddy_capture',
   search: 'obsiddy_search',
   listTasks: 'obsiddy_list_tasks',
+  promoteThought: 'obsiddy_promote_thought',
   upsertTask: 'obsiddy_upsert_task',
   upsertProject: 'obsiddy_upsert_project',
   upsertGoal: 'obsiddy_upsert_goal',
@@ -286,6 +287,52 @@ export const OBSIDDY_CAPABILITIES: readonly ObsiddyCapabilitySpec[] = [
           limit: { type: 'integer', minimum: 1, maximum: 50, description: 'Default 20.' },
         },
         required: [],
+      },
+    },
+  },
+  {
+    slug: OBSIDDY_CAPABILITY_SLUGS.promoteThought,
+    name: 'Obsiddy — Promote a thought',
+    description:
+      'Turn a captured thought into a task, project or goal, recording what it became and linking the two. The act the inbox exists for.',
+    executionHandler: 'ObsiddyPromoteThoughtCapability',
+    rateLimit: 60,
+    isIdempotent: false,
+    functionDefinition: {
+      name: OBSIDDY_CAPABILITY_SLUGS.promoteThought,
+      description:
+        "Turn one of the user's captured thoughts into a real task, project or goal. This is triage, and it does three things a plain create would not: it records on the thought what it became, links the two so the graph shows how the thinking moved, and marks the thought as processed so it leaves the inbox. Always use this rather than creating a task and leaving the note sitting there — a note that became a task but still looks un-triaged is how someone ends up doing the same thing twice. A thought can only be promoted once.",
+      parameters: {
+        type: 'object',
+        properties: {
+          thoughtId: { type: 'string', description: 'The captured thought to triage.' },
+          target: {
+            type: 'string',
+            enum: ['task', 'project', 'goal'],
+            description:
+              'What it becomes. A task has a doable action; a project is work with an end; a goal is an outcome. When in doubt it is a task.',
+          },
+          title: {
+            type: 'string',
+            maxLength: 500,
+            description:
+              "Optional. Defaults to the thought's own first line — reuse their wording unless it genuinely does not work as a title.",
+          },
+          projectId: {
+            type: 'string',
+            description: 'Task target only: the project to file it under.',
+          },
+          areaId: {
+            type: 'string',
+            description: 'Project and goal targets only: the life area it belongs to.',
+          },
+          horizon: {
+            ...stringEnum(GOAL_HORIZONS),
+            description:
+              'Goal target only, and **required** there. A guessed horizon is worse than no goal: it changes how every task linked to it is ranked.',
+          },
+        },
+        required: ['thoughtId', 'target'],
       },
     },
   },

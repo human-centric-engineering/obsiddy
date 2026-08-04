@@ -158,7 +158,7 @@ export function auditArgsKeepShape(args: unknown, summary: string): ProvenanceRe
 }
 
 /**
- * Base class for the thirteen.
+ * Base class for the fourteen.
  *
  * Subclasses implement `run(args, scope, context)`. `execute` is final in intent
  * — overriding it would skip the scope resolution, which is the only thing this

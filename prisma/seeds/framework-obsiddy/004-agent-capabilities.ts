@@ -45,6 +45,7 @@ const BINDINGS: readonly AgentBindings[] = [
       C.capture,
       C.search,
       C.listTasks,
+      C.promoteThought,
       C.upsertTask,
       C.upsertProject,
       C.upsertGoal,
@@ -58,10 +59,11 @@ const BINDINGS: readonly AgentBindings[] = [
   {
     agentSlug: OBSIDDY_AGENT_SLUGS.triage,
     rationale:
-      'Runs unattended at 3am. It may create tasks and assert links, because those are recoverable in the morning; it may not create projects, goals or people, because a nightly job that invents the shape of someone’s life is one they turn off. No capture either — it processes the inbox rather than adding to it.',
+      'Runs unattended at 3am. It may promote thoughts, create tasks and assert links, because those are recoverable in the morning; it may not create projects, goals or people, because a nightly job that invents the shape of someone’s life is one they turn off. No capture either — it processes the inbox rather than adding to it, and no way to drop a thought, because deleting someone’s notes unattended is the one triage action there is no undoing.',
     capabilities: [
       C.search,
       C.listTasks,
+      C.promoteThought,
       C.upsertTask,
       C.linkEntities,
       C.findConnections,
@@ -91,6 +93,14 @@ const BINDINGS: readonly AgentBindings[] = [
 
 const unit: SeedUnit = {
   name: 'framework-obsiddy/004-agent-capabilities',
+  /**
+   * The binding list is inline here, so this file's own source covers most
+   * changes. The catalogue is in the hash anyway because the slugs come from it:
+   * renaming a capability there without touching this file would otherwise leave
+   * a binding pointing at a slug that no longer exists, and this seed would not
+   * re-run to notice.
+   */
+  hashInputs: ['../../../lib/framework/obsiddy/capabilities/catalogue.ts'],
   async run({ prisma, logger }) {
     logger.info('🧠 Binding Obsiddy capabilities to agents...');
 

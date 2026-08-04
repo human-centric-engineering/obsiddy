@@ -137,6 +137,27 @@ describe('framework-obsiddy/001-capabilities', () => {
       });
     }
   });
+
+  /**
+   * `SeedHistory` keys on a hash of the seed file's own source, and this file's
+   * source barely changes — every capability lives in `catalogue.ts`. Without
+   * the catalogue in `hashInputs` the seed reads "unchanged, skipping" while the
+   * code registers a handler that has no row, and the dispatcher then refuses it
+   * at `capability_inactive`: a host upgrades Obsiddy, gets the new tool's code,
+   * and gets no new tool.
+   *
+   * This is not hypothetical. Adding the fourteenth capability left the table on
+   * thirteen and the binding seed failed on the missing slug — loudly, and in
+   * the right direction, but it should not have failed at all.
+   */
+  it('folds the catalogue into its content hash so a new capability re-runs it', () => {
+    expect(capabilitiesSeed.hashInputs).toContain(
+      '../../../lib/framework/obsiddy/capabilities/catalogue.ts'
+    );
+    expect(bindingsSeed.hashInputs).toContain(
+      '../../../lib/framework/obsiddy/capabilities/catalogue.ts'
+    );
+  });
 });
 
 describe('framework-obsiddy/002-agent-profile', () => {
@@ -347,6 +368,20 @@ describe('framework-obsiddy/004-agent-capabilities', () => {
     // It may still create tasks and assert links — both recoverable in the morning.
     expect(triage).toContain(OBSIDDY_CAPABILITY_SLUGS.upsertTask);
     expect(triage).toContain(OBSIDDY_CAPABILITY_SLUGS.linkEntities);
+  });
+
+  /**
+   * Without this the nightly run creates tasks and leaves every thought in the
+   * inbox looking untouched — so the next night it processes the same twenty
+   * notes again, and the person wakes to duplicates. It is the whole reason the
+   * capability exists.
+   */
+  it('lets triage mark a thought as processed', async () => {
+    const bound = await boundSlugsByAgent();
+
+    expect(bound.get(OBSIDDY_AGENT_SLUGS.triage)).toContain(
+      OBSIDDY_CAPABILITY_SLUGS.promoteThought
+    );
   });
 
   it('keeps the connector read-only despite its job being to propose links', async () => {

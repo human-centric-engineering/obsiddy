@@ -12,7 +12,7 @@
  * [sunrise#462](https://github.com/human-centric-engineering/sunrise/issues/462),
  * where boot-registered capabilities were silently lost at request time under
  * Turbopack because the two realms hold separate module graphs. So this function
- * must stay cheap and synchronous: it constructs thirteen objects and pushes
+ * must stay cheap and synchronous: it constructs fourteen objects and pushes
  * them into a map, and does not touch the database.
  *
  * **Registration is not availability.** A registered capability still needs an
@@ -35,6 +35,7 @@ import {
   ObsiddyUpsertGoalCapability,
   ObsiddyUpsertProjectCapability,
 } from '@/lib/framework/obsiddy/capabilities/records';
+import { ObsiddyPromoteThoughtCapability } from '@/lib/framework/obsiddy/capabilities/promote';
 import { ObsiddyReprioritiseCapability } from '@/lib/framework/obsiddy/capabilities/reprioritise';
 import { ObsiddyWriteReviewCapability } from '@/lib/framework/obsiddy/capabilities/reviews';
 import { ObsiddySearchCapability } from '@/lib/framework/obsiddy/capabilities/search';
@@ -58,6 +59,7 @@ export function obsiddyCapabilityHandlers(): BaseCapability[] {
     new ObsiddyCaptureCapability(),
     new ObsiddySearchCapability(),
     new ObsiddyListTasksCapability(),
+    new ObsiddyPromoteThoughtCapability(),
     new ObsiddyUpsertTaskCapability(),
     new ObsiddyUpsertProjectCapability(),
     new ObsiddyUpsertGoalCapability(),
@@ -71,7 +73,7 @@ export function obsiddyCapabilityHandlers(): BaseCapability[] {
   ];
 }
 
-/** Register the thirteen. Idempotent — the registry keys on slug. */
+/** Register the fourteen. Idempotent — the registry keys on slug. */
 export function registerObsiddyCapabilities(): void {
   for (const capability of obsiddyCapabilityHandlers()) {
     registerAppCapability(capability);

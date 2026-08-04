@@ -35,7 +35,7 @@ Namespaced _inside_ the tier, never at its root — so a project already running
 
 ## Status
 
-**Release 1, phases 0–6b complete** — the tier is wired, the data model exists, every core type has an owner-scoped CRUD API, tasks are ranked by a deterministic scorer, the brain is searchable by meaning, there is a UI (twelve surfaces at `/obsiddy`, including a kanban board), and **there is now an agent layer**: thirteen capabilities, five agents and the shared profile they inherit. What is still missing is the way in — the context contributor, the chat route and the chat page are 6c.
+**Release 1, phases 0–6b complete** — the tier is wired, the data model exists, every core type has an owner-scoped CRUD API, tasks are ranked by a deterministic scorer, the brain is searchable by meaning, there is a UI (twelve surfaces at `/obsiddy`, including a kanban board), and **there is now an agent layer**: fourteen capabilities, five agents and the shared profile they inherit. What is still missing is the way in — the context contributor, the chat route and the chat page are 6c.
 
 | Wired                                   | Where                                                                                                                                                                                                                                                                                      |
 | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -50,9 +50,9 @@ Namespaced _inside_ the tier, never at its root — so a project already running
 | Schema                                  | 19 models in `prisma/schema/framework-obsiddy.prisma`                                                                                                                                                                                                                                      |
 | Migrations                              | `add_second_brain`, `obsiddy_space_cascade`, `obsiddy_document_originals`, `obsiddy_sweep_cursor`, `obsiddy_document_hash_unique`, `obsiddy_connection_floor` — all hand-edited, never regenerate                                                                                          |
 | Repo layer                              | `lib/framework/obsiddy/repo/*` — `OwnerScope`, 16 modules                                                                                                                                                                                                                                  |
-| Capabilities                            | `lib/app/capabilities.ts` → `registerObsiddyCapabilities()` (thirteen, phase 6b)                                                                                                                                                                                                           |
+| Capabilities                            | `lib/app/capabilities.ts` → `registerObsiddyCapabilities()` (fourteen, phase 6b)                                                                                                                                                                                                           |
 | Services                                | `lib/framework/obsiddy/services/*` — resources, slug, events, space, snooze, today, inbox, promote, details, graph, connections-view, board-view, board-export, fractional-position, counts, link-hydration, **capture, snapshot, ideate, reviews, links** (phase 6a), **neighbours** (6b) |
-| Agent layer                             | `lib/framework/obsiddy/capabilities/*` — catalogue, scope guard, thirteen handlers; seeds in `prisma/seeds/framework-obsiddy/001–004`                                                                                                                                                      |
+| Agent layer                             | `lib/framework/obsiddy/capabilities/*` — catalogue, scope guard, fourteen handlers; seeds in `prisma/seeds/framework-obsiddy/001–004`                                                                                                                                                      |
 | Priority engine                         | `lib/framework/obsiddy/priority/*` — pure scorer, batched reprioritise pass                                                                                                                                                                                                                |
 | Semantic layer                          | `lib/framework/obsiddy/{embedding,search,documents}/*` — indexer, hybrid search, sweep, ingest                                                                                                                                                                                             |
 | Zoned time                              | `lib/framework/obsiddy/time/zoned.ts` — every schedule resolves in the user's zone                                                                                                                                                                                                         |
@@ -146,7 +146,7 @@ moved its logic into `services/links.ts` in the same pass, so
 `obsiddy_link_entities` inherits the endpoint checks and the server-pinned
 provenance rather than reimplementing them.
 
-**Phase 6b has landed** — the agent layer. Thirteen capabilities, five agents,
+**Phase 6b has landed** — the agent layer. Fourteen capabilities, five agents,
 the shared `obsiddy-core` profile and four seeds; the rules and the reasoning are
 in [`agents.md`](./agents.md), and the three that matter most are:
 
@@ -155,7 +155,7 @@ in [`agents.md`](./agents.md), and the three that matter most are:
    capability cannot express an unscoped read. That is stronger than a check per
    class, because the failure it guards against is not a wrong check but a
    fourteenth capability that never had one — asserted as a sweep over all
-   thirteen rather than a case per class.
+   fourteen rather than a case per class.
 2. **The model can read the brain, write most of it, and influence none of the
    ranking.** `manualBoost` is `omit()`ed from every upsert schema (a type error,
    not a review note) and `obsiddy_reprioritise` takes no arguments at all — not a
@@ -182,14 +182,20 @@ request time under Turbopack, which is exactly what `initObsiddy()` does). Eleve
 upstream asks landed in that window; see [`sunrise-asks.md`](./sunrise-asks.md) →
 Landed for what each changed here.
 
-One deviation from `plan.md` stands from phase 5:
+Two deviations from `plan.md` stand:
+
+- **§5's thirteen capabilities are fourteen.** `obsiddy_promote_thought` was
+  added because none of the thirteen could mark a thought as processed — a
+  nightly triage run would have created tasks and left the inbox looking
+  untouched, then re-processed the same notes the following night. Dropping a
+  thought is still impossible from any agent, deliberately.
 
 - §16.8b's entity assertion now targets **`GET /obsiddy/entities/[id]/view`**. The
   generic `[id]` handler stays deliberately bare — threading `?include=` through
   `createItemHandlers` would push page-shaped concerns into the one factory that
   guarantees the isolation rules for twenty routes.
 
-A second deviation — card aging measuring `updatedAt` rather than time-in-column —
+A third deviation — card aging measuring `updatedAt` rather than time-in-column —
 was **closed** by `14b6b324`, which added `{ statusFrom, statusTo }` to the
 `updated` event only when the status actually changed, and reads the newest per
 card in one `DISTINCT ON`. Cards with no such event still fall back to "untouched

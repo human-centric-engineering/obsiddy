@@ -10,14 +10,14 @@
  * agreements are asserted mechanically rather than maintained by hand.
  *
  * Test Coverage:
- * - Thirteen capabilities, unique slugs, every slug `obsiddy_`-prefixed
+ * - Fourteen capabilities, unique slugs, every slug `obsiddy_`-prefixed
  * - `functionDefinition.name === slug` (the chat handler's tool guard keys on
  *   the first while dispatch treats it as the second — sunrise ask #23)
  * - Every declared parameter exists in the matching Zod schema, and vice versa
  * - No capability advertises `userId`, on any tool, at any depth
  * - No task-writing capability advertises `manualBoost`
  * - `executionHandler` names the class actually registered under that slug
- * - All thirteen register without tripping the dispatcher's PII/redaction guard
+ * - All fourteen register without tripping the dispatcher's PII/redaction guard
  * - Every handler declares `processesPii` and its own `redactProvenance`
  *
  * @see lib/framework/obsiddy/capabilities/catalogue.ts
@@ -38,6 +38,7 @@ import {
   agentCaptureSchema,
   agentFindConnectionsSchema,
   agentListTasksSchema,
+  agentPromoteThoughtSchema,
   agentReprioritiseSchema,
   agentSearchSchema,
   agentUpsertEntitySchema,
@@ -60,17 +61,26 @@ function advertisedKeys(slug: string): string[] {
 /**
  * The keys a Zod schema accepts.
  *
- * The upsert schemas are `ZodObject.superRefine(...)`, so the object is one
- * `.def.innerType` down; `.shape` on the wrapper would be undefined and the
- * comparison would pass vacuously — which is exactly the kind of green bar this
- * file exists to prevent, so the unwrap is explicit rather than optional
- * chaining.
+ * Three wrappers have to be seen through, and each would otherwise make the
+ * comparison pass **vacuously** — the exact green bar this file exists to
+ * prevent, so every unwrap is explicit and the fall-through throws:
+ *
+ *   - the upsert schemas are `ZodObject.superRefine(...)`, one `.def.innerType`
+ *     down;
+ *   - `agentPromoteThoughtSchema` is a discriminated union, whose keys are the
+ *     union of its branches' (the JSON Schema advertises one flat object with
+ *     the per-branch rules stated in the descriptions, because `oneOf` is
+ *     handled badly by several providers);
+ *   - a plain `ZodObject` needs no unwrapping at all.
  */
 function schemaKeys(schema: z.ZodType): string[] {
   let current: unknown = schema;
-  // Unwrap effects/refinements until an object surfaces.
   for (let depth = 0; depth < 5; depth += 1) {
     if (current instanceof z.ZodObject) return Object.keys(current.shape).sort();
+    if (current instanceof z.ZodDiscriminatedUnion || current instanceof z.ZodUnion) {
+      const options = (current as unknown as { options: readonly z.ZodType[] }).options;
+      return [...new Set(options.flatMap((option) => schemaKeys(option)))].sort();
+    }
     const inner = (current as { def?: { innerType?: unknown } }).def?.innerType;
     if (inner === undefined) break;
     current = inner;
@@ -82,6 +92,7 @@ const SCHEMA_BY_SLUG: Record<string, z.ZodType> = {
   [OBSIDDY_CAPABILITY_SLUGS.capture]: agentCaptureSchema,
   [OBSIDDY_CAPABILITY_SLUGS.search]: agentSearchSchema,
   [OBSIDDY_CAPABILITY_SLUGS.listTasks]: agentListTasksSchema,
+  [OBSIDDY_CAPABILITY_SLUGS.promoteThought]: agentPromoteThoughtSchema,
   [OBSIDDY_CAPABILITY_SLUGS.upsertTask]: agentUpsertTaskSchema,
   [OBSIDDY_CAPABILITY_SLUGS.upsertProject]: agentUpsertProjectSchema,
   [OBSIDDY_CAPABILITY_SLUGS.upsertGoal]: agentUpsertGoalSchema,
@@ -95,9 +106,12 @@ const SCHEMA_BY_SLUG: Record<string, z.ZodType> = {
 };
 
 describe('Obsiddy capability catalogue', () => {
-  it('holds exactly the thirteen capabilities the agent layer promises', () => {
-    expect(OBSIDDY_CAPABILITIES).toHaveLength(13);
-    expect(Object.values(OBSIDDY_CAPABILITY_SLUGS)).toHaveLength(13);
+  it('holds exactly the fourteen capabilities the agent layer promises', () => {
+    // Thirteen in plan.md §5, plus `obsiddy_promote_thought`: none of the
+    // thirteen could mark a thought as processed, so a nightly triage run left
+    // every note looking un-triaged and re-processed the lot the next night.
+    expect(OBSIDDY_CAPABILITIES).toHaveLength(14);
+    expect(Object.values(OBSIDDY_CAPABILITY_SLUGS)).toHaveLength(14);
   });
 
   it('uses unique, namespaced slugs', () => {
@@ -226,7 +240,7 @@ describe('Obsiddy capability registration', () => {
     }
   });
 
-  it('registers all thirteen with the real dispatcher', () => {
+  it('registers all fourteen with the real dispatcher', () => {
     for (const handler of handlers) {
       expect(() => capabilityDispatcher.register(handler)).not.toThrow();
       expect(capabilityDispatcher.has(handler.slug)).toBe(true);

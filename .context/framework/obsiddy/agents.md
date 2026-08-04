@@ -1,6 +1,6 @@
 # The agent layer, and the rules it follows
 
-Phase 6b: thirteen capabilities, five agents, one shared profile, four seeds.
+Phase 6b: fourteen capabilities, five agents, one shared profile, four seeds.
 This is what turns a searchable database into something you can talk to — and
 the place where the isolation contract (D5) has to hold against an input nobody
 wrote by hand.
@@ -63,16 +63,39 @@ of the three is reachable from a model.
 resolves that into an `OwnerScope` **before** a subclass's `run` is entered.
 Subclasses receive the scope and have no way to ask for another one, so "I forgot
 the check" is not a reachable state — which matters more than the check itself,
-because the failure this guards against is not a wrong check but a fourteenth
+because the failure this guards against is not a wrong check but a _fifteenth_
 capability that never had one.
 
 `userId` is `string | null`, and null is real: a system-initiated run with no
 owner. Every capability returns `no_user_context` for it, asserted as a sweep
-over all thirteen rather than a case per class.
+over all fourteen rather than a case per class.
 
 ---
 
-## 3. What an agent cannot do
+## 3. Fourteen, not the plan's thirteen
+
+`plan.md` §5 lists thirteen capabilities and none of them can mark a thought as
+processed. Built exactly to that list, the nightly triage agent creates tasks,
+asserts links — and leaves every thought sitting in the inbox looking untouched,
+so the next night it processes the same twenty notes again and the person wakes
+to a growing pile of duplicates beside them.
+
+`obsiddy_promote_thought` closes it, wrapping the `promoteThought` service that
+`POST /obsiddy/thoughts/[id]/promote` already calls. It has to be a capability
+rather than two calls the model makes itself, because a create-then-update would
+miss all three things the service exists for: `promotedToType` / `promotedToId`
+(deliberately absent from the update schema), the `ObsiddyLink` back to the new
+item, and the `promoted` event the weekly review counts.
+
+**Dropping a thought is deliberately still not possible.** Promotion is additive
+and visible; marking someone's note as rubbish is neither, and a nightly job that
+does it unattended is a job they turn off. The triage prompt says to leave what it
+cannot classify, and the absent capability is what makes that true rather than
+hopeful.
+
+---
+
+## 4. What an agent cannot do
 
 Three things are withheld deliberately, and each is withheld structurally rather
 than by instruction:
@@ -94,13 +117,13 @@ chooses is not provenance.
 
 ---
 
-## 4. Redaction: prose out, structure in
+## 5. Redaction: prose out, structure in
 
 Every Obsiddy capability sets `processesPii = true` — a brain is nothing but PII
 — so the dispatcher refuses to register one that does not override
 `redactProvenance`. Its check is an own-property test on the **immediate**
 prototype, so an override inherited from `ObsiddyCapability` would not satisfy
-it. That is why there are thirteen overrides rather than one, and it is the right
+it. That is why there are fourteen overrides rather than one, and it is the right
 outcome: what is safe to keep for ever differs per tool.
 
 The line every one of them draws: **`AiMessage.provenance` is outside the Obsiddy
@@ -121,7 +144,7 @@ set of counts, and the counts are already in the payload the model received.
 
 ---
 
-## 5. Provenance out, for the trace UI
+## 6. Provenance out, for the trace UI
 
 The read capabilities return a `sources` array alongside their data. The engine
 lifts `output.sources` off a `tool_call` step onto the trace entry, and the
@@ -137,7 +160,7 @@ are not equally good evidence.
 
 ---
 
-## 6. The five agents, and why they differ
+## 7. The five agents, and why they differ
 
 All five inherit the `obsiddy-core` profile — persona, guardrails, voice — and
 carry only their own `systemInstructions`. `guardrailsMode` is `'append'`, not
@@ -166,7 +189,7 @@ not have.
 
 ---
 
-## 7. Bindings are the enforcement
+## 8. Bindings are the enforcement
 
 An agent's instructions say what it should not do. The `AiAgentCapability` table
 is what actually stops it: the chat handler advertises only the capabilities an
@@ -191,7 +214,7 @@ delete the permission — is the one that widens it.
 
 ---
 
-## 8. Adding a fourteenth capability
+## 9. Adding a fifteenth capability
 
 1. Add the spec to `OBSIDDY_CAPABILITIES` in `catalogue.ts`, and the slug to
    `OBSIDDY_CAPABILITY_SLUGS`.
@@ -205,6 +228,13 @@ delete the permission — is the one that widens it.
 
 `catalogue.test.ts` and `scope.test.ts` cover the new tool automatically —
 neither enumerates capabilities by hand, which is the point.
+
+**You do not need to touch the seeds' `hashInputs`.** `001-capabilities` and
+`004-agent-capabilities` already fold `catalogue.ts` into their content hash, so
+editing the catalogue is what makes them re-run. That declaration is load-bearing
+rather than tidy: the runner hashes a unit's own source, those two files barely
+change, and without it a host upgrading Obsiddy gets the new tool's code and no
+row for it — which the dispatcher then refuses at `capability_inactive`.
 
 ---
 

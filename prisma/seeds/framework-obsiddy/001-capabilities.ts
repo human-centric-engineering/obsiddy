@@ -49,6 +49,21 @@ function asJson(definition: ObsiddyCapabilitySpec['functionDefinition']): Prisma
  */
 const unit: SeedUnit = {
   name: 'framework-obsiddy/001-capabilities',
+  /**
+   * **The catalogue is this seed's real content, so it has to be in the hash.**
+   *
+   * `SeedHistory` keys on a hash of the seed file's own source, and this file's
+   * source barely changes — every capability, every description, every parameter
+   * lives in `catalogue.ts`. Without this the seed is "unchanged, skipping" while
+   * the code around it registers a handler that has no row, and the dispatcher
+   * refuses it at `capability_inactive`: a host upgrades Obsiddy, gets the new
+   * tool's code, and gets no new tool.
+   *
+   * Caught the first time it happened — adding the fourteenth capability left
+   * the table on thirteen, and the binding seed failed loudly on the missing
+   * slug. It failed in the right direction, but it should not have failed at all.
+   */
+  hashInputs: ['../../../lib/framework/obsiddy/capabilities/catalogue.ts'],
   async run({ prisma, logger }) {
     logger.info(`🧠 Seeding ${OBSIDDY_CAPABILITIES.length} Obsiddy capabilities...`);
 

@@ -17,7 +17,7 @@ every upgrade.
 > **Status: phases 0–6b.** The tier scaffold, the data model, the CRUD API, the
 > priority engine, the semantic layer (search, indexing, connections, document
 > ingestion), the UI (twelve surfaces including the kanban board) and the agent
-> layer (thirteen capabilities, five agents, four seeds) exist — §§1–6 are real
+> layer (fourteen capabilities, five agents, four seeds) exist — §§1–6 are real
 > and installable today. Steps still marked _(phase N)_ are listed so the
 > checklist grows in place rather than being reconstructed later. This file is
 > updated by every phase.
@@ -242,7 +242,7 @@ export function initAppCapabilities(): void {
 }
 ```
 
-Registers the thirteen agent tools. Static import, like §2.2 and §2.6: Sunrise
+Registers the fourteen agent tools. Static import, like §2.2 and §2.6: Sunrise
 calls `initAppCapabilities()` from `registerBuiltInCapabilities()` **lazily, in
 the server route-handler realm, immediately before the first dispatch** — not at
 boot. There is nowhere to `await`, and the lazy call site is the fix for
@@ -417,7 +417,7 @@ npm run db:seed              # applies prisma/seeds/framework-obsiddy/*
 ```
 
 The seed step is not optional once §2.8 is wired: the four units below are what
-turn thirteen registered handlers into thirteen tools an agent can actually
+turn fourteen registered handlers into fourteen tools an agent can actually
 reach. They are idempotent, keyed on slug, and re-runnable.
 
 | Seed                     | Writes                                                                                                          |
@@ -437,6 +437,14 @@ exists. Everything an operator legitimately tunes is left alone: `isActive`,
 **To revoke a capability from an agent, set `isEnabled: false` — do not delete
 the row.** A missing pivot row synthesizes a default-ALLOW binding in the
 dispatcher, so the intuitive action is the one that widens access.
+
+`001-capabilities` and `004-agent-capabilities` declare
+`hashInputs: ['…/capabilities/catalogue.ts']`. The seed runner hashes a unit's
+own source to decide whether to re-run it, and those two files barely change —
+the capability definitions all live in the catalogue. Without it, upgrading
+Obsiddy gets you a new tool's _code_ and no new row, and the dispatcher then
+refuses it at `capability_inactive`. Keep the declaration if you fork either
+file.
 
 Three migrations:
 

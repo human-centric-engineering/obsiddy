@@ -38,6 +38,7 @@ vi.mock('@/lib/framework/obsiddy/services/capture', () => ({ captureThought: vi.
 vi.mock('@/lib/framework/obsiddy/search/hybrid-search', () => ({ searchObsiddy: vi.fn() }));
 vi.mock('@/lib/framework/obsiddy/services/links', () => ({ linkEntities: vi.fn() }));
 vi.mock('@/lib/framework/obsiddy/services/neighbours', () => ({ findNeighbours: vi.fn() }));
+vi.mock('@/lib/framework/obsiddy/services/promote', () => ({ promoteThought: vi.fn() }));
 vi.mock('@/lib/framework/obsiddy/services/snapshot', () => ({ buildSnapshot: vi.fn() }));
 vi.mock('@/lib/framework/obsiddy/services/reviews', () => ({ writeReview: vi.fn() }));
 vi.mock('@/lib/framework/obsiddy/services/ideate', () => ({ ideate: vi.fn() }));
@@ -80,6 +81,7 @@ import {
   ObsiddyFindConnectionsCapability,
   ObsiddyLinkEntitiesCapability,
 } from '@/lib/framework/obsiddy/capabilities/links';
+import { ObsiddyPromoteThoughtCapability } from '@/lib/framework/obsiddy/capabilities/promote';
 import { ObsiddyGetSnapshotCapability } from '@/lib/framework/obsiddy/capabilities/snapshot';
 import { ObsiddyWriteReviewCapability } from '@/lib/framework/obsiddy/capabilities/reviews';
 import { ObsiddyReprioritiseCapability } from '@/lib/framework/obsiddy/capabilities/reprioritise';
@@ -89,6 +91,7 @@ import { captureThought } from '@/lib/framework/obsiddy/services/capture';
 import { searchObsiddy } from '@/lib/framework/obsiddy/search/hybrid-search';
 import { linkEntities } from '@/lib/framework/obsiddy/services/links';
 import { findNeighbours } from '@/lib/framework/obsiddy/services/neighbours';
+import { promoteThought } from '@/lib/framework/obsiddy/services/promote';
 import { buildSnapshot } from '@/lib/framework/obsiddy/services/snapshot';
 import { writeReview } from '@/lib/framework/obsiddy/services/reviews';
 import { ideate } from '@/lib/framework/obsiddy/services/ideate';
@@ -299,6 +302,66 @@ describe('obsiddy_upsert_task', () => {
 
   it('cannot express a manual priority boost', () => {
     expect(() => capability.validate({ title: 'x', manualBoost: 1 })).toThrow();
+  });
+});
+
+describe('obsiddy_promote_thought', () => {
+  const capability = new ObsiddyPromoteThoughtCapability();
+
+  it('marks the thought processed through the service, not a create-then-patch', async () => {
+    mocked(promoteThought).mockResolvedValue({
+      target: { type: 'task', id: ID(2), title: 'Email Priya' },
+      thoughtId: ID(1),
+    });
+
+    const result = await call(capability, { thoughtId: ID(1), target: 'task', projectId: ID(3) });
+
+    expect(promoteThought).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'user-a' }),
+      ID(1),
+      {
+        target: 'task',
+        projectId: ID(3),
+      }
+    );
+    expect(result).toMatchObject({
+      success: true,
+      data: { thoughtId: ID(1), target: { type: 'task', id: ID(2) } },
+    });
+  });
+
+  it('requires a horizon on a goal — a guessed one re-ranks every task under it', () => {
+    expect(() => capability.validate({ thoughtId: ID(1), target: 'goal' })).toThrow();
+    expect(() =>
+      capability.validate({ thoughtId: ID(1), target: 'goal', horizon: 'quarter' })
+    ).not.toThrow();
+  });
+
+  it('refuses a project id on a project target — only tasks are filed under one', () => {
+    expect(() =>
+      capability.validate({ thoughtId: ID(1), target: 'project', projectId: ID(3) })
+    ).toThrow();
+  });
+
+  /**
+   * A re-run hitting an already-triaged thought is the idempotency guard doing
+   * its job, not a fault. It gets its own code so the model stops rather than
+   * retrying with a different title and producing a second copy of the work.
+   */
+  it('reports an already-triaged thought distinctly from a missing one', async () => {
+    mocked(promoteThought).mockRejectedValue(new NotFoundError('already promoted'));
+
+    const result = await call(capability, { thoughtId: ID(1), target: 'task' });
+
+    expect(result).toMatchObject({ success: false, error: { code: 'already_promoted' } });
+
+    mocked(promoteThought).mockReset();
+    mocked(promoteThought).mockResolvedValue(null);
+
+    expect(await call(capability, { thoughtId: ID(9), target: 'task' })).toMatchObject({
+      success: false,
+      error: { code: 'not_found' },
+    });
   });
 });
 

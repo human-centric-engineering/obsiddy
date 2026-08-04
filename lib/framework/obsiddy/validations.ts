@@ -216,33 +216,49 @@ export const updateThoughtSchema = z
  *     take an area. `.strict()` on each branch makes the wrong combination a 400
  *     rather than a silently ignored field.
  */
+const promoteTaskShape = {
+  target: z.literal('task'),
+  title: titleSchema.optional(),
+  /** "File this under the Q4 launch" — the most common triage action. */
+  projectId: cuidSchema.optional(),
+} as const;
+
+const promoteProjectShape = {
+  target: z.literal('project'),
+  title: titleSchema.optional(),
+  areaId: cuidSchema.optional(),
+} as const;
+
+const promoteGoalShape = {
+  target: z.literal('goal'),
+  title: titleSchema.optional(),
+  areaId: cuidSchema.optional(),
+  horizon: z.enum(GOAL_HORIZONS),
+} as const;
+
 export const promoteThoughtSchema = z.discriminatedUnion('target', [
-  z
-    .object({
-      target: z.literal('task'),
-      title: titleSchema.optional(),
-      /** "File this under the Q4 launch" — the most common triage action. */
-      projectId: cuidSchema.optional(),
-    })
-    .strict(),
-  z
-    .object({
-      target: z.literal('project'),
-      title: titleSchema.optional(),
-      areaId: cuidSchema.optional(),
-    })
-    .strict(),
-  z
-    .object({
-      target: z.literal('goal'),
-      title: titleSchema.optional(),
-      areaId: cuidSchema.optional(),
-      horizon: z.enum(GOAL_HORIZONS),
-    })
-    .strict(),
+  z.object(promoteTaskShape).strict(),
+  z.object(promoteProjectShape).strict(),
+  z.object(promoteGoalShape).strict(),
 ]);
 
 export type PromoteThoughtInput = z.infer<typeof promoteThoughtSchema>;
+
+/**
+ * `obsiddy_promote_thought` — the same three branches, plus the id.
+ *
+ * Built from the same shapes as the route schema rather than retyped, because
+ * the per-target rules above are the whole reason this is a union and a second
+ * copy would drift on the branch nobody exercises. The HTTP path carries the id
+ * in the URL; a tool call has no URL, so it carries it in the arguments.
+ */
+export const agentPromoteThoughtSchema = z.discriminatedUnion('target', [
+  z.object({ thoughtId: cuidSchema, ...promoteTaskShape }).strict(),
+  z.object({ thoughtId: cuidSchema, ...promoteProjectShape }).strict(),
+  z.object({ thoughtId: cuidSchema, ...promoteGoalShape }).strict(),
+]);
+
+export type AgentPromoteThoughtInput = z.infer<typeof agentPromoteThoughtSchema>;
 
 export const thoughtListQuerySchema = obsiddyListQuerySchema.extend({
   status: z.enum(THOUGHT_STATUSES).optional(),

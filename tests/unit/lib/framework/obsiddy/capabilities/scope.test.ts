@@ -2,7 +2,7 @@
  * Unit Tests: the owner-scope guard, across every capability.
  *
  * This is the isolation test for the agent layer, and it is deliberately a
- * sweep over all thirteen rather than a case per class. The failure it guards
+ * sweep over all fourteen rather than a case per class. The failure it guards
  * against is not "someone wrote the check wrong" — it is "someone added a
  * fourteenth capability and forgot the check entirely", which no per-class test
  * can catch because the missing test is the one nobody wrote.
@@ -31,6 +31,7 @@ vi.mock('@/lib/framework/obsiddy/services/capture', () => ({ captureThought: vi.
 vi.mock('@/lib/framework/obsiddy/search/hybrid-search', () => ({ searchObsiddy: vi.fn() }));
 vi.mock('@/lib/framework/obsiddy/services/links', () => ({ linkEntities: vi.fn() }));
 vi.mock('@/lib/framework/obsiddy/services/neighbours', () => ({ findNeighbours: vi.fn() }));
+vi.mock('@/lib/framework/obsiddy/services/promote', () => ({ promoteThought: vi.fn() }));
 vi.mock('@/lib/framework/obsiddy/services/snapshot', () => ({ buildSnapshot: vi.fn() }));
 vi.mock('@/lib/framework/obsiddy/services/reviews', () => ({ writeReview: vi.fn() }));
 vi.mock('@/lib/framework/obsiddy/services/ideate', () => ({ ideate: vi.fn() }));
@@ -67,6 +68,7 @@ import { captureThought } from '@/lib/framework/obsiddy/services/capture';
 import { searchObsiddy } from '@/lib/framework/obsiddy/search/hybrid-search';
 import { linkEntities } from '@/lib/framework/obsiddy/services/links';
 import { findNeighbours } from '@/lib/framework/obsiddy/services/neighbours';
+import { promoteThought } from '@/lib/framework/obsiddy/services/promote';
 import { buildSnapshot } from '@/lib/framework/obsiddy/services/snapshot';
 import { writeReview } from '@/lib/framework/obsiddy/services/reviews';
 import { ideate } from '@/lib/framework/obsiddy/services/ideate';
@@ -86,6 +88,7 @@ const VALID_ARGS: Record<string, unknown> = {
   obsiddy_capture: { content: 'a thought' },
   obsiddy_search: { query: 'pricing' },
   obsiddy_list_tasks: {},
+  obsiddy_promote_thought: { thoughtId: 'clh0000000000000000000005', target: 'task' },
   obsiddy_upsert_task: { title: 'do the thing' },
   obsiddy_upsert_project: { name: 'a project' },
   obsiddy_upsert_goal: { title: 'a goal', horizon: 'quarter' },
@@ -108,6 +111,7 @@ const ALL_SERVICES = [
   searchObsiddy,
   linkEntities,
   findNeighbours,
+  promoteThought,
   buildSnapshot,
   writeReview,
   ideate,

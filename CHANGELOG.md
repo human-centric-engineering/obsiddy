@@ -111,18 +111,27 @@ release process.
 
 ### Added
 
-- **Obsiddy: the agent layer** (phase 6b) — thirteen capabilities, five agents,
+- **Obsiddy: the agent layer** (phase 6b) — fourteen capabilities, five agents,
   the shared `obsiddy-core` profile, and the four seeds that make them reachable.
   Registered through the fork-owned `lib/app/capabilities.ts` scaffold, so no
   Sunrise-owned file is touched. Full rules and reasoning:
   `.context/framework/obsiddy/agents.md`.
-  - **Thirteen capabilities** — `obsiddy_capture`, `obsiddy_search`,
-    `obsiddy_list_tasks`, `obsiddy_upsert_task` / `_project` / `_goal` /
-    `_entity`, `obsiddy_link_entities`, `obsiddy_find_connections`,
-    `obsiddy_get_snapshot`, `obsiddy_write_review`, `obsiddy_reprioritise`,
-    `obsiddy_ideate`. Each calls the same service the matching HTTP route does,
-    so an agent-created task carries the same events, `completedAt` stamping and
-    project-momentum bump as one created in the UI.
+  - **Fourteen capabilities** — `obsiddy_capture`, `obsiddy_search`,
+    `obsiddy_list_tasks`, `obsiddy_promote_thought`, `obsiddy_upsert_task` /
+    `_project` / `_goal` / `_entity`, `obsiddy_link_entities`,
+    `obsiddy_find_connections`, `obsiddy_get_snapshot`, `obsiddy_write_review`,
+    `obsiddy_reprioritise`, `obsiddy_ideate`. Each calls the same service the
+    matching HTTP route does, so an agent-created task carries the same events,
+    `completedAt` stamping and project-momentum bump as one created in the UI.
+  - **`obsiddy_promote_thought` is a deliberate addition to `plan.md` §5's
+    thirteen.** None of the thirteen could mark a thought as processed, so a
+    nightly triage run created tasks and left every note sitting in the inbox
+    looking untouched — then processed the same notes again the next night. It
+    wraps the existing `promoteThought` service, which is what records
+    `promotedToType` / `promotedToId`, links the thought to what it became, and
+    emits the `promoted` event the weekly review counts. **Dropping a thought is
+    still not possible from any agent**: promotion is additive and visible,
+    marking someone's note as rubbish unattended is neither.
   - **The owner is resolved before a capability body runs.** `ObsiddyCapability`
     mints the `OwnerScope` from `CapabilityContext.userId` — set by the platform
     from the session, the schedule's `createdBy`, or the MCP key's owner, none of
@@ -161,6 +170,11 @@ release process.
     only reviews, and `obsiddy-judge` is bound to nothing — zero rows means zero
     advertised tools. Revocation is `isEnabled: false`, never deleting the row: a
     missing pivot row synthesizes a default-ALLOW binding in the dispatcher.
+  - `001-capabilities` and `004-agent-capabilities` declare `hashInputs` over
+    `capabilities/catalogue.ts`. The seed runner hashes a unit's own source to
+    decide whether to re-run it, and those two files barely change — so without
+    it, upgrading Obsiddy delivers a new tool's code and no row for it, and the
+    dispatcher refuses it at `capability_inactive`.
   - New seeds `prisma/seeds/framework-obsiddy/001-capabilities`,
     `002-agent-profile`, `003-agents`, `004-agent-capabilities`. Capability rows
     are written **from the code catalogue**, so a row cannot drift from its

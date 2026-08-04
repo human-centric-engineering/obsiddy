@@ -12,7 +12,7 @@ owner-scope contract structural rather than a convention.
 | `validations.ts`                                           | Every Zod schema: route bodies, query params, and the `agent*Schema` capability arguments                                         |
 | `repo/`                                                    | The only layer that may import Prisma. Every function takes an `OwnerScope`                                                       |
 | `services/`                                                | Business logic. One implementation per operation, shared by the routes, the capabilities and MCP                                  |
-| `capabilities/`                                            | The thirteen agent tools, their catalogue, and the scope guard they all inherit                                                   |
+| `capabilities/`                                            | The fourteen agent tools, their catalogue, and the scope guard they all inherit                                                   |
 | `priority/`                                                | The pure scorer and the batched reprioritise pass                                                                                 |
 | `embedding/`                                               | Canonical text, hashing, and the batched indexer                                                                                  |
 | `search/`                                                  | Hybrid search and the connection sweep — orchestration only; the SQL lives in `repo/embeddings.ts`                                |
