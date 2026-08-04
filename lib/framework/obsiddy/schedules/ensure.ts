@@ -37,7 +37,7 @@
  * ## Why the connection sweep is absent from this list
  *
  * Four of Obsiddy's five background workflows are genuine calendar events —
- * "9am on the 1st", "Friday at 16:00" — and belong on a cron row. The
+ * "9am on the 2nd", "Friday at 16:00" — and belong on a cron row. The
  * connection sweep is a continuous per-user pass with its own rotation cursor,
  * which is the shape `registerAppJob` was argued for upstream (#469) and the
  * shape a cron field fits badly. It lives in `lib/app/jobs.ts` instead.
@@ -92,10 +92,15 @@ const SCHEDULE_SPECS = [
   {
     slug: OBSIDDY_SCHEDULED_WORKFLOWS.horizonCheck,
     name: 'Obsiddy horizon check',
-    // 09:00 on the 1st. Mid-morning deliberately: `monthlyCron` does not shift
-    // the day, so the local hour must be far enough from midnight that no UTC
-    // offset rolls it into the wrong month.
-    cron: (tz: string, at: Date) => monthlyCron({ hour: 9, minute: 0 }, 1, tz, at),
+    // 09:00 on the 2nd, and the 2nd rather than the 1st is the whole point.
+    // `monthlyCron` shifts the day when the local hour rolls over, and at 09:00
+    // it rolls back for every zone from +09:30 east — so the 1st would shift to
+    // "the 0th", which no cron expression can say. Starting on the 2nd leaves
+    // room to move: those zones get the 1st in UTC, everyone else gets the 2nd,
+    // and both land on 09:00 local on the 2nd. A monthly goals review is
+    // indifferent to which of the first two days it runs on; it is not
+    // indifferent to firing a day later than it claims.
+    cron: (tz: string, at: Date) => monthlyCron({ hour: 9, minute: 0 }, 2, tz, at),
   },
 ] as const;
 

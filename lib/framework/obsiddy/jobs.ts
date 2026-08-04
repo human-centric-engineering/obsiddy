@@ -3,7 +3,7 @@
  *
  * ## Why this one is not a workflow schedule
  *
- * Four of Obsiddy's background workflows are calendar events — "9am on the 1st",
+ * Four of Obsiddy's background workflows are calendar events — "9am on the 2nd",
  * "Friday at 16:00" — and a cron row expresses those exactly. The connection
  * sweep is not one: it is a continuous pass over stored vectors with its own
  * rotation cursor, which should run *often and cheaply* rather than *at a

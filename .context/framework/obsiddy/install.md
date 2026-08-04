@@ -307,7 +307,7 @@ export function initAppJobs(): void {
 
 **Why the sweep is a job and the other four are schedules.** Obsiddy's nightly
 triage, morning briefing, weekly review and horizon check are calendar events —
-"9am on the 1st", "Friday at 16:00" — and live on per-user `AiWorkflowSchedule`
+"9am on the 2nd", "Friday at 16:00" — and live on per-user `AiWorkflowSchedule`
 rows created by `ensureObsiddySchedules()`. The connection sweep is a continuous
 per-user pass with its own rotation cursor, which a cron field expresses badly.
 

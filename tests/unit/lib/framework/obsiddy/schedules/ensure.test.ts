@@ -292,6 +292,8 @@ function expectedCronFor(slug: string, timeZone: string, at: Date): string {
     case OBSIDDY_SCHEDULED_WORKFLOWS.weeklyReview:
       return weeklyCron({ hour: 16, minute: 0 }, 5, timeZone, at);
     default:
-      return monthlyCron({ hour: 9, minute: 0 }, 1, timeZone, at);
+      // The 2nd, not the 1st: at 09:00 local the day rolls back for every zone
+      // from +09:30 east, and `monthlyCron` refuses a 1st it cannot express.
+      return monthlyCron({ hour: 9, minute: 0 }, 2, timeZone, at);
   }
 }

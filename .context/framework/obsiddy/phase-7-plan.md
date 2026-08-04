@@ -222,7 +222,7 @@ internal rotation (`markSwept` stamps `sweptAt`, candidates are ordered by it) a
 pair exclusion in the query — idempotent and resumable by construction, which is
 the shape #469's `intervalMs` was argued for and the shape a cron row fits badly.
 The other four stay on `AiWorkflowSchedule` because they are genuinely calendar
-events — "9am on the 1st", "Friday at 16:00" — and because the user's timezone
+events — "9am on the 2nd", "Friday at 16:00" — and because the user's timezone
 has to resolve them.
 
 **The job needs a second cursor, across users.** This is the part that does not

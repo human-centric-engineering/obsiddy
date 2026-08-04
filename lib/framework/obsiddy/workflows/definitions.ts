@@ -5,7 +5,7 @@
  *
  * Four workflows on per-user cron rows (`schedules/ensure.ts`), plus the
  * connection sweep as an app job (`jobs.ts`). The split is not arbitrary: these
- * four are calendar events — "9am on the 1st", "Friday at 16:00" — and a cron
+ * four are calendar events — "9am on the 2nd", "Friday at 16:00" — and a cron
  * expression says that exactly. The sweep is a continuous pass with a rotation
  * cursor, which a cron field expresses badly.
  *
@@ -268,7 +268,7 @@ const horizonCheck: ObsiddyWorkflowSpec = {
   slug: OBSIDDY_SCHEDULED_WORKFLOWS.horizonCheck,
   name: 'Obsiddy — horizon check',
   description:
-    'Scores each goal on evidenced progress and flags the ones with nothing behind them. Runs 09:00 on the 1st, in the owner’s timezone.',
+    'Scores each goal on evidenced progress and flags the ones with nothing behind them. Runs 09:00 on the 2nd, in the owner’s timezone.',
   patternsUsed: [11, 19],
   maxCostPerExecutionUsd: 1.0,
   definition: {

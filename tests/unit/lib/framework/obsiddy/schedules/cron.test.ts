@@ -21,16 +21,22 @@
  * nobody ever files that bug — they just find the briefing arrives at an odd
  * time.
  *
- * **The monthly non-shift.** `monthlyCron` deliberately does *not* apply the day
- * shift, because "the 1st, shifted back one day" is either the 0th or the 31st
- * of the wrong month. This asserts that deliberate difference so a later tidy-up
- * does not "fix" it into a bug.
+ * **The monthly day shift.** `monthlyCron` shifts the day like the weekly builder
+ * shifts the weekday, and these tests exist because an earlier version did not.
+ * Dropping the shift was described as a sub-day inaccuracy. It was a 24-hour one:
+ * 09:00 on the 1st rolls back for every zone from +09:30 east, so leaving the day
+ * alone fired all of Australia and New Zealand on the 2nd, every month, silently.
+ * The Auckland case is the regression test for exactly that. The throwing cases
+ * pin the constraint that made dropping the shift look reasonable in the first
+ * place — a day of 1 shifted back is genuinely inexpressible in a fixed cron
+ * expression, which is a reason to refuse it, not to emit a wrong day.
  *
  * Test Coverage:
  * - Offsets: UTC, whole-hour ahead and behind, half-hour, and DST vs standard time
  * - Daily cron shifts the hour by the offset
  * - Weekly cron shifts the weekday when the hour rolls over, and wraps 0→6
- * - Monthly cron shifts the hour but never the day
+ * - Monthly cron shifts the day when the hour rolls over, in both directions
+ * - Monthly cron refuses a day it cannot express rather than emitting a wrong one
  * - Drift detection reports a changed expression
  *
  * @see lib/framework/obsiddy/schedules/cron.ts
@@ -154,15 +160,46 @@ describe('weeklyCron', () => {
 
 describe('monthlyCron', () => {
   it('shifts the hour', () => {
-    expect(monthlyCron({ hour: 9, minute: 0 }, 1, 'Europe/London', SUMMER)).toBe('0 8 1 * *');
+    expect(monthlyCron({ hour: 9, minute: 0 }, 2, 'Europe/London', SUMMER)).toBe('0 8 2 * *');
   });
 
-  it('never shifts the day, even when the hour rolls over', () => {
-    // 09:00 on the 1st in Auckland is 21:00 UTC on the LAST day of the previous
-    // month. Shifting the day would give "the 0th" or the 31st of a month that
-    // may not have one — landing in the wrong month entirely. Mid-morning local
-    // is chosen so this stays a sub-day inaccuracy, and the day is left alone.
-    expect(monthlyCron({ hour: 9, minute: 0 }, 1, 'Pacific/Auckland', SUMMER)).toBe('0 21 1 * *');
+  it('shifts the day back when the local hour rolls over — the Auckland regression', () => {
+    // 09:00 on the 2nd in Auckland (+12 in July) is 21:00 UTC on the 1st. An
+    // earlier version dropped the shift and emitted `0 21 2 * *`, which fires
+    // 21:00 UTC on the 2nd — 09:00 local on the THIRD. A full day late, every
+    // month, for every zone from +09:30 east.
+    expect(monthlyCron({ hour: 9, minute: 0 }, 2, 'Pacific/Auckland', SUMMER)).toBe('0 21 1 * *');
+    // Sydney is the same story an hour further west, and is the zone the bug was
+    // actually found against.
+    expect(monthlyCron({ hour: 9, minute: 0 }, 2, 'Australia/Sydney', SUMMER)).toBe('0 23 1 * *');
+  });
+
+  it('leaves the day alone for zones that do not roll over', () => {
+    expect(monthlyCron({ hour: 9, minute: 0 }, 2, 'America/Los_Angeles', SUMMER)).toBe(
+      '0 16 2 * *'
+    );
+  });
+
+  it('shifts the day forward when the local hour rolls the other way', () => {
+    // 23:00 on the 2nd in Los Angeles is 06:00 UTC on the 3rd.
+    expect(monthlyCron({ hour: 23, minute: 0 }, 2, 'America/Los_Angeles', SUMMER)).toBe(
+      '0 6 3 * *'
+    );
+  });
+
+  it('refuses the 1st when it would shift back, rather than emitting the wrong day', () => {
+    // "The 0th" is what no fixed cron expression can say, and it is the reason
+    // the shift was dropped in the first place. Throwing makes the constraint
+    // visible at the call site instead of turning it into a silent day-late fire.
+    expect(() => monthlyCron({ hour: 9, minute: 0 }, 1, 'Pacific/Auckland', SUMMER)).toThrow(
+      /shifts back to 0/
+    );
+  });
+
+  it('refuses a day past the 28th, which would skip February', () => {
+    expect(() => monthlyCron({ hour: 9, minute: 0 }, 29, 'Europe/London', SUMMER)).toThrow(
+      /does not exist in February/
+    );
   });
 });
 

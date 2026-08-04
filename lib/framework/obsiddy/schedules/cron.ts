@@ -132,15 +132,38 @@ export function weeklyCron(
 }
 
 /**
- * `0 9 1 * *` — a given day of the month at a local time.
+ * `0 9 2 * *` — a given day of the month at a local time.
  *
- * The day shift is **not** applied here, and that is deliberate rather than an
- * oversight. Shifting the 1st back a day gives "the 0th", and shifting it to the
- * 31st would fire in the wrong month — in months that have a 31st. A monthly
- * horizon check landing up to an hour either side of local midnight on the right
- * date is correct enough; landing in the wrong month is not. Callers should
- * therefore pick a mid-morning local hour, where no offset on earth rolls the
- * day over.
+ * ## Why the day shift is applied, and why it once was not
+ *
+ * An earlier version dropped the shift, on the reasoning that "the 1st shifted
+ * back one day" is either the 0th or the 31st of a month that may not have one.
+ * That much is true. The conclusion drawn from it — that a caller can avoid the
+ * rollover by choosing a mid-morning local hour, so the day can safely be left
+ * alone — is not, and **no local hour avoids it**: a rollback needs the hour to
+ * be at least the largest offset on earth (+14:00), a rollforward needs it below
+ * the smallest (-11:00, so under 13:00), and no hour is both.
+ *
+ * Leaving the day alone was therefore not the sub-day inaccuracy it was
+ * described as. At 09:00 local on the 1st, every zone from +09:30 east — all of
+ * Australia and New Zealand — rolls back a day, and dropping the shift moved the
+ * firing a full 24 hours: Sydney's `0 22 1 * *` is 22:00 UTC on the 1st, which is
+ * 09:00 local on the **2nd**. Right month, wrong day, every month, silently.
+ *
+ * ## What the caller has to give up
+ *
+ * A fixed cron expression cannot say "the last day of whichever month this is",
+ * so a day-of-month of 1 with a rollback is genuinely inexpressible — that case
+ * throws rather than silently emitting a wrong day. The caller's side of the
+ * bargain is to pick a day with room to move in both directions, which is why
+ * the horizon check runs on the **2nd** rather than the 1st (see `ensure.ts`).
+ * Days past the 28th are refused for the mirror-image reason: they skip February
+ * entirely, which is a monthly schedule that silently misses a month.
+ *
+ * The real fix is a `timezone` column on the schedule row, filed upstream. Until
+ * then, one day of the month is the price of the workaround, and it is a price
+ * paid visibly here rather than discovered by an Australian user whose monthly
+ * review never lands when it says it does.
  */
 export function monthlyCron(
   local: LocalTime,
@@ -148,8 +171,25 @@ export function monthlyCron(
   timeZone: string,
   at: Date = new Date()
 ): string {
-  const { hour, minute } = toUtcTime(local, timeZone, at);
-  return `${minute} ${hour} ${dayOfMonth} * *`;
+  const { hour, minute, dayShift } = toUtcTime(local, timeZone, at);
+  const shifted = dayOfMonth + dayShift;
+
+  if (shifted < 1) {
+    throw new Error(
+      `monthlyCron: day ${dayOfMonth} in ${timeZone} shifts back to ${shifted} — "the last day ` +
+        `of the previous month" is not something a fixed cron expression can express. Pick a day ` +
+        `of the month between 2 and 27.`
+    );
+  }
+
+  if (shifted > 28) {
+    throw new Error(
+      `monthlyCron: day ${shifted} does not exist in February, so a monthly schedule on it would ` +
+        `skip a month. Pick a day of the month between 2 and 27.`
+    );
+  }
+
+  return `${minute} ${hour} ${shifted} * *`;
 }
 
 /**
