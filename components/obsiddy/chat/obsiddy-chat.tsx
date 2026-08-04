@@ -8,7 +8,8 @@
  * That component is genuinely reusable and does more than this one, but it posts
  * to `API.ADMIN.ORCHESTRATION.CHAT_STREAM` as a hardcoded constant — there is no
  * prop for the endpoint. Reusing it would mean editing a Sunrise-owned file,
- * which is the one thing this tier does not do (filed upstream as ask #26).
+ * which is the one thing this tier does not do (filed upstream as
+ * https://github.com/human-centric-engineering/sunrise/issues/526).
  *
  * The forced rebuild turned out to be the right shape anyway. Most of what the
  * admin component carries is admin-only: per-turn cost, token breakdowns, the

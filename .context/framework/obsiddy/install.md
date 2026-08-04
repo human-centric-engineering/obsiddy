@@ -618,7 +618,7 @@ filled.
 | `tests/unit/lib/app/bootstrap-wiring.test.ts`                | the rate-limit seam (§2.6)                                      | Obsiddy's rules reaching only `/api/v1/obsiddy/*`                   |
 | `tests/unit/lib/orchestration/capabilities/registry.test.ts` | the capability seam (§2.8)                                      | stub the seam: `vi.mock('@/lib/app/capabilities')` — [ask #25][a25] |
 
-[a25]: ./sunrise-asks.md
+[a25]: https://github.com/human-centric-engineering/sunrise/issues/525
 
 The fourth is worth calling out because its failure message points away from the
 cause: the suite asserts `register` was called thirteen times, so a fork adding

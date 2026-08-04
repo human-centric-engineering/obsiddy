@@ -27,10 +27,11 @@ vi.mock('@/lib/logging', () => ({
 // scaffold every downstream project is *expected* to fill. Without this stub the
 // built-in count assertions below measure core plus whatever the fork registered,
 // so they fail in any fork that uses the documented seam (here: Obsiddy's
-// thirteen). Stubbing it keeps this suite measuring what it claims to.
+// fourteen). Stubbing it keeps this suite measuring what it claims to.
 //
-// Local patch to a Sunrise-owned test, tracked as ask #25 in
-// `.context/framework/obsiddy/sunrise-asks.md`.
+// Local patch to a Sunrise-owned test. Filed upstream as
+// https://github.com/human-centric-engineering/sunrise/issues/525; remove this
+// stub when it lands. Ask #25 in `.context/framework/obsiddy/sunrise-asks.md`.
 vi.mock('@/lib/app/capabilities', () => ({ initAppCapabilities: vi.fn() }));
 
 const { prisma } = await import('@/lib/db/client');
