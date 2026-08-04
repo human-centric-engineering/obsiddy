@@ -342,34 +342,6 @@ alone cannot be relied on.
 
 [#469]: https://github.com/human-centric-engineering/sunrise/issues/469
 
-### 2.13 Erasure — automatic, but read this _(phase 7)_
-
-Obsiddy registers its own erasure cleanup hook from `initObsiddy()`, so there is
-**nothing to wire**. It is documented because of what it cleans up and why it
-cannot be fully trusted.
-
-Every `framework_obsiddy_*` table hangs off `ObsiddySpace`, whose FK to `"user"`
-is `ON DELETE CASCADE` — deleting the user deletes the brain, with no app code
-involved. Phase 7 is the first time Obsiddy writes to a table it does not own:
-`AiWorkflowSchedule`, whose `createdBy` is **`onDelete: SetNull`**. Those rows
-therefore outlive the account, enabled and with a live `nextRunAt`, unless
-something deletes them.
-
-**The hook that deletes them may not be registered when erasure runs.**
-`registerErasureCleanupHook` writes into a plain module-scope `Map`, and
-`eraseUser()` reads it without lazily initialising any `lib/app/*` seam first —
-unlike capabilities, context contributors and jobs, each of which core
-re-initialises in the consuming realm. That is the same instrumentation/route
-module split as [sunrise#462], for a registry that was not in its sweep.
-
-So the sweep job (§2.10) also deletes Obsiddy schedules whose `createdBy` is
-`null`. A null owner on an Obsiddy schedule can only mean the FK was nulled by
-the cascade, so it is an unambiguous tombstone. **Both paths are deliberate**: the
-hook is correct and immediate when it fires, and the job catches the case where
-it did not — including schedules orphaned before this code existed.
-
-[sunrise#462]: https://github.com/human-centric-engineering/sunrise/issues/462
-
 ### 2.11 Nav — `lib/app/protected-nav.ts` _(phase 5, **required now**)_
 
 Sunrise landed the seam for [#473] on 2026-07-31. Obsiddy offers the item; the
@@ -432,6 +404,62 @@ copies wholesale. None of them is a Sunrise file, and none needs registering:
 | Migrations    | `prisma/migrations/*obsiddy*` and `*add_second_brain*` |
 | Docs          | `.context/framework/obsiddy/**`                        |
 | Smoke scripts | `scripts/framework/obsiddy/**`                         |
+
+### 2.13 Erasure — automatic, but read this _(phase 7)_
+
+Obsiddy registers its own erasure cleanup hook from `initObsiddy()`, so there is
+**nothing to wire**. It is documented because of what it cleans up and why it
+cannot be fully trusted.
+
+Every `framework_obsiddy_*` table hangs off `ObsiddySpace`, whose FK to `"user"`
+is `ON DELETE CASCADE` — deleting the user deletes the brain, with no app code
+involved. Phase 7 is the first time Obsiddy writes to a table it does not own:
+`AiWorkflowSchedule`, whose `createdBy` is **`onDelete: SetNull`**. Those rows
+therefore outlive the account, enabled and with a live `nextRunAt`, unless
+something deletes them.
+
+**The hook that deletes them may not be registered when erasure runs.**
+`registerErasureCleanupHook` writes into a plain module-scope `Map`, and
+`eraseUser()` reads it without lazily initialising any `lib/app/*` seam first —
+unlike capabilities, context contributors and jobs, each of which core
+re-initialises in the consuming realm. That is the same instrumentation/route
+module split as [sunrise#462], for a registry that was not in its sweep.
+
+So the sweep job (§2.10) also deletes Obsiddy schedules whose `createdBy` is
+`null`. A null owner on an Obsiddy schedule can only mean the FK was nulled by
+the cascade, so it is an unambiguous tombstone. **Both paths are deliberate**: the
+hook is correct and immediate when it fires, and the job catches the case where
+it did not — including schedules orphaned before this code existed.
+
+[sunrise#462]: https://github.com/human-centric-engineering/sunrise/issues/462
+
+### 2.14 External cron — **required in production** _(phase 7)_
+
+Everything in §2.10 — the schedules, the sweep, the briefing — is driven by one
+endpoint being hit on a timer. Development gets that free from the in-process 60s
+ticker in `instrumentation.ts`. **Production has no ticker at all.** Point an
+external scheduler at the maintenance tick:
+
+```
+POST /api/v1/admin/orchestration/maintenance/tick
+```
+
+Every five minutes is a sensible default; the schedules resolve their own due
+times, so the tick only has to be frequent enough that "9am" means 9am rather
+than 9:55. See [`.context/orchestration/scheduling.md`](../../orchestration/scheduling.md)
+for auth and the platform-specific recipes.
+
+**This was an optional footnote until phase 7 and is not one now.** Before it,
+nothing in Obsiddy ran on its own, so a missing tick cost only ranking freshness.
+After it, a host that skips this step gets an install where the morning briefing
+never arrives, no connection is ever proposed, no nightly re-score happens and the
+weekly review is silently absent — with no error anywhere, because nothing failed.
+Nothing ran. It is the single most likely answer to "why did nothing happen".
+
+Ranking itself still degrades gracefully: scores are rewritten on every mutation,
+so anything the user touches is current. What a missing tick costs is the scores
+that move on their own — a project going quiet, a week rolling over, a
+`manualBoost` expiring — which stay stale until that task is next edited.
 
 ### The removal list — verified, and longer than the table above
 
@@ -613,16 +641,9 @@ defaults with no settings row at all.
   links _(Release 2)_. Optional by design: per-page `robots` metadata and the
   `X-Robots-Tag` header ship with the share reader and are the stronger
   controls, since robots.txt is advisory and doesn't de-index.
-- **External cron** — production has no in-process ticker. Without cron hitting
-  the maintenance tick, every background feature (connection sweep, retention,
-  briefings) silently never runs and looks broken. See
-  `.context/orchestration/scheduling.md`.
-
-  Ranking degrades gracefully in the meantime rather than breaking: task scores
-  are rewritten on every mutation, so anything the user touches is current. What
-  a missing tick costs is the scores that move on their own — a project going
-  quiet, a week rolling over, a `manualBoost` expiring — which stay stale until
-  that task is next edited. The full nightly pass lands in phase 7.
+- **External cron** — moved to §2.14 and **no longer optional**. Phase 7 put the
+  briefing, the schedules and the sweep behind the maintenance tick, so an install
+  without cron is an install where the background half of Obsiddy does not exist.
 
 ---
 
@@ -681,6 +702,22 @@ Assert **identity with the thing your tier owns**, not a literal list — that w
 a probe or block added straight to the leaf seam still fails, which is the
 intent the original test was protecting. Obsiddy's own copies of both do this;
 copy them.
+
+**Then prove the background actually runs** (phase 7). Nothing above touches it:
+the unit suite asserts the workflows are seeded and the schedules are computed,
+which is not the same as a tick firing them.
+
+1. Sign in once as a new user — `ensureObsiddySpace()` creates the space and
+   `ensureObsiddySchedules()` writes four `AiWorkflowSchedule` rows against it.
+2. Temporarily set one of them to `* * * * *` and let the tick run (or `POST` to
+   `/api/v1/admin/orchestration/maintenance/tick` yourself). An execution should
+   appear under `/admin/orchestration/executions` within the minute.
+3. Press **Regenerate** on Today's briefing card, then press it again inside the
+   staleness window. **The second press must make no LLM call** — check
+   `/admin/orchestration/costs` or the provider's own dashboard. A briefing that
+   silently regenerates on every press is indistinguishable from a working one
+   until the invoice arrives, which is why this is a manual step rather than a
+   line in a test file.
 
 Then, the check that actually proves portability:
 

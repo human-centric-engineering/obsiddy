@@ -217,7 +217,7 @@ request time under Turbopack, which is exactly what `initObsiddy()` does). Eleve
 upstream asks landed in that window; see [`sunrise-asks.md`](./sunrise-asks.md) →
 Landed for what each changed here.
 
-Two deviations from `plan.md` stand:
+Three deviations from `plan.md` stand:
 
 - **§5's thirteen capabilities are fourteen.** `obsiddy_promote_thought` was
   added because none of the thirteen could mark a thought as processed — a
@@ -230,7 +230,13 @@ Two deviations from `plan.md` stand:
   `createItemHandlers` would push page-shaped concerns into the one factory that
   guarantees the isolation rules for twenty routes.
 
-A third deviation — card aging measuring `updatedAt` rather than time-in-column —
+- **§15 row 7's six workflows are four**, plus the connection sweep as an app job.
+  `obsiddy-capture-intake` moved to phase 9: it triggers on
+  `obsiddy_capture_for_token`, a phase 9 capability, so seeding it now would seed a
+  workflow whose entry point does not exist. See
+  [`phase-7-plan.md`](./phase-7-plan.md) §6 for the other three phase 7 departures.
+
+A fourth deviation — card aging measuring `updatedAt` rather than time-in-column —
 was **closed** by `14b6b324`, which added `{ statusFrom, statusTo }` to the
 `updated` event only when the status actually changed, and reads the newest per
 card in one `DISTINCT ON`. Cards with no such event still fall back to "untouched

@@ -43,17 +43,17 @@ release process.
   `eraseUser()` reads a plain module-scope registry without lazily initialising any
   `lib/app/*` seam (the sunrise#462 module-split shape, for a registry that fix did
   not cover), the connection-sweep job independently deletes Obsiddy schedules whose
-  `createdBy` is null. Relatedly, `inputTemplate` carries `{ userId }` and never an
-  email address: the address is resolved at send time from the row erasure deletes.
+  `createdBy` is null. Relatedly, `inputTemplate` is stored empty: it carries no
+  email address — the address is resolved at send time from the row erasure deletes
+  — and no `userId` either, because the template becomes the execution's `inputData`
+  and a step declaring no `args` receives it, which a `.strict()` capability schema
+  rejects. The owner travels on `execution.userId`, stamped from `createdBy`.
 
 - **`obsiddy_notify` cannot be made to send arbitrary mail.** It takes a
   closed-set notification name and an optional integer — no recipient, no subject,
   no body — and every word a recipient reads is rendered server-side. A free-text
   notifier bound to an agent would be an exfiltration channel for the brain and a
   phishing primitive sent from the product's own address.
-
-
-### Security
 
 - **`isRootRelativePath()` / `safeCallbackUrl()` no longer pass a tab, LF or CR
   hidden inside a redirect path.** The guard judged `path[1]` on the raw string,
