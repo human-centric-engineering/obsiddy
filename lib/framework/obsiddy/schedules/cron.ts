@@ -78,7 +78,7 @@ export function offsetMinutes(timeZone: string, at: Date): number {
  *
  * The rollover matters for the weekly and monthly schedules: 16:00 on Friday in
  * Auckland is 03:00 UTC on Friday, but 09:00 on the 1st in Los Angeles is 16:00
- * UTC on the **same** day while 23:00 in Tokyo is 14:00 UTC on the day before.
+ * UTC on the **same** day while 05:00 in Tokyo is 20:00 UTC on the day before.
  * Getting the day wrong turns a Friday review into a Thursday one.
  */
 export function toUtcTime(

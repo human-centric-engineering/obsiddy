@@ -12,10 +12,16 @@
  * again. `plan.md` §7 refused `logEvent()` personal content for a weaker version
  * of the same problem.
  *
- * So the schedule carries `{ userId }` and the address is looked up here, at the
- * moment it is needed, from the row that erasure actually deletes. If the user
- * is gone, this returns `null` and the notification is skipped — which is the
- * correct behaviour for a schedule that should not have fired at all.
+ * So the schedule carries nothing at all — `inputTemplate` is `{}`, and must
+ * stay that way, because a template becomes the execution's `inputData` and is
+ * forwarded to any step declaring no `args`, where a `.strict()` capability
+ * schema rejects it (`schedules/ensure.ts` clears rows written before that was
+ * understood). The owner is identified by `AiWorkflowSchedule.createdBy`, which
+ * the scheduler stamps onto the execution and the engine passes down as
+ * `CapabilityContext.userId`; the address is looked up here, at the moment it is
+ * needed, from the row that erasure actually deletes. If the user is gone, this
+ * returns `null` and the notification is skipped — which is the correct
+ * behaviour for a schedule that should not have fired at all.
  *
  * ## Why it lives in the repo layer
  *
