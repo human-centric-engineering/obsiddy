@@ -153,4 +153,14 @@ export function registerObsiddyRateLimits(): void {
     tier: 'obsiddy-chat',
     key: 'session-user',
   });
+
+  // Only the regenerate path, deliberately — `GET /obsiddy/briefing` reads a
+  // stored row and should stay as cheap as any other read. Regeneration queues a
+  // workflow run that bills a model call, so it belongs on the same tier as
+  // ideation: the two are the endpoints where a held-down button costs money.
+  registerRateLimitRule({
+    match: /^\/api\/v1\/obsiddy\/briefing\/regenerate(?:\/|$)/,
+    tier: 'obsiddy-ideate',
+    key: 'session-user',
+  });
 }

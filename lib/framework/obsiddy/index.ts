@@ -25,12 +25,21 @@
  * a leaf fork can override or extend them from `initLeafApp()`.
  */
 import { initLeafApp } from '@/lib/app/leaf-bootstrap';
+import { registerObsiddyErasure } from '@/lib/framework/obsiddy/erasure';
 import { logger } from '@/lib/logging';
 
 export async function initObsiddy(): Promise<void> {
-  // Phase 0: nothing to register yet. Later phases wire capabilities, context
-  // contributors, maintenance tasks and schedule assurance in here — each as a
-  // call into an Obsiddy module, never as inline logic in this file.
+  // Capabilities, context contributors and jobs are NOT registered here. Core
+  // re-initialises each of those from its own consumer in the request realm
+  // (`registerBuiltInCapabilities`, `buildContext`, `app-jobs.ts:93`), so they
+  // are wired through their `lib/app/*` seams instead — which is what makes them
+  // survive the instrumentation/route module split (sunrise#462).
+  //
+  // Erasure has no such seam and no lazy re-init: `eraseUser()` reads a plain
+  // module-scope Map. Registering here is therefore best-effort by nature, and
+  // the sweep job carries a safety net that catches whatever this misses. See
+  // `repo/schedules.ts` → `deleteOrphanedObsiddySchedules`.
+  registerObsiddyErasure();
 
   logger.debug('Obsiddy framework tier booted');
 

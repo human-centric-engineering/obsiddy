@@ -80,6 +80,20 @@ model ObsiddySpace {
   /// invisible rather than adjustable.
   connectionStrengthFloor Float?
 
+  /// When the connection sweep last examined this brain — the **across-users**
+  /// cursor for `lib/app/jobs.ts` (phase 7).
+  ///
+  /// `registerAppJob` fires one process-wide callback while `sweepConnections`
+  /// takes an `OwnerScope`, so the job has to choose whose brain to sweep.
+  /// "The first N spaces" would re-sweep the same N for ever — which is exactly
+  /// the bug the sweep's own per-type `sweptAt` cursor exists to prevent,
+  /// reappearing one level up and just as silently. Ordering by this column
+  /// (nulls first) and stamping as it goes makes the rotation cover everyone.
+  ///
+  /// Nullable and unset means "never swept", which sorts first: a brand-new
+  /// brain is picked up on the next tick rather than after everyone else.
+  lastSweptAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -103,6 +117,10 @@ model ObsiddySpace {
   reviews        ObsiddyReview[]
   events         ObsiddyEvent[]
 
+  /// The sweep job's rotation order. Not `[userId, …]` like every other index
+  /// here, because this is the one query in the tier that is deliberately
+  /// **not** owner-scoped: it picks which owner to work on next.
+  @@index([lastSweptAt])
   @@map("framework_obsiddy_space")
 }
 

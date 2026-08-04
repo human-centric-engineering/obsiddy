@@ -16,6 +16,43 @@ release process.
 
 ## [Unreleased]
 
+### Added
+
+- **Obsiddy phase 7 — the background.** Four scheduled workflows
+  (`obsiddy-nightly-triage`, `obsiddy-morning-briefing`, `obsiddy-weekly-review`,
+  `obsiddy-horizon-check`) on per-user `AiWorkflowSchedule` rows created by
+  `ensureObsiddySchedules()`, plus the connection sweep on `registerAppJob`. Three
+  new capabilities (`obsiddy_get_briefing`, `obsiddy_get_briefing_inputs`,
+  `obsiddy_notify`), a sixth agent (`obsiddy-briefer`), `GET /api/v1/obsiddy/briefing`
+  and `POST /api/v1/obsiddy/briefing/regenerate`. `GET /api/v1/obsiddy/today` gains a
+  `briefing` object. New migration `20260804150000_obsiddy_space_sweep_cursor`
+  (`ObsiddySpace.lastSweptAt`).
+
+  Two departures from the plan, both because the step type did not do what was
+  assumed: the briefing's factual half is rendered by a service rather than a
+  `report` step (which renders the *execution trace*, not domain facts), and
+  `workStyle` selection happens in code rather than via a `route` step (which is an
+  LLM classifier, so it would spend a model call guessing a column we can read).
+
+### Security
+
+- **Obsiddy schedules are deleted when their owner is erased.**
+  `AiWorkflowSchedule.createdBy` is `onDelete: SetNull`, so per-user schedules would
+  otherwise outlive the account — enabled, with a live `nextRunAt`, firing for ever
+  against a deleted user. Obsiddy now registers an erasure cleanup hook, and because
+  `eraseUser()` reads a plain module-scope registry without lazily initialising any
+  `lib/app/*` seam (the sunrise#462 module-split shape, for a registry that fix did
+  not cover), the connection-sweep job independently deletes Obsiddy schedules whose
+  `createdBy` is null. Relatedly, `inputTemplate` carries `{ userId }` and never an
+  email address: the address is resolved at send time from the row erasure deletes.
+
+- **`obsiddy_notify` cannot be made to send arbitrary mail.** It takes a
+  closed-set notification name and an optional integer — no recipient, no subject,
+  no body — and every word a recipient reads is rendered server-side. A free-text
+  notifier bound to an agent would be an exfiltration channel for the brain and a
+  phishing primitive sent from the product's own address.
+
+
 ### Security
 
 - **`isRootRelativePath()` / `safeCallbackUrl()` no longer pass a tab, LF or CR

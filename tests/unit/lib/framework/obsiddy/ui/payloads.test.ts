@@ -538,6 +538,16 @@ describe('todayPayloadSchema', () => {
       ],
       unreviewedLinks: { count: 1, items: [makeLink()] },
       latestReview: { id: 'r1', horizon: 'week', title: 'Weekly review', generatedAt: ISO },
+      briefing: {
+        review: {
+          id: 'b1',
+          title: 'Tuesday',
+          body: 'You finished three things.',
+          generatedAt: ISO,
+        },
+        stale: false,
+        ageHours: 6,
+      },
       capacity: {
         weeklyCapacityMinutes: 600,
         plannedMinutesThisWeek: 200,

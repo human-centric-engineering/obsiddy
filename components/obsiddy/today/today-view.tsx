@@ -28,6 +28,7 @@ import * as React from 'react';
 import Link from 'next/link';
 import { AlertTriangle, CalendarClock, Inbox, Link2, Sun } from 'lucide-react';
 
+import { BriefingCard } from '@/components/obsiddy/today/briefing-card';
 import { CapacityMeter } from '@/components/obsiddy/today/capacity-meter';
 import { TaskRow, formatMinutes } from '@/components/obsiddy/today/task-row';
 import { EmptyState } from '@/components/obsiddy/ui/empty-state';
@@ -46,6 +47,13 @@ export function TodayView({ payload }: { payload: TodayPayloadWire }): React.Rea
 
   return (
     <div className="space-y-6">
+      {/* Above the ranked list, below nothing. The briefing leads with what you
+          finished, and §6 is explicit that a planner opening with what is
+          outstanding is a machine for feeling behind — putting it under the task
+          list would undo exactly that. Back-from-snooze still outranks it,
+          because that is something you deliberately deferred to today. */}
+      <BriefingCard initial={payload.briefing} />
+
       {backFromSnooze.length > 0 && (
         <Card className="border-amber-300 dark:border-amber-800">
           <CardHeader className="pb-2">

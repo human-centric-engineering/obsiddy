@@ -32,6 +32,8 @@ export const OBSIDDY_AGENT_SLUGS = {
   strategist: 'obsiddy-strategist',
   /** `kind: 'judge'` — the target of the horizon check's `judge_call` step. */
   judge: 'obsiddy-judge',
+  /** Writes the morning briefing, from inputs already selected for it (phase 7). */
+  briefer: 'obsiddy-briefer',
 } as const;
 
 export type ObsiddyAgentSlug = (typeof OBSIDDY_AGENT_SLUGS)[keyof typeof OBSIDDY_AGENT_SLUGS];

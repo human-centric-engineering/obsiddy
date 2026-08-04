@@ -35,9 +35,12 @@ import {
 import { obsiddyCapabilityHandlers } from '@/lib/framework/obsiddy/capabilities';
 import { capabilityDispatcher } from '@/lib/orchestration/capabilities/dispatcher';
 import {
+  agentBriefingInputsSchema,
   agentCaptureSchema,
   agentFindConnectionsSchema,
+  agentGetBriefingSchema,
   agentListTasksSchema,
+  agentNotifySchema,
   agentPromoteThoughtSchema,
   agentReprioritiseSchema,
   agentSearchSchema,
@@ -103,15 +106,20 @@ const SCHEMA_BY_SLUG: Record<string, z.ZodType> = {
   [OBSIDDY_CAPABILITY_SLUGS.writeReview]: createReviewSchema,
   [OBSIDDY_CAPABILITY_SLUGS.reprioritise]: agentReprioritiseSchema,
   [OBSIDDY_CAPABILITY_SLUGS.ideate]: ideateSchema,
+  [OBSIDDY_CAPABILITY_SLUGS.getBriefing]: agentGetBriefingSchema,
+  [OBSIDDY_CAPABILITY_SLUGS.getBriefingInputs]: agentBriefingInputsSchema,
+  [OBSIDDY_CAPABILITY_SLUGS.notify]: agentNotifySchema,
 };
 
 describe('Obsiddy capability catalogue', () => {
-  it('holds exactly the fourteen capabilities the agent layer promises', () => {
+  it('holds exactly the seventeen capabilities the agent layer promises', () => {
     // Thirteen in plan.md §5, plus `obsiddy_promote_thought`: none of the
     // thirteen could mark a thought as processed, so a nightly triage run left
     // every note looking un-triaged and re-processed the lot the next night.
-    expect(OBSIDDY_CAPABILITIES).toHaveLength(14);
-    expect(Object.values(OBSIDDY_CAPABILITY_SLUGS)).toHaveLength(14);
+    // Phase 7 adds three: the briefing read, its deterministic input-gathering
+    // (which replaced the `route` step §6 specified), and the notifier.
+    expect(OBSIDDY_CAPABILITIES).toHaveLength(17);
+    expect(Object.values(OBSIDDY_CAPABILITY_SLUGS)).toHaveLength(17);
   });
 
   it('uses unique, namespaced slugs', () => {
@@ -186,8 +194,21 @@ describe('Obsiddy capability catalogue', () => {
         OBSIDDY_CAPABILITY_SLUGS.listTasks,
         OBSIDDY_CAPABILITY_SLUGS.findConnections,
         OBSIDDY_CAPABILITY_SLUGS.getSnapshot,
+        OBSIDDY_CAPABILITY_SLUGS.getBriefing,
+        OBSIDDY_CAPABILITY_SLUGS.getBriefingInputs,
       ].sort()
     );
+  });
+
+  /**
+   * `obsiddy_notify` is the one phase-7 capability that must stay out of the
+   * idempotent set, and for a reason the others do not share: `isIdempotent`
+   * lets the dispatcher serve a cached result, and a cached "sent: true" is an
+   * email that never went. Unlike a stale read, the failure is invisible — the
+   * workflow reports success and nobody is told anything.
+   */
+  it('never marks the notifier idempotent — a cached send is an email nobody got', () => {
+    expect(obsiddyCapabilitySpec(OBSIDDY_CAPABILITY_SLUGS.notify).isIdempotent).toBe(false);
   });
 
   /**
