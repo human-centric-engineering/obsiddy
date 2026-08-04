@@ -54,13 +54,23 @@ export interface SpaceDueSweep {
  * out of an import cycle. One extra column on a query already being made is the
  * cheapest way to honour that; the alternative is a second read per brain.
  *
- * `NULLS FIRST` is Postgres's default for `ASC`, and it is the behaviour we
- * want: a never-swept brain is the most overdue one there is.
+ * **`nulls: 'first'` is not optional, and omitting it inverts the whole
+ * rotation.** Postgres sorts nulls as *larger* than any non-null value, so plain
+ * `ASC` means `NULLS LAST` — a never-swept brain would sort behind every swept
+ * one. The failure is not a slow rotation but a stalled one: every row starts
+ * null, the first tick stamps a batch, and from the second tick those stamped
+ * rows sort ahead of all the nulls and are returned again for ever, while no
+ * brain that has never been swept is ever reached. That is exactly the
+ * "re-examine the same N and leave the rest unreachable" bug this cursor exists
+ * to prevent, one level up — and the tier's own per-type cursor
+ * (`repo/embeddings.ts`) already spells the option out for the same reason.
+ *
+ * A never-swept brain is the most overdue one there is, so it must sort first.
  */
 export async function listSpacesDueSweep(limit: number): Promise<SpaceDueSweep[]> {
   return prisma.obsiddySpace.findMany({
     select: { userId: true, timezone: true },
-    orderBy: { lastSweptAt: 'asc' },
+    orderBy: { lastSweptAt: { sort: 'asc', nulls: 'first' } },
     take: limit,
   });
 }
