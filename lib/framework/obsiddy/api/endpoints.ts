@@ -38,6 +38,14 @@ export const OBSIDDY_API = {
    */
   CHAT_STREAM: '/api/v1/obsiddy/chat/stream',
 
+  /**
+   * The stored morning briefing. **Never generates** — the nightly workflow
+   * writes it and this serves the row, so the button is instant (§6).
+   */
+  BRIEFING: '/api/v1/obsiddy/briefing',
+  /** Queue a fresh briefing. For a failed overnight run, or "surprise me today". */
+  BRIEFING_REGENERATE: '/api/v1/obsiddy/briefing/regenerate',
+
   /** Generated artefacts — reviews, briefings, digests. Append-only. */
   REVIEWS: '/api/v1/obsiddy/reviews',
   reviewById: (id: string): string => `/api/v1/obsiddy/reviews/${id}`,

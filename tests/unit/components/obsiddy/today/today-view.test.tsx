@@ -94,6 +94,9 @@ function payload(overrides: Partial<TodayPayloadWire> = {}): TodayPayloadWire {
     goalsAtRisk: [],
     unreviewedLinks: { count: 0, items: [] },
     latestReview: null,
+    // No briefing by default — a brand-new brain before its first overnight run,
+    // which is the state most of these cases are describing.
+    briefing: { review: null, stale: true, ageHours: null },
     capacity: {
       weeklyCapacityMinutes: 2400,
       plannedMinutesThisWeek: 600,

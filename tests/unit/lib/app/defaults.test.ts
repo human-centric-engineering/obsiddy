@@ -25,8 +25,9 @@
  *
  * FORK NOTE (Obsiddy): this fork fills nine of these seams — `eslint.config.mjs`
  * (spreads the framework tier), `bootstrap.ts` (boots Obsiddy), `rate-limit.ts`
- * (six per-flow sub-caps), `capabilities.ts` (the fourteen agent tools),
+ * (seven per-flow sub-caps), `capabilities.ts` (the seventeen agent tools),
  * `context-contributors.ts` (the per-turn `obsiddy` context block),
+ * `jobs.ts` (the connection sweep),
  * `admin-nav.ts` (the Obsiddy section), `protected-routes.ts` (`/obsiddy`),
  * `protected-nav.ts` and `auth-landing.ts`.
  * Each row below is pinned rather than deleted, so a stray addition to a filled
@@ -122,6 +123,7 @@ const SEAM_DEFAULTS: SeamDefault[] = [
         String(/^\/api\/v1\/obsiddy\/documents(?:\/|$)/),
         String(/^\/api\/v1\/obsiddy\/ideate(?:\/|$)/),
         String(/^\/api\/v1\/obsiddy\/chat(?:\/|$)/),
+        String(/^\/api\/v1\/obsiddy\/briefing\/regenerate(?:\/|$)/),
       ]);
 
       // Every Obsiddy rule is keyed on the session user, not the IP: this is
@@ -301,10 +303,16 @@ const SEAM_DEFAULTS: SeamDefault[] = [
   {
     seam: 'lib/app/jobs.ts',
     risk: 'a stray job would run on every install\u2019s maintenance tick',
+    // FORK (Obsiddy): Sunrise asserts this is empty. Obsiddy fills it with the
+    // connection sweep — a continuous per-user pass over stored vectors, which
+    // is the shape `registerAppJob({ intervalMs })` was argued for upstream
+    // (#469) and the shape a cron row fits badly. The other four Obsiddy
+    // workflows are calendar events and stay on `AiWorkflowSchedule`.
+    // Pinning the exact set keeps the original intent: a stray job still fails.
     assert: () => {
       __resetAppJobsForTests();
       // getAppJobs() triggers the lazy init, so this exercises the REAL seam.
-      expect(getAppJobs()).toEqual([]);
+      expect(getAppJobs().map((job) => job.name)).toEqual(['obsiddy:connection-sweep']);
     },
   },
   {

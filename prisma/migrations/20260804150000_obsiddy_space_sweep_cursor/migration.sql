@@ -1,0 +1,41 @@
+-- Obsiddy phase 7 — the across-users cursor for the connection sweep job.
+--
+-- ⚠️ HAND-EDITED. Do not regenerate. ⚠️
+--
+-- `prisma migrate diff` emits the usual destructive statements around every real
+-- change to this schema: the B1 cascade FK on framework_obsiddy_space, baseline
+-- indexes A2–A4, Obsiddy's B3/B5/B7, and three
+-- `ALTER COLUMN "searchVector" DROP DEFAULT` on GENERATED columns. All removed —
+-- see 20260729212556's header for the full list and the reasoning. `db:drift-check`
+-- is what proves none of them actually went missing.
+--
+-- WHY THIS EXISTS
+--
+-- Phase 7 moves the connection sweep from a cron schedule onto `registerAppJob`
+-- (upstream #469), because it is a continuous per-user pass rather than a
+-- calendar event. That move needs one thing the sweep does not already have.
+--
+-- `registerAppJob` fires **one process-wide callback**, while
+-- `sweepConnections` takes an `OwnerScope` — so the job has to decide whose
+-- brain to sweep on this tick. Sweeping everyone is unbounded work inside a
+-- 60-second budget; sweeping "the first N" re-sweeps the same N for ever.
+--
+-- That second failure is worth naming precisely, because the codebase has met it
+-- before: it is exactly the bug the sweep's own per-type `sweptAt` cursor was
+-- added to fix (candidates ordered most-recently-embedded first re-examined the
+-- same 200 rows every run, leaving a 900-project corpus 78% unreachable while
+-- the log said only that it had stopped early). Without a cursor across *users*,
+-- the identical bug reappears one level up, and just as silently: user #1 gets
+-- swept nightly for ever and user #40 never gets swept at all.
+--
+-- NULLABLE ON PURPOSE, and it sorts first. An unset value means "never swept",
+-- and `ORDER BY "lastSweptAt" ASC NULLS FIRST` therefore picks up a brand-new
+-- brain on the next tick rather than behind everyone else's rotation.
+--
+-- The index is deliberately NOT led by "userId", unlike every other index in
+-- this schema. This is the one query in the tier that is not owner-scoped —
+-- its entire job is choosing which owner comes next.
+
+ALTER TABLE "framework_obsiddy_space" ADD COLUMN "lastSweptAt" TIMESTAMP(3);
+
+CREATE INDEX "framework_obsiddy_space_lastSweptAt_idx" ON "framework_obsiddy_space"("lastSweptAt");

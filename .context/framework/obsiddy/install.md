@@ -14,12 +14,13 @@ step ever needs you to edit a Sunrise-owned file, that is a bug in Obsiddy —
 open an issue rather than making the edit, because you'd be re-making it on
 every upgrade.
 
-> **Status: phases 0–6c.** The tier scaffold, the data model, the CRUD API, the
+> **Status: phases 0–7.** The tier scaffold, the data model, the CRUD API, the
 > priority engine, the semantic layer (search, indexing, connections, document
-> ingestion), the UI (thirteen surfaces including the kanban board and chat) and
-> the agent layer (fourteen capabilities, five agents, four seeds, the per-turn
-> context block and the app-owned chat route) exist — §§1–6 are real and
-> installable today. Steps still marked _(phase N)_ are listed so the
+> ingestion), the UI (thirteen surfaces including the kanban board and chat),
+> the agent layer (seventeen capabilities, six agents, five seeds, the per-turn
+> context block and the app-owned chat route) and the background (four scheduled
+> workflows, the connection sweep as an app job, the morning briefing and the
+> erasure hook) exist — §§1–7 are real and installable today. Steps still marked _(phase N)_ are listed so the
 > checklist grows in place rather than being reconstructed later. This file is
 > updated by every phase.
 >
@@ -48,19 +49,19 @@ _(phase 5)_ and `@dnd-kit/core` + `@dnd-kit/sortable` _(phase 5b)_.
 Every one lives under a path Sunrise reserves and never writes to, so they
 merge cleanly on upgrade:
 
-| Copy                                     | To                                                                        |
-| ---------------------------------------- | ------------------------------------------------------------------------- |
-| `lib/framework/obsiddy/**`               | same path                                                                 |
-| `lib/framework/eslint.config.mjs`        | same path — **merge** if your project already runs another framework tier |
-| `prisma/schema/framework-obsiddy.prisma` | same path                                                                 |
-| `prisma/seeds/framework-obsiddy/**`      | same path — four units: capabilities, profile, agents, bindings           |
-| `.context/framework/obsiddy/**`          | same path                                                                 |
-| `app/api/v1/obsiddy/**`                  | same path — 56 route files, most of them 2 lines                          |
-| `app/api/v1/admin/obsiddy/**`            | same path — the instance-settings pair                                    |
-| `app/admin/obsiddy/**`                   | same path — the settings page                                             |
-| `app/(protected)/obsiddy/**`             | same path — 17 pages across thirteen surfaces                             |
-| `scripts/framework/obsiddy/**`           | same path — plus one `package.json` script line, below                    |
-| `components/obsiddy/**`                  | same path — the surfaces, the board, and the admin settings form          |
+| Copy                                     | To                                                                         |
+| ---------------------------------------- | -------------------------------------------------------------------------- |
+| `lib/framework/obsiddy/**`               | same path                                                                  |
+| `lib/framework/eslint.config.mjs`        | same path — **merge** if your project already runs another framework tier  |
+| `prisma/schema/framework-obsiddy.prisma` | same path                                                                  |
+| `prisma/seeds/framework-obsiddy/**`      | same path — five units: capabilities, profile, agents, bindings, workflows |
+| `.context/framework/obsiddy/**`          | same path                                                                  |
+| `app/api/v1/obsiddy/**`                  | same path — 56 route files, most of them 2 lines                           |
+| `app/api/v1/admin/obsiddy/**`            | same path — the instance-settings pair                                     |
+| `app/admin/obsiddy/**`                   | same path — the settings page                                              |
+| `app/(protected)/obsiddy/**`             | same path — 17 pages across thirteen surfaces                              |
+| `scripts/framework/obsiddy/**`           | same path — plus one `package.json` script line, below                     |
+| `components/obsiddy/**`                  | same path — the surfaces, the board, and the admin settings form           |
 
 **The `package.json` lines.** The smoke scripts need entries, and
 `package.json` is the single file Obsiddy cannot avoid touching — npm has no
@@ -293,16 +294,33 @@ answer. If you write your own contributor for a different type, copy that rule.
 
 ### 2.10 Recurring jobs — `lib/app/jobs.ts` _(phase 7)_
 
-The connection sweep and the retention pass register here, via the seam Sunrise
-landed for [#469] on 2026-07-31:
+The connection sweep registers here (the retention pass joins it in phase 8),
+via the seam Sunrise landed for [#469] on 2026-07-31. One import, one call:
 
 ```ts
-import { registerAppJob } from '@/lib/orchestration/maintenance/app-jobs';
+import { registerObsiddyJobs } from '@/lib/framework/obsiddy/jobs';
 
 export function initAppJobs(): void {
-  registerAppJob({ name: 'obsiddy:sweep', intervalMs: 60 * 60 * 1000, run: … });
+  registerObsiddyJobs();
 }
 ```
+
+**Why the sweep is a job and the other four are schedules.** Obsiddy's nightly
+triage, morning briefing, weekly review and horizon check are calendar events —
+"9am on the 2nd", "Friday at 16:00" — and live on per-user `AiWorkflowSchedule`
+rows created by `ensureObsiddySchedules()`. The connection sweep is a continuous
+per-user pass with its own rotation cursor, which a cron field expresses badly.
+
+**The sweep's rotation also carries the schedule pass**, and that is not
+incidental. `ensureObsiddySchedules()` is idempotent and self-correcting, but
+`ensureObsiddySpace` only calls it when a space is _created_ — so without a
+second call site it never runs twice for anybody, and both corrections it exists
+to make (a cron that no longer matches the user's UTC offset after a DST change;
+an `inputTemplate` written by an older version, which fails its workflow on every
+run) would be unreachable. Running it once per brain per rotation is what lets a
+fix to schedule-writing reach rows that already exist — in your install, not just
+the one where the bug was found. If you register these jobs, you get that; if you
+skip `lib/app/jobs.ts` entirely, be aware that you are also skipping it.
 
 Note it is `registerAppJob({ name, intervalMs, run })` and not the
 `registerAppMaintenanceTask` name `plan.md` originally proposed — the plan named
@@ -317,7 +335,40 @@ with `SKIP LOCKED` and stamp `nextSyncAt` before working, which is what makes
 that safe). A job still in flight is skipped rather than started twice; a throw
 is contained and folded into the tick's summary.
 
+**The sweep also carries a cleanup that is not really a sweep.** It deletes
+Obsiddy schedules whose owner has been erased. That belongs to the erasure hook
+(§2.13) and is duplicated here on purpose — see that section for why the hook
+alone cannot be relied on.
+
 [#469]: https://github.com/human-centric-engineering/sunrise/issues/469
+
+### 2.13 Erasure — automatic, but read this _(phase 7)_
+
+Obsiddy registers its own erasure cleanup hook from `initObsiddy()`, so there is
+**nothing to wire**. It is documented because of what it cleans up and why it
+cannot be fully trusted.
+
+Every `framework_obsiddy_*` table hangs off `ObsiddySpace`, whose FK to `"user"`
+is `ON DELETE CASCADE` — deleting the user deletes the brain, with no app code
+involved. Phase 7 is the first time Obsiddy writes to a table it does not own:
+`AiWorkflowSchedule`, whose `createdBy` is **`onDelete: SetNull`**. Those rows
+therefore outlive the account, enabled and with a live `nextRunAt`, unless
+something deletes them.
+
+**The hook that deletes them may not be registered when erasure runs.**
+`registerErasureCleanupHook` writes into a plain module-scope `Map`, and
+`eraseUser()` reads it without lazily initialising any `lib/app/*` seam first —
+unlike capabilities, context contributors and jobs, each of which core
+re-initialises in the consuming realm. That is the same instrumentation/route
+module split as [sunrise#462], for a registry that was not in its sweep.
+
+So the sweep job (§2.10) also deletes Obsiddy schedules whose `createdBy` is
+`null`. A null owner on an Obsiddy schedule can only mean the FK was nulled by
+the cascade, so it is an unambiguous tombstone. **Both paths are deliberate**: the
+hook is correct and immediate when it fires, and the job catches the case where
+it did not — including schedules orphaned before this code existed.
+
+[sunrise#462]: https://github.com/human-centric-engineering/sunrise/issues/462
 
 ### 2.11 Nav — `lib/app/protected-nav.ts` _(phase 5, **required now**)_
 
@@ -451,7 +502,7 @@ reach. They are idempotent, keyed on slug, and re-runnable.
 
 | Seed                     | Writes                                                                                                          |
 | ------------------------ | --------------------------------------------------------------------------------------------------------------- |
-| `001-capabilities`       | 13 `AiCapability` rows, written **from the code catalogue** so a row cannot drift from its handler              |
+| `001-capabilities`       | 14 `AiCapability` rows, written **from the code catalogue** so a row cannot drift from its handler              |
 | `002-agent-profile`      | The `obsiddy-core` `AiAgentProfile` — the persona, guardrails and voice all five agents inherit                 |
 | `003-agents`             | 5 `AiAgent` rows: companion, triage, connector, strategist, and the `kind: 'judge'` one a `judge_call` resolves |
 | `004-agent-capabilities` | The bindings. This table is where "the triage agent must not create projects" stops being advice                |
@@ -659,8 +710,18 @@ own import statements.
 
 ## 7. Extending Obsiddy
 
-`lib/app/obsiddy.ts` _(phase 6)_ is Obsiddy-owned but **host-editable** — the
-place to register extra capabilities on the Obsiddy agents, add board column
-presets, contribute swimlane dimensions, extend the priority weights, or add
-entity kinds. Reach for it before forking Obsiddy; if what you need isn't
-exposed there, that's the gap worth reporting.
+**`lib/app/obsiddy.ts` does not exist yet.** `plan.md` §2 specifies it — an
+Obsiddy-owned but host-editable file where a project registers extra
+capabilities on the Obsiddy agents, adds board column presets, contributes
+swimlane dimensions, extends the priority weights or adds entity kinds — and
+this section previously described it as though phase 6 had delivered it. It did
+not, and nothing imports it. Said plainly here because a host project that goes
+looking for the file is the person the error costs.
+
+Until it lands, a host extends Obsiddy through Sunrise's own seams rather than
+an Obsiddy-specific one: `lib/app/capabilities.ts` registers a capability, and
+binding it to an Obsiddy agent is a seed-level row (see §2.8). The tier's own
+tables and services are not extensible from outside without editing
+`lib/framework/obsiddy/**`, which is the fork this seam exists to prevent — so
+if you need a tweak that neither route reaches, that is the gap worth
+reporting, and it is worth reporting loudly.

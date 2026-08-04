@@ -34,6 +34,17 @@
  *
  * Full guide: CUSTOMIZATION.md §4 · .context/orchestration/scheduling.md
  */
+import { registerObsiddyJobs } from '@/lib/framework/obsiddy/jobs';
+
 export function initAppJobs(): void {
-  // No app jobs by default.
+  // Obsiddy's connection sweep — a continuous per-user pass over stored vectors,
+  // which is why it rides the tick rather than a cron row (the other four
+  // Obsiddy workflows are genuine calendar events and stay on `AiWorkflowSchedule`).
+  //
+  // Static import on purpose, like `lib/app/capabilities.ts` and
+  // `lib/app/context-contributors.ts`: core calls this lazily from
+  // `app-jobs.ts`, where there is nowhere to await, and this repo IS the Obsiddy
+  // tier so the path always resolves. A host project adds the same two lines;
+  // see `.context/framework/obsiddy/install.md`.
+  registerObsiddyJobs();
 }

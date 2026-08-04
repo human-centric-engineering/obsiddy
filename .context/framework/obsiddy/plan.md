@@ -103,6 +103,8 @@ A framework tier owns `/framework` and **re-exposes `/app` to its leaf forks**. 
 
 `lib/app/obsiddy.ts` (Obsiddy-owned, host-editable) — register extra capabilities on the Obsiddy agents, add board column presets, contribute swimlane dimensions, extend the priority weights, add entity kinds. Without this, the first host project that wants a tweak forks Obsiddy and portability dies at install #2.
 
+> **Status, 2026-08-04: not built.** Phases 0–7 shipped without it, and `install.md` §7 described it as delivered until this was noticed. It remains specified rather than dropped — the argument above is unchanged, and the longer it is absent the more likely the first host project proves it right the expensive way.
+
 ### Install guide
 
 `.context/framework/obsiddy/install.md` is a deliverable, not documentation debt: the migration to apply, the seed directory to copy, the one-line-per-seam registrations, the env vars, the optional robots.txt line, and the `npm run db:drift-check` verification. **Phase 0 writes it; every later phase keeps it current.** A portable module that can't be installed from a checklist isn't portable.
@@ -270,17 +272,25 @@ Contents, in order, each section truncated: today's date + timezone + week numbe
 
 ## 6. Background intelligence
 
-Workflows seeded as `AiWorkflow` rows + `createInitialVersion`, following `prisma/seeds/004-builtin-templates.ts`. Schedules are **per-user rows** created by `ensureObsiddySchedules(userId)` when a `ObsiddySpace` is first created.
+Workflows seeded as `AiWorkflow` rows + `createInitialVersion`, following `prisma/seeds/004-builtin-templates.ts`. Schedules are **per-user rows** created by `ensureObsiddySchedules(userId)` when a `ObsiddySpace` is first created, and re-run for every existing space as the sweep job's rotation reaches it — which is what makes the pass's self-correction (DST drift, a stale `inputTemplate`) actually happen rather than merely be possible.
 
-**The userId mechanism (verified):** `processDueSchedules` stamps `execution.userId = schedule.createdBy` (`scheduler.ts:314`), and the engine threads that into `CapabilityContext.userId` (`executors/tool-call.ts:102`). So one schedule row per user with `createdBy = userId` is exactly how a background workflow acts on the right person's data, with no userId ever in an LLM-visible argument.
+**The userId mechanism (verified):** `processDueSchedules` stamps `execution.userId = schedule.createdBy` (`scheduler.ts:335` after the 2026-07-31 merge; `:314` before it), and the engine threads that into `CapabilityContext.userId` (`executors/tool-call.ts:102`). So one schedule row per user with `createdBy = userId` is exactly how a background workflow acts on the right person's data, with no userId ever in an LLM-visible argument.
+
+**A per-user schedule row outlives the user, and that is phase 7's one privacy defect to close.** `AiWorkflowSchedule.createdBy` is `onDelete: SetNull`, so after `eraseUser()` a deleted person's rows survive `isEnabled: true` with a live `nextRunAt`. Two rules follow: `inputTemplate` is **empty** — no email address, and in the event not the userId either, since it would be forwarded to a `.strict()` capability as `inputData` and fail the run; resolve the address at send time inside the tier — and phase 7 registers the tier's **first `registerErasureCleanupHook`** to delete the rows. Every Obsiddy table to date cascades off `ObsiddySpace`, which is why none has been needed before now.
 
 | Workflow                    | Cron         | Steps                                                                                                                        |
 | --------------------------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------- |
 | `obsiddy-nightly-triage`    | `15 3 * * *` | reindex → `agent_call obsiddy-triage` → `obsiddy_reprioritise` → daily review → **pre-compute tomorrow's briefing** → notify |
-| `obsiddy-connection-finder` | `0 4 * * 0`  | deterministic sweep (free) → **`orchestrator`** → connections review → notify                                                |
+| `obsiddy-connection-finder` | **app job**  | deterministic sweep (free) → **`orchestrator`** → connections review → notify. **Not a cron row** — see below                |
 | `obsiddy-weekly-review`     | `0 16 * * 5` | snapshot → `llm_call` (moved / stalled / at risk vs month+quarter goals) → `reflect` → review → notify                       |
-| `obsiddy-horizon-check`     | `0 9 1 * *`  | snapshot → `llm_call` → `judge_call` scoring each goal 0–1 on evidenced activity → `guard` flags < 0.3 → month review        |
+| `obsiddy-horizon-check`     | `0 9 2 * *`  | snapshot → `llm_call` → `judge_call` scoring each goal 0–1 on evidenced activity → `guard` flags < 0.3 → month review        |
 | `obsiddy-capture-intake`    | inbound      | `obsiddy_capture_for_token` → `agent_call obsiddy-triage` single-thought mode                                                |
+
+The horizon check runs on the **2nd**, not the 1st, and that is a correction rather than a preference. The offset is folded into a fixed cron expression, so a local hour that rolls back a day has to move the day-of-month too — and "the 1st, moved back" is the last day of a month whose length varies, which no fixed expression can name. Starting on the 2nd leaves room to move in both directions. A monthly goals review does not care which of the first two days it lands on; it does care about firing a day later than it says it does, which is what the 1st silently did for every zone from +09:30 east. `schedules/cron.ts` carries the arithmetic.
+
+**Four of the five are calendar events; the connection finder is not.** "9am on the 2nd" and "Friday at 16:00" are exactly what a cron row expresses, and they have to resolve in the user's timezone. The connection sweep is a continuous per-user pass over stored vectors with its own rotation cursor — the shape ask #1 argued for `registerAppJob({ intervalMs })` and the shape a cron field fits badly. It moves to `lib/app/jobs.ts`.
+
+That move is not a relocation. `registerAppJob` fires **one process-wide callback** while `sweepConnections` takes an `OwnerScope`, so the job must choose whose brain to sweep — and "the first N spaces" re-sweeps the same N for ever, which is the bug the per-type cursor already exists to prevent, reappearing one level up. The job therefore pages through spaces oldest-swept-first in small batches, which needs a `lastSweptAt` cursor on `ObsiddySpace` (phase 7's one migration) and a paged listing in `repo/space.ts`, which has no enumeration function today.
 
 ### Morning briefing — the one on-demand workflow
 
@@ -310,17 +320,19 @@ The rule that makes this real: **`workStyle` changes what data the briefing sele
 
 `obsiddy-morning-briefing` — chained off the nightly run, and re-runnable on demand:
 
-1. `tool_call obsiddy_get_snapshot`
-2. **`report`** — the factual half rendered deterministically, **no LLM**: completed counts and titles, overdue list, capacity remaining, WIP state (§7)
-3. **`route`** on `workStyle` → three branches
-4. `llm_call` per branch — different prompt _and_ different input selection, per the table above
-5. `tool_call obsiddy_write_review{ horizon: 'briefing' }`
+1. `tool_call obsiddy_get_briefing_inputs` — reads `workStyle` server-side, applies the selection table above, returns the selected data plus the deterministic factual half
+2. `llm_call` — one call, prompt chosen by the returned prompt key
+3. `tool_call obsiddy_write_review{ horizon: 'briefing' }`
 
-Seeded agent **`obsiddy-briefer`** (temp 0.3 structured / 0.7 exploratory via the branch), sharing the `obsiddy-core` profile. Its voice brief matters: short, concrete, no preamble, no motivational filler. Plain English, actions you could start in the next ten minutes.
+> **Corrected 2026-08-04, against the executor source.** This section previously specified five steps: `report` for the factual half and `route` on `workStyle` for a three-way branch. Neither step type does what was assumed. **`report`** renders the workflow's own execution trace via `renderExecutionMarkdown` — steps, tokens, cost, supervisor verdict — so pointed at a briefing it describes the briefing's own machinery. **`route`** is an LLM classifier: branching on `workStyle` through it spends a model call to read a `VarChar(16)` already in the row, and can return the wrong one. The factual half is therefore a service (`services/briefing-facts.ts`) called by the capability, and the branch is deleted in favour of server-side selection. See [`phase-7-plan.md`](./phase-7-plan.md) §1.
+
+Seeded agent **`obsiddy-briefer`** (temp 0.3 structured / 0.7 exploratory, set per prompt key rather than per branch), sharing the `obsiddy-core` profile. Its voice brief matters: short, concrete, no preamble, no motivational filler. Plain English, actions you could start in the next ten minutes.
 
 Routes: `GET /obsiddy/briefing` (today's, instant) and `POST /obsiddy/briefing/regenerate` (`{ workStyleOverride? }`). Capability `obsiddy_get_briefing` so it's reachable from chat and MCP — _"what's my briefing?"_ from Claude Code is exactly the frictionless path §7 is chasing.
 
-Because `report` carries the factual half for free, the daily LLM cost is one small call — roughly **£0.30–0.90/month** depending on model.
+Because the facts are rendered deterministically in the tier, the daily LLM cost is one small call — roughly **£0.30–0.90/month** depending on model. The correction above changes the mechanism, not the price.
+
+**The notification links to the briefing; it does not contain it.** `emails/workflow-notification.tsx` renders its `body` as plain text (newlines survive, Markdown does not), but the deciding reason is that mailing the whole briefing copies goals, project names and overdue task titles into an inbox — durably, unrevocably, outside every guarantee the rest of the tier makes. A sentence and a link cost nothing.
 
 `orchestrator` config: `availableAgentSlugs: ['obsiddy-connector','obsiddy-strategist']`, `maxRounds: 3`, `maxDelegationsPerRound: 3`, `budgetLimitUsd: 0.50`, `timeoutMs: 180000`, planner prompt instructing it to **reject connections that are merely topically similar but carry no action implication**. Also set `AiWorkflow.maxCostPerExecutionUsd` on every workflow — the step budget only caps the orchestrator step.
 
@@ -520,7 +532,7 @@ Also: **`lib/orchestration/review-schema/`** defines a declarative schema for re
 
 ## 8. Capture channels
 
-**Web quick-capture** — `components/obsiddy/quick-capture.tsx`, ⌘/Ctrl+Enter, draft persisted via `lib/hooks/use-local-storage.ts` so a reload never loses a thought. Mounted in `app/(protected)/obsiddy/layout.tsx`.
+**Web quick-capture** — `components/obsiddy/layout/quick-capture.tsx`, ⌘/Ctrl+Enter, draft persisted via `lib/hooks/use-local-storage.ts` so a reload never loses a thought. Mounted in `app/(protected)/obsiddy/layout.tsx`.
 
 **PWA** — the repo has **no manifest and no icons** (`public/` is just favicons). Add `app/manifest.ts` (`start_url: '/obsiddy'`, `display: 'standalone'`, 192/512 + maskable icons), a **`method: 'GET'`** `share_target` → `/obsiddy/capture` (a POST target needs a service-worker fetch interceptor; GET gets Android's share sheet working with zero SW), `shortcuts`, and `appleWebApp` metadata for iOS. CSP is already fine (`worker-src 'self' blob:`, `default-src 'self'`).
 
@@ -558,9 +570,11 @@ Two things that decide whether it feels good: **optimistic reordering** (move th
 
 Node colour by `entityType`, edge thickness by `ObsiddyLink.strength`, dashed edges for `status: 'suggested'` so proposals read as provisional. Clicking a node re-centres the query rather than re-laying-out the whole graph. Archived items are excluded (their embeddings are gone anyway, §11).
 
-**Missing primitives — build fork-owned, don't add deps:** no generic data-table (copy `components/admin/user-table.tsx` into `components/obsiddy/task-table.tsx`); no toast (build `save-status.tsx`, an inline `aria-live="polite"` status); no skeleton (`animate-pulse` divs); no progress (div + `role="progressbar"`); no radio-group (use `Select`).
+**Missing primitives — build fork-owned, don't add deps:** no generic data-table; no toast (build `save-status.tsx`, an inline `aria-live="polite"` status); no skeleton (`animate-pulse` divs); no progress (div + `role="progressbar"`); no radio-group (use `Select`).
 
-**Chat page** — `components/admin/orchestration/chat/chat-interface.tsx` is hardcoded to the admin endpoint. **Copy it** to `components/obsiddy/obsiddy-chat.tsx` rather than adding an `endpoint` prop to a Sunrise-owned component. Accepted duplication for a clean fork seam.
+> **Correction, 2026-08-04.** The data-table line originally said to copy `components/admin/user-table.tsx` into a fork-owned `components/obsiddy/task-table.tsx`. That was not built and should not be: the surfaces that need tabular layout compose `components/ui/table.tsx` primitives directly, per surface, which is what `ui.md` records. A shared task table would have had to satisfy the board, the inbox and the today list at once, and those disagree about what a row is.
+
+**Chat page** — `components/admin/orchestration/chat/chat-interface.tsx` is hardcoded to the admin endpoint. **Copy it** to `components/obsiddy/chat/obsiddy-chat.tsx` rather than adding an `endpoint` prop to a Sunrise-owned component. Accepted duplication for a clean fork seam.
 
 **Forms** — react-hook-form + Zod, `mode: 'onTouched'`, `<FormError>`, and `<FieldHelp>` ⓘ on every non-trivial field (energy, estimate, defer-until, horizon, target date all qualify — CLAUDE.md requires it). Plain English, concrete actions, no flourishes.
 

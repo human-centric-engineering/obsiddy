@@ -35,6 +35,13 @@ export interface ThoughtFilters {
   source?: string;
   /** Hide thoughts snoozed into the future — they leave the inbox count too. */
   hideSnoozed?: boolean;
+  /**
+   * Captured before this instant. The exploratory briefing's "resurfaced
+   * thought" read (§6): a fragment from months ago that never became anything is
+   * the one most worth putting back in front of someone, and it is exactly what
+   * a `createdAt desc` list can never reach.
+   */
+  capturedBefore?: Date;
 }
 
 export type ThoughtCreateData = WithoutOwner<Prisma.ObsiddyThoughtUncheckedCreateInput>;
@@ -52,6 +59,7 @@ function thoughtWhere(
     ...(filters.hideSnoozed
       ? { OR: [{ snoozedUntil: null }, { snoozedUntil: { lte: new Date() } }] }
       : {}),
+    ...(filters.capturedBefore ? { createdAt: { lt: filters.capturedBefore } } : {}),
   };
 }
 

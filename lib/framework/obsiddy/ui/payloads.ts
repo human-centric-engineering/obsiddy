@@ -113,6 +113,27 @@ export const todayPayloadSchema = z.object({
       generatedAt: isoDate,
     })
     .nullable(),
+  /**
+   * The stored morning briefing. `review` is null before the first overnight
+   * run; `stale` is true whenever it cannot be presented as today's.
+   */
+  briefing: z.object({
+    // `title` and `body` are NOT nullable: both columns are non-null on
+    // `ObsiddyReview`, so a nullable wire type would describe a state the
+    // database cannot produce and invite null-handling nobody can ever exercise.
+    // The nullability that is real lives one level up — `review` itself is null
+    // until the first overnight run.
+    review: z
+      .object({
+        id: z.string(),
+        title: z.string(),
+        body: z.string(),
+        generatedAt: isoDate,
+      })
+      .nullable(),
+    stale: z.boolean(),
+    ageHours: z.number().nullable(),
+  }),
   capacity: z.object({
     weeklyCapacityMinutes: z.number(),
     plannedMinutesThisWeek: z.number(),

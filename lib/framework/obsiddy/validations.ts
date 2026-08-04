@@ -53,6 +53,25 @@ export const ENERGY_LEVELS = ['low', 'medium', 'high'] as const;
 export const TIME_BLOCK_SOURCES = ['plan', 'actual', 'calendar'] as const;
 export const WORK_STYLES = ['structured', 'balanced', 'exploratory'] as const;
 
+/**
+ * The notifications a background workflow may send the owner.
+ *
+ * **A closed set, and that is the security control.** `obsiddy_notify` takes one
+ * of these and nothing else — no recipient, no subject, no body. A capability
+ * that accepted free text would be an agent-operable mail sender: prompt
+ * injection could address the user with attacker-chosen wording, and the brain's
+ * own contents could be exfiltrated a paragraph at a time. Each value maps to a
+ * server-rendered sentence and a link, so the model chooses *whether* to notify
+ * and never *what the notification says*.
+ */
+export const OBSIDDY_NOTIFICATIONS = [
+  'briefing_ready',
+  'daily_review_ready',
+  'weekly_review_ready',
+  'horizon_check_ready',
+  'connections_found',
+] as const;
+
 /** Long-form prose. 100k characters is generous for a note and finite for a body parser. */
 const noteBodySchema = z.string().trim().max(100_000);
 const titleSchema = z.string().trim().min(1, 'Required').max(500);
@@ -1019,6 +1038,54 @@ export type AgentFindConnectionsInput = z.infer<typeof agentFindConnectionsSchem
 export const agentReprioritiseSchema = z.object({}).strict();
 
 export type AgentReprioritiseInput = z.infer<typeof agentReprioritiseSchema>;
+
+// ─── Briefing and notification (phase 7) ─────────────────────────────────────
+
+/**
+ * `obsiddy_get_briefing` — reads the one current briefing, so there is nothing
+ * to ask for. The caller is the scope; the horizon is fixed.
+ */
+export const agentGetBriefingSchema = z.object({}).strict();
+
+export type AgentGetBriefingInput = z.infer<typeof agentGetBriefingSchema>;
+
+/**
+ * `obsiddy_get_briefing_inputs`.
+ *
+ * The override is an **enum**, and that is the whole substance of this schema.
+ * `plan.md` §6 originally had a `route` step ask an LLM to classify the user's
+ * work style — a model call to read a `VarChar(16)` already in the row, with a
+ * chance of returning the wrong one. Constraining the only way that value can be
+ * influenced to three known strings is what makes the deterministic replacement
+ * safe: an unrecognised style is a validation error, not a briefing quietly
+ * written in the wrong shape.
+ */
+export const agentBriefingInputsSchema = z
+  .object({ workStyleOverride: z.enum(WORK_STYLES).optional() })
+  .strict();
+
+export type AgentBriefingInputsInput = z.infer<typeof agentBriefingInputsSchema>;
+
+/**
+ * `obsiddy_notify`.
+ *
+ * **No recipient, no subject, no body — and that is the security control**, not
+ * an ergonomic choice. This is the only capability that can send something out
+ * of the app, so free text here would be an exfiltration channel (a brain
+ * mailed out a paragraph at a time), an impersonation primitive (attacker
+ * wording from the product's own address), and a durable copy of personal
+ * content outside the erasure cascade. The model chooses one of a closed set and
+ * may supply a bare integer; every word a recipient reads is rendered
+ * server-side.
+ */
+export const agentNotifySchema = z
+  .object({
+    notification: z.enum(OBSIDDY_NOTIFICATIONS),
+    count: z.number().int().min(0).max(9999).optional(),
+  })
+  .strict();
+
+export type AgentNotifyInput = z.infer<typeof agentNotifySchema>;
 
 // ─── Chat (phase 6c) ─────────────────────────────────────────────────────────
 

@@ -54,6 +54,10 @@ const BINDINGS: readonly AgentBindings[] = [
       C.findConnections,
       C.getSnapshot,
       C.ideate,
+      // Reading the briefing, not writing one. "What's my briefing?" in chat and
+      // over MCP is the frictionless path §7 is chasing, and it costs nothing:
+      // the row is already written.
+      C.getBriefing,
     ],
   },
   {
@@ -88,6 +92,12 @@ const BINDINGS: readonly AgentBindings[] = [
     rationale:
       'Nothing. A judge is handed its evidence by the workflow step that calls it; a judge that could go and look for more evidence is a judge whose score depends on what it happened to find.',
     capabilities: [],
+  },
+  {
+    agentSlug: OBSIDDY_AGENT_SLUGS.briefer,
+    rationale:
+      'Two rows: gather the inputs, write the artefact. Deliberately not obsiddy_get_snapshot or obsiddy_search — the briefing’s facts are counted deterministically before the model sees them, and an agent that could go and look up its own numbers is one that will eventually report a different total than the block above it. Not obsiddy_notify either: telling someone the briefing is ready is the workflow’s decision, not the writer’s.',
+    capabilities: [C.getBriefingInputs, C.writeReview],
   },
 ];
 

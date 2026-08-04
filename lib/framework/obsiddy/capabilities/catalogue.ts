@@ -1,5 +1,5 @@
 /**
- * The fourteen capability rows, as data.
+ * The seventeen capability rows, as data.
  *
  * **One source of truth for a capability's identity, and it is not the class.**
  * A capability exists in three places at once — a TypeScript handler, an
@@ -30,10 +30,12 @@ import {
   GOAL_HORIZONS,
   GOAL_STATUSES,
   LINK_KINDS,
+  OBSIDDY_NOTIFICATIONS,
   PROJECT_STATUSES,
   REVIEW_HORIZONS,
   SEARCHABLE_ENTITY_TYPES,
   TASK_STATUSES,
+  WORK_STYLES,
 } from '@/lib/framework/obsiddy/validations';
 import type { CapabilityFunctionDefinition } from '@/lib/orchestration/capabilities/types';
 
@@ -42,7 +44,7 @@ import type { CapabilityFunctionDefinition } from '@/lib/orchestration/capabilit
  *
  * Namespaced rather than reusing core's `internal` / `knowledge` so an operator
  * looking at a capability list with a host project's own tools in it can tell at
- * a glance which fourteen reach into someone's brain.
+ * a glance which seventeen reach into someone's brain.
  */
 export const OBSIDDY_CAPABILITY_CATEGORY = 'obsiddy';
 
@@ -62,6 +64,9 @@ export const OBSIDDY_CAPABILITY_SLUGS = {
   writeReview: 'obsiddy_write_review',
   reprioritise: 'obsiddy_reprioritise',
   ideate: 'obsiddy_ideate',
+  getBriefing: 'obsiddy_get_briefing',
+  getBriefingInputs: 'obsiddy_get_briefing_inputs',
+  notify: 'obsiddy_notify',
 } as const;
 
 export type ObsiddyCapabilitySlug =
@@ -553,6 +558,77 @@ export const OBSIDDY_CAPABILITIES: readonly ObsiddyCapabilitySpec[] = [
           },
         },
         required: ['seedType', 'seedId'],
+      },
+    },
+  },
+  {
+    slug: OBSIDDY_CAPABILITY_SLUGS.getBriefing,
+    name: 'Obsiddy — Get the morning briefing',
+    description:
+      'Read the stored morning briefing. Never generates — reports whether the stored one is stale instead.',
+    executionHandler: 'ObsiddyGetBriefingCapability',
+    rateLimit: 30,
+    isIdempotent: true,
+    functionDefinition: {
+      name: OBSIDDY_CAPABILITY_SLUGS.getBriefing,
+      description:
+        "Read the user's most recent morning briefing — what they finished, what is worth doing today. This returns a briefing that was already written overnight; it does not write a new one, and it is instant. If `stale` comes back true the overnight run did not happen, so say the briefing is from an earlier day rather than presenting it as today's.",
+      parameters: { type: 'object', properties: {}, required: [] },
+    },
+  },
+  {
+    slug: OBSIDDY_CAPABILITY_SLUGS.getBriefingInputs,
+    name: 'Obsiddy — Gather briefing inputs',
+    description:
+      'Everything the briefing prompt needs, selected by the user’s work style. Deterministic; makes no model call.',
+    executionHandler: 'ObsiddyGetBriefingInputsCapability',
+    rateLimit: 30,
+    isIdempotent: true,
+    functionDefinition: {
+      name: OBSIDDY_CAPABILITY_SLUGS.getBriefingInputs,
+      description:
+        "Gather the material for writing a morning briefing: the factual half already rendered (completions, overdue, capacity), plus whichever of tasks, connections and a resurfaced older thought the user's work style leads with. Returns a `promptKey` naming which briefing to write. Call this once, then write the briefing from what it returns — do not go looking for more material.",
+      parameters: {
+        type: 'object',
+        properties: {
+          workStyleOverride: {
+            ...stringEnum(WORK_STYLES),
+            description:
+              'Write this run as if the user had a different work style. Only for an explicit "surprise me" request; the stored setting is unchanged.',
+          },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    slug: OBSIDDY_CAPABILITY_SLUGS.notify,
+    name: 'Obsiddy — Tell the owner something is ready',
+    description:
+      'Email the owner a one-line "X is ready" and a link. Fixed wording, fixed recipient — no free text.',
+    executionHandler: 'ObsiddyNotifyCapability',
+    rateLimit: 10,
+    isIdempotent: false,
+    functionDefinition: {
+      name: OBSIDDY_CAPABILITY_SLUGS.notify,
+      description:
+        'Let the owner know that something you produced is ready to read. The message is a fixed sentence and a link chosen by `notification` — you cannot write the wording, choose the recipient, or include any of their content in the email, because email is not a place their notes should end up. Send at most one per workflow run, at the end.',
+      parameters: {
+        type: 'object',
+        properties: {
+          notification: {
+            ...stringEnum(OBSIDDY_NOTIFICATIONS),
+            description: 'Which fixed message to send.',
+          },
+          count: {
+            type: 'integer',
+            minimum: 0,
+            maximum: 9999,
+            description:
+              'A bare number the message may include — how many connections were found, say. Never text.',
+          },
+        },
+        required: ['notification'],
       },
     },
   },

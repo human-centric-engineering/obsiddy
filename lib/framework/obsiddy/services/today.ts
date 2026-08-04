@@ -20,6 +20,7 @@ import { countUnreviewedLinks, listUnreviewedLinks } from '@/lib/framework/obsid
 import type { OwnerScope } from '@/lib/framework/obsiddy/repo/owner-scope';
 import { findProjectsByIds } from '@/lib/framework/obsiddy/repo/projects';
 import { findLatestReview } from '@/lib/framework/obsiddy/repo/reviews';
+import { getStoredBriefing } from '@/lib/framework/obsiddy/services/briefing';
 import { countTasks, listTasks } from '@/lib/framework/obsiddy/repo/tasks';
 import { readFactorFlag } from '@/lib/framework/obsiddy/priority/score';
 import { countThoughts } from '@/lib/framework/obsiddy/repo/thoughts';
@@ -87,6 +88,18 @@ export interface TodayPayload {
   }>;
   unreviewedLinks: { count: number; items: ObsiddyLink[] };
   latestReview: Pick<ObsiddyReview, 'id' | 'horizon' | 'title' | 'generatedAt'> | null;
+  /**
+   * The stored morning briefing, and whether it can be trusted as today's.
+   *
+   * `stale` matters more than the body: a briefing from two days ago rendered
+   * without comment is the dashboard telling a small lie every morning until
+   * somebody notices (§6).
+   */
+  briefing: {
+    review: Pick<ObsiddyReview, 'id' | 'title' | 'body' | 'generatedAt'> | null;
+    stale: boolean;
+    ageHours: number | null;
+  };
   capacity: {
     weeklyCapacityMinutes: number;
     plannedMinutesThisWeek: number;
@@ -116,6 +129,7 @@ export async function buildToday(scope: OwnerScope, now = new Date()): Promise<T
     unreviewedLinkItems,
     latestReview,
     weekMinutes,
+    briefing,
   ] = await Promise.all([
     listTasks(scope, openTaskFilters, { take: TASK_LIMIT }),
     countTasks(scope, openTaskFilters),
@@ -139,6 +153,11 @@ export async function buildToday(scope: OwnerScope, now = new Date()): Promise<T
     listUnreviewedLinks(scope, UNREVIEWED_LINK_LIMIT, now),
     findLatestReview(scope),
     sumMinutesByArea(scope, weekStart, weekEnd),
+    // The briefing rides this read rather than a second page-level fetch, per
+    // `ui.md` rule 1. It costs one indexed lookup and no model call — the
+    // overnight workflow does the writing (§6), and the point of storing it is
+    // that reading it is free.
+    getStoredBriefing(scope, now),
   ]);
 
   // Two batched lookups regardless of how many tasks came back — the whole
@@ -192,6 +211,18 @@ export async function buildToday(scope: OwnerScope, now = new Date()): Promise<T
       status: goal.status,
     })),
     unreviewedLinks: { count: unreviewedLinkCount, items: unreviewedLinkItems },
+    briefing: {
+      review: briefing.review
+        ? {
+            id: briefing.review.id,
+            title: briefing.review.title,
+            body: briefing.review.body,
+            generatedAt: briefing.review.generatedAt,
+          }
+        : null,
+      stale: briefing.stale,
+      ageHours: briefing.ageHours,
+    },
     latestReview: latestReview
       ? {
           id: latestReview.id,
