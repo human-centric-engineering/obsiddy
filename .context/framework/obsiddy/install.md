@@ -710,8 +710,18 @@ own import statements.
 
 ## 7. Extending Obsiddy
 
-`lib/app/obsiddy.ts` _(phase 6)_ is Obsiddy-owned but **host-editable** — the
-place to register extra capabilities on the Obsiddy agents, add board column
-presets, contribute swimlane dimensions, extend the priority weights, or add
-entity kinds. Reach for it before forking Obsiddy; if what you need isn't
-exposed there, that's the gap worth reporting.
+**`lib/app/obsiddy.ts` does not exist yet.** `plan.md` §2 specifies it — an
+Obsiddy-owned but host-editable file where a project registers extra
+capabilities on the Obsiddy agents, adds board column presets, contributes
+swimlane dimensions, extends the priority weights or adds entity kinds — and
+this section previously described it as though phase 6 had delivered it. It did
+not, and nothing imports it. Said plainly here because a host project that goes
+looking for the file is the person the error costs.
+
+Until it lands, a host extends Obsiddy through Sunrise's own seams rather than
+an Obsiddy-specific one: `lib/app/capabilities.ts` registers a capability, and
+binding it to an Obsiddy agent is a seed-level row (see §2.8). The tier's own
+tables and services are not extensible from outside without editing
+`lib/framework/obsiddy/**`, which is the fork this seam exists to prevent — so
+if you need a tweak that neither route reaches, that is the gap worth
+reporting, and it is worth reporting loudly.

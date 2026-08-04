@@ -103,6 +103,8 @@ A framework tier owns `/framework` and **re-exposes `/app` to its leaf forks**. 
 
 `lib/app/obsiddy.ts` (Obsiddy-owned, host-editable) — register extra capabilities on the Obsiddy agents, add board column presets, contribute swimlane dimensions, extend the priority weights, add entity kinds. Without this, the first host project that wants a tweak forks Obsiddy and portability dies at install #2.
 
+> **Status, 2026-08-04: not built.** Phases 0–7 shipped without it, and `install.md` §7 described it as delivered until this was noticed. It remains specified rather than dropped — the argument above is unchanged, and the longer it is absent the more likely the first host project proves it right the expensive way.
+
 ### Install guide
 
 `.context/framework/obsiddy/install.md` is a deliverable, not documentation debt: the migration to apply, the seed directory to copy, the one-line-per-seam registrations, the env vars, the optional robots.txt line, and the `npm run db:drift-check` verification. **Phase 0 writes it; every later phase keeps it current.** A portable module that can't be installed from a checklist isn't portable.
@@ -530,7 +532,7 @@ Also: **`lib/orchestration/review-schema/`** defines a declarative schema for re
 
 ## 8. Capture channels
 
-**Web quick-capture** — `components/obsiddy/quick-capture.tsx`, ⌘/Ctrl+Enter, draft persisted via `lib/hooks/use-local-storage.ts` so a reload never loses a thought. Mounted in `app/(protected)/obsiddy/layout.tsx`.
+**Web quick-capture** — `components/obsiddy/layout/quick-capture.tsx`, ⌘/Ctrl+Enter, draft persisted via `lib/hooks/use-local-storage.ts` so a reload never loses a thought. Mounted in `app/(protected)/obsiddy/layout.tsx`.
 
 **PWA** — the repo has **no manifest and no icons** (`public/` is just favicons). Add `app/manifest.ts` (`start_url: '/obsiddy'`, `display: 'standalone'`, 192/512 + maskable icons), a **`method: 'GET'`** `share_target` → `/obsiddy/capture` (a POST target needs a service-worker fetch interceptor; GET gets Android's share sheet working with zero SW), `shortcuts`, and `appleWebApp` metadata for iOS. CSP is already fine (`worker-src 'self' blob:`, `default-src 'self'`).
 
@@ -568,9 +570,11 @@ Two things that decide whether it feels good: **optimistic reordering** (move th
 
 Node colour by `entityType`, edge thickness by `ObsiddyLink.strength`, dashed edges for `status: 'suggested'` so proposals read as provisional. Clicking a node re-centres the query rather than re-laying-out the whole graph. Archived items are excluded (their embeddings are gone anyway, §11).
 
-**Missing primitives — build fork-owned, don't add deps:** no generic data-table (copy `components/admin/user-table.tsx` into `components/obsiddy/task-table.tsx`); no toast (build `save-status.tsx`, an inline `aria-live="polite"` status); no skeleton (`animate-pulse` divs); no progress (div + `role="progressbar"`); no radio-group (use `Select`).
+**Missing primitives — build fork-owned, don't add deps:** no generic data-table; no toast (build `save-status.tsx`, an inline `aria-live="polite"` status); no skeleton (`animate-pulse` divs); no progress (div + `role="progressbar"`); no radio-group (use `Select`).
 
-**Chat page** — `components/admin/orchestration/chat/chat-interface.tsx` is hardcoded to the admin endpoint. **Copy it** to `components/obsiddy/obsiddy-chat.tsx` rather than adding an `endpoint` prop to a Sunrise-owned component. Accepted duplication for a clean fork seam.
+> **Correction, 2026-08-04.** The data-table line originally said to copy `components/admin/user-table.tsx` into a fork-owned `components/obsiddy/task-table.tsx`. That was not built and should not be: the surfaces that need tabular layout compose `components/ui/table.tsx` primitives directly, per surface, which is what `ui.md` records. A shared task table would have had to satisfy the board, the inbox and the today list at once, and those disagree about what a row is.
+
+**Chat page** — `components/admin/orchestration/chat/chat-interface.tsx` is hardcoded to the admin endpoint. **Copy it** to `components/obsiddy/chat/obsiddy-chat.tsx` rather than adding an `endpoint` prop to a Sunrise-owned component. Accepted duplication for a clean fork seam.
 
 **Forms** — react-hook-form + Zod, `mode: 'onTouched'`, `<FormError>`, and `<FieldHelp>` ⓘ on every non-trivial field (energy, estimate, defer-until, horizon, target date all qualify — CLAUDE.md requires it). Plain English, concrete actions, no flourishes.
 
