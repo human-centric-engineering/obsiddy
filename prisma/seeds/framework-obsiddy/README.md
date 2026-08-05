@@ -9,4 +9,5 @@ subdirectories, so Obsiddy's seeds land after the host's.
 Do **not** renumber these against a host project. See
 [`.context/framework/obsiddy/README.md`](../../../.context/framework/obsiddy/README.md).
 
-First seeds arrive in phase 6 (capabilities, agent profile, agents).
+First seeds arrive in phase 6 (capabilities, agent profile, agents), then
+workflows in phase 7 and MCP exposure plus the triage evaluation dataset in 7b.

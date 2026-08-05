@@ -1,5 +1,5 @@
 /**
- * The seventeen capability rows, as data.
+ * The eighteen capability rows, as data.
  *
  * **One source of truth for a capability's identity, and it is not the class.**
  * A capability exists in three places at once — a TypeScript handler, an
@@ -44,7 +44,7 @@ import type { CapabilityFunctionDefinition } from '@/lib/orchestration/capabilit
  *
  * Namespaced rather than reusing core's `internal` / `knowledge` so an operator
  * looking at a capability list with a host project's own tools in it can tell at
- * a glance which seventeen reach into someone's brain.
+ * a glance which eighteen reach into someone's brain.
  */
 export const OBSIDDY_CAPABILITY_CATEGORY = 'obsiddy';
 

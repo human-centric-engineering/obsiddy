@@ -43,7 +43,8 @@
     "prepare": "husky",
     "framework:obsiddy:smoke-isolation": "tsx --env-file=.env.local scripts/framework/obsiddy/smoke-isolation.ts",
     "framework:obsiddy:smoke-priority": "tsx --env-file=.env.local scripts/framework/obsiddy/smoke-priority.ts",
-    "framework:obsiddy:smoke-search": "tsx --env-file=.env.local scripts/framework/obsiddy/smoke-search.ts"
+    "framework:obsiddy:smoke-search": "tsx --env-file=.env.local scripts/framework/obsiddy/smoke-search.ts",
+    "framework:obsiddy:eval-triage": "tsx --env-file=.env.local scripts/framework/obsiddy/eval-triage.ts"
   },
   "repository": {
     "type": "git",
