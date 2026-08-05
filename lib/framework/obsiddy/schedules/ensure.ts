@@ -3,14 +3,24 @@
  *
  * ## How a background run knows whose brain it is
  *
- * One schedule row per user per workflow, with `createdBy = userId`. The
- * scheduler stamps `execution.userId = schedule.createdBy`
- * (`scheduler.ts:335`), and the engine threads that into
- * `CapabilityContext.userId` (`executors/tool-call.ts:102`), where
- * `ObsiddyCapability` mints the `OwnerScope` from it. So the owner travels from
+ * One schedule row per user per workflow, with `createdBy = userId` **and the
+ * same id in the row's `scope` column** (`OBSIDDY_SCHEDULE_OWNER_KEY`). The
+ * scheduler stamps `execution.scope = schedule.scope`, and the engine threads
+ * that into `CapabilityContext.scope` (`executors/tool-call.ts:104`), where
+ * `requireObsiddyUser` mints the `OwnerScope` from it. So the owner travels from
  * the schedule row to the query without ever being an argument a model could
  * supply — which is the whole reason §6 chose per-user schedules over one
  * schedule that loops over users.
+ *
+ * **It rode on `execution.userId` until Sunrise 0.8.0.** The scheduler stamped
+ * that from `createdBy`, so no carrier was needed. sunrise#502 made scheduled
+ * runs system-owned (`userId: null`) because `AiWorkflowExecution.userId` is
+ * `onDelete: Cascade` and naming an operator meant erasing them took the whole
+ * organisation's run history with them. Correct for org-level cron rows, and it
+ * leaves per-user schedules with no owner — so the id moved to `scope`, the
+ * column core provides for precisely this and reads no keys from. The correction
+ * pass below stamps rows written before the move; see ask #29 in
+ * `.context/framework/obsiddy/sunrise-asks.md`.
  *
  * ## Idempotent, and self-correcting
  *
@@ -48,6 +58,7 @@ import {
   createObsiddySchedule,
   findObsiddyWorkflowIds,
   listObsiddySchedules,
+  stampObsiddyScheduleOwner,
   updateObsiddyScheduleCron,
 } from '@/lib/framework/obsiddy/repo/schedules';
 import { dailyCron, monthlyCron, weeklyCron } from '@/lib/framework/obsiddy/schedules/cron';
@@ -181,6 +192,20 @@ export async function ensureObsiddySchedules(
       // workflow on every run, silently, from a job nobody watches.
       await clearObsiddyScheduleInputTemplate(current.id);
       logger.info('Obsiddy cleared a schedule’s stale inputTemplate', {
+        userId,
+        slug: spec.slug,
+        scheduleId: current.id,
+      });
+      corrected = true;
+    }
+
+    if (!current.hasOwnerScope) {
+      // A row from before Sunrise 0.8.0, when the scheduler stamped
+      // `execution.userId` from `createdBy` and no scope was needed. Since
+      // sunrise#502 made scheduled runs system-owned, such a row fires a run
+      // with no owner at all and every capability in it throws.
+      await stampObsiddyScheduleOwner(current.id, userId);
+      logger.info('Obsiddy stamped a schedule’s owner scope', {
         userId,
         slug: spec.slug,
         scheduleId: current.id,

@@ -18,6 +18,27 @@ release process.
 
 ### Added
 
+- **Obsiddy answers a subject-access request** (GDPR Art. 15).
+  `collectObsiddySubjectData(scope)` (`repo/subject-export.ts`) returns all
+  seventeen owner-scoped brain tables — thoughts, tasks, projects, goals, areas,
+  people, documents and their extracted text, links, boards, tags, checklists,
+  time blocks, reviews and the activity log — wired into the platform bundle
+  through `lib/app/data-export.ts`, which Sunrise 0.8.0 added as the fork seam
+  ([sunrise#467](https://github.com/human-centric-engineering/sunrise/issues/467)).
+  Obsiddy had Art. 17 covered since phase 1 (every table cascades from
+  `ObsiddySpace`); this is the half that had no seam to fill until now.
+
+  `ObsiddySpace.inboxToken` is omitted — a live bearer secret, and core's rule is
+  to withhold credential material even from its owner, because an export bundle
+  is a file that gets emailed and synced. `ObsiddyEmbedding` is excluded with a
+  written reason: derived vectors over text already exported in full, which is
+  the same ground on which core excludes `AiMessageEmbedding`. Every fetch uses
+  Prisma's `omit` rather than `select`, so a column added tomorrow is exported by
+  default; a completeness guard reads `framework-obsiddy.prisma` directly and
+  fails the build if a table holding a `userId` is in neither the manifest nor
+  the exclusion list. Left unwritten, that gap has no symptom — the bundle looks
+  complete and quietly answers less than it claims.
+
 - **Obsiddy phase 8 — the lifecycle.** `enforceObsiddyRetention(scope)` enforces seven
   of the eight `ObsiddySpace.retentionPolicy` windows that phase 1 shipped and nothing
   had applied — `staleEntityDays` is the exception and stays unread, because §11 says a
@@ -60,128 +81,6 @@ release process.
   `report` step (which renders the *execution trace*, not domain facts), and
   `workStyle` selection happens in code rather than via a `route` step (which is an
   LLM classifier, so it would spend a model call guessing a column we can read).
-
-### Security
-
-- **Obsiddy schedules are deleted when their owner is erased.**
-  `AiWorkflowSchedule.createdBy` is `onDelete: SetNull`, so per-user schedules would
-  otherwise outlive the account — enabled, with a live `nextRunAt`, firing for ever
-  against a deleted user. Obsiddy now registers an erasure cleanup hook, and because
-  `eraseUser()` reads a plain module-scope registry without lazily initialising any
-  `lib/app/*` seam (the sunrise#462 module-split shape, for a registry that fix did
-  not cover), the connection-sweep job independently deletes Obsiddy schedules whose
-  `createdBy` is null. Relatedly, `inputTemplate` is stored empty: it carries no
-  email address — the address is resolved at send time from the row erasure deletes
-  — and no `userId` either, because the template becomes the execution's `inputData`
-  and a step declaring no `args` receives it, which a `.strict()` capability schema
-  rejects. The owner travels on `execution.userId`, stamped from `createdBy`.
-
-- **`obsiddy_notify` cannot be made to send arbitrary mail.** It takes a
-  closed-set notification name and an optional integer — no recipient, no subject,
-  no body — and every word a recipient reads is rendered server-side. A free-text
-  notifier bound to an agent would be an exfiltration channel for the brain and a
-  phishing primitive sent from the product's own address.
-
-- **Rejected connection suggestions are never pruned by retention.** The connection
-  sweep excludes any pair that already has an `ObsiddyLink` row, so a `rejected` row
-  is the tombstone that stops a suggestion the user turned down being proposed again
-  every week for ever. `pruneStaleSuggestedLinks` matches `status: 'suggested'`
-  positively rather than excluding `'rejected'`, because the negative form is one
-  careless edit from deleting the tombstones — and the damage surfaces weeks later, as
-  a nag loop with no way for the user to make it stop.
-
-- **`isRootRelativePath()` / `safeCallbackUrl()` no longer pass a tab, LF or CR
-  hidden inside a redirect path.** The guard judged `path[1]` on the raw string,
-  but the WHATWG URL parser removes those three characters from _anywhere_ in a
-  URL before it reads the authority, and `trim()` only reaches the ends — so
-  `/<TAB>/evil.com` cleared both the leading-slash and the `path[1]` test, then
-  collapsed to `//evil.com` in the browser. Reachable as
-  `/login?callbackUrl=/%09/evil.com`, which hard-navigates a user off-origin
-  immediately after a genuine successful login. The strip is deliberately
-  tab/LF/CR only and not the wider `URL_NORMALIZE_STRIP` used for scheme
-  inspection, because that range includes the space and would rewrite a
-  legitimate `/search?q=two words`; `safeCallbackUrl()` now returns the
-  normalised value, so the string that reaches `router.push()` is the one that
-  was judged safe. The OAuth path was never affected — better-auth applies its
-  own stricter allowlist. Carried as a local patch to a Sunrise-owned file
-  pending [sunrise#506](https://github.com/human-centric-engineering/sunrise/issues/506).
-
-- **The chat handler now refuses tool names outside the agent's advertised
-  set.** Dispatch previously took the tool name straight off the model's emitted
-  call, while the dispatcher synthesizes a default-ALLOW binding when no
-  `AiAgentCapability` row exists — so a capability an agent was never granted
-  would execute, unrestricted. Reachable via prompt injection, or via a
-  conversation resumed across a capability being revoked (the model's own
-  earlier calls sit in history and invite imitation). ([#476])
-
-- **`sanitizeUrl()` no longer passes control-character-obfuscated schemes.**
-  `java<TAB>script:`, `java<LF>script:`, `javascript<TAB>:` and a leading C0
-  control all bypassed the check, because it ran on `trim()` (leading/trailing
-  whitespace only) while browsers strip tab/newline/CR from anywhere in a URL
-  before parsing the scheme. The replacement character class also covers the
-  non-ASCII whitespace `trim()` used to remove (NBSP, BOM, U+2028, the U+2000
-  block, ideographic space), so the guard is nowhere narrower than the one it
-  replaced — those are not browser-executable, but leaving them out would have
-  been a silent narrowing. Only the inspected copy is normalised — the URL
-  returned to callers is unchanged. ([#437])
-
-- **`PATCH /api/v1/users/me` clears `emailVerified` when the address changes**
-  and re-sends verification. Previously an account that verified one address
-  could become a *verified* holder of any unregistered address in one request,
-  turning `user.email` from "an address this person controls" into "any unused
-  string they typed" — a privilege-escalation primitive for invitation
-  redemption and domain allowlists keyed on the address. ([#466])
-
-- **An API key can no longer change the account's email address** (#466,
-  found reviewing that fix). `withAuth` accepts an API key of **any** scope, and
-  keys are self-service — so a `chat`-scoped key handed to a third-party
-  integration could have moved the account to an attacker's address, and the new
-  verification mail would have delivered them a working token. With
-  `autoSignInAfterVerification` enabled that token mints a real session, turning
-  a read-ish scope into full account takeover. `PATCH /api/v1/users/me` now
-  returns 403 on the email path for key-authenticated callers, via the new
-  `isApiKeySession()` in `lib/auth/api-keys.ts`. Non-identity profile fields are
-  unaffected. Re-authentication, old-address notification and session revocation
-  remain open — tracked in #489.
-
-- **JSON API responses now carry `Cache-Control: private, no-cache`** (#487).
-  Nothing set a cache directive, and a response with a validator (an `ETag`,
-  which several routes send) but no freshness information is *heuristically
-  cacheable* — RFC 9111 §4.2.2 lets a shared cache store it and invent an expiry.
-  Applied in `successResponse`/`errorResponse` and the 304 from
-  `checkConditional`, so the 200 and 304 on an endpoint agree. Deliberately
-  `no-cache` rather than `no-store`, which would forbid the client copy and
-  defeat the conditional-GET path the ETags exist for. It is a default, spread
-  before caller headers, so a route serving genuinely public data can override
-  it; routes returning a raw `Response` never pass through here.
-
-- **`Cache-Control: private, no-cache` on Obsiddy's per-user read endpoints**
-  (`lib/framework/obsiddy/api/cache.ts`, applied by `/obsiddy/today`,
-  `/obsiddy/inbox` and `/obsiddy/space`). Sunrise sets no cache directive on
-  `/api/v1/**`, and a response carrying an `ETag` with no freshness information
-  is heuristically cacheable (RFC 9111 §4.2.2) — so a shared proxy could store
-  one person's dashboard and serve it to the next caller. `no-cache` rather than
-  `no-store`, so the browser may still keep a copy and revalidate, which is what
-  the ETag exists for. The 304 carries the directive too. A project-wide default
-  is upstream
-  [#487](https://github.com/human-centric-engineering/sunrise/issues/487).
-- **Uploaded document originals are discarded by default**
-  (`ObsiddySettings.documentOriginals = 'discard'`). Sunrise's `StorageProvider`
-  has no read method at all, and `LocalProvider` ignores `public: false` — it
-  writes into `public/uploads/`, which Next serves statically at a guessable URL.
-  Retaining a user's uploaded PDF on a default install would therefore publish it.
-  Obsiddy keeps the extracted text and the embedding chunks, which is what the
-  product actually queries, and drops the bytes. Retention is an operator setting
-  that the admin page **disables** on providers that cannot store privately or
-  cannot sign URLs, rather than warning and allowing it; when retained, the stored
-  URL is never returned to a client and downloads go through a 5-minute signed
-  URL. Upstream
-  [#490](https://github.com/human-centric-engineering/sunrise/issues/490).
-- **`GET /api/v1/obsiddy/search` does not log the query text.** It is the most
-  sensitive string a user sends this product, and a log line outlives the search;
-  the route logs its length and the hit count instead.
-
-### Added
 
 - **Obsiddy: the way in** (phase 6c) — the per-turn context block, the app-owned
   chat route, and the page. This is what turns fourteen capabilities into
@@ -363,6 +262,734 @@ release process.
   `lib/app/protected-nav.ts`. This replaces the hand-edit of
   `components/layouts/protected-nav.tsx` that Obsiddy carried since phase 5, so
   **Obsiddy now touches zero Sunrise-owned files.**
+
+
+- **Obsiddy phase 5 — the UI layer** (Release 1, phases 5 and 5b): twelve
+  authenticated surfaces under `app/(protected)/obsiddy/**` — Today, Inbox,
+  Search, Projects, Goals, Areas, People, Documents, Connections, Graph, Boards
+  and Plan — plus personal Settings. Components live in `components/obsiddy/**`
+  and page paths in the new `OBSIDDY_ROUTES` (`lib/framework/obsiddy/ui/routes.ts`).
+- **Obsiddy: new API endpoints backing those surfaces** — `GET /api/v1/obsiddy/counts`,
+  `/connections`, `/graph`; `POST /api/v1/obsiddy/thoughts/[id]/promote`; enriched
+  reads at `/projects/[id]/view`, `/entities/[id]/view`, `/tasks/[id]/view`; and the
+  boards layer: `/boards` (+ `[id]`, `/view`, `/cards`, `/cards/[cardId]`, `/export`,
+  `/restore`), `/tags` (+ `[id]`), `PATCH /tasks/[id]/tags`,
+  `/tasks/[id]/checklist` and `/checklist/[id]`.
+- **Obsiddy: `ObsiddySpace.connectionStrengthFloor`** (migration
+  `20260730160000_obsiddy_connection_floor`) — the similarity a pair must clear to be
+  proposed as a connection, per user. Nullable; `null` uses the measured 0.55 default.
+  The right value is model-dependent, and a mis-tuned floor produces exactly the same
+  output as a sweep with nothing left to find. Exposed on `GET`/`PATCH /obsiddy/space`.
+- **Obsiddy: `listLinksForEntity` / `listLinksForEntities`** on the links repo, and
+  `statuses` on `LinkFilters` — a detail page needs links on *either* end of a
+  polymorphic edge, and the review queue filters by two statuses at once.
+- **Obsiddy: task status changes now record `{ statusFrom, statusTo }`** on their
+  `updated` event, and `findLatestStatusChanges` reads the newest per task in one
+  `DISTINCT ON`. This is what lets a board say how long a card has sat in its column
+  (§12) without giving up its fixed query count; cards with no such event fall back to
+  "untouched since", worded differently so the two are never confused.
+- **Obsiddy: `findTasksByIds`** on the tasks repo — the explicit-board read needs
+  exactly its pinned tasks rather than the top N by score.
+- **Obsiddy: `renumberChecklistItems`** on the checklist repo — the counterpart to
+  `renumberBoardCards`. `planMove` computes a moved item's position against the
+  *spread* list once a gap has collapsed, so the spread has to be written in the
+  same pass or the item lands at a coordinate its siblings never moved to.
+
+- **Obsiddy framework-tier scaffold** (Release 1, phase 0) — the reserved
+  `/framework` tier is now occupied by Obsiddy: `lib/framework/obsiddy/` with
+  `initObsiddy()` and `obsiddyEnvSchema`, the tier import boundary in
+  `lib/framework/eslint.config.mjs` (including the D5 owner/shared repo rule),
+  an empty `prisma/schema/framework-obsiddy.prisma`, and
+  `.context/framework/obsiddy/install.md`. Wired through four Sunrise seams —
+  `bootstrap.ts` (dynamic import), `env.ts`, `eslint.config.mjs`,
+  `protected-routes.ts` (`/obsiddy`) — with **zero Sunrise-owned files
+  modified**.
+- **`lib/app/leaf-bootstrap.ts`** — new boot seam Obsiddy re-exposes to the leaf
+  forks built on it, so a leaf fork and Obsiddy don't contend over
+  `lib/app/bootstrap.ts`. Ships empty; called by `initObsiddy()` after Obsiddy's
+  own registrations, so a leaf fork can override them.
+- **Obsiddy data model** (Release 1, phase 1) — 18 `framework_obsiddy_*` models
+  in `prisma/schema/framework-obsiddy.prisma` and the hand-edited migration
+  `20260728222816_add_second_brain`. One satellite table (`ObsiddySpace`) with a
+  hand-written `ON DELETE CASCADE` FK to `user`, one polymorphic edge table and
+  one polymorphic `vector(1536)` embedding table, so the whole brain cascades on
+  erasure and there is a single HNSW index to maintain.
+- **`registerObsiddyDriftProbes()`** (`lib/framework/obsiddy/db-drift.ts`) — six
+  probes over the Postgres objects Prisma cannot model, registered from
+  `lib/app/db-drift.ts`. The two `GENERATED` probes assert `is_generated`, not
+  just column existence, so a column silently recreated as a plain `tsvector`
+  fails the check instead of never being populated.
+- **`ensureObsiddySpace()`** (`lib/framework/obsiddy/services/space.ts`) —
+  idempotent, race-safe first-use creation of a user's space, plus
+  `getObsiddySpace()` and `findSpaceByInboxToken()`.
+- **Obsiddy repo layer and CRUD API** (Release 1, phase 2) —
+  `lib/framework/obsiddy/repo/*` with the branded `OwnerScope` type, seven
+  entity repos, `lib/framework/obsiddy/services/*` (resource descriptors, slug
+  resolution, activity events) and 20 route files under
+  `app/api/v1/obsiddy/**` covering tasks, projects, goals, areas, thoughts,
+  entities and time blocks. `DELETE` archives; `?permanent=true` destroys.
+- **`scripts/framework/obsiddy/smoke-isolation.ts`**
+  (`npm run framework:obsiddy:smoke-isolation`) — proves cross-user isolation
+  and the erasure cascade against a real database. Namespaced and kept out of
+  `scripts/smoke/` because `CUSTOMIZATION.md` §7 reserves the unprefixed script
+  names, `smoke:*` included, for the platform.
+- **Obsiddy priority engine** (Release 1, phase 3) —
+  `lib/framework/obsiddy/priority/score.ts` is a pure, I/O-free function over
+  six weighted factors (urgency, goal alignment, project momentum, area balance,
+  effort fit, staleness) plus an additive `manualBoost`, so `+1` provably
+  outranks every unboosted task and `-1` provably sinks below them. An expired
+  boost reads as `0` at evaluation time rather than being lazily zeroed, so
+  behaviour never depends on whether a background job has run.
+  `priority/reprioritise.ts` gathers the inputs in a fixed number of batched
+  queries and persists `priorityScore` + `priorityFactors`; `rescoreTask()`
+  narrows that to one row and runs on every task mutation, so a pin takes effect
+  immediately instead of at 3am.
+- **Obsiddy snooze** (`lib/framework/obsiddy/services/snooze.ts`) — `snoozeItem`
+  / `unsnoozeItem` over tasks, thoughts and projects, with presets
+  (`later_today`, `tomorrow`, `next_week`, `next_month`) resolved server-side in
+  `ObsiddySpace.timezone` rather than by the caller. `snoozeCount` counts the
+  gesture and is never decremented, and is never an input to the scorer. Exposed
+  as `POST /api/v1/obsiddy/{tasks,thoughts,projects}/[id]/snooze` and
+  `.../unsnooze`.
+- **`lib/framework/obsiddy/time/zoned.ts`** — wall-clock arithmetic in the
+  user's zone (`wallClockAt`, `instantAtWallClock`, `startOfZonedDay`,
+  `startOfZonedWeek`, `addZonedDays`, `addZonedMonths`, `timeOfDayAt`), built on
+  `Intl` with no new dependency. Days are 23 or 25 hours long twice a year, and
+  every scheduling phrase in Obsiddy resolves through here rather than through
+  server time.
+- **`GET /api/v1/obsiddy/today`** — the dashboard's only fetch: ranked tasks
+  enriched with project and area, today's time blocks, inbox count, goals at
+  risk, unreviewed connections, the latest review and this week's remaining
+  capacity, in a fixed number of queries regardless of task count. ETag'd.
+- **`GET /api/v1/obsiddy/inbox`** — captured thoughts with their suggested links
+  and the strongest suggested project, resolved in two batched queries. ETag'd.
+- **`GET` / `PATCH /api/v1/obsiddy/space`** — the caller's effective settings
+  with defaults resolved, plus `customised` flags. `inboxToken` is deliberately
+  never included. Backed by Zod schemas for the three previously unvalidated
+  `Json` columns (`priorityWeightsSchema` — which requires the weights to sum to
+  1 — `energyProfileSchema`, `retentionPolicySchema`) and by
+  `lib/framework/obsiddy/settings.ts`, whose resolvers safe-parse those columns
+  and fall back to documented defaults rather than letting a malformed blob
+  write `NaN` into every score.
+
+- **`scripts/framework/obsiddy/smoke-priority.ts`**
+  (`npm run framework:obsiddy:smoke-priority`) — exercises the ranking, snooze
+  and aggregate paths against a real database: the space bootstrap, the batched
+  score write, `sumMinutesByArea`'s raw SQL, a real indexed
+  `ORDER BY priorityScore`, preset resolution in `Pacific/Auckland`, and that
+  none of the new surfaces leak across users.
+- **Obsiddy semantic layer** (Release 1, phase 4) — the brain is now searchable
+  by meaning. `searchObsiddy()`
+  (`lib/framework/obsiddy/search/hybrid-search.ts`) is the **only** search entry
+  point and takes an `OwnerScope` as a required field, so a route param or an LLM
+  tool argument cannot become one. It runs three passes: vector + BM25 over the
+  one embedding table, the generated tsvector for tasks (which are deliberately
+  not embedded), and — only when `includeArchived` is set — a keyword pass over
+  the archived corpus, which by design has no vectors at all.
+- **All Obsiddy vector SQL lives in `lib/framework/obsiddy/repo/embeddings.ts`.**
+  The plan put it in `search/`, but the tier lint boundary forbids Prisma outside
+  `repo/**` — which is the stronger arrangement, because the raw SQL is the one
+  place a `WHERE "userId"` can be forgotten and this confines it to the layer
+  whose every function carries a verified scope. Includes
+  `assertObsiddyModelMatchesStoredVectors()`, a port of the platform's private
+  dimension guard (upstream
+  [#491](https://github.com/human-centric-engineering/sunrise/issues/491) asks
+  for a shared version).
+- **Obsiddy indexer** (`lib/framework/obsiddy/embedding/{canonical,indexer}.ts`)
+  — `canonicalText()` and `contentHash()` are pure and cover **semantic content
+  only**, never rendered markdown, so formatting noise (CRLF, trailing
+  whitespace, a `null` → `''` description) is not an edit. `indexedHash` is nulled
+  liberally by every mutation path because nulling it queues a *hash comparison*,
+  not an embedding call: `reindexPending()` compares the recomputed hash against
+  what is stored and only then spends anything. That is what lets a mutation path
+  null the column without knowing which fields are semantic.
+- **Obsiddy connection engine** (`lib/framework/obsiddy/search/connections.ts`) —
+  `findConnections()` is read-only and idempotent; `sweepConnections()` persists
+  pairs above a 0.72 similarity floor as
+  `ObsiddyLink{ origin: 'rule', status: 'suggested' }`. Both read
+  **already-stored** vectors and do neighbour search in SQL, so the sweep costs
+  no embedding tokens. Pair exclusion — including the `rejected` tombstone, in
+  both directions — happens inside the query, so no caller can forget it.
+- **Obsiddy document ingestion**
+  (`lib/framework/obsiddy/documents/{ingest,chunking}.ts`) — reuses the
+  platform's `parseDocument()` (PDF, DOCX, EPUB, CSV, HTML, MD, TXT) and its
+  markdown and semantic chunkers, but stores rows in Obsiddy's own tables:
+  `.context/orchestration/knowledge.md` is explicit that the platform KB is a
+  global asset and per-user scoping there is an anti-pattern. Dedupes on
+  `fileHash` scoped to the owner, and queues indexing rather than embedding
+  inline.
+- **`ObsiddySettings`** — an instance-settings singleton and the one Obsiddy
+  table with no `userId`, so also the one outside the D1 erasure cascade. Holds
+  `documentOriginals` (`discard | retain`) and `maxDocumentBytes`, exposed at
+  `GET|PATCH /api/v1/admin/obsiddy/settings` and `/admin/obsiddy/settings`.
+- **New Obsiddy routes** — `GET /obsiddy/search`, `POST /obsiddy/reindex`,
+  `GET|POST /obsiddy/links`, `PATCH /obsiddy/links/[id]`,
+  `POST /obsiddy/connections/sweep`, `GET|POST /obsiddy/documents`,
+  `GET|DELETE /obsiddy/documents/[id]`,
+  `GET /obsiddy/documents/[id]/download`. There is deliberately no
+  `DELETE /obsiddy/links/[id]`: rejecting sets `status: 'rejected'`, which is the
+  tombstone that stops the sweep re-proposing a dismissed pair forever.
+- **`registerObsiddyRateLimits()`** (`lib/framework/obsiddy/rate-limit.ts`) —
+  per-flow sub-caps for the four expensive paths (search 30/min; reindex and
+  sweep 5/hour; document upload 20/hour), keyed on the session user. Wired
+  through the `lib/app/rate-limit.ts` seam with one call, so a later Obsiddy
+  release can add one without every host editing that file.
+- **`registerObsiddyAdminNav()`** (`lib/framework/obsiddy/admin-nav.ts`) — the
+  Obsiddy admin section, wired through `lib/app/admin-nav.ts`. Client-safe by
+  necessity: the sidebar reads the registry during render.
+- **`lib/framework/obsiddy/api/endpoints.ts`** — Obsiddy's own endpoint
+  constants. `lib/api/endpoints.ts` is Sunrise-owned, so adding Obsiddy's routes
+  there would be a merge conflict inflicted on every host on every upgrade.
+- **`scripts/framework/obsiddy/smoke-search.ts`**
+  (`npm run framework:obsiddy:smoke-search`) — 26 assertions against a real
+  database over the pgvector SQL, the HNSW index, tsvector ranking, cross-user
+  isolation (**including the case where another user's row is the better vector
+  match**), the sweep, the tombstone, and the archive transaction. Runs with real
+  embeddings when a provider is configured and with deterministic synthetic
+  vectors when not, printing which — so a green run never claims more than it
+  proved.
+
+### Security
+
+- **Obsiddy schedules are deleted when their owner is erased.**
+  `AiWorkflowSchedule.createdBy` is `onDelete: SetNull`, so per-user schedules would
+  otherwise outlive the account — enabled, with a live `nextRunAt`, firing for ever
+  against a deleted user. Obsiddy now registers an erasure cleanup hook, and because
+  `eraseUser()` reads a plain module-scope registry without lazily initialising any
+  `lib/app/*` seam (the sunrise#462 module-split shape, for a registry that fix did
+  not cover), the connection-sweep job independently deletes Obsiddy schedules whose
+  `createdBy` is null. Relatedly, `inputTemplate` is stored empty: it carries no
+  email address — the address is resolved at send time from the row erasure deletes
+  — and no `userId` either, because the template becomes the execution's `inputData`
+  and a step declaring no `args` receives it, which a `.strict()` capability schema
+  rejects. The owner travels on `execution.userId`, stamped from `createdBy`.
+
+- **`obsiddy_notify` cannot be made to send arbitrary mail.** It takes a
+  closed-set notification name and an optional integer — no recipient, no subject,
+  no body — and every word a recipient reads is rendered server-side. A free-text
+  notifier bound to an agent would be an exfiltration channel for the brain and a
+  phishing primitive sent from the product's own address.
+
+- **Rejected connection suggestions are never pruned by retention.** The connection
+  sweep excludes any pair that already has an `ObsiddyLink` row, so a `rejected` row
+  is the tombstone that stops a suggestion the user turned down being proposed again
+  every week for ever. `pruneStaleSuggestedLinks` matches `status: 'suggested'`
+  positively rather than excluding `'rejected'`, because the negative form is one
+  careless edit from deleting the tombstones — and the damage surfaces weeks later, as
+  a nag loop with no way for the user to make it stop.
+
+- **`isRootRelativePath()` / `safeCallbackUrl()` no longer pass a tab, LF or CR
+  hidden inside a redirect path.** The guard judged `path[1]` on the raw string,
+  but the WHATWG URL parser removes those three characters from _anywhere_ in a
+  URL before it reads the authority, and `trim()` only reaches the ends — so
+  `/<TAB>/evil.com` cleared both the leading-slash and the `path[1]` test, then
+  collapsed to `//evil.com` in the browser. Reachable as
+  `/login?callbackUrl=/%09/evil.com`, which hard-navigates a user off-origin
+  immediately after a genuine successful login. The strip is deliberately
+  tab/LF/CR only and not the wider `URL_NORMALIZE_STRIP` used for scheme
+  inspection, because that range includes the space and would rewrite a
+  legitimate `/search?q=two words`; `safeCallbackUrl()` now returns the
+  normalised value, so the string that reaches `router.push()` is the one that
+  was judged safe. The OAuth path was never affected — better-auth applies its
+  own stricter allowlist. Carried as a local patch to a Sunrise-owned file
+  pending [sunrise#506](https://github.com/human-centric-engineering/sunrise/issues/506).
+
+- **`Cache-Control: private, no-cache` on Obsiddy's per-user read endpoints**
+  (`lib/framework/obsiddy/api/cache.ts`, applied by `/obsiddy/today`,
+  `/obsiddy/inbox` and `/obsiddy/space`). Sunrise sets no cache directive on
+  `/api/v1/**`, and a response carrying an `ETag` with no freshness information
+  is heuristically cacheable (RFC 9111 §4.2.2) — so a shared proxy could store
+  one person's dashboard and serve it to the next caller. `no-cache` rather than
+  `no-store`, so the browser may still keep a copy and revalidate, which is what
+  the ETag exists for. The 304 carries the directive too. A project-wide default
+  is upstream
+  [#487](https://github.com/human-centric-engineering/sunrise/issues/487).
+- **Uploaded document originals are discarded by default**
+  (`ObsiddySettings.documentOriginals = 'discard'`). Sunrise's `StorageProvider`
+  has no read method at all, and `LocalProvider` ignores `public: false` — it
+  writes into `public/uploads/`, which Next serves statically at a guessable URL.
+  Retaining a user's uploaded PDF on a default install would therefore publish it.
+  Obsiddy keeps the extracted text and the embedding chunks, which is what the
+  product actually queries, and drops the bytes. Retention is an operator setting
+  that the admin page **disables** on providers that cannot store privately or
+  cannot sign URLs, rather than warning and allowing it; when retained, the stored
+  URL is never returned to a client and downloads go through a 5-minute signed
+  URL. Upstream
+  [#490](https://github.com/human-centric-engineering/sunrise/issues/490).
+- **`GET /api/v1/obsiddy/search` does not log the query text.** It is the most
+  sensitive string a user sends this product, and a log line outlives the search;
+  the route logs its length and the hit count instead.
+
+### Changed
+
+- **Obsiddy: `POST /api/v1/obsiddy/links` now goes through `linkEntities`**
+  (`lib/framework/obsiddy/services/links.ts`). The endpoint checks, the
+  identical-404 rule and the server-pinned `origin` / `status` / `reviewedAt`
+  were inline in the route; `obsiddy_link_entities` needs all three, and a
+  capability that reimplemented them would drift — which is exactly the
+  divergence the "handlers stay thin" rule exists to prevent. Behaviour change:
+  a hand-asserted link now records a `linked` `ObsiddyEvent`, which it never did.
+- **Obsiddy: `PATCH /api/v1/obsiddy/tasks/[id]/tags` is now `PUT`.** The route
+  always replaced the whole tag set; it used `PATCH` only because `apiClient` had
+  no `put` and adding one would have been a core-file edit. #495 landed the verb.
+  **Breaking for any caller built against the old verb** — the body and response
+  are unchanged.
+- **Obsiddy: retention capability is read from the provider, not inferred from
+  its name.** `resolveRetentionCapability()` named `local` and refused it, because
+  the local provider wrote into `public/uploads/` and ignored `public: false`.
+  #490 gave it a private root and a signed read route, which made the name check
+  **wrong in both directions** — it would refuse a local provider that can now
+  hold objects privately, and go on trusting any future provider that simply
+  isn't called `local`. It now reads `getStorageCapabilities()`, where an
+  undeclared capability means "cannot". **Upgrade note for S3 deployments:** S3
+  declares `privateObjects: useAcl || privateByDefault`, and both default to
+  false. An install on `STORAGE_PROVIDER=s3` with neither `S3_USE_ACL` nor
+  `S3_OBJECTS_PRIVATE_BY_DEFAULT` set, and `documentOriginals: 'retain'`, will
+  stop retaining new uploads _and_ start returning 404 from
+  `GET /api/v1/obsiddy/documents/[id]/download` for originals it already holds.
+  That is the correct fail-closed answer — nothing can distinguish that bucket
+  from a wide-open one — and the admin settings page names the reason on screen.
+  Set `S3_OBJECTS_PRIVATE_BY_DEFAULT=true` to restore retention.
+- **Obsiddy: `assertObsiddyModelMatchesStoredVectors` delegates to the platform
+  guard** exported by #491, instead of carrying ~40 duplicated lines. The fork
+  still supplies owner-scoped closures — an unscoped aggregate would make one
+  user's search latency grow with the whole install's corpus and let one user's
+  mismatched vectors throw for everybody — and keeps its structured `logger.error`
+  via catch/rethrow, because a thrown string is not queryable.
+- **Obsiddy: `lib/framework/obsiddy/db-drift.ts` imports `generatedColumnExists`**
+  from `@/lib/db/drift-probes` rather than defining its own. #481 landed it and
+  switched core's A1 probe to it, closing the same blind spot upstream.
+
+- ~~**`components/layouts/protected-nav.tsx` gains one `/obsiddy` entry.**~~
+  **Reverted before release.** #473 landed the `lib/app/protected-nav.ts` seam
+  the entry was waiting on, so the core file is pristine again and Obsiddy
+  registers through the seam. Added and removed within the same unreleased cycle;
+  no released version carried the edit.
+- **Archiving an Obsiddy item now deletes its embedding rows in the same
+  transaction** as the archive (`archiveAndDropVectors()`), rather than leaving
+  them behind a `WHERE archivedAt IS NULL` filter. A filtered vector search
+  degrades recall silently as history grows — no error, no symptom — so the index
+  only ever holds live data. The consequence, deliberately accepted, is that the
+  archived corpus is keyword-searchable but not vector-searchable.
+
+### Removed
+
+- **`updateSpace()`** (`lib/framework/obsiddy/repo/space.ts`) — replaced by
+  `updateSpaceSettings()`, which takes the patch in domain terms and translates
+  a `null` Json column into `Prisma.DbNull`. Added and removed within the same
+  unreleased cycle; no released version exposed it.
+- **`privateCacheHeaders()` and `withPrivateCache()`**
+  (`lib/framework/obsiddy/api/cache.ts`) — the per-route `Cache-Control`
+  workaround, redundant once #487 made `private, no-cache` the default on every
+  JSON envelope and on `checkConditional()`'s 304. Deleted rather than left as
+  no-ops a future route author would copy without knowing. `PRIVATE_NO_CACHE`
+  survives for the board export, which returns a raw `Response` and so never
+  passes through the envelope helpers. Same unreleased cycle.
+
+- **Obsiddy erasure cascade was incomplete** (`20260728232937_obsiddy_space_cascade`).
+  The phase-1 migration gave every scoped table a plain `userId` column with no
+  FK, so deleting a user removed only the `ObsiddySpace` row and left every
+  task, thought, project and event behind — personal data surviving an erasure
+  that reported success. Every scoped table now has a real FK to
+  `framework_obsiddy_space("userId") ON DELETE CASCADE`, and the migration
+  deletes rows already orphaned by its absence. Found by the isolation smoke
+  script against a real database; no mocked test could have caught it.
+
+### Fixed
+
+- **Every Obsiddy background workflow would have failed silently after the
+  Sunrise 0.8.0 merge.**
+  [sunrise#502](https://github.com/human-centric-engineering/sunrise/issues/502)
+  made schedule-triggered runs **system-owned** — the scheduler now writes
+  `userId: null` on the execution and passes `null` into the engine instead of
+  `schedule.createdBy`. That is correct for the org-level cron rows core has in
+  mind: `AiWorkflowExecution.userId` is `onDelete: Cascade`, so naming an
+  operator meant erasing them destroyed the organisation's entire scheduled-run
+  history. It is also the removal of the **only** mechanism by which Obsiddy's
+  per-user schedules knew whose brain a 04:30 run was working on, so
+  `requireObsiddyUser` would have thrown `MissingObsiddyUserError` on every step
+  of the nightly triage, the morning briefing, the weekly review and the horizon
+  check.
+
+  The owner now travels on the schedule row's `scope` column
+  (`OBSIDDY_SCHEDULE_OWNER_KEY`), which is the carrier core provides for exactly
+  this — admin-written, validated on read, stamped onto the execution and
+  threaded into `CapabilityContext.scope`, with core naming and reading no keys
+  of its own. Unlike `inputTemplate` it never becomes `ctx.inputData`, so it
+  cannot collide with a step's `.strict()` argument schema. `context.userId`
+  still wins when both are present, so the fallback can only ever fill a gap and
+  never redirect a live session at another brain. `ensureObsiddySchedules` gained
+  a third correction that stamps rows written before the move — without it an
+  upgraded install carries silently broken schedules for ever.
+
+  **Nothing failed loudly, and that is the part worth keeping.** `userId` is
+  already `string | null`, so the change type-checked; the 1,978 tier tests
+  stayed green because they mock that boundary. A merge can be green on both
+  sides and still be broken in the seam between them. Filed upstream as ask #29
+  in `.context/framework/obsiddy/sunrise-asks.md`.
+
+- **Obsiddy's first write by any new user returned a 500.**
+  `ensureObsiddySpace()` existed and was tested but was called from nowhere,
+  while `20260728232937_obsiddy_space_cascade` gave every scoped table a real FK
+  to `framework_obsiddy_space("userId")`. A user who had never had a space row
+  therefore hit a foreign-key violation on the first thing they did. The space
+  bootstrap now wraps `create` on every resource descriptor — the layer the HTTP
+  routes and the phase-6 capabilities share — so it cannot be forgotten by a new
+  entry point.
+
+### Dependencies
+
+- Added `d3-force` (+ `@types/d3-force`) for graph layout — `@xyflow/react` renders
+  but expects coordinates — and `@dnd-kit/core` + `@dnd-kit/sortable` for the kanban
+  board, chosen over native HTML5 drag-and-drop because that is inaccessible to
+  keyboard users and unusable on touch.
+
+## [0.8.0] — 2026-08-04
+
+> **Alpha release.** Tenth tagged Sunrise release. **MINOR bump** — a large
+> batch: an issue burn-down and a security sweep on top of new fork-facing
+> surface.
+>
+> **Security.** An email change now requires approval at the **old** address,
+> the current password, and revokes the account's other sessions (#489) —
+> _breaking for API callers_, since `PATCH /api/v1/users/me` no longer moves the
+> address in-request. Chat dispatch refuses tool names outside the agent's
+> advertised set (#476); `sanitizeUrl()` closes a control-character scheme
+> bypass (#437); JSON API responses carry `Cache-Control: private, no-cache`
+> (#487); and schedule- and inbound-triggered runs are written system-owned, so
+> erasing the operator who configured a trigger no longer destroys third
+> parties' inbound conversations (#502 — **ships migration
+> `20260801090000_system_owned_inbound_runs`**, which backfills inbound history).
+> That is one of **two migrations** in this release; the other,
+> `20260730140000_add_message_role_createdAt_index`, is the index the embedding
+> backfill's anti-join needed (#442).
+>
+> **Added.** The subject-access (GDPR Art. 15) export seam, matching erasure
+> (#467); `SIGNUP_MODE` to run a fork invite-only (#463); the authenticated-nav
+> and post-authentication landing seams (#473); private objects end-to-end in
+> storage, with a signed read route and a private root on the local provider
+> (#490); fork-owned seams at user creation (#464), for recurring app work
+> (#469), and for third-party frame hosts (#450); agent-opened chat turns and
+> caller message metadata (#474, #475); `apiClient.put()` (#495);
+> `validatePathParam()` (#435); `slugify()` (#451); and a configurable
+> dev-server port.
+>
+> **Changed.** `HookEventType` and the email-kind registry open to fork-owned
+> values (#465, #468) — the first is _breaking_ for an exhaustive `switch` with
+> an `assertNever` default, deliberately. `prisma/schema/app.prisma` is now
+> genuinely fork-reserved and ships empty, its three platform models moved to
+> `platform.prisma` with no migration and no client change (#429). An idle
+> maintenance tick now does zero database work (#442).
+
+### Security
+
+- **Changing an account's email now requires approval at the old address, the
+  current password, and revokes other sessions.** ([#489]) `PATCH
+  /api/v1/users/me` wrote the new address straight in and mailed verification to
+  it, with no re-authentication and no signal to the address being replaced — so
+  a single compromised session converted into permanent account takeover: the
+  address moved, the link went to the attacker, and `autoSignInAfterVerification`
+  minted them an independent session. A session expires; control of the address
+  does not.
+
+  The endpoint now delegates to better-auth's `changeEmail` with
+  `sendChangeEmailConfirmation`, which writes nothing until the address
+  **currently** on the account approves — so a stolen session can request a
+  change but not finish one. On top of that, `currentPassword` is required
+  (OAuth-only accounts are exempt, having none), and the user's other sessions
+  are revoked when the change lands.
+
+  **Breaking for API callers:** an email change no longer takes effect in the
+  request. A success response carries the *old* `email` plus
+  `emailChangeRequested: true`, and the address moves only after approval at the
+  old address and verification at the new one. Sending `email` without
+  `currentPassword` is now a 400 on password accounts.
+
+  New public surface: `changeEmailApproval` in the email registry (overridable
+  in `lib/app/emails.ts`), `revokeUserSessions` (`lib/auth/sessions.ts`), and
+  `parseEmailChangeToken` (`lib/auth/change-email.ts`) — the last is required
+  reading before touching `sendVerificationEmail` or `afterEmailVerification`,
+  since better-auth routes email changes through both with no discriminator of
+  its own.
+
+- **The chat handler now refuses tool names outside the agent's advertised
+  set.** Dispatch previously took the tool name straight off the model's emitted
+  call, while the dispatcher synthesizes a default-ALLOW binding when no
+  `AiAgentCapability` row exists — so a capability an agent was never granted
+  would execute, unrestricted. Reachable via prompt injection, or via a
+  conversation resumed across a capability being revoked (the model's own
+  earlier calls sit in history and invite imitation). ([#476])
+
+- **`sanitizeUrl()` no longer passes control-character-obfuscated schemes.**
+  `java<TAB>script:`, `java<LF>script:`, `javascript<TAB>:` and a leading C0
+  control all bypassed the check, because it ran on `trim()` (leading/trailing
+  whitespace only) while browsers strip tab/newline/CR from anywhere in a URL
+  before parsing the scheme. The replacement character class also covers the
+  non-ASCII whitespace `trim()` used to remove (NBSP, BOM, U+2028, the U+2000
+  block, ideographic space), so the guard is nowhere narrower than the one it
+  replaced — those are not browser-executable, but leaving them out would have
+  been a silent narrowing. Only the inspected copy is normalised — the URL
+  returned to callers is unchanged. ([#437])
+
+- **`PATCH /api/v1/users/me` clears `emailVerified` when the address changes**
+  and re-sends verification. Previously an account that verified one address
+  could become a *verified* holder of any unregistered address in one request,
+  turning `user.email` from "an address this person controls" into "any unused
+  string they typed" — a privilege-escalation primitive for invitation
+  redemption and domain allowlists keyed on the address. ([#466])
+
+- **An API key can no longer change the account's email address** (#466,
+  found reviewing that fix). `withAuth` accepts an API key of **any** scope, and
+  keys are self-service — so a `chat`-scoped key handed to a third-party
+  integration could have moved the account to an attacker's address, and the new
+  verification mail would have delivered them a working token. With
+  `autoSignInAfterVerification` enabled that token mints a real session, turning
+  a read-ish scope into full account takeover. `PATCH /api/v1/users/me` now
+  returns 403 on the email path for key-authenticated callers, via the new
+  `isApiKeySession()` in `lib/auth/api-keys.ts`. Non-identity profile fields are
+  unaffected. Re-authentication, old-address notification and session revocation
+  remain open — tracked in #489.
+
+- **JSON API responses now carry `Cache-Control: private, no-cache`** (#487).
+  Nothing set a cache directive, and a response with a validator (an `ETag`,
+  which several routes send) but no freshness information is *heuristically
+  cacheable* — RFC 9111 §4.2.2 lets a shared cache store it and invent an expiry.
+  Applied in `successResponse`/`errorResponse` and the 304 from
+  `checkConditional`, so the 200 and 304 on an endpoint agree. Deliberately
+  `no-cache` rather than `no-store`, which would forbid the client copy and
+  defeat the conditional-GET path the ETags exist for. It is a default, spread
+  before caller headers, so a route serving genuinely public data can override
+  it; routes returning a raw `Response` never pass through here.
+
+- **Schedule- and inbound-triggered runs are no longer attributed to the
+  operator who configured them.** ([#502]) The inbound route stamped
+  `trigger.createdBy`, and the scheduler `schedule.createdBy`, onto the
+  conversation and execution rows they created. The data on those rows belongs
+  to whoever sent the message — `inputData.trigger` is the adapter payload
+  written verbatim (sender phone number, email From/Subject/body, base64
+  attachments), and the conversation carries `fromAddress` and the full thread.
+
+  Both `userId` columns are `onDelete: Cascade`, so **erasing one operator
+  destroyed every third party's inbound conversation and run routed through any
+  trigger they had configured** — `eraseUser()` reported success and the
+  correspondence was gone. The same rows matched that operator on `userId`, so
+  a subject-access export would have disclosed a stranger's phone number and
+  email bodies to them as their own data.
+
+  Those rows are now written system-owned (`userId = null`), which is what
+  `.context/privacy/data-erasure.md` always described and what the engine was
+  already built for. Migration `20260801090000_system_owned_inbound_runs`
+  backfills inbound history; historical *scheduled* runs keep their author,
+  because the scheduler set no `triggerSource` before this release and they
+  cannot be distinguished from runs an admin started by hand.
+
+  Three behaviour changes follow. New public surface:
+  `lib/orchestration/access/execution-access.ts`
+  (`adminCanViewExecution`, `executionAccessBasis`, `executionVisibilityWhere`).
+
+  - **Admin visibility.** All 15 execution routes (including the sidebar
+    counts and the live-engine dashboard, the latter via
+    `getLiveEngineSnapshot`) and the conversation list, detail and search now
+    admit rows nobody owns — otherwise every scheduled and inbound run would
+    vanish from the UI and a run paused at an approval gate could never be
+    cleared. The same widening covers three surfaces that reach execution and
+    conversation rows by other routes: the resume path on `POST
+    /workflows/:id/execute?resumeFromExecutionId=` (without it an approved
+    system-owned run could not be continued and sat in `pending`),
+    `GET /observability/dashboard-stats` (which otherwise reported a healthy
+    deployment while the live-engine dashboard showed the same runs failing),
+    and `POST /evaluations/datasets/:id/capture` (which otherwise 404'd on
+    every attempt to capture a scheduled run's output into a dataset).
+    `AccessBasis` in `conversation-access.ts` gains a third member, `'system'`,
+    which is audit-logged like `'shared'`. Conversation PATCH/DELETE accept
+    `'owner'` and `'system'` (still never `'shared'`), so an inbound thread can
+    be deleted when the person who sent the messages asks — they have no
+    account, so `eraseUser()` cannot reach them. Both mutations write an audit
+    row: PATCH logs `conversation.updated` with `metadata.fields` naming what
+    changed (not the values, so a renamed `title` doesn't put message content
+    in the log).
+  - **A resumed run keeps the user context it was created with**, alongside its
+    already-pinned `versionId` and persisted `scope` — the execute route passes
+    the execution row's `userId`, not the resuming admin's. Otherwise a
+    system-owned run's second half would gain a user context its first half
+    never had, and `judge_call` would file a stranger's transcript into the
+    approving admin's history. For an owner-resume the two are the same value.
+  - **`judge_call` cannot run on a scheduled or inbound workflow.** It drives
+    `streamChat`, which files the judge transcript into a real account's chat
+    history; borrowing the schedule's author would re-create the
+    mis-attribution. The step throws `judge_call_requires_user_context`.
+  - **Rerun inherits the original's attribution** rather than claiming the run
+    for the admin who pressed the button, since `inputData` is copied verbatim.
+
+  `AiWorkflowExecution.triggerSource` is now written as `'schedule'` by the
+  scheduler — the value the schema documented and the scheduler never set — so
+  a run with no owner still has provenance.
+
+### Added
+
+- **`PORT` and `EMAIL_PORT` are now read from the project's env files, so an app
+  can declare the port it binds** — Next's CLI binds `--port` to `PORT` at
+  argument-parse time, which happens before it loads any `.env` file. A `PORT=`
+  line in `.env.local` was therefore visible to the app and invisible to the
+  server hosting it, leaving `-p` on the command line as the only way to move a
+  dev server. For anyone running several Sunrise-derived apps side by side —
+  reverse-proxying `*.test` hostnames to loopback ports, say — that meant
+  remembering which app owned which port, every time.
+
+  `npm run dev`, `npm run start` and `npm run email:dev` now go through
+  `scripts/dev-server.mjs`, which reads *only* the port variable out of the env
+  files, in Next's own precedence order, and passes it to the child process.
+  Resolution runs explicit `-p` flag → real environment variable →
+  `.env.<NODE_ENV>.local` → `.env.local` → `.env.<NODE_ENV>` → `.env` → `3000`,
+  so every existing way of setting the port keeps working and keeps outranking
+  the files. Nothing else about env loading changes, and the port stays
+  independent of `NEXT_PUBLIC_APP_URL` / `BETTER_AUTH_URL` — bind loopback,
+  advertise the proxied hostname.
+
+  `EMAIL_PORT` does the same for the React Email preview server, which also
+  defaults to 3000 and would otherwise collide with an app; it has no env
+  binding of its own, so the launcher passes `-p`.
+
+  The launcher is plain `.mjs` with no runtime dependency: `npm start` must
+  survive a production install (`npm ci --omit=dev`), which prunes both tsx and
+  dotenv. Without dotenv it still starts the server and says it could not read
+  the files. Deployed containers are untouched — the Docker image runs the
+  standalone server, which reads `process.env.PORT` directly.
+
+  **For forks:** Sunrise now ships a committed `.env.development` setting
+  `PORT=3010` — the one env file `.gitignore` deliberately permits, for
+  non-secret settings that should travel with the repo. `npm run dev` needs no
+  arguments in any clone. **Change the value in your fork:** two Sunrise-derived
+  apps that both keep 3010 collide the moment they run together. See
+  [`CUSTOMIZATION.md`](./CUSTOMIZATION.md#claiming-your-own-dev-port).
+
+  Deployment is untouched. The production image copies only the standalone
+  build, so neither `.env.development` nor `scripts/` reaches it; `ENV PORT=3000`
+  is a real environment variable, which outranks any file; Vercel runs
+  `next build` and never `npm start`; and `npm start` resolves against
+  `.env.production*` / `.env`, never `.env.development`.
+
+- **Server components now call their own API at an address the server can
+  actually reach** — `getBaseUrl()` returned `BETTER_AUTH_URL`, so a server
+  component rendering a page went *out* to the public hostname and back in.
+  Point that hostname at a local reverse proxy terminating TLS with a
+  certificate Node does not trust (Herd, Valet, mkcert) and every self-call
+  fails with `UNABLE_TO_VERIFY_LEAF_SIGNATURE` — while the browser works
+  perfectly, because it trusts the same CA the server doesn't. Pages that catch
+  fetch errors then render empty: an admin user list reporting "No users found"
+  against a populated database.
+
+  `getBaseUrl()` (`lib/api/server-fetch.ts`) now resolves
+  `INTERNAL_API_URL` → `http://127.0.0.1:$PORT` in development when the port is
+  known → `BETTER_AUTH_URL`. Production behaviour is unchanged unless
+  `INTERNAL_API_URL` is set explicitly, which is there for the same split in
+  other environments — a private network where the public hostname resolves
+  elsewhere. Beyond correctness, a self-call over loopback skips a round trip
+  through the proxy.
+
+  `INTERNAL_API_URL` is validated as a URL in `lib/env.ts`. It must be **this**
+  app's own address; anything else would receive cookie-bearing internal
+  requests.
+
+  **New `getPublicUrl()`, and a rule for choosing between the two.**
+  `getBaseUrl()` had been doing two jobs: addressing the app's own API, and
+  building URLs for *other* systems to call — the inbound-webhook endpoint an
+  operator pastes into Slack (`app/admin/orchestration/triggers/**`). Those
+  answers are no longer the same, so a loopback internal address would have been
+  rendered as a webhook URL reachable from nowhere but the developer's machine.
+  `getPublicUrl()` returns the public address for anything that leaves the
+  server; `getBaseUrl()` stays internal-only. The two trigger pages now use it,
+  restoring exactly their previous output.
+
+- **Hot reload now works when the app is served on a hostname rather than
+  `localhost`** — Next allows only `localhost` to reach its dev endpoints and
+  blocks the rest, so an app behind a local reverse proxy rendered fine but
+  never hot-reloaded, logging _"Blocked cross-origin request to Next.js dev
+  resource"_. Rather than have every fork hardcode its own hostname,
+  `next.config.js` now derives `allowedDevOrigins` from the hostnames already in
+  `NEXT_PUBLIC_APP_URL` and `BETTER_AUTH_URL`. Setting those to the proxied
+  hostname is enough; the config never needs editing.
+
+  New optional `ALLOWED_DEV_ORIGINS` adds hosts those URLs don't cover (a LAN IP
+  for device testing, or a `*.myapp.test` wildcard for subdomain-per-tenant
+  development). It is distinct from `ALLOWED_ORIGINS` — that is API CORS in
+  every environment, this is hot reload in `next dev`, and Next ignores it in
+  production builds.
+
+- **Subject access (GDPR Art. 15) now has a seam, matching erasure** (#467) —
+  Sunrise implemented the *erasure* half of GDPR carefully — `eraseUser()`, a
+  documented per-table `onDelete` policy, an append-only receipt, a registration
+  seam for app-owned cleanup — and had nothing at all for the *access* half.
+  Every fork holding personal data wrote it themselves, each one independently
+  re-answering the same question: which tables count?
+
+  `exportUserData()` (`lib/privacy/export-user.ts`) assembles one subject's
+  record from `SUBJECT_DATA_SOURCES` (`lib/privacy/export-sources.ts`), a
+  manifest where every `User`-linked model carries an explicit disposition:
+  `export` for the subject's own data, `attribution` for org config they
+  authored (id + label + date — `createdBy` is attribution, not ownership, the
+  same reasoning erasure uses when it retains the row and nulls the link), or a
+  documented exclusion with a written reason. The export's own `meta` echoes all
+  three back with row counts, so a subject can see the boundary of what they
+  received rather than infer it.
+
+  **The coverage guard is the substance of the change.**
+  `tests/unit/lib/privacy/export-sources.test.ts` parses `prisma/schema/*.prisma`
+  and fails if a model relating to `User` is missing from the manifest — so
+  adding a table without deciding what a data subject receives breaks the build.
+  Erasure gets this free: a missing `onDelete` throws `P2003` and breaks loudly.
+  Access has no natural loud failure — an export that omits a table looks
+  exactly like a complete answer to the person reading it, and neither they nor
+  the operator who sent it can tell. Two consequences follow: sources use
+  Prisma's `omit` rather than `select`, so a column added tomorrow is exported
+  by default instead of silently dropped (what's omitted is credential material
+  only — session tokens, password hashes, OAuth tokens, key hashes, HMAC
+  secrets); and nothing is best-effort, so a source that throws fails the whole
+  export, the deliberate opposite of the erasure path where hook failures are
+  swallowed so app trouble can never block a deletion.
+
+  Two sources shipped narrowed, disclosing it via a `scopeNote` in `meta`:
+  inbound conversations and inbound-triggered workflow runs were written
+  against the operator who configured the channel, not the person who sent the
+  message, so matching on `userId` alone would have disclosed a third party's
+  phone number and correspondence to the wrong subject. **Both filters were
+  removed later in this same release** once [#502] fixed the mis-attribution
+  they contained; a source that narrows must still carry a `scopeNote`.
+
+  A second guard,
+  `npm run smoke:export`, runs in CI beside the erasure smoke and proves against
+  real Postgres what a mocked suite cannot: that every manifest query executes, and
+  that a planted session token, password hash, key hash and webhook secret
+  appear nowhere in the serialised bundle.
+
+  New public surface: `exportUserData()` and `SubjectNotFoundError`
+  (`lib/privacy/export-user.ts`), the `SUBJECT_DATA_SOURCES` / `EXCLUDED_SOURCES`
+  manifest (`lib/privacy/export-sources.ts`), the fork seam
+  `collectAppSubjectData()` (`lib/app/data-export.ts` — a static function rather
+  than a boot-time registry like `erasure-hooks.ts`, because an unregistered
+  export collector yields a bundle that looks complete and is not), and two
+  endpoints mirroring the erasure pair: `GET /api/v1/users/me/export` (refuses
+  API-key sessions — a `chat`-scoped key must not read out an entire account)
+  and `GET /api/v1/users/[id]/export` for admins answering a request that
+  arrives by email. Both take the `exportLimiter` sub-cap and send
+  `Cache-Control: no-store`. Documented in `.context/privacy/data-export.md`.
+
+- **`SIGNUP_MODE`, the seam to run a fork invite-only** (#463) — Sunrise ships a
+  complete invitation system whose premise is that access is *granted*, beside an
+  email/password signup endpoint that was unconditionally open with no config to
+  close it. A fork whose product is invite-gated could only edit a core auth file
+  or leave the front door open, which is easy not to notice: the invite flow
+  works, the product *looks* gated, and accounts accumulate. `SIGNUP_MODE=invite_only`
+  closes `POST /api/auth/sign-up/email` (better-auth `hooks.before`), every other
+  un-invited account creation (`userCreateBeforeHook`, default-deny and
+  deliberately path-independent — a Google signup arrives via `/callback/:id` and
+  an ID-token sign-in via `/sign-in/social`, so an endpoint allowlist leaks
+  silently), and the `/signup` page (proxy redirect). Only account *creation* is refused; sign-in,
+  password reset and invitation acceptance are unaffected. New
+  `lib/auth/signup-mode.ts` exports `isInviteOnly()`, `isFirstHumanBootstrap()`
+  and `runInvitedSignup()` — the last being how a server-side path that has
+  already validated an invitation exempts itself, since better-auth routes
+  `auth.api.*` through the same hook as HTTP requests. `open` remains the default.
 
 - **`lib/app/protected-nav.ts`, the authenticated-nav seam** (#473) — the nav a
   fork's *users* see was a hardcoded array in
@@ -613,230 +1240,8 @@ release process.
   the existing `app:ci-checks` seam, so the reservation is real rather than a
   promise.
 
-- **Obsiddy phase 5 — the UI layer** (Release 1, phases 5 and 5b): twelve
-  authenticated surfaces under `app/(protected)/obsiddy/**` — Today, Inbox,
-  Search, Projects, Goals, Areas, People, Documents, Connections, Graph, Boards
-  and Plan — plus personal Settings. Components live in `components/obsiddy/**`
-  and page paths in the new `OBSIDDY_ROUTES` (`lib/framework/obsiddy/ui/routes.ts`).
-- **Obsiddy: new API endpoints backing those surfaces** — `GET /api/v1/obsiddy/counts`,
-  `/connections`, `/graph`; `POST /api/v1/obsiddy/thoughts/[id]/promote`; enriched
-  reads at `/projects/[id]/view`, `/entities/[id]/view`, `/tasks/[id]/view`; and the
-  boards layer: `/boards` (+ `[id]`, `/view`, `/cards`, `/cards/[cardId]`, `/export`,
-  `/restore`), `/tags` (+ `[id]`), `PATCH /tasks/[id]/tags`,
-  `/tasks/[id]/checklist` and `/checklist/[id]`.
-- **Obsiddy: `ObsiddySpace.connectionStrengthFloor`** (migration
-  `20260730160000_obsiddy_connection_floor`) — the similarity a pair must clear to be
-  proposed as a connection, per user. Nullable; `null` uses the measured 0.55 default.
-  The right value is model-dependent, and a mis-tuned floor produces exactly the same
-  output as a sweep with nothing left to find. Exposed on `GET`/`PATCH /obsiddy/space`.
-- **Obsiddy: `listLinksForEntity` / `listLinksForEntities`** on the links repo, and
-  `statuses` on `LinkFilters` — a detail page needs links on *either* end of a
-  polymorphic edge, and the review queue filters by two statuses at once.
-- **Obsiddy: task status changes now record `{ statusFrom, statusTo }`** on their
-  `updated` event, and `findLatestStatusChanges` reads the newest per task in one
-  `DISTINCT ON`. This is what lets a board say how long a card has sat in its column
-  (§12) without giving up its fixed query count; cards with no such event fall back to
-  "untouched since", worded differently so the two are never confused.
-- **Obsiddy: `findTasksByIds`** on the tasks repo — the explicit-board read needs
-  exactly its pinned tasks rather than the top N by score.
-- **Obsiddy: `renumberChecklistItems`** on the checklist repo — the counterpart to
-  `renumberBoardCards`. `planMove` computes a moved item's position against the
-  *spread* list once a gap has collapsed, so the spread has to be written in the
-  same pass or the item lands at a coordinate its siblings never moved to.
-
-- **Obsiddy framework-tier scaffold** (Release 1, phase 0) — the reserved
-  `/framework` tier is now occupied by Obsiddy: `lib/framework/obsiddy/` with
-  `initObsiddy()` and `obsiddyEnvSchema`, the tier import boundary in
-  `lib/framework/eslint.config.mjs` (including the D5 owner/shared repo rule),
-  an empty `prisma/schema/framework-obsiddy.prisma`, and
-  `.context/framework/obsiddy/install.md`. Wired through four Sunrise seams —
-  `bootstrap.ts` (dynamic import), `env.ts`, `eslint.config.mjs`,
-  `protected-routes.ts` (`/obsiddy`) — with **zero Sunrise-owned files
-  modified**.
-- **`lib/app/leaf-bootstrap.ts`** — new boot seam Obsiddy re-exposes to the leaf
-  forks built on it, so a leaf fork and Obsiddy don't contend over
-  `lib/app/bootstrap.ts`. Ships empty; called by `initObsiddy()` after Obsiddy's
-  own registrations, so a leaf fork can override them.
-- **Obsiddy data model** (Release 1, phase 1) — 18 `framework_obsiddy_*` models
-  in `prisma/schema/framework-obsiddy.prisma` and the hand-edited migration
-  `20260728222816_add_second_brain`. One satellite table (`ObsiddySpace`) with a
-  hand-written `ON DELETE CASCADE` FK to `user`, one polymorphic edge table and
-  one polymorphic `vector(1536)` embedding table, so the whole brain cascades on
-  erasure and there is a single HNSW index to maintain.
-- **`registerObsiddyDriftProbes()`** (`lib/framework/obsiddy/db-drift.ts`) — six
-  probes over the Postgres objects Prisma cannot model, registered from
-  `lib/app/db-drift.ts`. The two `GENERATED` probes assert `is_generated`, not
-  just column existence, so a column silently recreated as a plain `tsvector`
-  fails the check instead of never being populated.
-- **`ensureObsiddySpace()`** (`lib/framework/obsiddy/services/space.ts`) —
-  idempotent, race-safe first-use creation of a user's space, plus
-  `getObsiddySpace()` and `findSpaceByInboxToken()`.
-- **Obsiddy repo layer and CRUD API** (Release 1, phase 2) —
-  `lib/framework/obsiddy/repo/*` with the branded `OwnerScope` type, seven
-  entity repos, `lib/framework/obsiddy/services/*` (resource descriptors, slug
-  resolution, activity events) and 20 route files under
-  `app/api/v1/obsiddy/**` covering tasks, projects, goals, areas, thoughts,
-  entities and time blocks. `DELETE` archives; `?permanent=true` destroys.
-- **`scripts/framework/obsiddy/smoke-isolation.ts`**
-  (`npm run framework:obsiddy:smoke-isolation`) — proves cross-user isolation
-  and the erasure cascade against a real database. Namespaced and kept out of
-  `scripts/smoke/` because `CUSTOMIZATION.md` §7 reserves the unprefixed script
-  names, `smoke:*` included, for the platform.
-- **Obsiddy priority engine** (Release 1, phase 3) —
-  `lib/framework/obsiddy/priority/score.ts` is a pure, I/O-free function over
-  six weighted factors (urgency, goal alignment, project momentum, area balance,
-  effort fit, staleness) plus an additive `manualBoost`, so `+1` provably
-  outranks every unboosted task and `-1` provably sinks below them. An expired
-  boost reads as `0` at evaluation time rather than being lazily zeroed, so
-  behaviour never depends on whether a background job has run.
-  `priority/reprioritise.ts` gathers the inputs in a fixed number of batched
-  queries and persists `priorityScore` + `priorityFactors`; `rescoreTask()`
-  narrows that to one row and runs on every task mutation, so a pin takes effect
-  immediately instead of at 3am.
-- **Obsiddy snooze** (`lib/framework/obsiddy/services/snooze.ts`) — `snoozeItem`
-  / `unsnoozeItem` over tasks, thoughts and projects, with presets
-  (`later_today`, `tomorrow`, `next_week`, `next_month`) resolved server-side in
-  `ObsiddySpace.timezone` rather than by the caller. `snoozeCount` counts the
-  gesture and is never decremented, and is never an input to the scorer. Exposed
-  as `POST /api/v1/obsiddy/{tasks,thoughts,projects}/[id]/snooze` and
-  `.../unsnooze`.
-- **`lib/framework/obsiddy/time/zoned.ts`** — wall-clock arithmetic in the
-  user's zone (`wallClockAt`, `instantAtWallClock`, `startOfZonedDay`,
-  `startOfZonedWeek`, `addZonedDays`, `addZonedMonths`, `timeOfDayAt`), built on
-  `Intl` with no new dependency. Days are 23 or 25 hours long twice a year, and
-  every scheduling phrase in Obsiddy resolves through here rather than through
-  server time.
-- **`GET /api/v1/obsiddy/today`** — the dashboard's only fetch: ranked tasks
-  enriched with project and area, today's time blocks, inbox count, goals at
-  risk, unreviewed connections, the latest review and this week's remaining
-  capacity, in a fixed number of queries regardless of task count. ETag'd.
-- **`GET /api/v1/obsiddy/inbox`** — captured thoughts with their suggested links
-  and the strongest suggested project, resolved in two batched queries. ETag'd.
-- **`GET` / `PATCH /api/v1/obsiddy/space`** — the caller's effective settings
-  with defaults resolved, plus `customised` flags. `inboxToken` is deliberately
-  never included. Backed by Zod schemas for the three previously unvalidated
-  `Json` columns (`priorityWeightsSchema` — which requires the weights to sum to
-  1 — `energyProfileSchema`, `retentionPolicySchema`) and by
-  `lib/framework/obsiddy/settings.ts`, whose resolvers safe-parse those columns
-  and fall back to documented defaults rather than letting a malformed blob
-  write `NaN` into every score.
-
-- **`scripts/framework/obsiddy/smoke-priority.ts`**
-  (`npm run framework:obsiddy:smoke-priority`) — exercises the ranking, snooze
-  and aggregate paths against a real database: the space bootstrap, the batched
-  score write, `sumMinutesByArea`'s raw SQL, a real indexed
-  `ORDER BY priorityScore`, preset resolution in `Pacific/Auckland`, and that
-  none of the new surfaces leak across users.
-- **Obsiddy semantic layer** (Release 1, phase 4) — the brain is now searchable
-  by meaning. `searchObsiddy()`
-  (`lib/framework/obsiddy/search/hybrid-search.ts`) is the **only** search entry
-  point and takes an `OwnerScope` as a required field, so a route param or an LLM
-  tool argument cannot become one. It runs three passes: vector + BM25 over the
-  one embedding table, the generated tsvector for tasks (which are deliberately
-  not embedded), and — only when `includeArchived` is set — a keyword pass over
-  the archived corpus, which by design has no vectors at all.
-- **All Obsiddy vector SQL lives in `lib/framework/obsiddy/repo/embeddings.ts`.**
-  The plan put it in `search/`, but the tier lint boundary forbids Prisma outside
-  `repo/**` — which is the stronger arrangement, because the raw SQL is the one
-  place a `WHERE "userId"` can be forgotten and this confines it to the layer
-  whose every function carries a verified scope. Includes
-  `assertObsiddyModelMatchesStoredVectors()`, a port of the platform's private
-  dimension guard (upstream
-  [#491](https://github.com/human-centric-engineering/sunrise/issues/491) asks
-  for a shared version).
-- **Obsiddy indexer** (`lib/framework/obsiddy/embedding/{canonical,indexer}.ts`)
-  — `canonicalText()` and `contentHash()` are pure and cover **semantic content
-  only**, never rendered markdown, so formatting noise (CRLF, trailing
-  whitespace, a `null` → `''` description) is not an edit. `indexedHash` is nulled
-  liberally by every mutation path because nulling it queues a *hash comparison*,
-  not an embedding call: `reindexPending()` compares the recomputed hash against
-  what is stored and only then spends anything. That is what lets a mutation path
-  null the column without knowing which fields are semantic.
-- **Obsiddy connection engine** (`lib/framework/obsiddy/search/connections.ts`) —
-  `findConnections()` is read-only and idempotent; `sweepConnections()` persists
-  pairs above a 0.72 similarity floor as
-  `ObsiddyLink{ origin: 'rule', status: 'suggested' }`. Both read
-  **already-stored** vectors and do neighbour search in SQL, so the sweep costs
-  no embedding tokens. Pair exclusion — including the `rejected` tombstone, in
-  both directions — happens inside the query, so no caller can forget it.
-- **Obsiddy document ingestion**
-  (`lib/framework/obsiddy/documents/{ingest,chunking}.ts`) — reuses the
-  platform's `parseDocument()` (PDF, DOCX, EPUB, CSV, HTML, MD, TXT) and its
-  markdown and semantic chunkers, but stores rows in Obsiddy's own tables:
-  `.context/orchestration/knowledge.md` is explicit that the platform KB is a
-  global asset and per-user scoping there is an anti-pattern. Dedupes on
-  `fileHash` scoped to the owner, and queues indexing rather than embedding
-  inline.
-- **`ObsiddySettings`** — an instance-settings singleton and the one Obsiddy
-  table with no `userId`, so also the one outside the D1 erasure cascade. Holds
-  `documentOriginals` (`discard | retain`) and `maxDocumentBytes`, exposed at
-  `GET|PATCH /api/v1/admin/obsiddy/settings` and `/admin/obsiddy/settings`.
-- **New Obsiddy routes** — `GET /obsiddy/search`, `POST /obsiddy/reindex`,
-  `GET|POST /obsiddy/links`, `PATCH /obsiddy/links/[id]`,
-  `POST /obsiddy/connections/sweep`, `GET|POST /obsiddy/documents`,
-  `GET|DELETE /obsiddy/documents/[id]`,
-  `GET /obsiddy/documents/[id]/download`. There is deliberately no
-  `DELETE /obsiddy/links/[id]`: rejecting sets `status: 'rejected'`, which is the
-  tombstone that stops the sweep re-proposing a dismissed pair forever.
-- **`registerObsiddyRateLimits()`** (`lib/framework/obsiddy/rate-limit.ts`) —
-  per-flow sub-caps for the four expensive paths (search 30/min; reindex and
-  sweep 5/hour; document upload 20/hour), keyed on the session user. Wired
-  through the `lib/app/rate-limit.ts` seam with one call, so a later Obsiddy
-  release can add one without every host editing that file.
-- **`registerObsiddyAdminNav()`** (`lib/framework/obsiddy/admin-nav.ts`) — the
-  Obsiddy admin section, wired through `lib/app/admin-nav.ts`. Client-safe by
-  necessity: the sidebar reads the registry during render.
-- **`lib/framework/obsiddy/api/endpoints.ts`** — Obsiddy's own endpoint
-  constants. `lib/api/endpoints.ts` is Sunrise-owned, so adding Obsiddy's routes
-  there would be a merge conflict inflicted on every host on every upgrade.
-- **`scripts/framework/obsiddy/smoke-search.ts`**
-  (`npm run framework:obsiddy:smoke-search`) — 26 assertions against a real
-  database over the pgvector SQL, the HNSW index, tsvector ranking, cross-user
-  isolation (**including the case where another user's row is the better vector
-  match**), the sweep, the tombstone, and the archive transaction. Runs with real
-  embeddings when a provider is configured and with deterministic synthetic
-  vectors when not, printing which — so a green run never claims more than it
-  proved.
-
 ### Changed
 
-- **Obsiddy: `POST /api/v1/obsiddy/links` now goes through `linkEntities`**
-  (`lib/framework/obsiddy/services/links.ts`). The endpoint checks, the
-  identical-404 rule and the server-pinned `origin` / `status` / `reviewedAt`
-  were inline in the route; `obsiddy_link_entities` needs all three, and a
-  capability that reimplemented them would drift — which is exactly the
-  divergence the "handlers stay thin" rule exists to prevent. Behaviour change:
-  a hand-asserted link now records a `linked` `ObsiddyEvent`, which it never did.
-- **Obsiddy: `PATCH /api/v1/obsiddy/tasks/[id]/tags` is now `PUT`.** The route
-  always replaced the whole tag set; it used `PATCH` only because `apiClient` had
-  no `put` and adding one would have been a core-file edit. #495 landed the verb.
-  **Breaking for any caller built against the old verb** — the body and response
-  are unchanged.
-- **Obsiddy: retention capability is read from the provider, not inferred from
-  its name.** `resolveRetentionCapability()` named `local` and refused it, because
-  the local provider wrote into `public/uploads/` and ignored `public: false`.
-  #490 gave it a private root and a signed read route, which made the name check
-  **wrong in both directions** — it would refuse a local provider that can now
-  hold objects privately, and go on trusting any future provider that simply
-  isn't called `local`. It now reads `getStorageCapabilities()`, where an
-  undeclared capability means "cannot". **Upgrade note for S3 deployments:** S3
-  declares `privateObjects: useAcl || privateByDefault`, and both default to
-  false. An install on `STORAGE_PROVIDER=s3` with neither `S3_USE_ACL` nor
-  `S3_OBJECTS_PRIVATE_BY_DEFAULT` set, and `documentOriginals: 'retain'`, will
-  stop retaining new uploads _and_ start returning 404 from
-  `GET /api/v1/obsiddy/documents/[id]/download` for originals it already holds.
-  That is the correct fail-closed answer — nothing can distinguish that bucket
-  from a wide-open one — and the admin settings page names the reason on screen.
-  Set `S3_OBJECTS_PRIVATE_BY_DEFAULT=true` to restore retention.
-- **Obsiddy: `assertObsiddyModelMatchesStoredVectors` delegates to the platform
-  guard** exported by #491, instead of carrying ~40 duplicated lines. The fork
-  still supplies owner-scoped closures — an unscoped aggregate would make one
-  user's search latency grow with the whole install's corpus and let one user's
-  mismatched vectors throw for everybody — and keeps its structured `logger.error`
-  via catch/rethrow, because a thrown string is not queryable.
-- **Obsiddy: `lib/framework/obsiddy/db-drift.ts` imports `generatedColumnExists`**
-  from `@/lib/db/drift-probes` rather than defining its own. #481 landed it and
-  switched core's A1 probe to it, closing the same blind spot upstream.
 - **`upload_to_storage` refuses a private-upload binding the provider cannot
   honour** (#490). A binding with `public: false` or `signedUrlTtlSeconds` now
   fails with `private_objects_not_supported` — before any upload — when the
@@ -1026,42 +1431,6 @@ release process.
   Applied on create only, so a re-seed never deactivates a row an operator
   turned on. ([#436])
 
-- ~~**`components/layouts/protected-nav.tsx` gains one `/obsiddy` entry.**~~
-  **Reverted before release.** #473 landed the `lib/app/protected-nav.ts` seam
-  the entry was waiting on, so the core file is pristine again and Obsiddy
-  registers through the seam. Added and removed within the same unreleased cycle;
-  no released version carried the edit.
-- **Archiving an Obsiddy item now deletes its embedding rows in the same
-  transaction** as the archive (`archiveAndDropVectors()`), rather than leaving
-  them behind a `WHERE archivedAt IS NULL` filter. A filtered vector search
-  degrades recall silently as history grows — no error, no symptom — so the index
-  only ever holds live data. The consequence, deliberately accepted, is that the
-  archived corpus is keyword-searchable but not vector-searchable.
-
-### Removed
-
-- **`updateSpace()`** (`lib/framework/obsiddy/repo/space.ts`) — replaced by
-  `updateSpaceSettings()`, which takes the patch in domain terms and translates
-  a `null` Json column into `Prisma.DbNull`. Added and removed within the same
-  unreleased cycle; no released version exposed it.
-
-- **`privateCacheHeaders()` and `withPrivateCache()`**
-  (`lib/framework/obsiddy/api/cache.ts`) — the per-route `Cache-Control`
-  workaround, redundant once #487 made `private, no-cache` the default on every
-  JSON envelope and on `checkConditional()`'s 304. Deleted rather than left as
-  no-ops a future route author would copy without knowing. `PRIVATE_NO_CACHE`
-  survives for the board export, which returns a raw `Response` and so never
-  passes through the envelope helpers. Same unreleased cycle.
-
-- **Obsiddy erasure cascade was incomplete** (`20260728232937_obsiddy_space_cascade`).
-  The phase-1 migration gave every scoped table a plain `userId` column with no
-  FK, so deleting a user removed only the `ObsiddySpace` row and left every
-  task, thought, project and event behind — personal data surviving an erasure
-  that reported success. Every scoped table now has a real FK to
-  `framework_obsiddy_space("userId") ON DELETE CASCADE`, and the migration
-  deletes rows already orphaned by its absence. Found by the isolation smoke
-  script against a real database; no mocked test could have caught it.
-
 ### Fixed
 
 - **`upload(file, { public: false })` is no longer silently ignored** (#490). The
@@ -1164,6 +1533,8 @@ release process.
 [#462]: https://github.com/human-centric-engineering/sunrise/issues/462
 [#466]: https://github.com/human-centric-engineering/sunrise/issues/466
 [#476]: https://github.com/human-centric-engineering/sunrise/issues/476
+[#489]: https://github.com/human-centric-engineering/sunrise/issues/489
+[#502]: https://github.com/human-centric-engineering/sunrise/issues/502
 
 - **`LlmOptions.timeoutMs` and `signal` reach the provider SDKs.** Both were
   documented but dropped, so a call that needed longer than the client default
@@ -1197,22 +1568,6 @@ release process.
   dirtied a core file it never edited. Prettier doesn't touch `.prisma`, so
   `format:check` couldn't see the drift; the `lint` job now runs `prisma format`
   and fails on a non-empty diff. Whitespace only — no schema or client change.
-
-- **Obsiddy's first write by any new user returned a 500.**
-  `ensureObsiddySpace()` existed and was tested but was called from nowhere,
-  while `20260728232937_obsiddy_space_cascade` gave every scoped table a real FK
-  to `framework_obsiddy_space("userId")`. A user who had never had a space row
-  therefore hit a foreign-key violation on the first thing they did. The space
-  bootstrap now wraps `create` on every resource descriptor — the layer the HTTP
-  routes and the phase-6 capabilities share — so it cannot be forgotten by a new
-  entry point.
-
-### Dependencies
-
-- Added `d3-force` (+ `@types/d3-force`) for graph layout — `@xyflow/react` renders
-  but expects coordinates — and `@dnd-kit/core` + `@dnd-kit/sortable` for the kanban
-  board, chosen over native HTML5 drag-and-drop because that is inaccessible to
-  keyboard users and unusable on touch.
 
 ## [0.7.0] — 2026-07-09
 

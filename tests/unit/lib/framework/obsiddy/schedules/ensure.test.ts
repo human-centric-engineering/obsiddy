@@ -2,11 +2,17 @@
  * Unit Tests: `ensureObsiddySchedules`.
  *
  * This is what gives one person their own background workflows, and the design
- * rests on a mechanism that is easy to break without noticing: the scheduler
- * stamps `execution.userId = schedule.createdBy`, and that is the *only* route
- * by which a nightly run knows whose brain it is working on. A schedule created
- * without `createdBy`, or carrying somebody else's id, is not a broken
- * schedule — it is a run against the wrong person's data.
+ * rests on a mechanism that is easy to break without noticing: the row's `scope`
+ * column carries the owner, and that is the *only* route by which a nightly run
+ * knows whose brain it is working on. A schedule created without it, or carrying
+ * somebody else's id, is not a broken schedule — it is a run against the wrong
+ * person's data.
+ *
+ * That route used to be `execution.userId`, which the scheduler stamped from
+ * `createdBy`. Sunrise 0.8.0 (sunrise#502) made scheduled runs system-owned, so
+ * every row written before it now fires an ownerless run — which is why the
+ * correction pass has a third job, and why these tests assert the stamp lands
+ * with the id the pass was called for rather than anything read off the row.
  *
  * The other cluster is what must *not* be in these rows. `AiWorkflowSchedule`
  * is core-owned with `createdBy: onDelete: SetNull`, so the row outlives the
@@ -30,6 +36,8 @@
  * - A second call creates nothing — it is safe on every login
  * - A schedule whose cron no longer matches the zone's offset is rewritten
  * - A schedule carrying a stale `inputTemplate` is cleared
+ * - A pre-0.8.0 row with no owner `scope` is stamped, with the caller's id
+ * - A row that already carries its owner scope is left alone
  * - A row needing both fixes is reported once, not twice
  * - Rewriting does not touch `isEnabled` — an off schedule stays off
  * - A missing workflow row is reported, not thrown
@@ -45,6 +53,7 @@ vi.mock('@/lib/framework/obsiddy/repo/schedules', () => ({
   createObsiddySchedule: vi.fn(),
   updateObsiddyScheduleCron: vi.fn(),
   clearObsiddyScheduleInputTemplate: vi.fn(),
+  stampObsiddyScheduleOwner: vi.fn(),
 }));
 
 import {
@@ -56,6 +65,7 @@ import {
   createObsiddySchedule,
   findObsiddyWorkflowIds,
   listObsiddySchedules,
+  stampObsiddyScheduleOwner,
   updateObsiddyScheduleCron,
 } from '@/lib/framework/obsiddy/repo/schedules';
 import { dailyCron, monthlyCron, weeklyCron } from '@/lib/framework/obsiddy/schedules/cron';
@@ -65,6 +75,7 @@ const mockedWorkflowIds = vi.mocked(findObsiddyWorkflowIds);
 const mockedCreate = vi.mocked(createObsiddySchedule);
 const mockedUpdate = vi.mocked(updateObsiddyScheduleCron);
 const mockedClear = vi.mocked(clearObsiddyScheduleInputTemplate);
+const mockedStamp = vi.mocked(stampObsiddyScheduleOwner);
 
 const USER = 'user_a';
 /** Mutable so a test can switch zone without threading it through every call. */
@@ -214,6 +225,52 @@ describe('ensureObsiddySchedules — repeat runs', () => {
     expect(mockedUpdate.mock.calls[0]).toHaveLength(3);
   });
 
+  it('stamps the owner scope onto a row written before Sunrise 0.8.0', async () => {
+    // The row looks entirely correct — right cron, empty template, enabled. What
+    // it lacks is the `scope` that carries the owner, which it never needed while
+    // the scheduler stamped `execution.userId` from `createdBy`. Since
+    // sunrise#502 made scheduled runs system-owned, this row fires a run whose
+    // capabilities have no user at all and `requireObsiddyUser` throws.
+    const slug = OBSIDDY_SCHEDULED_WORKFLOWS.morningBriefing;
+    mockedList.mockResolvedValue([
+      existingRow(slug, 0, expectedCronFor(slug, 'UTC', SUMMER), { hasOwnerScope: false }),
+    ]);
+
+    const result = await ensureObsiddySchedules(USER, TZ.current, SUMMER);
+
+    expect(mockedStamp).toHaveBeenCalledWith('sched_0', USER);
+    expect(result.corrected).toContain(slug);
+    // Nothing else about the row was wrong.
+    expect(mockedUpdate).not.toHaveBeenCalled();
+    expect(mockedClear).not.toHaveBeenCalled();
+  });
+
+  it('stamps the owner it was called for, never one from the row', async () => {
+    // The value written must come from the `userId` argument — the id
+    // `listObsiddySchedules` already filtered on — so a correction pass can only
+    // ever confirm the brain a schedule already belonged to, not move it.
+    const slug = OBSIDDY_SCHEDULED_WORKFLOWS.weeklyReview;
+    mockedList.mockResolvedValue([
+      existingRow(slug, 3, expectedCronFor(slug, 'UTC', SUMMER), { hasOwnerScope: false }),
+    ]);
+
+    await ensureObsiddySchedules(USER, TZ.current, SUMMER);
+
+    expect(mockedStamp).toHaveBeenCalledTimes(1);
+    expect(mockedStamp.mock.calls[0]?.[1]).toBe(USER);
+  });
+
+  it('leaves a row that already carries its owner scope alone', async () => {
+    mockedList.mockResolvedValue(
+      ALL_SLUGS.map((slug, i) => existingRow(slug, i, expectedCronFor(slug, 'UTC', SUMMER)))
+    );
+
+    const result = await ensureObsiddySchedules(USER, TZ.current, SUMMER);
+
+    expect(mockedStamp).not.toHaveBeenCalled();
+    expect(result.corrected).toEqual([]);
+  });
+
   it('does not touch a disabled schedule’s enablement when clearing its template', async () => {
     mockedList.mockResolvedValue([
       existingRow(
@@ -264,7 +321,11 @@ function existingRow(
   slug: string,
   index: number,
   cronExpression: string,
-  overrides: Partial<{ isEnabled: boolean; hasInputTemplateData: boolean }> = {}
+  overrides: Partial<{
+    isEnabled: boolean;
+    hasInputTemplateData: boolean;
+    hasOwnerScope: boolean;
+  }> = {}
 ) {
   return {
     id: `sched_${index}`,
@@ -272,6 +333,9 @@ function existingRow(
     cronExpression,
     isEnabled: true,
     hasInputTemplateData: false,
+    // Default `true` — a row written by the current code already carries it, so
+    // the pre-0.8.0 case is the one a test opts into, not the baseline.
+    hasOwnerScope: true,
     ...overrides,
   };
 }

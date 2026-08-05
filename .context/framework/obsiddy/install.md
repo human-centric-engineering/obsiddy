@@ -436,6 +436,9 @@ Obsiddy registers its own erasure cleanup hook from `initObsiddy()`, so there is
 **nothing to wire**. It is documented because of what it cleans up and why it
 cannot be fully trusted.
 
+> Its sibling, the **subject-access export** (Art. 15), **is not automatic** and
+> must be wired by hand — see [§2.15](#215-subject-access-export--libappdata-exportts-required-sunrise--080).
+
 Every `framework_obsiddy_*` table hangs off `ObsiddySpace`, whose FK to `"user"`
 is `ON DELETE CASCADE` — deleting the user deletes the brain, with no app code
 involved. Phase 7 is the first time Obsiddy writes to a table it does not own:
@@ -508,6 +511,7 @@ import it. Uninstalling means undoing §2.1–§2.12, not just removing files:
 | `lib/app/protected-nav.ts`                          | the header link — back to `null` (§2.11)        |
 | `lib/app/auth-landing.ts`                           | only if you set it — back to `null` (§2.11)     |
 | `lib/app/jobs.ts`                                   | the sweep and retention jobs (phase 7, §2.10)   |
+| `lib/app/data-export.ts`                            | the subject-access collector (§2.15)            |
 | `lib/app/eslint.config.mjs`                         | the tier lint boundary                          |
 | `lib/framework/eslint.config.mjs`                   | (tier-owned; delete it)                         |
 | `tests/unit/lib/app/defaults.test.ts`               | the pinned `SEAM_DEFAULTS` rows — back to empty |
@@ -538,6 +542,50 @@ npm install -D @types/d3-force
 `d3-force` lays out the graph (`@xyflow/react` renders it but expects
 coordinates); the two `@dnd-kit` packages drive the board and are the reason the
 board is operable by keyboard at all.
+
+### 2.15 Subject-access export — `lib/app/data-export.ts` _(**required**, Sunrise ≥ 0.8.0)_
+
+The sibling of §2.13's erasure hook, and the half that is **not** automatic.
+Sunrise 0.8.0 added the seam ([#467]); Obsiddy supplies the collector, the host
+wires it:
+
+```ts
+import { ownerScope } from '@/lib/framework/obsiddy/repo/owner-scope';
+import { collectObsiddySubjectData } from '@/lib/framework/obsiddy/repo/subject-export';
+
+export async function collectAppSubjectData(subject: AppSubjectQuery): Promise<AppSubjectData> {
+  return { obsiddy: await collectObsiddySubjectData(ownerScope(subject.userId)) };
+}
+```
+
+**Nest it under one key rather than spreading it.** Obsiddy owns seventeen
+sections and can add an eighteenth in a later release; spreading them into the
+top level means a host's own app section can be silently overwritten by a name
+Obsiddy adds later.
+
+**Skipping this is a compliance decision, not a convenience one.** Erasure
+(Art. 17) works with no wiring because the FK cascade does it; access (Art. 15)
+does not, and an unwired seam returns `{}` — an export bundle that looks
+complete and omits the subject's entire brain. Nothing warns you: no error, no
+empty-looking response, just a shorter file. If you deliberately do not want the
+tier in your export, say so in a comment where this function is, so the omission
+reads as a decision.
+
+What Obsiddy exports, and the two deliberate holes — `ObsiddySpace.inboxToken`
+(a live bearer secret) and `ObsiddyEmbedding` (derived vectors over text already
+exported in full) — is documented in `repo/subject-export.ts`, with a guard test
+that fails the build if a new table is added to the schema and not to the
+manifest.
+
+**One local patch is required until the upstream fix lands.** Core's own
+coverage guard (`tests/unit/lib/privacy/export-sources.test.ts`) scans every file
+in `prisma/schema/`, including `framework-obsiddy.prisma`, but builds its
+`declared` set from the core-owned `SUBJECT_DATA_SOURCES` alone — so filling the
+seam correctly still leaves the test red. Add the tier's eighteen models to that
+file's `HANDLED_OUTSIDE_MANIFEST` with a reason; see ask #30 in
+[`sunrise-asks.md`](./sunrise-asks.md), which carries the issue number.
+
+[#467]: https://github.com/human-centric-engineering/sunrise/issues/467
 
 ---
 

@@ -80,6 +80,7 @@ use case went on the existing threads rather than into duplicate issues.
 | ----------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [#462](https://github.com/human-centric-engineering/sunrise/issues/462) **CLOSED**, landed `93a8180e` | **Boot-registered context contributors and capability handlers are lost at request time under Next 16 + Turbopack.** `instrumentation.ts` runs in a separate module graph from route handlers; the request-path self-heal re-ran core's built-ins and the **app** tier, but not a **framework** tier that registered at boot. Silent — no error, the tools and the context block simply weren't there. Fixed as proposed: both registries are `globalThis`-backed | **This was Obsiddy's exact shape, and it was the phase-6 blocker.** Phase 6 registers 14 capabilities and a context contributor from `initObsiddy()`; phase 7 adds more. On Turbopack they would have silently vanished at request time. **Phase 6 no longer needs a request-path self-heal of its own** — the decision this row said to take before writing phase 6 has been taken upstream |
 | [#367](https://github.com/human-centric-engineering/sunrise/issues/367) OPEN                          | Intra-tenant ownership-scope seam (owner/team-scoped resource visibility)                                                                                                                                                                                                                                                                                                                                                                                         | Adjacent to Obsiddy's D5 `OwnerScope`, but not blocking — Obsiddy owns its scope boundary inside its own tier. Worth watching in case the platform seam supersedes it                                                                                                                                                                                                                        |
+| [#505](https://github.com/human-centric-engineering/sunrise/pull/505) **MERGED** in 0.8.0             | **Multi-tenancy gap analysis** (`.context/architecture/multi-tenancy.md`) — an opt-in RLS retrofit playbook, single-tenant by default behind a `TENANCY_MODE` seam, plus "the four planes RLS can't reach"                                                                                                                                                                                                                                                        | Docs, not code, so nothing to merge into. Read it before Release 2's sharing work: Obsiddy's D5 answer is a **branded type at the repo boundary**, which is one of the planes the doc argues RLS does not cover. Confirms the tier keeps owning its own boundary rather than waiting for a platform one                                                                                      |
 | [#429](https://github.com/human-centric-engineering/sunrise/issues/429) **CLOSED**                    | `prisma/schema/app.prisma` ships platform models despite docs implying it's fork-reserved                                                                                                                                                                                                                                                                                                                                                                         | The `/framework` tier Obsiddy uses **is** genuinely reserved, so Obsiddy was unaffected. Re-read the leaf-tier advice in `install.md` against however it was resolved                                                                                                                                                                                                                        |
 | [#442](https://github.com/human-centric-engineering/sunrise/issues/442) **CLOSED**                    | Maintenance tick did unconditional DB work every 60s                                                                                                                                                                                                                                                                                                                                                                                                              | Fixed by giving each background task a **minimum interval** and letting an idle tick do zero database work. Obsiddy's phase-7 jobs sit on that same tick and inherit the shape — `registerAppJob({ intervalMs })` is the knob, and `intervalMs` is a floor rather than a promise                                                                                                             |
 
@@ -152,6 +153,35 @@ advice an operator can act on. `workflow:<cuid>` is not an agent id, and
 `AiAgentCapability.agentId` is an FK to `AiAgent.id` — so the remedy the warning
 implies **cannot be applied** to the workflow path at all.
 
+### Found by the Sunrise 0.8.0 merge (2026-08-05)
+
+Both were found by merging `v0.8.0` (37 commits, `5964beb3..45e704d9`), and
+neither is a defect in what Sunrise built — each is a **correct platform
+decision whose fork-tier consequence has no seam**. Together they are the
+strongest evidence yet for the pattern #480 and #525 circle: _a core change that
+is right for core and silently wrong for a tier filling a documented seam_.
+
+| #   | Ask                                                                                                                                                                                                                             | Why                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | Priority                                                                                                                                                                      | Issue         |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| 29  | **A per-user schedule has no owner after #502** — document `AiWorkflowSchedule.scope` as the supported carrier, or give the scheduler an explicit opt-in (`runAsCreator`, or a `scope` key core stamps into `execution.userId`) | #502 made scheduled runs system-owned (`userId: null`) because `AiWorkflowExecution.userId` is `onDelete: Cascade` and naming an operator meant erasing them destroyed the org's whole scheduled-run history. **Right for org-level cron rows, and it silently breaks per-user ones.** Obsiddy creates one schedule row per user per workflow and `execution.userId` was the _only_ route by which a 04:30 run knew whose brain it was; after the merge every capability in all four background workflows throws `MissingObsiddyUserError`. **Nothing failed loudly** — the type is `string \| null` so it type-checks, and 1,978 tier tests stayed green because they mock that boundary. The docs now state `userId: null` as a flat fact with no note that a per-user schedule needs a carrier | **Highest of the two** — total, silent, and reaches every fork with per-user schedules. The seam exists (`scope`); what is missing is that it is the answer, said anywhere    | _to be filed_ |
+| 30  | **A fork cannot satisfy `export-sources.test.ts` from fork-owned code** — scope the schema scan to core-owned files, or let `lib/app/data-export.ts` declare its models                                                         | The guard reads every file in `prisma/schema/`, including `framework-*.prisma` and `app.prisma`, but builds `declared` from `SUBJECT_DATA_SOURCES` alone. So a fork that does exactly what #467 asks — fills `lib/app/data-export.ts`, writes its own completeness guard — **still fails a core test**, and the only way green is editing a Sunrise-owned file. Obsiddy's 18 brain tables failed it on this merge. The irony is that the seam's own doc tells forks to write precisely the guard Obsiddy wrote, then core's guard rejects the result                                                                                                                                                                                                                                              | Low effort. Same family as #480 (`defaults.test.ts`) and #525 (`registry.test.ts`), and the sharpest case: the other two miscount, this one **cannot be satisfied** correctly | _to be filed_ |
+
+**Downstream status (#29):** fixed in the tier, no core edit. The owner now rides
+on `AiWorkflowSchedule.scope` under the key `obsiddyUserId`
+(`repo/owner-scope.ts`), `requireObsiddyUser` falls back to it when
+`context.userId` is null, and `ensureObsiddySchedules` gained a third correction
+that stamps rows written before 0.8.0 — without it, every install that upgrades
+carries silently broken schedules for ever. `context.userId` still wins when both
+are present, so the fallback can only fill a gap, never redirect a live session.
+
+**Downstream status (#30):** the export is **built**, not deferred —
+`collectObsiddySubjectData()` covers all 17 scoped tables (`ObsiddyEmbedding` is
+excluded as derived vectors, on the same grounds core excludes
+`AiMessageEmbedding`), wired through `lib/app/data-export.ts` and guarded by the
+tier's own schema-scanning test. What is carried locally is only the patch to
+core's `export-sources.test.ts`, adding the 18 models to
+`HANDLED_OUTSIDE_MANIFEST` with a reason. Remove it when #30 lands.
+
 ---
 
 **Downstream status (#26):** Obsiddy owns `components/obsiddy/chat/obsiddy-chat.tsx`.
@@ -162,12 +192,38 @@ _next_ fork the work, not about unblocking this one.
 
 ---
 
+## State at the Sunrise 0.8.0 merge (2026-08-05)
+
+Checked with the two commands §6 of [The process](#the-process) prescribes, run
+together: `git fetch upstream` (37 commits, `5964beb3..45e704d9`, tag `v0.8.0`)
+and `gh issue list --state all --limit 400`.
+
+**No Obsiddy ask landed in 0.8.0.** All eight remain open — #506, #507, #508,
+#509, #510 (the 2026-08-02 gate run), #525 (phase 6b), #526 (phase 6c) and #528
+(phase 7) — so **both local patches are still required** and stay: the
+tab/LF/CR strip in `lib/security/sanitize.ts` (#506) and the
+`initAppCapabilities` stub in `registry.test.ts` (#525). Ask #30 adds a third.
+
+That is not a complaint about responsiveness: 0.8.0 is a large release whose
+security half was already in flight when these were filed, and eleven earlier
+Obsiddy asks landed in the three days before it. The point of recording it is
+the inverse of the staleness trap §6 describes — **this file must not say
+"landed" for work that has not**, and after a release tag the pull to assume
+otherwise is strongest.
+
+What the release _did_ change for this fork is two things nobody asked for and
+neither of which is a bug: #502's system-owned runs (ask #29) and #467's export
+seam (ask #30). Both are above.
+
+---
+
 ## Landed
 
 **Eleven asks landed upstream between 2026-07-29 and 2026-07-31**, merged into
 this fork on 2026-07-31 (`upstream/main` at `5964beb3`, 90 commits). All of it
 is on Sunrise `main` and unreleased — `0.7.0` is the last tag and predates every
-row below, so "Landed in" names the commit, not a version.
+row below, so "Landed in" names the commit, not a version. **Everything below
+shipped in `v0.8.0`**, which is the first tag to contain any of it.
 
 Two of them changed how Obsiddy is wired rather than merely what it depends on,
 and the first is the reason this fork's headline claim is finally true:

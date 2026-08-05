@@ -11,10 +11,13 @@
  *      receives an already-minted `OwnerScope` and has no way to ask for another
  *      one. There is no code path from a subclass to an unscoped read.
  *   2. **The user id is never an argument.** It arrives from the session
- *      (`withAuth`), from the schedule (`execution.userId`) or from the MCP key's
- *      owner — the three places the platform sets it — and never from the model.
- *      No `agent*Schema` in `validations.ts` has a `userId` field, and `.strict()`
- *      makes an attempt to add one a validation error rather than a silent drop.
+ *      (`withAuth`), from the MCP key's owner, or from the schedule row's `scope`
+ *      column on a background run — the three places the platform sets it — and
+ *      never from the model. No `agent*Schema` in `validations.ts` has a `userId`
+ *      or a `scope` field, and `.strict()` makes an attempt to add one a
+ *      validation error rather than a silent drop. (The schedule route read
+ *      `execution.userId` until Sunrise 0.8.0 made scheduled runs system-owned;
+ *      see {@link requireObsiddyUser}.)
  *
  * **What this file cannot do for you: `redactProvenance`.** Every Obsiddy
  * capability sets `processesPii = true` (a brain is nothing *but* PII), and the
@@ -26,7 +29,11 @@
  * per tool, not per tier. The helpers below make writing one a line or two.
  */
 
-import { ownerScope, type OwnerScope } from '@/lib/framework/obsiddy/repo/owner-scope';
+import {
+  OBSIDDY_SCHEDULE_OWNER_KEY,
+  ownerScope,
+  type OwnerScope,
+} from '@/lib/framework/obsiddy/repo/owner-scope';
 import {
   BaseCapability,
   type ProvenanceRedaction,
@@ -51,17 +58,31 @@ export class MissingObsiddyUserError extends Error {
 /**
  * The one place a capability's `OwnerScope` comes from.
  *
- * `context.userId` is set by the platform: `streamChat` from the session, the
- * scheduler from `schedule.createdBy`, the MCP protocol handler from the API
- * key's owner. None of the three is reachable from an LLM argument, which is
- * what makes this the trust boundary rather than a convenience.
+ * The owner arrives by one of two platform-set routes, never from an LLM
+ * argument — which is what makes this the trust boundary rather than a
+ * convenience:
+ *
+ *   1. **`context.userId`** — `streamChat` sets it from the session, the MCP
+ *      protocol handler from the API key's owner.
+ *   2. **`context.scope[OBSIDDY_SCHEDULE_OWNER_KEY]`** — a scheduled run. Since
+ *      Sunrise 0.8.0 (sunrise#502) the scheduler writes `userId: null` on every
+ *      execution, so a background run reaches here system-owned and route 1 is
+ *      empty. The owner travels on the schedule row's `scope` column instead;
+ *      see {@link OBSIDDY_SCHEDULE_OWNER_KEY} for why that column and what it
+ *      costs.
+ *
+ * **Order matters, and this is the safe direction.** `context.userId` wins when
+ * both are present. A session-authenticated turn is the stronger claim, so a
+ * stale or mismatched scope on some future row cannot redirect a live user's
+ * capability at another brain — the fallback only ever fills a gap.
  *
  * Exported so a capability that needs the scope before validating (none do
  * today) can reach it directly; the base class calls it for everything else.
  */
 export function requireObsiddyUser(context: CapabilityContext): OwnerScope {
-  if (!context.userId) throw new MissingObsiddyUserError();
-  return ownerScope(context.userId);
+  const userId = context.userId ?? context.scope?.[OBSIDDY_SCHEDULE_OWNER_KEY];
+  if (!userId) throw new MissingObsiddyUserError();
+  return ownerScope(userId);
 }
 
 /**

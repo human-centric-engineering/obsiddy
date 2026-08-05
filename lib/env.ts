@@ -56,6 +56,19 @@ const serverEnvSchema = z.object({
       'BETTER_AUTH_SECRET must be at least 32 characters. Generate with: openssl rand -base64 32',
   }),
 
+  // Signup model (see .context/auth/signup-modes.md)
+  SIGNUP_MODE: z
+    .enum(['open', 'invite_only'])
+    .default('open')
+    .describe(
+      'Who may create an account. "open" (default) = anyone may sign up, the right default ' +
+        'for a starter template. "invite_only" = accounts are only created by accepting an ' +
+        'admin invitation; both the email/password endpoint and un-invited OAuth signup are ' +
+        'refused. The first human on an empty database may still sign up (and becomes ADMIN) ' +
+        'so a fresh deployment has an operator to send invitations — that window closes ' +
+        'permanently once any human exists. See lib/auth/signup-mode.ts.'
+    ),
+
   // OAuth Providers (optional)
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
@@ -132,6 +145,19 @@ const serverEnvSchema = z.object({
     .describe(
       'Emit one structured access-log line per request from the proxy (requestId, visitorId, ' +
         'method, path). Default OFF — opt in with "true" to make navigation visible server-side.'
+    ),
+
+  // Internal self-calls (optional)
+  INTERNAL_API_URL: z
+    .string()
+    .url({ message: 'INTERNAL_API_URL must be a valid URL (e.g., http://127.0.0.1:3000)' })
+    .optional()
+    .describe(
+      "Base URL server components use to call this app's own API (lib/api/server-fetch.ts). " +
+        'Defaults to loopback in development and BETTER_AUTH_URL otherwise. Set it when the ' +
+        'public URL is not reachable from inside the server — e.g. a local reverse proxy whose ' +
+        'TLS certificate Node does not trust, or a private network where the public hostname ' +
+        'resolves elsewhere.'
     ),
 
   // Security Configuration (optional)
