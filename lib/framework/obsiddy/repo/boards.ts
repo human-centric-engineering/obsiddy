@@ -28,6 +28,7 @@ import {
   liveOwnerWhere,
   ownerWhere,
   type OwnerScope,
+  type ArchiveVisibility,
 } from '@/lib/framework/obsiddy/repo/owner-scope';
 import {
   nullOnMiss,
@@ -80,7 +81,10 @@ export async function listBoards(
   });
 }
 
-export async function countBoards(scope: OwnerScope, includeArchived = false): Promise<number> {
+export async function countBoards(
+  scope: OwnerScope,
+  includeArchived: ArchiveVisibility = false
+): Promise<number> {
   return prisma.obsiddyBoard.count({ where: liveOwnerWhere(scope, includeArchived) });
 }
 

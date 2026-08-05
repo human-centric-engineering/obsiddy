@@ -35,6 +35,7 @@ vi.mock('@/lib/framework/obsiddy/services/promote', () => ({ promoteThought: vi.
 vi.mock('@/lib/framework/obsiddy/services/snapshot', () => ({ buildSnapshot: vi.fn() }));
 vi.mock('@/lib/framework/obsiddy/services/reviews', () => ({ writeReview: vi.fn() }));
 vi.mock('@/lib/framework/obsiddy/services/ideate', () => ({ ideate: vi.fn() }));
+vi.mock('@/lib/framework/obsiddy/services/stale-digest', () => ({ buildStaleDigest: vi.fn() }));
 vi.mock('@/lib/framework/obsiddy/services/briefing', () => ({
   getStoredBriefing: vi.fn(),
   buildBriefingInputs: vi.fn(),
@@ -80,6 +81,7 @@ import { promoteThought } from '@/lib/framework/obsiddy/services/promote';
 import { buildSnapshot } from '@/lib/framework/obsiddy/services/snapshot';
 import { writeReview } from '@/lib/framework/obsiddy/services/reviews';
 import { ideate } from '@/lib/framework/obsiddy/services/ideate';
+import { buildStaleDigest } from '@/lib/framework/obsiddy/services/stale-digest';
 import { reprioritiseTasks } from '@/lib/framework/obsiddy/priority/reprioritise';
 import { taskResource } from '@/lib/framework/obsiddy/services/resources';
 import { getStoredBriefing, buildBriefingInputs } from '@/lib/framework/obsiddy/services/briefing';
@@ -118,6 +120,7 @@ const VALID_ARGS: Record<string, unknown> = {
   obsiddy_get_briefing: {},
   obsiddy_get_briefing_inputs: { workStyleOverride: 'exploratory' },
   obsiddy_notify: { notification: 'briefing_ready' },
+  obsiddy_get_stale_digest: {},
 };
 
 const ALL_SERVICES = [
@@ -137,6 +140,7 @@ const ALL_SERVICES = [
   buildBriefingInputs,
   findOwnerContact,
   sendEmail,
+  buildStaleDigest,
 ];
 
 describe('requireObsiddyUser', () => {

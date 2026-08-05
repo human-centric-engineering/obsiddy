@@ -1,11 +1,15 @@
 # Phase 7 — the background, and the briefing
 
-**Status: agreed 2026-08-04, in build.** Phase 7 is the first phase whose plan
-needed correcting before it could be built: three of `plan.md` §6's mechanisms
-turned out to describe step types that do something other than what the plan
-assumed. Those corrections are §1 below and are **now folded into `plan.md` §6**,
-which stays the source of truth — this file is the working doc that carries the
-reasoning and the build order.
+**Status: landed 2026-08-04** ([#22](https://github.com/human-centric-engineering/obsiddy/pull/22)).
+All six steps of §3 are built, `npm run test` is green over 127 Obsiddy test files
+and type-check is clean. What landed differently from this document is §6 at the
+bottom; read that before treating anything above as a description of the code.
+
+Phase 7 is the first phase whose plan needed correcting before it could be built:
+three of `plan.md` §6's mechanisms turned out to describe step types that do
+something other than what the plan assumed. Those corrections are §1 below and are
+**now folded into `plan.md` §6**, which stays the source of truth — this file is
+the working doc that carries the reasoning and the build order.
 
 Phase 7's deliverable, from `plan.md` §15: six workflows including
 `obsiddy-morning-briefing`, the `obsiddy-briefer` agent, the `workStyle`
@@ -339,3 +343,25 @@ needs external cron hitting `POST /api/v1/admin/orchestration/maintenance/tick`.
 phase 7 is the phase where it stops being theoretical: before it, nothing in
 Obsiddy ran on its own. It belongs in `install.md` §2 as a required host step,
 not a footnote.
+
+**Done** — `install.md` §2.14, with the old "optional host steps" bullet reduced
+to a pointer so an operator reading either place lands on the same instruction.
+
+---
+
+## 6. What landed differently
+
+Four departures. The first two are §1's corrections and were known before the
+build; the last two were found during it.
+
+| #   | This doc said                                          | What landed                                                                                                                                                                                                  |
+| --- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | `report` step renders the briefing's factual half      | `services/briefing-facts.ts` — a service, per §1a                                                                                                                                                            |
+| 2   | `route` step branches on `workStyle`                   | selection in `obsiddy_get_briefing_inputs`, no DAG branch, per §1b                                                                                                                                           |
+| 3   | §7.4's five workflows include `obsiddy-capture-intake` | **four** seeded. Capture-intake is deferred to phase 9 — it triggers on `obsiddy_capture_for_token`, which is a phase 9 capability, so seeding it now would seed a workflow whose entry point does not exist |
+| 4   | §7.3's `inputTemplate` is `{ userId }`                 | `{}` — corrected inline in §7.3 while building; the strict-schema reasoning is on `createObsiddySchedule`                                                                                                    |
+
+So `plan.md` §15 row 7's "6 workflows" reads **four scheduled workflows plus the
+connection sweep as an app job**, with the sixth arriving in phase 9 alongside the
+capture channel it listens to. Nothing was dropped; one thing moved to the phase
+that makes it reachable.

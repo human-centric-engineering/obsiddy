@@ -20,6 +20,7 @@ import {
   liveOwnerWhere,
   ownerWhere,
   type OwnerScope,
+  type ArchiveVisibility,
 } from '@/lib/framework/obsiddy/repo/owner-scope';
 import {
   isUniqueConstraintViolation,
@@ -50,7 +51,7 @@ export type ThoughtUpdateData = WithoutOwner<Prisma.ObsiddyThoughtUncheckedUpdat
 function thoughtWhere(
   scope: OwnerScope,
   filters: ThoughtFilters = {},
-  includeArchived = false
+  includeArchived: ArchiveVisibility = false
 ): Prisma.ObsiddyThoughtWhereInput {
   return {
     ...liveOwnerWhere(scope, includeArchived),
@@ -78,7 +79,7 @@ export async function listThoughts(
 export async function countThoughts(
   scope: OwnerScope,
   filters: ThoughtFilters = {},
-  includeArchived = false
+  includeArchived: ArchiveVisibility = false
 ): Promise<number> {
   return prisma.obsiddyThought.count({ where: thoughtWhere(scope, filters, includeArchived) });
 }

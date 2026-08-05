@@ -17,6 +17,7 @@
  * @see app/(protected)/obsiddy/graph/page.tsx
  * @see app/(protected)/obsiddy/connections/page.tsx
  * @see app/(protected)/obsiddy/chat/page.tsx
+ * @see app/(protected)/obsiddy/archive/page.tsx
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -88,6 +89,24 @@ vi.mock('@/components/obsiddy/connections/connections-view', () => ({
   ConnectionsView: (props: { connections: unknown[]; total: number }) => (
     <div data-testid="connections-view" data-props={JSON.stringify(props)} />
   ),
+}));
+
+vi.mock('@/components/obsiddy/lifecycle/stale-digest', () => ({
+  StaleDigest: (props: { digest: unknown }) => (
+    <div data-testid="stale-digest" data-props={JSON.stringify(props)} />
+  ),
+}));
+
+// One stub covers all five archived sections on the archive page — they're
+// told apart by `noun`, which is unique per collection ("project", "goal",
+// "task", "note", "person or company").
+vi.mock('@/components/obsiddy/lifecycle/archived-list', () => ({
+  ArchivedList: (props: {
+    items: unknown[];
+    collection: string;
+    noun: string;
+    emptyLabel: string;
+  }) => <div data-testid={`archived-list-${props.noun}`} data-props={JSON.stringify(props)} />,
 }));
 
 // ─── Imports (after mocks) ─────────────────────────────────────────────────
@@ -530,6 +549,227 @@ describe('ObsiddyConnectionsPage', () => {
       total: number;
     };
     expect(props.total).toBe(3);
+  });
+});
+
+// ─── Archive ──────────────────────────────────────────────────────────────────
+
+/** Reads the props off one of the five stubbed `ArchivedList` sections. */
+function archivedListProps(noun: string): {
+  items: Array<{
+    id: string;
+    title: string;
+    archivedAt: string | null;
+    archivedReason: string | null;
+  }>;
+  collection: string;
+  noun: string;
+  emptyLabel: string;
+} {
+  const el = screen.getByTestId(`archived-list-${noun}`);
+  return JSON.parse(el.getAttribute('data-props') ?? '{}');
+}
+
+const digestPayload = { generatedAt: '2026-08-05T09:00:00.000Z', sections: [], total: 0 };
+
+describe('ObsiddyArchivePage', () => {
+  it('reads the digest and all five archived collections with includeArchived=only and limit=100', async () => {
+    vi.mocked(readObsiddy).mockResolvedValue(fail(500));
+    const { default: ObsiddyArchivePage } = await import('@/app/(protected)/obsiddy/archive/page');
+
+    await ObsiddyArchivePage();
+
+    expect(callPaths()).toEqual([
+      OBSIDDY_API.STALE,
+      `${OBSIDDY_API.PROJECTS}?includeArchived=only&limit=100`,
+      `${OBSIDDY_API.GOALS}?includeArchived=only&limit=100`,
+      `${OBSIDDY_API.TASKS}?includeArchived=only&limit=100`,
+      `${OBSIDDY_API.THOUGHTS}?includeArchived=only&limit=100`,
+      `${OBSIDDY_API.ENTITIES}?includeArchived=only&limit=100`,
+    ]);
+  });
+
+  it('renders LoadError and no archived sections when the digest read fails', async () => {
+    vi.mocked(readObsiddy).mockImplementation(async (path) =>
+      path === OBSIDDY_API.STALE ? fail(500, 'digest down') : ok([])
+    );
+    const { default: ObsiddyArchivePage } = await import('@/app/(protected)/obsiddy/archive/page');
+
+    render(await ObsiddyArchivePage());
+
+    expect(screen.getByRole('alert')).toHaveTextContent('digest down');
+    expect(screen.queryByTestId('stale-digest')).not.toBeInTheDocument();
+    expect(screen.queryAllByTestId(/^archived-list-/)).toHaveLength(0);
+  });
+
+  it('degrades one archive section independently when its read fails, while the others still render their items', async () => {
+    const goals = [
+      {
+        id: 'g1',
+        title: 'Learn Spanish',
+        archivedAt: '2026-01-01T00:00:00.000Z',
+        archivedReason: 'manual',
+      },
+    ];
+    vi.mocked(readObsiddy).mockImplementation(async (path) => {
+      if (path === OBSIDDY_API.STALE) return ok(digestPayload);
+      if (path.startsWith(OBSIDDY_API.PROJECTS)) return fail(500, 'projects down');
+      if (path.startsWith(OBSIDDY_API.GOALS)) return ok(goals);
+      return ok([]);
+    });
+    const { default: ObsiddyArchivePage } = await import('@/app/(protected)/obsiddy/archive/page');
+
+    render(await ObsiddyArchivePage());
+
+    // The digest itself still renders — only the section-level read failed.
+    expect(screen.getByTestId('stale-digest')).toBeInTheDocument();
+
+    const projects = archivedListProps('project');
+    expect(projects.items).toEqual([]);
+    expect(projects.emptyLabel).toBe('Archived projects could not be loaded.');
+
+    const goalsProps = archivedListProps('goal');
+    expect(goalsProps.emptyLabel).toBe('No archived goals.');
+    expect(goalsProps.items).toEqual([
+      {
+        id: 'g1',
+        title: 'Learn Spanish',
+        archivedAt: '2026-01-01T00:00:00.000Z',
+        archivedReason: 'manual',
+      },
+    ]);
+  });
+
+  it('maps name to title for projects and entities, and title to title for goals and tasks', async () => {
+    const namedRow = (id: string, name: string) => ({
+      id,
+      name,
+      archivedAt: null,
+      archivedReason: null,
+    });
+    const titledRow = (id: string, title: string) => ({
+      id,
+      title,
+      archivedAt: null,
+      archivedReason: null,
+    });
+    vi.mocked(readObsiddy).mockImplementation(async (path) => {
+      if (path === OBSIDDY_API.STALE) return ok(digestPayload);
+      if (path.startsWith(OBSIDDY_API.PROJECTS)) return ok([namedRow('p1', 'Q4 launch')]);
+      if (path.startsWith(OBSIDDY_API.GOALS)) return ok([titledRow('g1', 'Learn Spanish')]);
+      if (path.startsWith(OBSIDDY_API.TASKS)) return ok([titledRow('t1', 'Ship report')]);
+      if (path.startsWith(OBSIDDY_API.ENTITIES)) return ok([namedRow('e1', 'Acme Corp')]);
+      return ok([]);
+    });
+    const { default: ObsiddyArchivePage } = await import('@/app/(protected)/obsiddy/archive/page');
+
+    render(await ObsiddyArchivePage());
+
+    expect(archivedListProps('project').items[0]?.title).toBe('Q4 launch');
+    expect(archivedListProps('goal').items[0]?.title).toBe('Learn Spanish');
+    expect(archivedListProps('task').items[0]?.title).toBe('Ship report');
+    expect(archivedListProps('person or company').items[0]?.title).toBe('Acme Corp');
+  });
+
+  it("truncates a thought's first line to 120 chars with an ellipsis for its title", async () => {
+    const firstLine = 'A'.repeat(150);
+    const thought = {
+      id: 'th1',
+      content: `${firstLine}\nSecond line of the note`,
+      archivedAt: null,
+      archivedReason: null,
+    };
+    vi.mocked(readObsiddy).mockImplementation(async (path) => {
+      if (path === OBSIDDY_API.STALE) return ok(digestPayload);
+      if (path.startsWith(OBSIDDY_API.THOUGHTS)) return ok([thought]);
+      return ok([]);
+    });
+    const { default: ObsiddyArchivePage } = await import('@/app/(protected)/obsiddy/archive/page');
+
+    render(await ObsiddyArchivePage());
+
+    expect(archivedListProps('note').items[0]?.title).toBe(`${'A'.repeat(120)}…`);
+  });
+
+  it("renders 'Empty note' as a thought's title when its content is empty", async () => {
+    const thought = { id: 'th1', content: '', archivedAt: null, archivedReason: null };
+    vi.mocked(readObsiddy).mockImplementation(async (path) => {
+      if (path === OBSIDDY_API.STALE) return ok(digestPayload);
+      if (path.startsWith(OBSIDDY_API.THOUGHTS)) return ok([thought]);
+      return ok([]);
+    });
+    const { default: ObsiddyArchivePage } = await import('@/app/(protected)/obsiddy/archive/page');
+
+    render(await ObsiddyArchivePage());
+
+    expect(archivedListProps('note').items[0]?.title).toBe('Empty note');
+  });
+
+  it('degrades goals, tasks, notes and entities independently when their reads fail, while projects still renders', async () => {
+    const projects = [
+      { id: 'p1', name: 'Q4 launch', archivedAt: '2026-01-01T00:00:00.000Z', archivedReason: null },
+    ];
+    vi.mocked(readObsiddy).mockImplementation(async (path) => {
+      if (path === OBSIDDY_API.STALE) return ok(digestPayload);
+      if (path.startsWith(OBSIDDY_API.PROJECTS)) return ok(projects);
+      if (path.startsWith(OBSIDDY_API.GOALS)) return fail(500, 'goals down');
+      if (path.startsWith(OBSIDDY_API.TASKS)) return fail(500, 'tasks down');
+      if (path.startsWith(OBSIDDY_API.THOUGHTS)) return fail(500, 'notes down');
+      if (path.startsWith(OBSIDDY_API.ENTITIES)) return fail(500, 'entities down');
+      return ok([]);
+    });
+    const { default: ObsiddyArchivePage } = await import('@/app/(protected)/obsiddy/archive/page');
+
+    render(await ObsiddyArchivePage());
+
+    // The one section whose read succeeded still renders its item.
+    expect(archivedListProps('project').items).toEqual([
+      {
+        id: 'p1',
+        title: 'Q4 launch',
+        archivedAt: '2026-01-01T00:00:00.000Z',
+        archivedReason: null,
+      },
+    ]);
+
+    const goals = archivedListProps('goal');
+    expect(goals.items).toEqual([]);
+    expect(goals.emptyLabel).toBe('Archived goals could not be loaded.');
+
+    const tasks = archivedListProps('task');
+    expect(tasks.items).toEqual([]);
+    expect(tasks.emptyLabel).toBe('Archived tasks could not be loaded.');
+
+    const notes = archivedListProps('note');
+    expect(notes.items).toEqual([]);
+    expect(notes.emptyLabel).toBe('Archived notes could not be loaded.');
+
+    const entities = archivedListProps('person or company');
+    expect(entities.items).toEqual([]);
+    expect(entities.emptyLabel).toBe('These could not be loaded.');
+  });
+
+  it('falls back archivedReason to null when a row omits the field entirely', async () => {
+    // `archivedReason` is optional on the wire schemas — a row from before the
+    // column existed, or a type that never sets it, omits the key rather than
+    // sending it as `null`. The `?? null` fallback must treat that the same way.
+    const projectWithoutReason = { id: 'p1', name: 'Q4 launch', archivedAt: null };
+    const goalWithoutReason = { id: 'g1', title: 'Learn Spanish', archivedAt: null };
+    const thoughtWithoutReason = { id: 'th1', content: 'A quick note', archivedAt: null };
+    vi.mocked(readObsiddy).mockImplementation(async (path) => {
+      if (path === OBSIDDY_API.STALE) return ok(digestPayload);
+      if (path.startsWith(OBSIDDY_API.PROJECTS)) return ok([projectWithoutReason]);
+      if (path.startsWith(OBSIDDY_API.GOALS)) return ok([goalWithoutReason]);
+      if (path.startsWith(OBSIDDY_API.THOUGHTS)) return ok([thoughtWithoutReason]);
+      return ok([]);
+    });
+    const { default: ObsiddyArchivePage } = await import('@/app/(protected)/obsiddy/archive/page');
+
+    render(await ObsiddyArchivePage());
+
+    expect(archivedListProps('project').items[0]?.archivedReason).toBeNull();
+    expect(archivedListProps('goal').items[0]?.archivedReason).toBeNull();
+    expect(archivedListProps('note').items[0]?.archivedReason).toBeNull();
   });
 });
 

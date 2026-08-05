@@ -25,6 +25,7 @@ import {
   liveOwnerWhere,
   ownerWhere,
   type OwnerScope,
+  type ArchiveVisibility,
 } from '@/lib/framework/obsiddy/repo/owner-scope';
 
 /** Everything a search result needs to render, whatever type it came from. */
@@ -60,7 +61,7 @@ export async function findSummaries(
   scope: OwnerScope,
   entityType: EmbeddedType | 'task',
   ids: string[],
-  includeArchived = false
+  includeArchived: ArchiveVisibility = false
 ): Promise<EntitySummary[]> {
   if (ids.length === 0) return [];
 
@@ -219,7 +220,7 @@ export async function keywordSummaries(
   entityType: EmbeddedType,
   query: string,
   limit: number,
-  includeArchived = false
+  includeArchived: ArchiveVisibility = false
 ): Promise<EntitySummary[]> {
   const scoped = liveOwnerWhere(scope, includeArchived);
   const like = { contains: query, mode: 'insensitive' } as const;

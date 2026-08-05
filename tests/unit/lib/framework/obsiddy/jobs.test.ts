@@ -32,6 +32,10 @@
  * two passes are failure-isolated in both directions, because they share only a
  * turn in the queue.
  *
+ * The rotation carries a third passenger from phase 8: `enforceObsiddyRetention`.
+ * It is the only pass here that removes anything, which is why it runs last in
+ * each brain's turn and why its isolation is asserted in both directions too.
+ *
  * Test Coverage:
  * - Reads a bounded batch and sweeps each brain under its own scope
  * - Stamps every id in the batch, including ones that threw
@@ -42,6 +46,9 @@
  * - Every brain in the batch gets the schedule pass, in its own timezone
  * - A failing schedule pass costs the brain neither its sweep nor its turn
  * - A failing sweep does not skip the schedule pass
+ * - Every brain gets the retention pass, on the tick's clock, never as a dry run
+ * - Archived/pruned counts sum across the batch; a capped pass is reported
+ * - A failing retention pass costs the brain neither its sweep nor its turn
  *
  * @see lib/framework/obsiddy/jobs.ts
  */
@@ -57,6 +64,7 @@ vi.mock('@/lib/framework/obsiddy/repo/schedules', () => ({
 }));
 vi.mock('@/lib/framework/obsiddy/search/connections', () => ({ sweepConnections: vi.fn() }));
 vi.mock('@/lib/framework/obsiddy/schedules/ensure', () => ({ ensureObsiddySchedules: vi.fn() }));
+vi.mock('@/lib/framework/obsiddy/services/retention', () => ({ enforceObsiddyRetention: vi.fn() }));
 vi.mock('@/lib/logging', () => ({
   logger: { warn: vi.fn(), info: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
@@ -66,6 +74,7 @@ import { listSpacesDueSweep, markSpacesSwept } from '@/lib/framework/obsiddy/rep
 import { deleteOrphanedObsiddySchedules } from '@/lib/framework/obsiddy/repo/schedules';
 import { ensureObsiddySchedules } from '@/lib/framework/obsiddy/schedules/ensure';
 import { sweepConnections } from '@/lib/framework/obsiddy/search/connections';
+import { enforceObsiddyRetention } from '@/lib/framework/obsiddy/services/retention';
 import { logger } from '@/lib/logging';
 
 const mockedList = vi.mocked(listSpacesDueSweep);
@@ -73,6 +82,7 @@ const mockedMark = vi.mocked(markSpacesSwept);
 const mockedOrphans = vi.mocked(deleteOrphanedObsiddySchedules);
 const mockedSweep = vi.mocked(sweepConnections);
 const mockedEnsure = vi.mocked(ensureObsiddySchedules);
+const mockedRetention = vi.mocked(enforceObsiddyRetention);
 const mockedLoggerError = vi.mocked(logger.error);
 
 const NOW = new Date('2026-08-04T09:00:00.000Z');
@@ -90,6 +100,16 @@ function ensureResult(created: string[] = [], corrected: string[] = []) {
   return { created, corrected, missing: [] };
 }
 
+function retentionResult(archived = 0, pruned = 0, capped = false) {
+  return {
+    rules: {} as never,
+    archived,
+    pruned,
+    capped,
+    dryRun: false,
+  };
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   mockedList.mockResolvedValue([]);
@@ -97,6 +117,7 @@ beforeEach(() => {
   mockedOrphans.mockResolvedValue(0);
   mockedSweep.mockResolvedValue(sweepResult(0));
   mockedEnsure.mockResolvedValue(ensureResult());
+  mockedRetention.mockResolvedValue(retentionResult());
 });
 
 describe('runObsiddySweepJob', () => {
@@ -190,11 +211,15 @@ describe('runObsiddySweepJob', () => {
       orphanedSchedules: 3,
       schedulesCreated: 0,
       schedulesCorrected: 0,
+      retentionArchived: 0,
+      retentionPruned: 0,
+      retentionCapped: false,
     });
     // Nothing was swept, so nothing should be stamped — and with no brain due,
-    // there is nobody to run a schedule pass for.
+    // there is nobody to run a schedule pass or a retention pass for.
     expect(mockedMark).not.toHaveBeenCalled();
     expect(mockedEnsure).not.toHaveBeenCalled();
+    expect(mockedRetention).not.toHaveBeenCalled();
   });
 
   it('reports the orphan count alongside a normal sweep', async () => {
@@ -287,5 +312,100 @@ describe('runObsiddySweepJob — the schedule pass', () => {
 
     expect(mockedEnsure).toHaveBeenCalledTimes(1);
     expect(result).toMatchObject({ failed: 1, schedulesCorrected: 1 });
+  });
+});
+
+describe('runObsiddySweepJob — the retention pass', () => {
+  it('runs for every brain in the batch, under its own scope and the tick’s clock', async () => {
+    mockedList.mockResolvedValue([due('user_a'), due('user_b')]);
+
+    await runObsiddySweepJob(NOW);
+
+    expect(mockedRetention).toHaveBeenCalledTimes(2);
+    expect(mockedRetention.mock.calls[0]?.[0]).toMatchObject({ userId: 'user_a' });
+    expect(mockedRetention.mock.calls[1]?.[0]).toMatchObject({ userId: 'user_b' });
+    // The tick's instant, not each rule calling `new Date()` for itself. Every
+    // window in the pass has to be measured from one moment, or a batch that
+    // straddles midnight applies two different cutoffs.
+    expect(mockedRetention.mock.calls[0]?.[1]).toEqual({ now: NOW });
+  });
+
+  it('never runs as a dry run from the job', async () => {
+    // The dry-run switch exists for the operator-facing preview. A job that
+    // passed it would report plausible counts for ever and delete nothing,
+    // which reads as a working retention pass until the database fills up.
+    mockedList.mockResolvedValue([due('user_a')]);
+
+    await runObsiddySweepJob(NOW);
+
+    expect(mockedRetention.mock.calls[0]?.[1]).not.toMatchObject({ dryRun: true });
+  });
+
+  it('sums what it archived and pruned across the batch', async () => {
+    mockedList.mockResolvedValue([due('user_a'), due('user_b')]);
+    mockedRetention
+      .mockResolvedValueOnce(retentionResult(3, 40))
+      .mockResolvedValueOnce(retentionResult(1, 2));
+
+    const result = await runObsiddySweepJob(NOW);
+
+    expect(result.retentionArchived).toBe(4);
+    expect(result.retentionPruned).toBe(42);
+  });
+
+  it('reports a capped pass, so a partial run is not read as a complete one', async () => {
+    // The same property the sweep's `cappedTypes` protects: a rule that stopped
+    // at its batch limit and a rule that found everything produce identical
+    // logs unless one of them says so.
+    mockedList.mockResolvedValue([due('user_a'), due('user_b')]);
+    mockedRetention
+      .mockResolvedValueOnce(retentionResult(500, 0, true))
+      .mockResolvedValueOnce(retentionResult(0, 0, false));
+
+    const result = await runObsiddySweepJob(NOW);
+
+    expect(result.retentionCapped).toBe(true);
+  });
+
+  it('does not let a failing retention pass cost the brain its sweep or its turn', async () => {
+    mockedList.mockResolvedValue([due('user_bad'), due('user_good')]);
+    mockedRetention.mockRejectedValueOnce(new Error('deadlock detected'));
+
+    const result = await runObsiddySweepJob(NOW);
+
+    expect(mockedSweep).toHaveBeenCalledTimes(2);
+    expect(mockedMark).toHaveBeenCalledWith(['user_bad', 'user_good'], NOW);
+    expect(result.failed).toBe(0);
+    expect(mockedLoggerError).toHaveBeenCalledWith(
+      'Obsiddy retention pass failed for one brain',
+      expect.objectContaining({ userId: 'user_bad', error: 'deadlock detected' })
+    );
+  });
+
+  it('handles a retention rejection that is not an Error instance', async () => {
+    mockedList.mockResolvedValue([due('user_bad')]);
+    mockedRetention.mockRejectedValueOnce('deadlock detected');
+
+    const result = await runObsiddySweepJob(NOW);
+
+    expect(result.retentionArchived).toBe(0);
+    expect(mockedLoggerError).toHaveBeenCalledWith(
+      'Obsiddy retention pass failed for one brain',
+      expect.objectContaining({ userId: 'user_bad', error: 'deadlock detected' })
+    );
+  });
+
+  it('still runs retention for a brain whose sweep threw', async () => {
+    // Isolation in the third direction. A corpus that cannot be swept still
+    // accumulates 400-day-old events, and refusing to clean them up because an
+    // unrelated pass failed is how a table grows without bound.
+    mockedList.mockResolvedValue([due('user_bad')]);
+    mockedSweep.mockRejectedValue(new Error('stored vector dimension mismatch'));
+    mockedRetention.mockResolvedValue(retentionResult(0, 12));
+
+    const result = await runObsiddySweepJob(NOW);
+
+    expect(mockedRetention).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({ failed: 1, retentionPruned: 12 });
   });
 });

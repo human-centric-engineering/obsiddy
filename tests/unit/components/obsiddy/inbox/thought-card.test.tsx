@@ -77,6 +77,7 @@ function item(overrides: Partial<InboxItemWire> = {}): InboxItemWire {
       promotedToId: null,
       snoozedUntil: null,
       snoozeCount: 0,
+      archivedAt: null,
       createdAt: '2026-07-20T09:00:00.000Z',
       updatedAt: '2026-07-20T09:00:00.000Z',
     },

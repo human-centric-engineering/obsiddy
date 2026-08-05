@@ -32,6 +32,7 @@
 import * as React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { z } from 'zod';
 
@@ -51,6 +52,7 @@ import {
 } from '@/components/ui/select';
 import { apiClient } from '@/lib/api/client';
 import { OBSIDDY_API } from '@/lib/framework/obsiddy/api/endpoints';
+import { OBSIDDY_ROUTES } from '@/lib/framework/obsiddy/ui/routes';
 import { PRIORITY_FACTORS, WORK_STYLES } from '@/lib/framework/obsiddy/validations';
 import { cn } from '@/lib/utils';
 
@@ -66,6 +68,74 @@ const FACTOR_LABELS: Record<(typeof PRIORITY_FACTORS)[number], string> = {
   staleness: 'How long it’s been waiting',
 };
 
+/**
+ * The retention windows a person can set, in the order §11's table lists them.
+ *
+ * Archive rules first, prune rules second, and the copy says which is which on
+ * every row — because the difference is the entire promise the product makes
+ * about your data. Nothing a human wrote is ever deleted by a clock: thoughts,
+ * tasks, projects, goals and reviews are *hidden* and stay restorable for ever.
+ * Only derived and log data is removed, and none of it is anything you typed.
+ *
+ * **`staleEntityDays` is deliberately not here**, though the policy carries it.
+ * Every row on this card names a window that a retention rule reads, and there
+ * is no entity rule: §11 says a person or company is never auto-archived — a
+ * dormant client is not a dead one — so the only thing that ever raises them is
+ * the stale digest, whose four windows `services/stale-digest.ts` keeps as
+ * constants on purpose. Rendering the field anyway gave a control that changed
+ * nothing and a row that read "…then **deleted**" about the one type nothing
+ * deletes, three lines under a card promising the opposite.
+ */
+const RETENTION_WINDOWS: ReadonlyArray<{
+  key: string;
+  label: string;
+  action: 'archive' | 'prune';
+  help: string;
+}> = [
+  {
+    key: 'inboxThoughtDays',
+    label: 'Notes left in the inbox',
+    action: 'archive',
+    help: 'A note you captured and never did anything with. Archived, not deleted — it stays findable by wording and comes back with one click.',
+  },
+  {
+    key: 'completedTaskDays',
+    label: 'Tasks you finished',
+    action: 'archive',
+    help: 'Measured from when you completed it, not when you created it.',
+  },
+  {
+    key: 'closedProjectDays',
+    label: 'Projects you closed',
+    action: 'archive',
+    help: 'Their remaining tasks are archived with them, so a finished project stops putting work in front of you.',
+  },
+  {
+    key: 'reviewDays',
+    label: 'Generated reviews and briefings',
+    action: 'archive',
+    help: 'The written output of the background workflows. Two years keeps every review period answerable.',
+  },
+  {
+    key: 'suggestedLinkDays',
+    label: 'Connection suggestions nobody looked at',
+    action: 'prune',
+    help: 'Deleted, because they are regenerated from your notes whenever the pair still looks related. A connection you actively rejected is kept for ever — that is what stops it being suggested again.',
+  },
+  {
+    key: 'eventDays',
+    label: 'Activity log',
+    action: 'prune',
+    help: 'What moved and when. This is what “what did you finish this week” reads, so a rolling window longer than a year keeps every review period answerable.',
+  },
+  {
+    key: 'planTimeBlockDays',
+    label: 'Past planned time blocks',
+    action: 'prune',
+    help: 'Time you blocked out and never used. Blocks recording what actually happened are never removed.',
+  },
+];
+
 const WORK_STYLE_LABELS: Record<(typeof WORK_STYLES)[number], string> = {
   structured: 'Structured — lead with what’s overdue',
   balanced: 'Balanced',
@@ -78,6 +148,8 @@ export interface SpaceSettings {
   workStyle: string;
   priorityWeights: Record<string, number>;
   connectionStrengthFloor: number;
+  /** The eight §11 windows, in days. Resolved defaults when never customised. */
+  retentionPolicy: Record<string, number>;
 }
 
 const formSchema = z.object({
@@ -89,6 +161,15 @@ const formSchema = z.object({
   workStyle: z.enum(WORK_STYLES),
   weights: z.record(z.string(), z.number()),
   connectionStrengthFloor: z.number().min(0.2).max(0.95),
+  /**
+   * Windows in days. The upper bound is a century, matching the API schema —
+   * "effectively never" is a legitimate answer and should be expressible without
+   * a separate switch that would then have to mean something in the pass.
+   */
+  retention: z.record(
+    z.string(),
+    z.number().int('Whole days').min(1, 'At least a day').max(36_500, 'A century is the maximum')
+  ),
 });
 
 type SettingsFormValues = z.infer<typeof formSchema>;
@@ -124,10 +205,12 @@ export function SpaceSettingsForm({ initial }: { initial: SpaceSettings }): Reac
       workStyle: formSchema.shape.workStyle.catch('balanced').parse(initial.workStyle),
       weights: { ...initial.priorityWeights },
       connectionStrengthFloor: initial.connectionStrengthFloor,
+      retention: { ...initial.retentionPolicy },
     },
   });
 
   const weights = form.watch('weights');
+  const retention = form.watch('retention');
   const weightTotal = PRIORITY_FACTORS.reduce((sum, key) => sum + (weights[key] ?? 0), 0);
   // A small epsilon absorbs float representation, exactly as the API schema does.
   const weightsValid = Math.abs(weightTotal - 1) < 1e-6;
@@ -149,6 +232,14 @@ export function SpaceSettingsForm({ initial }: { initial: SpaceSettings }): Reac
             PRIORITY_FACTORS.map((key) => [key, values.weights[key] ?? 0])
           ),
           connectionStrengthFloor: values.connectionStrengthFloor,
+          // The whole policy, not only the rendered rows. `retentionPolicySchema`
+          // is `.strict()` and requires all eight keys, so rebuilding this from
+          // `RETENTION_WINDOWS` would drop `staleEntityDays` — which this card
+          // deliberately does not render — and the API would reject every save
+          // with a validation error. Round-tripping `values.retention` also means
+          // a window a future version adds to the policy survives a save from an
+          // older form rather than being silently reset.
+          retentionPolicy: values.retention,
         },
       })
     );
@@ -246,8 +337,8 @@ export function SpaceSettingsForm({ initial }: { initial: SpaceSettings }): Reac
               </SelectContent>
             </Select>
             <p className="text-muted-foreground text-xs">
-              Changes what the morning briefing picks out, not how your tasks are ranked. The
-              briefing itself arrives in a later phase.
+              Changes what the morning briefing picks out, not how your tasks are ranked. It takes
+              effect on tomorrow&rsquo;s briefing; today&rsquo;s was already written overnight.
             </p>
           </div>
         </CardContent>
@@ -307,6 +398,89 @@ export function SpaceSettingsForm({ initial }: { initial: SpaceSettings }): Reac
             {weightsValid
               ? 'Adds up to 100% — good.'
               : `Adds up to ${Math.round(weightTotal * 100)}%. It needs to be exactly 100% before this can be saved.`}
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-sm">
+            How long things stick around
+            <FieldHelp title="Retention">
+              <p>
+                <strong>Nothing you wrote is ever deleted by a clock.</strong> Notes, tasks,
+                projects, goals and reviews are <em>archived</em> when they age out — hidden from
+                every list, search and prompt, still readable, and restorable with one click, for
+                ever.
+              </p>
+              <p>
+                Only workings-out are deleted: connection suggestions nobody looked at, the activity
+                log past its window, and planned time blocks that never happened. None of it is
+                anything you typed.
+              </p>
+              <p>
+                Archiving is also what keeps meaning-search sharp. An archived note leaves the
+                index, so recall does not degrade as your history grows.
+              </p>
+            </FieldHelp>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {RETENTION_WINDOWS.map((window) => (
+            <div key={window.key} className="space-y-1.5">
+              <Label
+                htmlFor={`retention-${window.key}`}
+                className="flex items-center gap-1.5 font-normal"
+              >
+                {window.label}
+                <FieldHelp title={window.label}>
+                  <p>{window.help}</p>
+                  <p>
+                    {window.action === 'archive'
+                      ? 'Archived — hidden, kept, reversible.'
+                      : 'Deleted — this is derived data, not something you wrote.'}
+                  </p>
+                </FieldHelp>
+              </Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id={`retention-${window.key}`}
+                  type="number"
+                  min={1}
+                  max={36_500}
+                  className="w-28"
+                  value={retention[window.key] ?? ''}
+                  onChange={(event) =>
+                    form.setValue(
+                      'retention',
+                      { ...retention, [window.key]: Number(event.target.value) },
+                      { shouldTouch: true, shouldValidate: true }
+                    )
+                  }
+                />
+                <span className="text-muted-foreground text-xs">
+                  days, then{' '}
+                  {window.action === 'archive' ? (
+                    <span className="font-medium">archived</span>
+                  ) : (
+                    <span className="font-medium">deleted</span>
+                  )}
+                </span>
+              </div>
+            </div>
+          ))}
+
+          {form.formState.errors.retention ? (
+            <p className="text-destructive text-xs" aria-live="polite">
+              Every window needs a whole number of days, between 1 and 36,500.
+            </p>
+          ) : null}
+
+          <p className="text-muted-foreground text-xs">
+            <Link href={OBSIDDY_ROUTES.ARCHIVE} className="underline underline-offset-2">
+              See what is archived
+            </Link>{' '}
+            — and what has gone quiet and might want a decision.
           </p>
         </CardContent>
       </Card>

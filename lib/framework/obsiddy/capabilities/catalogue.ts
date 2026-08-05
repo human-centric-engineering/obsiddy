@@ -67,6 +67,7 @@ export const OBSIDDY_CAPABILITY_SLUGS = {
   getBriefing: 'obsiddy_get_briefing',
   getBriefingInputs: 'obsiddy_get_briefing_inputs',
   notify: 'obsiddy_notify',
+  getStaleDigest: 'obsiddy_get_stale_digest',
 } as const;
 
 export type ObsiddyCapabilitySlug =
@@ -630,6 +631,21 @@ export const OBSIDDY_CAPABILITIES: readonly ObsiddyCapabilitySpec[] = [
         },
         required: ['notification'],
       },
+    },
+  },
+  {
+    slug: OBSIDDY_CAPABILITY_SLUGS.getStaleDigest,
+    name: 'Obsiddy — What looks dormant',
+    description:
+      'Projects, goals, areas and people that have gone quiet. Read-only — proposes, never archives.',
+    executionHandler: 'ObsiddyGetStaleDigestCapability',
+    rateLimit: 30,
+    isIdempotent: true,
+    functionDefinition: {
+      name: OBSIDDY_CAPABILITY_SLUGS.getStaleDigest,
+      description:
+        "Find what has gone quiet: projects with no activity and nothing completed, goals whose target date passed with no progress behind them, areas with no time logged, and people nobody has mentioned in months. Each row is a question for the owner, not a conclusion — say what the evidence is and let them decide. Never describe an item as dead or abandoned; you cannot see the reason it went quiet, and 'still a client?' is a fair question where 'this client is gone' is not yours to say.",
+      parameters: { type: 'object', properties: {}, required: [] },
     },
   },
 ];

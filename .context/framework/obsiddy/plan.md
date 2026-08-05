@@ -677,7 +677,11 @@ Archived items remain findable by **keyword** — the `searchVector` tsvector st
 
 ### What ages out, and when
 
-Windows live in `ObsiddySpace.retentionPolicy Json` (Zod-validated, defaults below), user-tunable in settings. Enforced by `enforceObsiddyRetention(userId)`, modelled directly on the existing `enforceRetentionPolicies()` in `lib/orchestration/retention.ts` and run from the nightly workflow.
+Windows live in `ObsiddySpace.retentionPolicy Json` (Zod-validated, defaults below), user-tunable in settings. Enforced by `enforceObsiddyRetention(scope)`, modelled directly on the existing `enforceRetentionPolicies()` in `lib/orchestration/retention.ts`.
+
+**Corrected in phase 8: it runs from the sweep job's rotation, not the nightly workflow.** Nothing about retention is a moment — no user cares whether a 400-day-old event is deleted at 02:00 or 14:00, only that it eventually is — so it is the same shape as the connection sweep and belongs on the same per-brain rotation. Per-user cron rows would have bought that nothing and cost a row each to create, correct after a DST change and delete on erasure, which is the exact three-problem set phase 7's schedule code exists to handle. `install.md` §2.10 had already said "the retention pass joins it in phase 8"; this sentence was the half that disagreed.
+
+Two consequences worth stating with the rule. **Every rule is capped** (500 rows per rule per pass) and the pass reports `capped`, because `registerAppJob` shares a 60-second tick with everything else on it and a first pass over a corpus that predates retention could touch fifty thousand rows — a backlog drains over a few rotations rather than in one long tick. And **every rule is idempotent**, because `registerAppJob` keeps last-run times in process memory, so _n_ instances run the pass _n_ times per interval; each rule filters on `archivedAt: null` or on rows that no longer exist, so a duplicate run finds an empty batch.
 
 | Data                                                          | Default                                   | Action                                                                                 |
 | ------------------------------------------------------------- | ----------------------------------------- | -------------------------------------------------------------------------------------- |

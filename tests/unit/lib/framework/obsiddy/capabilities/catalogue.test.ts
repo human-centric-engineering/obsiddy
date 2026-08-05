@@ -41,6 +41,7 @@ import {
   agentGetBriefingSchema,
   agentListTasksSchema,
   agentNotifySchema,
+  agentStaleDigestSchema,
   agentPromoteThoughtSchema,
   agentReprioritiseSchema,
   agentSearchSchema,
@@ -109,17 +110,20 @@ const SCHEMA_BY_SLUG: Record<string, z.ZodType> = {
   [OBSIDDY_CAPABILITY_SLUGS.getBriefing]: agentGetBriefingSchema,
   [OBSIDDY_CAPABILITY_SLUGS.getBriefingInputs]: agentBriefingInputsSchema,
   [OBSIDDY_CAPABILITY_SLUGS.notify]: agentNotifySchema,
+  [OBSIDDY_CAPABILITY_SLUGS.getStaleDigest]: agentStaleDigestSchema,
 };
 
 describe('Obsiddy capability catalogue', () => {
-  it('holds exactly the seventeen capabilities the agent layer promises', () => {
+  it('holds exactly the eighteen capabilities the agent layer promises', () => {
     // Thirteen in plan.md §5, plus `obsiddy_promote_thought`: none of the
     // thirteen could mark a thought as processed, so a nightly triage run left
     // every note looking un-triaged and re-processed the lot the next night.
     // Phase 7 adds three: the briefing read, its deterministic input-gathering
-    // (which replaced the `route` step §6 specified), and the notifier.
-    expect(OBSIDDY_CAPABILITIES).toHaveLength(17);
-    expect(Object.values(OBSIDDY_CAPABILITY_SLUGS)).toHaveLength(17);
+    // (which replaced the `route` step §6 specified), and the notifier. Phase 8
+    // adds the stale digest — the read that lets the horizon check ask about
+    // dormant work without being able to act on the answer.
+    expect(OBSIDDY_CAPABILITIES).toHaveLength(18);
+    expect(Object.values(OBSIDDY_CAPABILITY_SLUGS)).toHaveLength(18);
   });
 
   it('uses unique, namespaced slugs', () => {
@@ -196,6 +200,7 @@ describe('Obsiddy capability catalogue', () => {
         OBSIDDY_CAPABILITY_SLUGS.getSnapshot,
         OBSIDDY_CAPABILITY_SLUGS.getBriefing,
         OBSIDDY_CAPABILITY_SLUGS.getBriefingInputs,
+        OBSIDDY_CAPABILITY_SLUGS.getStaleDigest,
       ].sort()
     );
   });

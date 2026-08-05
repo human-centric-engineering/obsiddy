@@ -108,6 +108,16 @@ export const OBSIDDY_API = {
 
   DOCUMENTS: '/api/v1/obsiddy/documents',
   documentById: (id: string): string => `/api/v1/obsiddy/documents/${id}`,
+
+  /**
+   * What has gone quiet — the four dormancy questions (§11, phase 8).
+   *
+   * A read that proposes and never acts. The answers go back through the item's
+   * own routes (archive, delete) or through `STALE_STILL_LIVE`, which is the one
+   * answer nothing else could express.
+   */
+  STALE: '/api/v1/obsiddy/stale',
+  STALE_STILL_LIVE: '/api/v1/obsiddy/stale/still-live',
   documentDownload: (id: string): string => `/api/v1/obsiddy/documents/${id}/download`,
 
   /** Admin surface — instance settings, not user data. */
