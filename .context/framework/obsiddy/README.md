@@ -29,17 +29,22 @@ Namespaced _inside_ the tier, never at its root — so a project already running
 | [`install.md`](./install.md)           | How a host Sunrise project installs Obsiddy — tier directories, one-line seam registrations, env vars, migration, verification. Kept current by every phase                                         |
 | [`ui.md`](./ui.md)                     | The UI's rules and why each exists — one fetch per surface, read/mutate split, wire-shape parsing, the fork-owned primitives, and the checklist for adding a surface                                |
 | [`agents.md`](./agents.md)             | The agent layer's rules — one truth for four places, the owner-scope guard, what an agent deliberately cannot do, the redaction line, the five agents, and why bindings are the enforcement         |
+| [`mcp.md`](./mcp.md)                   | What the brain exposes over MCP and why that list _is_ the access control — the `scopedAgentId` gotcha, the eight tools, the three prompts, the operator setup, and why resources are deferred      |
+| [`evaluations.md`](./evaluations.md)   | How you find out triage has got worse — the thirty cases, the 0.5/0.5 score, and why the runner is a script rather than a batch run                                                                 |
 | [`sunrise-asks.md`](./sunrise-asks.md) | What Obsiddy needs from upstream Sunrise — missing seams, core files a fork is forced to edit, platform gaps. Every row also gets an issue on the Sunrise repo                                      |
 
 `plan.md` is the working copy that travels with the code. It is not auto-synced with any copy held outside the repository.
 
 ## Status
 
-**Release 1, phases 0–8 complete** — the tier is wired, the data model exists, every core type has an owner-scoped CRUD API, tasks are ranked by a deterministic scorer, the brain is searchable by meaning, there is a UI (fourteen surfaces at `/obsiddy`, including a kanban board), and **you can now talk to it**: eighteen capabilities, six agents, the shared profile they inherit, a per-turn context block that means the agent already knows your goals, and a chat page at `/obsiddy/chat`. Phase 7 added the background: four workflows on per-user schedules, the
+**Release 1, phases 0–8 and 7b complete** — the tier is wired, the data model exists, every core type has an owner-scoped CRUD API, tasks are ranked by a deterministic scorer, the brain is searchable by meaning, there is a UI (fourteen surfaces at `/obsiddy`, including a kanban board), and **you can now talk to it**: eighteen capabilities, six agents, the shared profile they inherit, a per-turn context block that means the agent already knows your goals, and a chat page at `/obsiddy/chat`. Phase 7 added the background: four workflows on per-user schedules, the
 connection sweep as an app job, the morning briefing, and the tier's first
 erasure hook. Phase 8 added the lifecycle: retention on the same rotation, the
-stale digest, and the archive surface. Next is phase 7b — MCP exposure, the iOS
-Shortcut and the eval dataset.
+stale digest, and the archive surface. Phase 7b took it **outside the app**:
+eight tools and three prompts over MCP (zero code — see [`mcp.md`](./mcp.md)), an
+iOS Shortcut recipe, and a thirty-case triage benchmark with a deterministic
+grader ([`evaluations.md`](./evaluations.md)). Next is phase 9 — the PWA, voice
+and image capture, and email-to-inbox — which closes Release 1.
 
 | Wired                                   | Where                                                                                                                                                                                                                                                                                                                                                                      |
 | --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -66,6 +71,8 @@ Shortcut and the eval dataset.
 | UI contracts                            | `lib/framework/obsiddy/ui/*` — `OBSIDDY_ROUTES`, wire-shape schemas, the one server-read helper                                                                                                                                                                                                                                                                            |
 | API                                     | `app/api/v1/obsiddy/**` — 66 route files, plus one admin pair (`GET`/`PATCH` on `admin/obsiddy/settings`)                                                                                                                                                                                                                                                                  |
 | User UI                                 | `app/(protected)/obsiddy/**` — 14 surfaces; components in `components/obsiddy/**`                                                                                                                                                                                                                                                                                          |
+| MCP exposure                            | `prisma/seeds/framework-obsiddy/006-mcp.ts` from `lib/framework/obsiddy/mcp/exposure.ts` — eight tools, three prompts, **no code** (phase 7b)                                                                                                                                                                                                                              |
+| Evaluation                              | `lib/framework/obsiddy/evaluations/*` — thirty triage cases, the `obsiddy_triage_accuracy` grader, dataset in `007-eval-dataset.ts`, runner at `npm run framework:obsiddy:eval-triage` (phase 7b)                                                                                                                                                                          |
 | Admin UI                                | `/admin/obsiddy/settings` — document handling and the upload ceiling                                                                                                                                                                                                                                                                                                       |
 
 ## The UI, and the rules it follows (phase 5)

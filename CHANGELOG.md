@@ -18,6 +18,43 @@ release process.
 
 ### Added
 
+- **Obsiddy phase 7b — the brain, from outside the app.** Eight capabilities and
+  three slash-command prompts are exposed over MCP
+  (`prisma/seeds/framework-obsiddy/006-mcp.ts`, written from the manifest at
+  `lib/framework/obsiddy/mcp/exposure.ts`), so "what should I work on today?" and
+  "capture that" work from inside Claude Code. **No Obsiddy MCP code exists** —
+  `protocol-handler.ts` already sets `CapabilityContext.userId` from the key's
+  creator and every brain capability already refuses to run without one, so
+  per-user isolation over MCP is the owner-scope guard phase 6 shipped, reached
+  through a different door. Rows only.
+
+  **The manifest is the access control, and the intuitive reading is wrong.**
+  `McpApiKey.scopedAgentId` looks like it narrows a key to that agent's bound
+  capabilities; `listMcpTools()` scoping is default-allow and drops only
+  capabilities with an explicit `isEnabled: false` binding row, while Obsiddy's
+  bindings work by absence. So every enabled tool is callable by every key.
+  Seven reads plus `obsiddy_capture` are on the list; everything that creates
+  structure — projects, goals, people, links, promotions, reviews, reprioritise
+  — is deliberately absent, and `mcp/exposure.test.ts` asserts each one's
+  absence individually so a new write capability has to be considered rather
+  than inherited.
+
+  Also: `obsiddy_triage_accuracy`, a deterministic grader
+  (`lib/framework/obsiddy/evaluations/triage-accuracy.ts`) scoring
+  `0.5 × decision + 0.5 × F1 over the link set`, and thirty hand-classified
+  captured thoughts to run it against — seeded as an `AiDataset` and runnable
+  with `npm run framework:obsiddy:eval-triage`. It is a script rather than a
+  batch run for two reasons: core has no seam for registering a fork's grader
+  where the route-realm worker would see it (Sunrise ask #33), and the subject
+  writes — `obsiddy-triage` is bound to tools that create tasks, and a batch run
+  executes it as whoever queued it, so the script runs the cases as a throwaway
+  user it deletes afterwards.
+
+  MCP **resources** (`obsiddy://today` and friends) are deferred, not worked
+  around: `resource-registry.ts` dispatches through a module-local handler map a
+  fork cannot extend (Sunrise ask #32). Every read path is exposed as a tool and
+  works; the cost is one tool call where a resource read would have been free.
+
 - **Obsiddy answers a subject-access request** (GDPR Art. 15).
   `collectObsiddySubjectData(scope)` (`repo/subject-export.ts`) returns all
   seventeen owner-scoped brain tables — thoughts, tasks, projects, goals, areas,

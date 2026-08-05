@@ -724,6 +724,86 @@ lets you change it rather than pretending the conflict doesn't exist.
 Nothing is written to the database until you save, so a fresh install runs on the
 defaults with no settings row at all.
 
+### 4.2 Reach the brain from Claude Code — MCP _(phase 7b)_
+
+Optional, and the highest value-per-effort thing in the install. Obsiddy seeds
+eight `McpExposedTool` rows and three `McpExposedPrompt` rows; the rest is core's
+MCP server, which is **off by default**.
+
+1. `/admin/orchestration/mcp/settings` → enable the server.
+2. `/admin/orchestration/mcp/keys` → create a key with `tools:list`,
+   `tools:execute`, `prompts:read`. The `smcp_…` plaintext is shown **once**.
+   **Mint it as the person whose brain it is** — `CapabilityContext.userId`
+   comes from the key's creator, and that is the only thing deciding which brain
+   the key reaches.
+3. Point a client at it:
+
+   ```bash
+   claude mcp add --transport http obsiddy https://your-host/api/v1/mcp \
+     --header "Authorization: Bearer smcp_..."
+   ```
+
+**Read [`mcp.md`](./mcp.md) before assuming `scopedAgentId` restricts a key.** It
+does not: tool scoping is default-allow, Obsiddy's bindings work by absence, and
+every enabled tool is callable by every key. The seeded list — seven reads plus
+`obsiddy_capture` — is the access control, and nothing that creates structure is
+on it.
+
+Both lists are cached for five minutes on a running server. Re-seed then
+restart, or wait.
+
+### 4.3 Two-second capture from a phone — iOS Shortcut _(phase 7b)_
+
+Also optional, and it needs nothing seeded. `POST /api/v1/obsiddy/capture` is
+already reachable with a personal API key, because `withAuth` accepts one.
+
+1. Mint a personal key. Sunrise ships the self-service routes but **no UI page**
+   for them, so from the browser console of a logged-in session (same origin, so
+   the cookie goes with it):
+
+   ```js
+   await (
+     await fetch('/api/v1/user/api-keys', {
+       method: 'POST',
+       headers: { 'Content-Type': 'application/json' },
+       body: JSON.stringify({ name: 'iPhone capture', scopes: ['chat'] }),
+     })
+   ).json();
+   ```
+
+   The `sk_…` value comes back **once**. Add `expiresAt` (ISO 8601) while you
+   are there.
+
+2. In the Shortcuts app: **Get Contents of URL** →
+   `https://your-host/api/v1/obsiddy/capture`, method `POST`, headers
+   `Authorization: Bearer sk_…` and `Content-Type: application/json`, JSON body
+   `{ "content": <Shortcut Input>, "source": "shortcut" }`.
+3. Add it to the share sheet, the Lock Screen or a Back Tap. iOS queues it when
+   offline.
+
+Send an `externalId` too if you can generate a stable one — capture is
+idempotent on it, so a double-tapped button returns the first row instead of
+filing the thought twice.
+
+> **The key is wider than the job.** `AiApiKey.scopes` is a closed enum in a
+> Sunrise-owned file (`chat`, `analytics`, `knowledge`, `webhook`, `admin`), so
+> the narrow `obsiddy` scope this wants cannot be created — ask #34 in
+> [`sunrise-asks.md`](./sunrise-asks.md) →
+> [sunrise#542](https://github.com/human-centric-engineering/sunrise/issues/542).
+> Use `chat`, and know that the key on
+> your phone reaches every authenticated route as you, not just capture. Nothing
+> about capture is weakened — the key resolves to its owner and `OwnerScope`
+> confines every write to that one brain — but give it an `expiresAt`, and
+> revoke it if the phone goes missing.
+
+### 4.4 Know when triage gets worse _(phase 7b)_
+
+`npm run framework:obsiddy:eval-triage` runs thirty hand-classified thoughts
+through the real triage agent and scores it deterministically. Take the number
+before a prompt edit or a model swap, and again after. See
+[`evaluations.md`](./evaluations.md) — including why it is a script rather than
+a batch run in the admin UI, and what that protects you from.
+
 ## 5. Optional host steps
 
 - **`app/robots.ts`** — add `/s/` to the disallow list if you use public share

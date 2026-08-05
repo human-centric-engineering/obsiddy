@@ -269,6 +269,49 @@ _next_ fork the work, not about unblocking this one.
 
 ---
 
+### Found building phase 7b — platform surfaces (2026-08-05)
+
+Three seams, all the same shape: **core has a registry, core's own entries go in
+a hardcoded list, and there is no `lib/app/*` seam for a fork's.** MCP tools
+needed nothing (they are DB rows, and Obsiddy shipped eight of them with no code
+at all), which is exactly the contrast that makes the other three legible — the
+extension point that was designed as data works for forks, and the three
+designed as module-scoped maps do not.
+
+None of the three is a defect. Each is a place where the fork story stops one
+step short of where the platform's own docs say it goes.
+
+| #   | Ask                                                                                                                                                                                               | Why                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | Priority                                                                                                                                                                          | Issue                                                                   |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| 32  | **A fork cannot register an MCP resource handler** — `lib/app/mcp.ts` + `registerAppMcpResourceHandler(type, handler)`, or read the handler name off `McpExposedResource.handlerConfig`           | `resource-registry.ts` dispatches on `row.resourceType` through `const HANDLERS`, a module-local map of core's four (`knowledge_search`, `pattern_detail`, `agent_list`, `workflow_list`). It is not exported and nothing merges into it, so a fork can insert an `McpExposedResource` row and the registry logs "no handler for type" and returns null. Everything _else_ about resources already works for forks — the URI pattern matcher, the templates, the auth context. Obsiddy wanted `obsiddy://today` and `obsiddy://project/{slug}` as resources, which read paths **should** be: core's own doc says a resource is cheaper than a tool call because the client can read it without spending a turn. Without the seam those reads stay tools, which works and costs a turn each | Low effort — one exported registration function, mirroring `registerAppJob` / `registerAppCapability`. No trust boundary: the rows are still admin-created and still default-deny | [#540](https://github.com/human-centric-engineering/sunrise/issues/540) |
+| 33  | **A fork cannot register an evaluation grader the batch worker can see** — `lib/app/evaluations.ts` + `registerAppGraders()`, called from `run-worker.ts` alongside its own barrel import         | `registerGrader` is exported and the registry is documented as pluggable, but it writes to a plain module-scoped `Map` filled by `graders/index.ts`. The worker runs in the **route** realm (`…/maintenance/tick`), which shares no module graph with `instrumentation.ts` — the split #462 was about — so a fork registering from `initApp()` fills a map the worker never reads, and the metric picker offers a grader that throws `No grader registered` at dispatch. There is no other point in the worker's import graph a fork can reach. Obsiddy's `obsiddy_triage_accuracy` is written, tested and unreachable from the UI because of it; it runs from a script instead                                                                                                            | Medium — the failure is a _late_ one (a queued run fails mid-drain, not at submit), and the registry's own header advertises pluggability that only holds for core                | [#541](https://github.com/human-centric-engineering/sunrise/issues/541) |
+| 34  | **`AiApiKey.scopes` is a closed enum, so a fork cannot scope a key to its own surface** — make the scope list extensible (a fork-owned array merged into `VALID_SCOPES` and `createApiKeySchema`) | `createApiKeySchema` pins `z.enum(['chat','analytics','knowledge','webhook','admin'])` and `VALID_SCOPES` mirrors it, both in Sunrise-owned files. Meanwhile `withAuth` accepts a key of **any** scope, so today an iOS Shortcut posting to `/api/v1/obsiddy/capture` works — with a key labelled `chat`. That is the whole problem: the narrow scope the plan wanted (`obsiddy`) cannot be created, so the only key a user can mint for two-second capture is one that also reaches every other authenticated route. The seam is a one-line array; the alternative is every fork's self-service keys being broader than their purpose                                                                                                                                                     | Low effort. **States a real trust boundary** rather than a fork-convenience one: the gap makes least-privilege unavailable to forks, and the workaround is a wider key            | [#542](https://github.com/human-centric-engineering/sunrise/issues/542) |
+
+**Downstream status (#32):** deferred, not worked around. Obsiddy's read paths
+stay MCP **tools** — `obsiddy_search`, `obsiddy_get_snapshot` and the rest are
+all exposed and all work. The cost is one tool call where a resource read would
+have been free, which is a performance note rather than a missing capability, so
+there is nothing to carry locally and nothing for a host project to do.
+
+**Downstream status (#33):** worked around, no core edit.
+`registerObsiddyGraders()` exists and is deliberately **not** called from
+`initObsiddy()` — registering into the wrong realm would be dead code that reads
+like wiring. `scripts/framework/obsiddy/eval-triage.ts` registers it in its own
+process and dispatches through core's registry exactly as the worker would, so
+the grader is exercised for real rather than only unit-tested. When the seam
+lands, the change is one line and the script keeps working unchanged.
+
+**Downstream status (#34):** no workaround exists, and the honest position is
+that the Shortcut recipe in [`install.md`](./install.md) tells the operator to
+mint a `chat`-scoped key and says plainly that it is wider than the job needs.
+Obsiddy cannot narrow it from the tier: the tier could _check_ a scope, but no
+user can _create_ one to check. Nothing about capture is weakened — `withAuth`
+still resolves the key to its owner and `OwnerScope` still confines every write
+to that one brain — but the key on a phone reaches more than capture, and a
+reader of `install.md` should know that before deciding to make one.
+
+---
+
 ## State at the Sunrise 0.8.0 merge (2026-08-05)
 
 Checked with the two commands §6 of [The process](#the-process) prescribes, run
