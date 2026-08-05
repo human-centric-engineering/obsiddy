@@ -67,7 +67,8 @@ export interface OwnerScope {
  * independently deletes any Obsiddy schedule whose `createdBy` is null — so the
  * same backstop that already covered `createdBy` covers this.
  *
- * Filed upstream as ask #29 in `.context/framework/obsiddy/sunrise-asks.md`.
+ * Filed upstream as sunrise#532; ask #29 in
+ * `.context/framework/obsiddy/sunrise-asks.md`.
  */
 export const OBSIDDY_SCHEDULE_OWNER_KEY = 'obsiddyUserId';
 

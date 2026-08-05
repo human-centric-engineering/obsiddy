@@ -19,8 +19,8 @@
  * organisation's run history with them. Correct for org-level cron rows, and it
  * leaves per-user schedules with no owner — so the id moved to `scope`, the
  * column core provides for precisely this and reads no keys from. The correction
- * pass below stamps rows written before the move; see ask #29 in
- * `.context/framework/obsiddy/sunrise-asks.md`.
+ * pass below stamps rows written before the move. Filed upstream as
+ * sunrise#532; ask #29 in `.context/framework/obsiddy/sunrise-asks.md`.
  *
  * ## Idempotent, and self-correcting
  *

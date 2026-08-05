@@ -81,9 +81,9 @@ const HANDLED_OUTSIDE_MANIFEST = new Map([
   // code: doing the right thing (filling the seam, writing its own completeness
   // guard — `tests/unit/lib/framework/obsiddy/privacy/subject-export.test.ts`)
   // still leaves it red. Local patch to a Sunrise-owned test, same family as
-  // sunrise#480 and sunrise#525. Tracked as ask #30 in
-  // `.context/framework/obsiddy/sunrise-asks.md`, which carries the upstream
-  // issue number once filed. Remove this block when it lands.
+  // sunrise#480 and sunrise#525. Filed as sunrise#533; ask #30 in
+  // `.context/framework/obsiddy/sunrise-asks.md`. Remove this block when it
+  // lands.
   ...(
     [
       'ObsiddySpace',
@@ -109,7 +109,7 @@ const HANDLED_OUTSIDE_MANIFEST = new Map([
     (model) =>
       [
         model,
-        'Framework-tier (Obsiddy) table, exported through the lib/app/data-export.ts seam and covered by the tier’s own completeness guard. Invisible to this scan because `declared` reads only SUBJECT_DATA_SOURCES — see ask #30 in .context/framework/obsiddy/sunrise-asks.md.',
+        'Framework-tier (Obsiddy) table, exported through the lib/app/data-export.ts seam and covered by the tier’s own completeness guard. Invisible to this scan because `declared` reads only SUBJECT_DATA_SOURCES — see sunrise#533.',
       ] as const
   ),
 ]);

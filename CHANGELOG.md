@@ -625,8 +625,8 @@ release process.
   **Nothing failed loudly, and that is the part worth keeping.** `userId` is
   already `string | null`, so the change type-checked; the 1,978 tier tests
   stayed green because they mock that boundary. A merge can be green on both
-  sides and still be broken in the seam between them. Filed upstream as ask #29
-  in `.context/framework/obsiddy/sunrise-asks.md`.
+  sides and still be broken in the seam between them. Filed upstream as
+  [sunrise#532](https://github.com/human-centric-engineering/sunrise/issues/532).
 
 - **Obsiddy's first write by any new user returned a 500.**
   `ensureObsiddySpace()` existed and was tested but was called from nowhere,

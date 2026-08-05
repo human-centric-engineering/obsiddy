@@ -577,15 +577,16 @@ exported in full) — is documented in `repo/subject-export.ts`, with a guard te
 that fails the build if a new table is added to the schema and not to the
 manifest.
 
-**One local patch is required until the upstream fix lands.** Core's own
-coverage guard (`tests/unit/lib/privacy/export-sources.test.ts`) scans every file
-in `prisma/schema/`, including `framework-obsiddy.prisma`, but builds its
+**One local patch is required until [#533] lands.** Core's own coverage guard
+(`tests/unit/lib/privacy/export-sources.test.ts`) scans every file in
+`prisma/schema/`, including `framework-obsiddy.prisma`, but builds its
 `declared` set from the core-owned `SUBJECT_DATA_SOURCES` alone — so filling the
 seam correctly still leaves the test red. Add the tier's eighteen models to that
 file's `HANDLED_OUTSIDE_MANIFEST` with a reason; see ask #30 in
-[`sunrise-asks.md`](./sunrise-asks.md), which carries the issue number.
+[`sunrise-asks.md`](./sunrise-asks.md).
 
 [#467]: https://github.com/human-centric-engineering/sunrise/issues/467
+[#533]: https://github.com/human-centric-engineering/sunrise/issues/533
 
 ---
 
