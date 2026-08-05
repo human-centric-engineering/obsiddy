@@ -188,10 +188,39 @@ are present, so the fallback can only fill a gap, never redirect a live session.
 `collectObsiddySubjectData()` covers all 17 scoped tables (`ObsiddyEmbedding` is
 excluded as derived vectors, on the same grounds core excludes
 `AiMessageEmbedding`), wired through `lib/app/data-export.ts` and guarded by the
-tier's own schema-scanning test. What is carried locally is only the patch to
-core's `export-sources.test.ts`, adding the 18 models to
-`HANDLED_OUTSIDE_MANIFEST` with a reason. Remove it when
-[#533](https://github.com/human-centric-engineering/sunrise/issues/533) lands.
+tier's own schema-scanning test. **Two** local patches are carried, both removed
+when [#533](https://github.com/human-centric-engineering/sunrise/issues/533)
+lands: the 18 models in `export-sources.test.ts`'s `HANDLED_OUTSIDE_MANIFEST`,
+and a pin in `scripts/smoke/export.ts`.
+
+**The second was found by CI, not by the local gates, and that is the useful
+part.** `scripts/smoke/export.ts` is **new in 0.8.0** and asserts
+`Object.keys(bundle.app).length === 0` — "app seam is empty in vanilla Sunrise".
+It is not a Vitest file, so a green `npx vitest run` says nothing about it; it
+runs only in the real-Postgres smoke job. The local gate run was clean and the
+PR still went red.
+
+Two lessons worth keeping:
+
+1. **A new `smoke:*` script in an upstream release is a gate the local suite
+   does not cover.** The merge diff added `"smoke:export"` to `package.json`;
+   that line should be read as "another thing to run", not as packaging noise.
+   `npm run smoke:export` against the dev DB would have caught this before the
+   push.
+2. **This is the fourth instance of the same pattern** — after
+   [#480](https://github.com/human-centric-engineering/sunrise/issues/480)
+   (`defaults.test.ts`),
+   [#525](https://github.com/human-centric-engineering/sunrise/issues/525)
+   (`registry.test.ts`) and #533 (`export-sources.test.ts`) — and the sharpest
+   evidence that the sweep #533 asks for is the right shape of fix. #480 closed
+   as COMPLETED for exactly this mistake, and 0.8.0 then shipped a **brand-new**
+   artifact making it again. A convention nobody can mechanically check gets
+   re-broken by the next file. Reported on #533 rather than as a fifth issue.
+
+The pin keeps the assertion's intent — the bundle must carry exactly one app key,
+so a stray second collector still fails — and adds real-DB coverage the tier did
+not have: the seventeen queries are unit-tested against a mocked client, which
+cannot catch a column or table that does not exist.
 
 **Both filed 2026-08-05**, after searching all 531 existing issues — neither was
 a duplicate. #532 leans on [#386](https://github.com/human-centric-engineering/sunrise/issues/386)

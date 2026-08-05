@@ -299,7 +299,32 @@ async function main(): Promise<void> {
       'meta summarises every source'
     );
     check(bundle.meta.excluded.length > 0, 'meta discloses the documented exclusions');
-    check(Object.keys(bundle.app).length === 0, 'app seam is empty in vanilla Sunrise');
+
+    // FORK (Obsiddy): Sunrise asserts `bundle.app` is empty — vanilla has no app
+    // tables. Obsiddy fills `lib/app/data-export.ts`, because a brain is nothing
+    // but personal data and an empty Art. 15 export would answer nothing.
+    //
+    // Pinned rather than deleted, per the SEAM_DEFAULTS convention sunrise#480
+    // established. The original intent is kept and still fails: the bundle must
+    // carry EXACTLY one app key. A second collector — a host project's tables
+    // spread in beside the tier's, or a section-name collision — is what the
+    // assertion guards against, and it would still be caught.
+    //
+    // Fourth instance of "a core artifact that assumes the lib/app/* seam is
+    // empty", after sunrise#480, #525 and #533. Reported on #533.
+    check(Object.keys(bundle.app).length === 1, 'app seam carries exactly one section');
+    check(bundle.app.obsiddy !== undefined, 'the Obsiddy tier contributed its section');
+
+    // Worth more than the assertion it replaced. The tier's seventeen queries
+    // are unit-tested against a mocked client, which cannot catch a column or
+    // table that does not exist — the collector selects by model, so a schema
+    // drift shows up only here. Reaching this line at all means all seventeen
+    // executed against real Postgres; this checks they came back as the sections
+    // the manifest promises rather than a partial bundle.
+    const obsiddySections = Object.keys(bundle.app.obsiddy as Record<string, unknown>);
+    for (const section of ['thoughts', 'tasks', 'documents', 'people', 'reviews', 'activity']) {
+      check(obsiddySections.includes(section), `obsiddy export carries "${section}"`);
+    }
 
     // A missing subject is a distinct, catchable failure — not a silent empty bundle.
     let notFound = false;
