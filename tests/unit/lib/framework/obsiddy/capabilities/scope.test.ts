@@ -72,6 +72,7 @@ import {
   MissingObsiddyUserError,
   requireObsiddyUser,
 } from '@/lib/framework/obsiddy/capabilities/base';
+import { OBSIDDY_SCHEDULE_OWNER_KEY } from '@/lib/framework/obsiddy/repo/owner-scope';
 import { obsiddyCapabilityHandlers } from '@/lib/framework/obsiddy/capabilities';
 import { captureThought } from '@/lib/framework/obsiddy/services/capture';
 import { searchObsiddy } from '@/lib/framework/obsiddy/search/hybrid-search';
@@ -158,6 +159,41 @@ describe('requireObsiddyUser', () => {
     expect(() => requireObsiddyUser({ userId: '', agentId: 'agent-1' })).toThrow(
       MissingObsiddyUserError
     );
+  });
+
+  // Since Sunrise 0.8.0 (sunrise#502) the scheduler writes `userId: null` on
+  // every execution, so a background run reaches a capability system-owned and
+  // the owner arrives on the schedule row's `scope` instead.
+  it('falls back to the schedule scope on a system-owned background run', () => {
+    expect(
+      requireObsiddyUser({
+        userId: null,
+        agentId: 'workflow:wf_1',
+        scope: { [OBSIDDY_SCHEDULE_OWNER_KEY]: 'user-b' },
+      })
+    ).toMatchObject({ userId: 'user-b' });
+  });
+
+  it('prefers the session user over the scope when both are present', () => {
+    // The safe direction: a session-authenticated turn is the stronger claim, so
+    // a stale or mismatched scope can never redirect a live user's capability at
+    // another brain.
+    expect(
+      requireObsiddyUser({
+        userId: 'user-a',
+        agentId: 'agent-1',
+        scope: { [OBSIDDY_SCHEDULE_OWNER_KEY]: 'user-b' },
+      })
+    ).toMatchObject({ userId: 'user-a' });
+  });
+
+  it('ignores a scope that names no owner key', () => {
+    // `scope` is a generic carrier core reads no keys from — a host project's
+    // own scope on an unrelated schedule must not grant an Obsiddy capability an
+    // owner it was never given.
+    expect(() =>
+      requireObsiddyUser({ userId: null, agentId: 'workflow:wf_1', scope: { projectId: 'p_1' } })
+    ).toThrow(MissingObsiddyUserError);
   });
 });
 

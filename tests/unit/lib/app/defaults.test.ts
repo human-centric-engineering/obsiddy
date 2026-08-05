@@ -39,7 +39,17 @@
 
 import { readdirSync } from 'node:fs';
 import path from 'node:path';
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
+
+// FORK (Obsiddy): `lib/app/data-export.ts` is filled here, and its collector
+// queries seventeen tables. This file is a seam test — it asserts what each
+// `lib/app/*` export IS, not what the tier does behind it — so the tier's data
+// access is stubbed rather than run. Without this the row below needs a live
+// database, which no other row here does.
+vi.mock('@/lib/framework/obsiddy/repo/subject-export', () => ({
+  collectObsiddySubjectData: vi.fn().mockResolvedValue({}),
+}));
+
 import { registerAppRateLimits } from '@/lib/app/rate-limit';
 import { registerAppCapabilities } from '@/lib/orchestration/capabilities';
 import { capabilityDispatcher } from '@/lib/orchestration/capabilities/dispatcher';
@@ -67,6 +77,7 @@ import frameworkEslintConfig from '@/lib/framework/eslint.config.mjs';
 import { DEFAULT_PROTECTED_NAV } from '@/lib/protected-nav/types';
 import { OBSIDDY_NAV_ITEM } from '@/lib/framework/obsiddy/protected-nav';
 import { initAppUserCreatedHooks } from '@/lib/app/user-created';
+import { collectAppSubjectData } from '@/lib/app/data-export';
 import { getAppJobs, __resetAppJobsForTests } from '@/lib/orchestration/maintenance/app-jobs';
 import { getEffectiveRateLimitPolicy, RATE_LIMIT_POLICY } from '@/lib/security/rate-limit-policy';
 import { getRegisteredNavSections, __resetNavRegistryForTests } from '@/lib/admin-nav/registry';
@@ -236,6 +247,30 @@ const SEAM_DEFAULTS: SeamDefault[] = [
     seam: 'lib/app/emails.ts',
     risk: 'a stray override would swap an auth email for every install',
     assert: () => expect(emailOverrides).toEqual({}),
+  },
+  {
+    seam: 'lib/app/data-export.ts',
+    risk: 'a stray collector would leak app rows into every install’s subject-access export',
+    // FORK (Obsiddy): Sunrise asserts this returns `{}` — no app tables at all.
+    // Obsiddy fills the seam, because a brain is nothing but personal data and
+    // an empty Art. 15 export would answer nothing. Pinned rather than deleted,
+    // per the SEAM_DEFAULTS convention sunrise#480 established.
+    //
+    // The original intent is preserved and is what makes this still worth
+    // asserting: the bundle must carry EXACTLY one key, `obsiddy`. A second
+    // collector appearing here — a host project's own tables spread in beside
+    // the tier's, or a section name colliding — is the leak the row guards
+    // against, and it still fails. What the tier puts inside that key is
+    // covered by its own manifest guard,
+    // tests/unit/lib/framework/obsiddy/privacy/subject-export.test.ts.
+    assert: async () => {
+      const bundle = await collectAppSubjectData({
+        userId: 'user-1',
+        email: 'user@example.com',
+      });
+
+      expect(Object.keys(bundle)).toEqual(['obsiddy']);
+    },
   },
   {
     seam: 'lib/app/bootstrap.ts',

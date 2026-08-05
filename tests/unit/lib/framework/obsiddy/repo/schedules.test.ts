@@ -67,11 +67,15 @@ import {
   findObsiddyWorkflowIds,
   listObsiddySchedules,
   queueObsiddyWorkflowRun,
+  stampObsiddyScheduleOwner,
   updateObsiddyScheduleCron,
   OBSIDDY_WORKFLOW_SLUG_PREFIX,
 } from '@/lib/framework/obsiddy/repo/schedules';
 import { findOwnerContact } from '@/lib/framework/obsiddy/repo/owner-contact';
-import type { OwnerScope } from '@/lib/framework/obsiddy/repo/owner-scope';
+import {
+  OBSIDDY_SCHEDULE_OWNER_KEY,
+  type OwnerScope,
+} from '@/lib/framework/obsiddy/repo/owner-scope';
 import { WorkflowStatus } from '@/types/orchestration';
 
 const SCOPE = { userId: 'user_a' } as OwnerScope;
@@ -100,6 +104,7 @@ describe('listObsiddySchedules', () => {
         cronExpression: '15 3 * * *',
         isEnabled: true,
         inputTemplate: {},
+        scope: { obsiddyUserId: 'user_a' },
         workflow: { slug: 'obsiddy-nightly-triage' },
       },
     ] as never);
@@ -113,8 +118,53 @@ describe('listObsiddySchedules', () => {
         cronExpression: '15 3 * * *',
         isEnabled: true,
         hasInputTemplateData: false,
+        hasOwnerScope: true,
       },
     ]);
+  });
+
+  describe('the owner scope flag', () => {
+    async function listWithScope(scope: unknown): Promise<boolean> {
+      vi.mocked(prisma.aiWorkflowSchedule.findMany).mockResolvedValue([
+        {
+          id: 's1',
+          cronExpression: '15 3 * * *',
+          isEnabled: true,
+          inputTemplate: {},
+          scope,
+          workflow: { slug: 'obsiddy-nightly-triage' },
+        },
+      ] as never);
+
+      const rows = await listObsiddySchedules('user_a');
+      return rows[0].hasOwnerScope;
+    }
+
+    it('is false for a row written before Sunrise 0.8.0, which carried no scope', async () => {
+      expect(await listWithScope(null)).toBe(false);
+    });
+
+    it('is false when the scope names a different user', async () => {
+      // Worse than an absent scope, not better — the correction pass must
+      // overwrite it, so this cannot report "already fine".
+      expect(await listWithScope({ obsiddyUserId: 'user_b' })).toBe(false);
+    });
+
+    it('is false when the scope carries other keys but not the owner', async () => {
+      expect(await listWithScope({ projectId: 'p_1' })).toBe(false);
+    });
+
+    it.each([['a bare string'], [42], [true]])(
+      'is false for a malformed scalar scope (%s)',
+      async (value) => {
+        // The column is untrusted JSON — a hand-edited row must not throw here.
+        expect(await listWithScope(value)).toBe(false);
+      }
+    );
+
+    it('is false for an array, which is an object but not a map', async () => {
+      expect(await listWithScope([{ obsiddyUserId: 'user_a' }])).toBe(false);
+    });
   });
 
   it('flags a row whose inputTemplate still carries data', async () => {
@@ -198,6 +248,61 @@ describe('createObsiddySchedule', () => {
     // rejects it — failing the briefing on every scheduled run.
     expect(data?.inputTemplate).toEqual({});
     expect(JSON.stringify(data)).not.toMatch(/@/);
+  });
+
+  it('stamps the owner into scope — the route that replaced execution.userId', async () => {
+    // Sunrise 0.8.0 (sunrise#502) made scheduled runs system-owned, so the
+    // scheduler no longer stamps `execution.userId` from `createdBy`. Without
+    // this, every capability in every Obsiddy background workflow throws
+    // `MissingObsiddyUserError` at 03:15, 04:30, Friday 16:00 and the 2nd.
+    await createObsiddySchedule({
+      workflowId: 'wf1',
+      userId: 'user_a',
+      name: 'Obsiddy nightly triage',
+      cronExpression: '15 3 * * *',
+      nextRunAt: null,
+    });
+
+    const data = vi.mocked(prisma.aiWorkflowSchedule.create).mock.calls[0]?.[0]?.data;
+    expect(data?.scope).toEqual({ [OBSIDDY_SCHEDULE_OWNER_KEY]: 'user_a' });
+  });
+
+  it('puts the owner in scope and NOT in inputTemplate', async () => {
+    // The two columns are not interchangeable: `inputTemplate` becomes the
+    // execution's `inputData` and reaches a step's `.strict()` argument schema,
+    // `scope` does not. Putting the id in the wrong one is the regression that
+    // looks correct and fails every run.
+    await createObsiddySchedule({
+      workflowId: 'wf1',
+      userId: 'user_a',
+      name: 'Obsiddy nightly triage',
+      cronExpression: '15 3 * * *',
+      nextRunAt: null,
+    });
+
+    const data = vi.mocked(prisma.aiWorkflowSchedule.create).mock.calls[0]?.[0]?.data;
+    expect(data?.inputTemplate).toEqual({});
+    expect(JSON.stringify(data?.scope)).toContain('user_a');
+  });
+});
+
+describe('stampObsiddyScheduleOwner', () => {
+  it('writes the owner scope and nothing else', async () => {
+    await stampObsiddyScheduleOwner('s1', 'user_a');
+
+    const call = vi.mocked(prisma.aiWorkflowSchedule.update).mock.calls[0]?.[0];
+    expect(call?.where).toEqual({ id: 's1' });
+    expect(call?.data).toEqual({ scope: { [OBSIDDY_SCHEDULE_OWNER_KEY]: 'user_a' } });
+  });
+
+  it('does not re-enable or re-arm the row it corrects', async () => {
+    // Same rule as the cron rewrite: somebody who turned a schedule off has
+    // turned it off, and a correction pass is not a reason to turn it back on.
+    await stampObsiddyScheduleOwner('s1', 'user_a');
+
+    const data = vi.mocked(prisma.aiWorkflowSchedule.update).mock.calls[0]?.[0]?.data;
+    expect(data).not.toHaveProperty('isEnabled');
+    expect(data).not.toHaveProperty('nextRunAt');
   });
 });
 

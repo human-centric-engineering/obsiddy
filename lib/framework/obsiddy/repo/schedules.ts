@@ -20,6 +20,13 @@
  * the shape the obvious `{{input.userEmail}}` implementation would have
  * produced. `repo/owner-contact.ts` has the full reasoning.
  *
+ * The one identifier these rows do carry is the owner's user id, in `createdBy`
+ * and — since Sunrise 0.8.0 made scheduled runs system-owned — in the `scope`
+ * column too (`OBSIDDY_SCHEDULE_OWNER_KEY`). That is the same pseudonymous key
+ * the row already held, not new personal data, and it is covered by the same
+ * backstop: the erasure hook deletes the rows, and the sweep deletes any whose
+ * `createdBy` has been nulled. `repo/owner-scope.ts` has the reasoning.
+ *
  * ## 2. Obsiddy must only ever touch its own
  *
  * A host project has its own schedules in this table. Every query here is
@@ -27,6 +34,7 @@
  * cleanup can never reach a schedule Obsiddy did not create.
  */
 
+import { OBSIDDY_SCHEDULE_OWNER_KEY } from '@/lib/framework/obsiddy/repo/owner-scope';
 import { prisma } from '@/lib/db/client';
 import { WorkflowStatus } from '@/types/orchestration';
 import type { Prisma } from '@prisma/client';
@@ -64,6 +72,17 @@ export interface ObsiddyScheduleRow {
    * invariant it enforces, and keeps the caller out of `Prisma.JsonValue`.
    */
   hasInputTemplateData: boolean;
+  /**
+   * Whether the row's `scope` already names this user as the owner.
+   *
+   * `false` is a row written before Sunrise 0.8.0, when the scheduler still
+   * stamped `execution.userId` from `createdBy` and no scope was needed. Such a
+   * row now fires a run whose capabilities have no owner at all, so the
+   * correction pass stamps it — same shape as `hasInputTemplateData`, and for
+   * the same reason: it fails in a background job before dawn, where the only
+   * symptom is a briefing that quietly stops arriving.
+   */
+  hasOwnerScope: boolean;
 }
 
 /**
@@ -82,6 +101,19 @@ function carriesInputTemplateData(value: Prisma.JsonValue): boolean {
   return true;
 }
 
+/**
+ * Does a stored `scope` already name this user as the owner?
+ *
+ * Deliberately an equality check rather than a presence check: a row whose scope
+ * names a *different* user is worse than one with no scope at all, and the
+ * correction pass should overwrite it either way. The read is untrusted JSON, so
+ * every non-object shape falls through to `false`.
+ */
+function carriesOwnerScope(value: Prisma.JsonValue, userId: string): boolean {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return false;
+  return (value as Record<string, unknown>)[OBSIDDY_SCHEDULE_OWNER_KEY] === userId;
+}
+
 /** Every Obsiddy schedule belonging to one user. */
 export async function listObsiddySchedules(userId: string): Promise<ObsiddyScheduleRow[]> {
   const rows = await prisma.aiWorkflowSchedule.findMany({
@@ -91,6 +123,7 @@ export async function listObsiddySchedules(userId: string): Promise<ObsiddySched
       cronExpression: true,
       isEnabled: true,
       inputTemplate: true,
+      scope: true,
       workflow: { select: { slug: true } },
     },
   });
@@ -101,6 +134,7 @@ export async function listObsiddySchedules(userId: string): Promise<ObsiddySched
     cronExpression: row.cronExpression,
     isEnabled: row.isEnabled,
     hasInputTemplateData: carriesInputTemplateData(row.inputTemplate),
+    hasOwnerScope: carriesOwnerScope(row.scope, userId),
   }));
 }
 
@@ -134,9 +168,16 @@ export interface CreateScheduleInput {
  * template becomes the execution's `inputData`, and `tool-call.ts` falls back to
  * `ctx.inputData` for a step that declares no `args` — so a `{ userId }` template
  * would be handed to `obsiddy_get_briefing_inputs`, whose `.strict()` schema
- * rejects it, failing the briefing on every scheduled run. The owner never needed
- * to be here: it travels on `execution.userId`, which the scheduler stamps from
- * `createdBy` (`scheduler.ts:335`).
+ * rejects it, failing the briefing on every scheduled run.
+ *
+ * **The owner rides in `scope` instead.** It used to need no carrier at all: the
+ * scheduler stamped `execution.userId` from `createdBy`. Sunrise 0.8.0
+ * (sunrise#502) made scheduled runs system-owned, so `scope` is now the only
+ * thing telling a 04:30 run whose brain it is. `scope` is the right column for
+ * it — core stamps it onto the execution and threads it into
+ * `CapabilityContext.scope` without reading a key of its own, and unlike
+ * `inputTemplate` it never becomes `ctx.inputData`, so it cannot collide with a
+ * `.strict()` argument schema. See {@link OBSIDDY_SCHEDULE_OWNER_KEY}.
  */
 export async function createObsiddySchedule(input: CreateScheduleInput): Promise<string> {
   const row = await prisma.aiWorkflowSchedule.create({
@@ -145,6 +186,7 @@ export async function createObsiddySchedule(input: CreateScheduleInput): Promise
       name: input.name,
       cronExpression: input.cronExpression,
       inputTemplate: {},
+      scope: { [OBSIDDY_SCHEDULE_OWNER_KEY]: input.userId },
       isEnabled: true,
       nextRunAt: input.nextRunAt,
       createdBy: input.userId,
@@ -152,6 +194,30 @@ export async function createObsiddySchedule(input: CreateScheduleInput): Promise
     select: { id: true },
   });
   return row.id;
+}
+
+/**
+ * Stamp the owner onto a schedule's `scope`, for rows that predate it.
+ *
+ * The counterpart to {@link createObsiddySchedule}'s `scope`, and the same shape
+ * as {@link clearObsiddyScheduleInputTemplate}: every row written before Sunrise
+ * 0.8.0 relied on the scheduler stamping `execution.userId` from `createdBy`, and
+ * since that stopped those rows fire runs whose capabilities have no owner at
+ * all — `requireObsiddyUser` throws and every step of the briefing, the triage,
+ * the weekly review and the horizon check fails. Silently, at 04:30.
+ *
+ * **Unconditionally safe for the same two reasons the template clear is.** The id
+ * always comes from {@link listObsiddySchedules}, which filters on `createdBy`
+ * *and* the Obsiddy slug prefix — so it can only ever name a row this user owns
+ * and Obsiddy created. And the value written is that same `createdBy`, so the
+ * write cannot move a schedule to a different brain than the one it already
+ * belonged to.
+ */
+export async function stampObsiddyScheduleOwner(id: string, userId: string): Promise<void> {
+  await prisma.aiWorkflowSchedule.update({
+    where: { id },
+    data: { scope: { [OBSIDDY_SCHEDULE_OWNER_KEY]: userId } },
+  });
 }
 
 /**

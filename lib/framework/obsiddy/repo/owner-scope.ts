@@ -43,13 +43,45 @@ export interface OwnerScope {
 }
 
 /**
+ * The `CapabilityContext.scope` key that carries a scheduled run's owner.
+ *
+ * **Why a scope key rather than `execution.userId`.** Until Sunrise 0.8.0 the
+ * scheduler stamped `execution.userId = schedule.createdBy`, so a background run
+ * arrived already owned. sunrise#502 made scheduled runs **system-owned**
+ * (`userId: null`) — deliberately, because `AiWorkflowExecution.userId` is
+ * `onDelete: Cascade` and naming an operator meant erasing them destroyed the
+ * organisation's whole scheduled-run history. That reasoning is right for the
+ * org-level cron rows core has in mind, and it removes the only mechanism
+ * Obsiddy's **per-user** schedules had for saying whose brain a 04:30 run is.
+ *
+ * `AiWorkflowSchedule.scope` is the seam core points forks at for exactly this:
+ * a `Json?` column, admin-written, validated on read by `resolvePersistedScope`,
+ * stamped onto `AiWorkflowExecution.scope` and threaded into
+ * `CapabilityContext.scope` — with core naming no keys and reading none. It is
+ * **not** reachable from a model: no `agent*Schema` has a `scope` field, and
+ * `.strict()` makes an attempt to add one a validation error.
+ *
+ * The residue this leaves is bounded by design. The id sits on a row that
+ * outlives the account (`createdBy` is `SetNull`), but Obsiddy's erasure hook
+ * deletes that user's schedule rows outright, and the connection sweep
+ * independently deletes any Obsiddy schedule whose `createdBy` is null — so the
+ * same backstop that already covered `createdBy` covers this.
+ *
+ * Filed upstream as sunrise#532; ask #29 in
+ * `.context/framework/obsiddy/sunrise-asks.md`.
+ */
+export const OBSIDDY_SCHEDULE_OWNER_KEY = 'obsiddyUserId';
+
+/**
  * Mint a scope from a **verified** user id.
  *
- * The id must come from the session (`withAuth`'s `session.user.id`) or from
- * `CapabilityContext.userId`, which the engine populates from the schedule or
- * API key — never from a request body, a route param, a vault file's
- * `obsiddy-id`, or an LLM-supplied tool argument. Those are the four documented
- * ways a user id gets attacker-influenced (plan §17 risks 6d, 8, 9).
+ * The id must come from the session (`withAuth`'s `session.user.id`), from
+ * `CapabilityContext.userId` (which the engine populates from the session or the
+ * MCP API key's owner), or from `CapabilityContext.scope`'s
+ * {@link OBSIDDY_SCHEDULE_OWNER_KEY} on a scheduled run — never from a request
+ * body, a route param, a vault file's `obsiddy-id`, or an LLM-supplied tool
+ * argument. Those are the four documented ways a user id gets
+ * attacker-influenced (plan §17 risks 6d, 8, 9).
  *
  * This function cannot check that for you. What it can do is make every place
  * a scope is created greppable: `rg 'ownerScope\('` is the complete list of
