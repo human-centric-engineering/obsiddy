@@ -64,6 +64,31 @@ describe('Obsiddy framework-tier boot', () => {
     expect(initLeafApp).toHaveBeenCalledTimes(2);
   });
 
+  it('fills the capability registry at boot, so a scheduled run finds its tools', async () => {
+    // The regression this exists for is not hypothetical — it was observed
+    // against a real database: the scheduler fired `obsiddy-morning-briefing`
+    // and every step failed with `unknown_capability`.
+    //
+    // Core's registry is a `globalThis` singleton (sunrise#462), so a
+    // registration crosses module realms — but the "have I registered yet"
+    // guards are ordinary module-scoped booleans, so the registry is only
+    // filled when something *calls* the initialiser. The chat handler, the MCP
+    // tool registry and the `agent_call` executor all do. `tool-call.ts` does
+    // not. So on a process that has served no request, the scheduler firing a
+    // workflow of `tool_call` steps dispatches into an empty registry.
+    //
+    // Asserting the slug rather than "was the function called" is deliberate:
+    // the failure mode is an empty registry, and only a lookup proves it isn't.
+    const { capabilityDispatcher } = await import('@/lib/orchestration/capabilities/dispatcher');
+
+    await initObsiddy();
+
+    // One of the tier's own, reached via `initAppCapabilities()`...
+    expect(capabilityDispatcher.has('obsiddy_get_briefing_inputs')).toBe(true);
+    // ...and one of core's built-ins, which a `tool_call` step can name too.
+    expect(capabilityDispatcher.has('search_knowledge_base')).toBe(true);
+  });
+
   it('lib/app/bootstrap.ts imports the tier dynamically, never statically', () => {
     // Source-level assertion on purpose: a static import would still pass every
     // behavioural test above while breaking `next build` for any project
