@@ -18,9 +18,11 @@ release process.
 
 ### Added
 
-- **Obsiddy phase 8 — the lifecycle.** `enforceObsiddyRetention(scope)` enforces the
-  eight `ObsiddySpace.retentionPolicy` windows that phase 1 shipped and nothing had
-  applied, running on the connection sweep's per-brain rotation
+- **Obsiddy phase 8 — the lifecycle.** `enforceObsiddyRetention(scope)` enforces seven
+  of the eight `ObsiddySpace.retentionPolicy` windows that phase 1 shipped and nothing
+  had applied — `staleEntityDays` is the exception and stays unread, because §11 says a
+  person or company is never auto-archived and the settings card no longer offers it —
+  running on the connection sweep's per-brain rotation
   (`registerObsiddyJobs()`). New `GET /api/v1/obsiddy/stale` and
   `POST /api/v1/obsiddy/stale/still-live`, an eighteenth capability
   (`obsiddy_get_stale_digest`, read-only), a `stale_digest` step on

@@ -35,7 +35,7 @@ Namespaced _inside_ the tier, never at its root — so a project already running
 
 ## Status
 
-**Release 1, phases 0–8 complete** — the tier is wired, the data model exists, every core type has an owner-scoped CRUD API, tasks are ranked by a deterministic scorer, the brain is searchable by meaning, there is a UI (fourteen surfaces at `/obsiddy`, including a kanban board), and **you can now talk to it**: eighteen capabilities, five agents, the shared profile they inherit, a per-turn context block that means the agent already knows your goals, and a chat page at `/obsiddy/chat`. Phase 7 added the background: four workflows on per-user schedules, the
+**Release 1, phases 0–8 complete** — the tier is wired, the data model exists, every core type has an owner-scoped CRUD API, tasks are ranked by a deterministic scorer, the brain is searchable by meaning, there is a UI (fourteen surfaces at `/obsiddy`, including a kanban board), and **you can now talk to it**: eighteen capabilities, six agents, the shared profile they inherit, a per-turn context block that means the agent already knows your goals, and a chat page at `/obsiddy/chat`. Phase 7 added the background: four workflows on per-user schedules, the
 connection sweep as an app job, the morning briefing, and the tier's first
 erasure hook. Phase 8 added the lifecycle: retention on the same rotation, the
 stale digest, and the archive surface. Next is phase 7b — MCP exposure, the iOS

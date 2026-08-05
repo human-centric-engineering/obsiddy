@@ -51,7 +51,14 @@ import { getObsiddySpace } from '@/lib/framework/obsiddy/services/space';
 import { DEFAULT_RETENTION_POLICY, resolveRetentionPolicy } from '@/lib/framework/obsiddy/settings';
 import { logger } from '@/lib/logging';
 
-/** Every rule's name, in pass order. The report keys are these. */
+/**
+ * Every rule's name. The report keys are these.
+ *
+ * §11's table order, which is not quite the pass order: `closedProjects` is
+ * awaited before the others so its cascade lands first (see below). This list is
+ * only iterated for summing and for the empty report, so the difference has no
+ * behaviour behind it — but it is not the order things run in.
+ */
 export const RETENTION_RULES = [
   'inboxThoughts',
   'completedTasks',

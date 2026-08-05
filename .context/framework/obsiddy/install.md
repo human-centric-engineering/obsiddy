@@ -325,8 +325,16 @@ click, for ever. Nothing a user wrote is ever deleted by a clock. Only derived a
 log data is deleted: connection suggestions nobody looked at, the activity log
 past its window, past planning blocks, and board cards pointing at archived tasks.
 Windows are per-user, default to the §11 table, and are editable at
-`/obsiddy/settings`. Every rule caps at 500 rows per brain per pass, so a first
-run over an old corpus drains across several rotations rather than in one tick.
+`/obsiddy/settings` — seven of the eight are, at least. `staleEntityDays` is in the
+policy but read by nothing and not rendered on the card: there is no entity
+retention rule, because §11 says a person or company is never auto-archived, and a
+control that changed nothing while its own row said "then deleted" was worse than
+its absence. Entities are raised by the stale digest instead, whose windows are
+constants. Every rule caps at 500 rows per brain per pass — including the
+closed-project cascade, which archives its batch of tasks and leaves the projects
+for the next rotation rather than stamping them over tasks it has not reached — so
+a first run over an old corpus drains across several rotations rather than in one
+tick.
 
 **The sweep's rotation also carries the schedule pass**, and that is not
 incidental. `ensureObsiddySchedules()` is idempotent and self-correcting, but

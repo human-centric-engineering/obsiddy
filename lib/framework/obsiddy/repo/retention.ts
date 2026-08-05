@@ -279,28 +279,43 @@ export async function archiveAgedClosedProjects(
 
   if (ids.length === 0) return { ...counted, cascadedTasks: 0 };
 
+  // Capped like every other query here, and for a sharper reason: without a
+  // `take` this is the one unbounded read in the file. 500 projects holding
+  // twenty tasks each is 10,000 ids, and `archiveAged`'s `createMany` writes one
+  // event row per id — five bind parameters each, against Postgres' ceiling of
+  // 32,767. The cascade would throw at roughly 6,500 tasks, in exactly the
+  // first-pass-over-an-old-corpus case the batch cap exists for.
   const taskRows = await prisma.obsiddyTask.findMany({
     where: { ...ownerWhere(scope), archivedAt: null, projectId: { in: ids } },
     select: { id: true },
+    take: RETENTION_BATCH,
   });
   const taskIds = taskRows.map((row) => row.id);
+  const cascadeCapped = taskIds.length >= RETENTION_BATCH;
 
-  if (options.dryRun) return { ...counted, cascadedTasks: taskIds.length };
+  // A capped cascade archives its batch of tasks and leaves the projects alone,
+  // so the next rotation re-selects the same projects and takes the next batch.
+  // Stamping the projects now would archive them with tasks still live beneath
+  // them, and `archivedAt: null` in the select above means those projects would
+  // never be candidates again — the tasks would stay live under a closed,
+  // archived project for ever, which is the precise outcome the cascade exists
+  // to prevent.
+  const projectsArchived = cascadeCapped ? 0 : counted.count;
+  const report: ProjectRetentionResult = {
+    count: projectsArchived,
+    capped: counted.capped || cascadeCapped,
+    cascadedTasks: taskIds.length,
+  };
 
-  await archiveAged(
-    scope,
-    ids,
-    'project',
-    'project',
-    'aged_out',
-    (batch, at) =>
-      prisma.obsiddyProject.updateMany({
-        where: { ...ownerWhere(scope), id: { in: batch } },
-        data: { archivedAt: at, archivedReason: 'aged_out', indexedHash: null },
-      }),
-    now
-  );
+  if (options.dryRun) return report;
 
+  // **Tasks before projects**, which is the opposite of the reading order and
+  // deliberate. These are two transactions, not one — batched separately because
+  // they hit different tables with different vector rules — so either can fail
+  // alone. Stamping the projects first and then failing here would leave the
+  // projects archived and permanently unselectable, with their tasks still live.
+  // This way a failure leaves the projects `archivedAt: null`, and the next
+  // rotation retries the whole thing.
   await archiveAged(
     scope,
     taskIds,
@@ -315,7 +330,23 @@ export async function archiveAgedClosedProjects(
     now
   );
 
-  return { ...counted, cascadedTasks: taskIds.length };
+  if (!cascadeCapped) {
+    await archiveAged(
+      scope,
+      ids,
+      'project',
+      'project',
+      'aged_out',
+      (batch, at) =>
+        prisma.obsiddyProject.updateMany({
+          where: { ...ownerWhere(scope), id: { in: batch } },
+          data: { archivedAt: at, archivedReason: 'aged_out', indexedHash: null },
+        }),
+      now
+    );
+  }
+
+  return report;
 }
 
 /**

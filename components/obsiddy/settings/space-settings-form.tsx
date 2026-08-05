@@ -69,13 +69,22 @@ const FACTOR_LABELS: Record<(typeof PRIORITY_FACTORS)[number], string> = {
 };
 
 /**
- * The eight retention windows, in the order §11's table lists them.
+ * The retention windows a person can set, in the order §11's table lists them.
  *
  * Archive rules first, prune rules second, and the copy says which is which on
  * every row — because the difference is the entire promise the product makes
  * about your data. Nothing a human wrote is ever deleted by a clock: thoughts,
  * tasks, projects, goals and reviews are *hidden* and stay restorable for ever.
  * Only derived and log data is removed, and none of it is anything you typed.
+ *
+ * **`staleEntityDays` is deliberately not here**, though the policy carries it.
+ * Every row on this card names a window that a retention rule reads, and there
+ * is no entity rule: §11 says a person or company is never auto-archived — a
+ * dormant client is not a dead one — so the only thing that ever raises them is
+ * the stale digest, whose four windows `services/stale-digest.ts` keeps as
+ * constants on purpose. Rendering the field anyway gave a control that changed
+ * nothing and a row that read "…then **deleted**" about the one type nothing
+ * deletes, three lines under a card promising the opposite.
  */
 const RETENTION_WINDOWS: ReadonlyArray<{
   key: string;
@@ -106,12 +115,6 @@ const RETENTION_WINDOWS: ReadonlyArray<{
     label: 'Generated reviews and briefings',
     action: 'archive',
     help: 'The written output of the background workflows. Two years keeps every review period answerable.',
-  },
-  {
-    key: 'staleEntityDays',
-    label: 'People and companies gone quiet',
-    action: 'prune',
-    help: 'This one only decides when they appear in the Archive page’s “gone quiet” list. A person is never archived automatically, whatever this says — a dormant client is not a dead one.',
   },
   {
     key: 'suggestedLinkDays',
@@ -229,9 +232,14 @@ export function SpaceSettingsForm({ initial }: { initial: SpaceSettings }): Reac
             PRIORITY_FACTORS.map((key) => [key, values.weights[key] ?? 0])
           ),
           connectionStrengthFloor: values.connectionStrengthFloor,
-          retentionPolicy: Object.fromEntries(
-            RETENTION_WINDOWS.map((window) => [window.key, values.retention[window.key] ?? 0])
-          ),
+          // The whole policy, not only the rendered rows. `retentionPolicySchema`
+          // is `.strict()` and requires all eight keys, so rebuilding this from
+          // `RETENTION_WINDOWS` would drop `staleEntityDays` — which this card
+          // deliberately does not render — and the API would reject every save
+          // with a validation error. Round-tripping `values.retention` also means
+          // a window a future version adds to the policy survives a save from an
+          // older form rather than being silently reset.
+          retentionPolicy: values.retention,
         },
       })
     );

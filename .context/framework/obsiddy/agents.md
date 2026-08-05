@@ -74,9 +74,8 @@ capability that never had one.
 
 `userId` is `string | null`, and null is real: a system-initiated run with no
 owner. Every capability returns `no_user_context` for it, asserted as a sweep
-over the whole catalogue rather than a case per class — which is what makes it
-hold for the fifteenth capability nobody has written yet, the failure being
-guarded against not being a wrong check but a new class that never had one.
+over the whole catalogue rather than a case per class — so it holds for the next
+capability nobody has written yet, for the same reason as above.
 
 ---
 

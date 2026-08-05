@@ -67,7 +67,14 @@ export async function findDormantProjects(
       tasks: { none: { completedAt: { gte: cutoff } } },
     },
     select: { id: true, name: true, lastActivityAt: true, createdAt: true },
-    orderBy: [{ lastActivityAt: 'asc' }, { createdAt: 'asc' }],
+    // `nulls: 'first'` for the same reason `listSpacesDueSweep` spells it out:
+    // Postgres sorts nulls as *larger* than any non-null, so plain `ASC` means
+    // `NULLS LAST` and a project that has never shown a sign of life would sort
+    // behind every project with a real — however ancient — timestamp. The rows
+    // the `where` explicitly admits as `lastActivityAt: null` are the most
+    // dormant there are, so they must be the first the digest asks about, not
+    // the ones `take` silently drops.
+    orderBy: [{ lastActivityAt: { sort: 'asc', nulls: 'first' } }, { createdAt: 'asc' }],
     take: limit,
   });
 
@@ -156,7 +163,12 @@ export async function findDormantEntities(
       OR: [{ lastActivityAt: null }, { lastActivityAt: { lt: cutoff } }],
     },
     select: { id: true, name: true, lastActivityAt: true },
-    orderBy: [{ lastActivityAt: 'asc' }],
+    // `nulls: 'first'`, as above — and it matters more here, because the link
+    // filter below discards some of what this reads. An entity nobody has ever
+    // touched is both the most dormant and the most likely to survive that
+    // filter, so sorting it last is the one ordering that would keep it out of
+    // the digest entirely.
+    orderBy: [{ lastActivityAt: { sort: 'asc', nulls: 'first' } }],
     // Over-read, because the link filter below removes some. Still one bounded
     // query; the digest shows `limit` of whatever survives.
     take: limit * 4,
