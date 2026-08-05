@@ -105,13 +105,35 @@ npm run db:migrate:dev
 npm run dev
 ```
 
-Open http://localhost:3010 to see the app — the port is set by `PORT` in the
-committed `.env.development`, which `npm run dev` reads.
-
-Running more than one Sunrise app on the same machine? Give each one its own
-`PORT` in its `.env.development` and `npm run dev` binds it, with no `-p` flag
-to remember. Forks should change the value rather than inherit 3010. See
+Open <https://obsiddy.test> to see the app. The port is `PORT` in the committed
+`.env.development` (**3016**), which `npm run dev` reads — see
 [`PORT`](./.context/environment/services-env.md#port).
+
+The `.test` hostname comes from the shared HCE dev proxy, which maps
+`obsiddy.test` → `127.0.0.1:3016` through Laravel Herd. It is how several
+Sunrise-derived apps run side by side without anyone remembering which owns
+which port, and it makes dev cookie behaviour match production instead of
+lumping every app onto one `localhost` origin:
+
+```bash
+git clone git@github.com:human-centric-engineering/dev-proxy.git
+cd dev-proxy && ./apply.sh          # idempotent; --dry-run to preview
+```
+
+**The port lives in that repo's `apps.json`, not here.** Change it there, re-run
+`./apply.sh`, and update `.env.development` to match — the two have to agree or
+the proxy points at nothing.
+
+`http://localhost:3016` still works if you would rather skip the proxy, but set
+`BETTER_AUTH_URL` and `NEXT_PUBLIC_APP_URL` in `.env.local` to whichever origin
+you actually use. A mismatch there is the usual cause of auth redirecting into
+nothing.
+
+> **Google sign-in does not work on `.test`.** The TLD is reserved and Google
+> rejects it as an OAuth redirect target, so dev logins on a `.test` hostname
+> have to be email/password. Sign up at
+> [`/signup`](https://obsiddy.test/signup) — on a fresh database that account is
+> promoted to `ADMIN` automatically (see below).
 
 ### Using Docker
 
@@ -123,7 +145,7 @@ docker-compose exec web npx prisma migrate dev       # Run migrations (first tim
 ### First admin account
 
 Sunrise ships **no default login credentials**. On a fresh database, the first
-account you create — sign up at [`/signup`](http://localhost:3010/signup) — is
+account you create — sign up at [`/signup`](https://obsiddy.test/signup) — is
 automatically promoted to `ADMIN`. Every account created after that is a regular
 `USER`.
 
