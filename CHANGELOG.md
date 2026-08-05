@@ -597,6 +597,34 @@ release process.
 
 ### Fixed
 
+- **Obsiddy's background workflows failed on a cold server, and only on a cold
+  server.** `initObsiddy()` now calls `registerBuiltInCapabilities()` at boot.
+
+  Core's capability registry is a `globalThis` singleton
+  ([sunrise#462](https://github.com/human-centric-engineering/sunrise/issues/462)),
+  so a registration crosses module realms — but the "have I registered yet"
+  guards are ordinary module-scoped booleans, so the registry is only filled
+  when something *calls* the initialiser. The chat handler, the MCP tool
+  registry, `getCapabilityDefinitions()` and the `agent_call` executor all do.
+  `executors/tool-call.ts` does not; it dispatches straight into the registry.
+
+  So on a process that had served no chat, agent or MCP request, the scheduler
+  firing a workflow of `tool_call` steps found an empty map and every step
+  failed with `unknown_capability`. That is all four Obsiddy background
+  workflows, at 03:15 and 04:30, on a server that has been quiet all night —
+  **the failure was likeliest exactly when it mattered, and hid under load.**
+  It also read as a fork bug, because the error names Obsiddy's own slug while
+  the fork's registration code is working perfectly.
+
+  Found by starting the server, not by a test. Unit tests register explicitly,
+  so the registry is never empty; reproducing needs a cold process *plus* a tick
+  before any request. The regression test added with this asserts the registry
+  *contains* a known slug after boot rather than that a function was called —
+  the failure mode is an empty registry, and only a lookup proves it isn't.
+
+  Interim: the real fix is one line in core, filed as
+  [sunrise#537](https://github.com/human-centric-engineering/sunrise/issues/537).
+
 - **Every Obsiddy background workflow would have failed silently after the
   Sunrise 0.8.0 merge.**
   [sunrise#502](https://github.com/human-centric-engineering/sunrise/issues/502)

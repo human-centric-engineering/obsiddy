@@ -245,15 +245,29 @@ export function initAppCapabilities(): void {
 }
 ```
 
-Registers the fourteen agent tools. Static import, like §2.2 and §2.6: Sunrise
+Registers the eighteen agent tools. Static import, like §2.2 and §2.6: Sunrise
 calls `initAppCapabilities()` from `registerBuiltInCapabilities()` **lazily, in
-the server route-handler realm, immediately before the first dispatch** — not at
-boot. There is nowhere to `await`, and the lazy call site is the fix for
-[sunrise#462][462], where boot-registered capabilities were silently lost at
-request time under Turbopack because the two realms hold separate module graphs.
+the server route-handler realm, immediately before the first dispatch**. There is
+nowhere to `await`, and the lazy call site is the fix for [sunrise#462][462],
+where boot-registered capabilities were silently lost at request time under
+Turbopack because the two realms hold separate module graphs.
 
 Keep whatever you add here cheap and synchronous for the same reason: it runs on
 the request path the first time an agent dispatches.
+
+**It also runs at boot, and you get that for free.** `initObsiddy()` (§2.1)
+calls `registerBuiltInCapabilities()` itself, so the registry is filled before
+the first maintenance tick as well as before the first dispatch. That is not
+belt-and-braces: `executors/tool-call.ts` is the one dispatch path that does
+**not** ensure registration, so a scheduled workflow of `tool_call` steps firing
+on a server that has served no chat, agent or MCP request would otherwise hit an
+empty registry and fail every step with `unknown_capability` — at 03:15, where
+nothing surfaces it. Since #462 made the registry `globalThis`-backed, a boot
+registration is visible from the scheduler's realm, so the two call sites
+compose rather than conflict. Nothing for a host to wire; noted because the
+lazy-only story above was the whole story until Obsiddy's background workflows
+proved it wasn't. Tracked as [sunrise#537][537]; the boot call comes out when the
+one-line core fix lands.
 
 **Registration is not availability.** A registered handler still needs an active
 `AiCapability` row and an `AiAgentCapability` binding before any agent can call
@@ -262,6 +276,7 @@ dispatcher refuses at `capability_inactive`, which is the correct failure: an
 operator who turned a tool off has turned it off.
 
 [462]: https://github.com/human-centric-engineering/sunrise/issues/462
+[537]: https://github.com/human-centric-engineering/sunrise/issues/537
 
 ### 2.9 Chat context — `lib/app/context-contributors.ts`
 

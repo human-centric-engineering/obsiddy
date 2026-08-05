@@ -163,6 +163,36 @@ advice an operator can act on. `workflow:<cuid>` is not an agent id, and
 `AiAgentCapability.agentId` is an FK to `AiAgent.id` — so the remedy the warning
 implies **cannot be applied** to the workflow path at all.
 
+### Found by running the app after the 0.8.0 merge (2026-08-05)
+
+The only ask in this file found by **starting the server** rather than by
+reading a diff or running a suite — and it could not have been found any other
+way.
+
+| #   | Ask                                                                                                                                                                        | Why                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | Priority                                                                                                                                                                             | Issue                                                                   |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------- |
+| 31  | **`tool-call.ts` dispatches without ensuring capability registration** — add `registerBuiltInCapabilities()` before the dispatch, matching its sibling `agent-call.ts:484` | #462 made `capabilityDispatcher` a `globalThis` singleton so registrations cross module realms — but the "have I registered yet" guards (`registry.ts:78-80`) are ordinary module-scoped booleans, so the registry is only filled when something **calls** the initialiser. Chat, MCP, `getCapabilityDefinitions()` and the `agent_call` executor all do; `tool-call.ts` does not. So on a process that has served no request, the scheduler firing a workflow of `tool_call` steps dispatches into an empty map. Obsiddy's four background workflows are almost entirely `tool_call` steps, so **all four fail at 03:15 and 04:30 on a server that has been quiet overnight — the failure is likeliest exactly when it matters, and hides under load.** It also presents as a fork bug: `unknown_capability` names the fork's own slug, so the first instinct is to go looking at registration code that is working fine (same shape as #525) | Low effort, high blast radius. **No test suite can see it** — unit tests register explicitly, so the registry is never empty; it needs a cold process plus a tick before any request | [#537](https://github.com/human-centric-engineering/sunrise/issues/537) |
+
+**Downstream status (#31):** fixed in the tier, no core edit.
+`initObsiddy()` calls `registerBuiltInCapabilities()` at boot; because the
+registry is `globalThis`-backed the registration persists into the scheduler's
+realm, and the call pulls in core's built-ins **and** Obsiddy's own (via
+`initAppCapabilities()` on the way through), so it is complete rather than half.
+Covered by a regression test in `scaffold.test.ts` that asserts the registry
+_contains a known slug_ after boot rather than that a function was called — the
+failure mode is an empty registry, and only a lookup proves it isn't. Verified to
+fail without the fix and pass with it. Remove the call when #537 lands; leaving it
+would be harmless but dead weight at boot.
+
+**The lesson, which is the reason this row is worth reading twice.** Three gates
+were green when this shipped: 23,775 unit tests, a full CI run including a
+real-Postgres smoke job, and a clean local gate suite. None of them starts the
+server and waits. The 0.8.0 merge produced three defects — the scheduler
+ownership break, the `smoke:export` seam assertion, and this — and they were
+found by, respectively: reading the upstream diff, CI, and **running the app**.
+No single check would have caught all three, and the cheapest of the three to
+run was the one nearly skipped.
+
 ### Found by the Sunrise 0.8.0 merge (2026-08-05)
 
 Both were found by merging `v0.8.0` (37 commits, `5964beb3..45e704d9`), and
