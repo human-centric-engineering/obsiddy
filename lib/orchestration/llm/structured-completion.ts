@@ -60,7 +60,7 @@ import {
   GEN_AI_USAGE_OUTPUT_TOKENS,
   GEN_AI_USAGE_TOTAL_TOKENS,
   SPAN_LLM_CALL,
-  SUNRISE_EVALUATION_PHASE,
+  RESPARKABLE_EVALUATION_PHASE,
   setSpanAttributes,
   withSpan,
 } from '@/lib/orchestration/tracing';
@@ -124,7 +124,7 @@ export interface StructuredCompletionOptions<T> {
    * caller (e.g. `'summary'` for an evaluation completion summary,
    * `'scoring'` for metric scoring, `'slot-extraction'` for a capability's
    * structured extraction). Surfaces as `gen_ai.operation.name` and
-   * `sunrise.evaluation.phase` on the spans. Omitted → spans fall back to
+   * `resparkable.evaluation.phase` on the spans. Omitted → spans fall back to
    * the default `'evaluation'` operation name and carry no phase attribute.
    */
   phase?: string;
@@ -165,7 +165,7 @@ export async function runStructuredCompletion<T>(
   const phaseAttrs = {
     [GEN_AI_OPERATION_NAME]: opts.phase ?? 'evaluation',
     [GEN_AI_REQUEST_MODEL]: opts.model,
-    ...(opts.phase ? { [SUNRISE_EVALUATION_PHASE]: opts.phase } : {}),
+    ...(opts.phase ? { [RESPARKABLE_EVALUATION_PHASE]: opts.phase } : {}),
   };
 
   const firstSignal = AbortSignal.timeout(timeoutMs);

@@ -1,13 +1,13 @@
 /* app/brand-theme.css
  *
  * ═══════════════════════════════════════════════════════════════════════════
- *  OBSIDDY — "amber phosphor on volcanic glass"
+ *  RESPARKABLE — "amber phosphor on volcanic glass"
  * ═══════════════════════════════════════════════════════════════════════════
  *
- * This is the fork-owned per-surface theming seam. In vanilla Sunrise it ships
- * empty and every surface inherits `app/globals.css`'s `@theme` defaults. Obsiddy
+ * This is the fork-owned per-surface theming seam. In vanilla Resparkable it ships
+ * empty and every surface inherits `app/globals.css`'s `@theme` defaults. Resparkable
  * fills it, which is the whole point of the seam: the entire brand lives in one
- * file that upstream never edits, so a Sunrise upgrade can change the platform's
+ * file that upstream never edits, so a Resparkable upgrade can change the platform's
  * palette without ever colliding with ours.
  *
  * ── THE IDEA ───────────────────────────────────────────────────────────────
@@ -240,7 +240,7 @@
    3b. THE /admin SURFACE — same glass, colder fracture
    ═══════════════════════════════════════════════════════════════════════════
    `proxy.ts` classifies each request through `classifySurface()` and the root
-   layout puts the answer on `<html data-surface>`. Obsiddy uses that for one
+   layout puts the answer on `<html data-surface>`. Resparkable uses that for one
    distinction: the back office runs on teal.
 
    This is not decoration. `/admin` is where you change things for everybody —

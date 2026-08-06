@@ -1,4 +1,4 @@
-# Sunrise Test Suite
+# Resparkable Test Suite
 
 Quick reference for running tests. For comprehensive documentation, see [`.context/testing/`](../.context/testing/).
 

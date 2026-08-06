@@ -1,6 +1,6 @@
 # Async Testing Patterns
 
-Patterns for testing asynchronous code and time-dependent behavior in Sunrise.
+Patterns for testing asynchronous code and time-dependent behavior in Resparkable.
 
 ---
 

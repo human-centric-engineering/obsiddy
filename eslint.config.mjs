@@ -5,7 +5,7 @@ import reactHooksPlugin from 'eslint-plugin-react-hooks';
 import jsxA11yPlugin from 'eslint-plugin-jsx-a11y';
 import tseslint from 'typescript-eslint';
 
-// Fork-owned ESLint seam — reserved, `export default []` in vanilla Sunrise.
+// Fork-owned ESLint seam — reserved, `export default []` in vanilla Resparkable.
 // A fork adds its own import-boundary blocks here instead of editing this file.
 // Spread LAST (below), after every core block, so a fork block wins for its own
 // `files`. See lib/app/eslint.config.mjs for the seam contract (notably the
@@ -141,7 +141,7 @@ export default tseslint.config(
       ...nextPlugin.configs['core-web-vitals'].rules,
 
       // React Compiler ruleset. eslint-plugin-react-hooks 7.1's `recommended`
-      // preset turns the full ruleset on, but Sunrise does NOT run the React
+      // preset turns the full ruleset on, but Resparkable does NOT run the React
       // Compiler (no babel-plugin-react-compiler / `reactCompiler` flag). The
       // rules split in two:
       //   - Correctness rules — rules-of-hooks, refs, purity, error-boundaries,
@@ -338,7 +338,7 @@ export default tseslint.config(
   },
 
   // Fork-owned ESLint seam — spread LAST so a fork's blocks override core for
-  // their own `files`. Empty (`[]`) in vanilla Sunrise. See the import above
+  // their own `files`. Empty (`[]`) in vanilla Resparkable. See the import above
   // and lib/app/eslint.config.mjs.
   ...appEslintConfig
 );

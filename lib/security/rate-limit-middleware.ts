@@ -67,7 +67,7 @@ try {
   // Convert that runtime fail-open into a boot-time throw: every rule's tier
   // MUST resolve once the auto-wire is done. If a fork's rule names a tier
   // it never registered, refuse to boot rather than ship the request-time
-  // hole. Sunrise's built-in rules always resolve (covered by the type union),
+  // hole. Resparkable's built-in rules always resolve (covered by the type union),
   // so this check is load-bearing only for the app-extended slice.
   const unresolved = getEffectiveRateLimitPolicy().filter(
     (rule) => resolveRateLimitTier(rule.tier) === undefined
@@ -83,7 +83,7 @@ try {
 } catch (error) {
   logger.error('Failed to register app rate limits from lib/app/rate-limit.ts', {
     error: error instanceof Error ? error.message : String(error),
-    hint: 'A throw at module load aborts the middleware bundle. Check lib/app/rate-limit.ts for a registerRateLimitRule/registerRateLimitTier call that violates the registration contract (e.g. a matcher that shadows a Sunrise-protected path, or a tier name that collides with a built-in).',
+    hint: 'A throw at module load aborts the middleware bundle. Check lib/app/rate-limit.ts for a registerRateLimitRule/registerRateLimitTier call that violates the registration contract (e.g. a matcher that shadows a Resparkable-protected path, or a tier name that collides with a built-in).',
   });
   throw error;
 }
@@ -118,7 +118,7 @@ try {
 export async function applyRateLimit(request: NextRequest): Promise<Response | null> {
   if (isBypassEnabled()) return null;
 
-  // Evaluate against the effective policy: Sunrise's base rules plus any
+  // Evaluate against the effective policy: Resparkable's base rules plus any
   // app-registered rules (spliced ahead of the catch-all). When no app rules
   // are registered this is the base policy by identity — no per-request cost.
   const policy = getEffectiveRateLimitPolicy();

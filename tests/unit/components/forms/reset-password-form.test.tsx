@@ -15,7 +15,7 @@
  * - State 2 submission and success state
  * - Error handling for both states
  *
- * @see /Users/simonholmes/Documents/Dev/studio/sunrise/components/forms/reset-password-form.tsx
+ * @see /Users/simonholmes/Documents/Dev/studio/resparkable/components/forms/reset-password-form.tsx
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';

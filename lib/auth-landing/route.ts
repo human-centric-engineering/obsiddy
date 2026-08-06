@@ -21,10 +21,10 @@
 import { appAuthLandingRoute, appAuthLandingLabel } from '@/lib/app/auth-landing';
 import { isRootRelativePath } from '@/lib/security/sanitize';
 
-/** Sunrise's own landing route, used when the fork seam is `null`. */
+/** Resparkable's own landing route, used when the fork seam is `null`. */
 export const DEFAULT_AUTH_LANDING_ROUTE = '/dashboard';
 
-/** Sunrise's own name for that destination, used when the fork seam is `null`. */
+/** Resparkable's own name for that destination, used when the fork seam is `null`. */
 export const DEFAULT_AUTH_LANDING_LABEL = 'Dashboard';
 
 /**

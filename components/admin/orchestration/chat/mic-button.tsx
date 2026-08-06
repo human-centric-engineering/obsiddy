@@ -36,7 +36,7 @@ import { useVoiceRecording, DEFAULT_MAX_DURATION_MS } from '@/lib/hooks/use-voic
  * localStorage key for the one-time "Speak now — tap to stop" hint.
  * Bumped suffix → re-shows hint to existing users (use sparingly).
  */
-const VOICE_HINT_DISMISSED_KEY = 'sunrise.voice-input.hint-dismissed.v1';
+const VOICE_HINT_DISMISSED_KEY = 'resparkable.voice-input.hint-dismissed.v1';
 
 export interface MicButtonProps {
   /** Agent id used for the multipart `agentId` field. */

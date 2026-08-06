@@ -17,7 +17,7 @@ services:
         - BETTER_AUTH_URL=${BETTER_AUTH_URL}
         - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
         - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
-    container_name: sunrise-web
+    container_name: resparkable-web
     restart: unless-stopped
     ports:
       - '3000:3000'
@@ -33,7 +33,7 @@ services:
       migrator:
         condition: service_completed_successfully
     networks:
-      - sunrise-network
+      - resparkable-network
     healthcheck:
       test:
         [
@@ -61,7 +61,7 @@ services:
         - BETTER_AUTH_URL=${BETTER_AUTH_URL}
         - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
         - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
-    container_name: sunrise-migrator
+    container_name: resparkable-migrator
     command: ['npx', 'prisma', 'migrate', 'deploy']
     env_file:
       - .env
@@ -69,25 +69,25 @@ services:
       db:
         condition: service_healthy
     networks:
-      - sunrise-network
+      - resparkable-network
     restart: 'no'
 
   # PostgreSQL database
   db:
     image: pgvector/pgvector:pg15
-    container_name: sunrise-db
+    container_name: resparkable-db
     restart: unless-stopped
     environment:
       - POSTGRES_USER=${DB_USER:-postgres}
       - POSTGRES_PASSWORD=${DB_PASSWORD}
-      - POSTGRES_DB=${DB_NAME:-sunrise}
+      - POSTGRES_DB=${DB_NAME:-resparkable}
       - POSTGRES_INITDB_ARGS=-E UTF8
     volumes:
       - postgres_prod_data:/var/lib/postgresql/data
       # Optional: Mount init scripts for database setup
       # - ./init-scripts:/docker-entrypoint-initdb.d
     networks:
-      - sunrise-network
+      - resparkable-network
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U ${DB_USER:-postgres}']
       interval: 10s
@@ -102,7 +102,7 @@ services:
   # For Vercel/Railway/Render, platform load balancers are sufficient
   nginx:
     image: nginx:alpine
-    container_name: sunrise-nginx
+    container_name: resparkable-nginx
     restart: unless-stopped
     ports:
       - '80:80'
@@ -119,7 +119,7 @@ services:
     depends_on:
       - web
     networks:
-      - sunrise-network
+      - resparkable-network
 
 volumes:
   postgres_prod_data:
@@ -128,7 +128,7 @@ volumes:
     driver: local
 
 networks:
-  sunrise-network:
+  resparkable-network:
     driver: bridge
 
 # Usage Instructions:

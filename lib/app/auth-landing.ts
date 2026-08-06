@@ -1,7 +1,7 @@
 /**
  * App post-authentication landing route.
  *
- * **Fork-owned scaffold** — Sunrise ships this `null` (= use the platform
+ * **Fork-owned scaffold** — Resparkable ships this `null` (= use the platform
  * default, `/dashboard`) and does NOT change this file after release, so your
  * edits here merge cleanly on upgrade (the stable contract is this file's
  * export, not its value).
@@ -10,7 +10,7 @@
  * authenticated app follows: login, OAuth, signup, invite acceptance, email
  * verification, the header brand link, the "back to app" links out of admin, the
  * error-page escape hatches, and the proxy's redirect of a signed-in user off an
- * auth page. Sunrise hardcoded `/dashboard` at each of those sites, so an app
+ * auth page. Resparkable hardcoded `/dashboard` at each of those sites, so an app
  * whose product lives elsewhere had to edit them all — and re-resolve them on
  * every upgrade.
  *

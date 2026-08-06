@@ -86,11 +86,14 @@ type ContextContributor = (id: string, request: ContextRequest) => Promise<strin
  * also means registrations survive a dev hot-reload.
  */
 const globalForContributors = globalThis as unknown as {
-  sunriseChatContextContributors?: Map<string, ContextContributor>;
+  resparkableChatContextContributors?: Map<string, ContextContributor>;
 };
 
 const contributors: Map<string, ContextContributor> =
-  (globalForContributors.sunriseChatContextContributors ??= new Map<string, ContextContributor>());
+  (globalForContributors.resparkableChatContextContributors ??= new Map<
+    string,
+    ContextContributor
+  >());
 
 /**
  * Whether the auto-wired app contributor init (`lib/app/context-contributors.ts`)

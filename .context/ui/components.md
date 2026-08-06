@@ -2,7 +2,7 @@
 
 ## Overview
 
-Sunrise includes several utility components that solve common UI challenges. These components handle hydration safety, accessibility, and consistent error presentation.
+Resparkable includes several utility components that solve common UI challenges. These components handle hydration safety, accessibility, and consistent error presentation.
 
 ## Component Library
 

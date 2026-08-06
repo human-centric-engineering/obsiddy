@@ -15,19 +15,19 @@ import {
 import { Hero, Section, Features, Pricing, FAQ, CTA } from '@/components/marketing';
 
 const heroDescription =
-  'Build production-ready applications faster with Sunrise. A Next.js 16 starter template with authentication, database, email, Docker — plus a complete AI agent orchestration layer for building agents, workflows, and knowledge bases.';
+  'Build production-ready applications faster with Resparkable. A Next.js 16 starter template with authentication, database, email, Docker — plus a complete AI agent orchestration layer for building agents, workflows, and knowledge bases.';
 
 export const metadata: Metadata = {
-  title: 'Sunrise - Production-Ready Next.js Starter Template',
+  title: 'Resparkable - Production-Ready Next.js Starter Template',
   description: heroDescription,
   openGraph: {
-    title: 'Sunrise - Production-Ready Next.js Starter Template',
+    title: 'Resparkable - Production-Ready Next.js Starter Template',
     description: heroDescription,
     type: 'website',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Sunrise - Production-Ready Next.js Starter Template',
+    title: 'Resparkable - Production-Ready Next.js Starter Template',
     description: heroDescription,
   },
 };
@@ -111,7 +111,7 @@ const pricingTiers = [
       'Regular updates',
     ],
     ctaText: 'Get Started',
-    ctaHref: 'https://github.com/human-centric-engineering/sunrise',
+    ctaHref: 'https://github.com/human-centric-engineering/resparkable',
   },
   {
     name: 'Pro Support',
@@ -148,34 +148,34 @@ const pricingTiers = [
 
 const faqItems = [
   {
-    question: 'What is Sunrise?',
+    question: 'What is Resparkable?',
     answer:
-      'Sunrise is a production-ready Next.js starter template designed for rapid application development. It includes authentication, database setup, email integration, Docker deployment, and follows best practices for AI-assisted development.',
+      'Resparkable is a production-ready Next.js starter template designed for rapid application development. It includes authentication, database setup, email integration, Docker deployment, and follows best practices for AI-assisted development.',
   },
   {
-    question: 'Is Sunrise really free?',
+    question: 'Is Resparkable really free?',
     answer:
-      'Yes! Sunrise is open source under the MIT License. You can use it for personal and commercial projects without any restrictions. We offer paid support packages for teams that want additional assistance.',
+      'Yes! Resparkable is open source under the MIT License. You can use it for personal and commercial projects without any restrictions. We offer paid support packages for teams that want additional assistance.',
   },
   {
-    question: 'What technologies does Sunrise use?',
+    question: 'What technologies does Resparkable use?',
     answer:
-      'Sunrise is built with Next.js 16, TypeScript, PostgreSQL with Prisma ORM, better-auth for authentication, Tailwind CSS with shadcn/ui components, React Email with Resend, and Docker for deployment.',
+      'Resparkable is built with Next.js 16, TypeScript, PostgreSQL with Prisma ORM, better-auth for authentication, Tailwind CSS with shadcn/ui components, React Email with Resend, and Docker for deployment.',
   },
   {
-    question: 'How is Sunrise optimized for AI development?',
+    question: 'How is Resparkable optimized for AI development?',
     answer:
       'Two ways. First, AI-assisted development: comprehensive documentation in CLAUDE.md and the .context/ substrate helps AI assistants understand the codebase and follow established patterns when generating code. Second, AI agent capabilities for the apps you build: a complete orchestration layer for designing, deploying, and monitoring AI agents.',
   },
   {
-    question: 'Can I build AI agents with Sunrise?',
+    question: 'Can I build AI agents with Resparkable?',
     answer:
-      'Yes. Sunrise ships with a full agent orchestration layer at /admin/orchestration: configure LLM providers, define agents with system instructions and budgets, create custom capabilities (tools), build multi-step workflows as DAGs, ingest documents into pgvector-backed knowledge bases for RAG, expose agents via an MCP server or embed widget, and monitor everything with execution tracing, evaluations, and an audit log. Built on the 21 agentic design patterns from Antonio Gullí.',
+      'Yes. Resparkable ships with a full agent orchestration layer at /admin/orchestration: configure LLM providers, define agents with system instructions and budgets, create custom capabilities (tools), build multi-step workflows as DAGs, ingest documents into pgvector-backed knowledge bases for RAG, expose agents via an MCP server or embed widget, and monitor everything with execution tracing, evaluations, and an audit log. Built on the 21 agentic design patterns from Antonio Gullí.',
   },
   {
-    question: 'Can I use Sunrise for commercial projects?',
+    question: 'Can I use Resparkable for commercial projects?',
     answer:
-      'Absolutely! Sunrise is released under the MIT License, which allows commercial use, modification, and distribution. You just need to include the original license in any copies of the software.',
+      'Absolutely! Resparkable is released under the MIT License, which allows commercial use, modification, and distribution. You just need to include the original license in any copies of the software.',
   },
   {
     question: 'How do I get support?',
@@ -187,7 +187,7 @@ const faqItems = [
 /**
  * Landing Page
  *
- * Public landing page showcasing Sunrise features and encouraging adoption.
+ * Public landing page showcasing Resparkable features and encouraging adoption.
  * Uses reusable marketing components for consistent styling.
  *
  * Phase 3.5: Landing Page & Marketing
@@ -199,11 +199,11 @@ export default function LandingPage() {
       <Hero
         badge="Next.js 16 Ready"
         title="Build Production Apps Faster"
-        description="Sunrise is a production-ready Next.js starter template designed for rapid application development. Authentication, database, email, Docker — all pre-configured and ready to go, plus a production AI agent orchestration layer for building agents, workflows, and knowledge bases."
+        description="Resparkable is a production-ready Next.js starter template designed for rapid application development. Authentication, database, email, Docker — all pre-configured and ready to go, plus a production AI agent orchestration layer for building agents, workflows, and knowledge bases."
         primaryAction={{ label: 'Get Started', href: '/signup' }}
         secondaryAction={{
           label: 'View on GitHub',
-          href: 'https://github.com/human-centric-engineering/sunrise',
+          href: 'https://github.com/human-centric-engineering/resparkable',
           variant: 'outline',
         }}
       />
@@ -212,7 +212,7 @@ export default function LandingPage() {
       <Section
         id="features"
         title="Everything You Need"
-        description="Sunrise comes with all the essential features pre-configured so you can focus on building your application."
+        description="Resparkable comes with all the essential features pre-configured so you can focus on building your application."
         variant="muted"
       >
         <Features features={features} columns={3} variant="card" />
@@ -249,11 +249,11 @@ export default function LandingPage() {
       {/* CTA Section */}
       <CTA
         title="Ready to Build Something Great?"
-        description="Join developers who are building production applications faster with Sunrise."
+        description="Join developers who are building production applications faster with Resparkable."
         primaryAction={{ label: 'Get Started Free', href: '/signup' }}
         secondaryAction={{
           label: 'View Documentation',
-          href: 'https://github.com/human-centric-engineering/sunrise',
+          href: 'https://github.com/human-centric-engineering/resparkable',
           variant: 'outline',
         }}
         variant="gradient"

@@ -1,6 +1,6 @@
 # MCP Server
 
-Model Context Protocol (MCP) server that lets external AI clients (Claude Desktop, Cursor, custom agents) connect to Sunrise and use its tools, data, and prompts.
+Model Context Protocol (MCP) server that lets external AI clients (Claude Desktop, Cursor, custom agents) connect to Resparkable and use its tools, data, and prompts.
 
 ## Architecture
 
@@ -22,7 +22,7 @@ lib/orchestration/mcp/protocol-handler.ts
   |-- tools/list                → tool-registry.ts → McpExposedTool + AiCapability (+ annotations on 2025-06-18)
   |-- tools/call                → tool-registry.ts → capabilityDispatcher.dispatch() (+ rich content blocks)
   |-- resources/list, /templates, /read
-  |                             → resource-registry.ts → sunrise:// URI handlers
+  |                             → resource-registry.ts → resparkable:// URI handlers
   |-- resources/subscribe, /unsubscribe
   |                             → session-manager.ts subscriptionsBySession map
   |-- prompts/list, /get        → prompt-registry.ts (DB-backed cache, legacy fallback)
@@ -77,11 +77,11 @@ SSE push (notifications/{tools,resources,prompts}/list_changed,
 
 ## Authentication & OAuth 2.1 Roadmap
 
-The server currently authenticates clients with **bearer tokens** (the `smcp_` keys above). The 2025-06-18 MCP spec recommends OAuth 2.1 + Dynamic Client Registration (DCR) for HTTP transport but explicitly permits bearer auth, which is what Sunrise ships today.
+The server currently authenticates clients with **bearer tokens** (the `smcp_` keys above). The 2025-06-18 MCP spec recommends OAuth 2.1 + Dynamic Client Registration (DCR) for HTTP transport but explicitly permits bearer auth, which is what Resparkable ships today.
 
 ### Bridge for 2025-spec clients
 
-401 responses include a `WWW-Authenticate: Bearer realm="sunrise-mcp", error="invalid_token"` header (RFC 6750 / RFC 9728). 2025-spec OAuth-capable clients use this to detect that the server is bearer-only and skip OAuth discovery rather than failing on the missing `/.well-known/oauth-authorization-server` endpoint. End users keep pasting an `smcp_` key into their client config exactly as before.
+401 responses include a `WWW-Authenticate: Bearer realm="resparkable-mcp", error="invalid_token"` header (RFC 6750 / RFC 9728). 2025-spec OAuth-capable clients use this to detect that the server is bearer-only and skip OAuth discovery rather than failing on the missing `/.well-known/oauth-authorization-server` endpoint. End users keep pasting an `smcp_` key into their client config exactly as before.
 
 This is sufficient for the common deployment shape (single org, dev or internal use, admins distributing keys to developers they trust). It is **not** sufficient for multi-tenant SaaS where end-users connect their own MCP clients with their own identity — that's what OAuth solves.
 
@@ -105,7 +105,7 @@ When this becomes load-bearing, the work splits into six pieces. Captured here s
 
 3. **Authorization endpoint** `/oauth/authorize` with **PKCE mandatory** (`code_challenge` + `code_challenge_method=S256` required). The client makes up a random verifier, sends its hash to the authorize endpoint, sends the verifier to the token endpoint. Stops an attacker who intercepts the authorization code from redeeming it. ~50 lines including hash comparison.
 
-4. **Token endpoint** `/oauth/token` with `authorization_code` + `refresh_token` grants. Rotating refresh tokens (rotate-on-use). Bind tokens to **resource indicators (RFC 8707)** — clients pass `resource=https://your-app/api/v1/mcp` at auth + token endpoints; server enforces the audience claim on validation so a token issued for Sunrise MCP can't be replayed against some other API.
+4. **Token endpoint** `/oauth/token` with `authorization_code` + `refresh_token` grants. Rotating refresh tokens (rotate-on-use). Bind tokens to **resource indicators (RFC 8707)** — clients pass `resource=https://your-app/api/v1/mcp` at auth + token endpoints; server enforces the audience claim on validation so a token issued for Resparkable MCP can't be replayed against some other API.
 
 5. **Consent UI** at `/oauth/consent` — a styled page where end-users approve scope grants. Skip the screen entirely for "first-party" trusted `client_id`s (whitelisted via env / admin UI).
 
@@ -173,12 +173,12 @@ For older protocol negotiations (`2024-11-05`) the annotations field is omitted 
 
 ## Resource Handlers
 
-| Type               | URI Pattern                             | Handler                          |
-| ------------------ | --------------------------------------- | -------------------------------- |
-| `knowledge_search` | `sunrise://knowledge/search?q={query}`  | Delegates to `searchKnowledge()` |
-| `pattern_detail`   | `sunrise://knowledge/patterns/{number}` | Queries AiKnowledgeChunk         |
-| `agent_list`       | `sunrise://agents`                      | Active agents list               |
-| `workflow_list`    | `sunrise://workflows`                   | Active workflows list            |
+| Type               | URI Pattern                                 | Handler                          |
+| ------------------ | ------------------------------------------- | -------------------------------- |
+| `knowledge_search` | `resparkable://knowledge/search?q={query}`  | Delegates to `searchKnowledge()` |
+| `pattern_detail`   | `resparkable://knowledge/patterns/{number}` | Queries AiKnowledgeChunk         |
+| `agent_list`       | `resparkable://agents`                      | Active agents list               |
+| `workflow_list`    | `resparkable://workflows`                   | Active workflows list            |
 
 Each `McpExposedResource` has an optional `handlerConfig` JSON field passed to the resource handler as its second argument, allowing per-resource configuration (e.g., custom search parameters, filters). Stored as Prisma JSON and validated as `Record<string, unknown> | null`.
 
@@ -192,7 +192,7 @@ MCP clients can call `resources/subscribe { uri }` to receive `notifications/res
 
 Limits and rules (enforced in the protocol handler / session manager):
 
-- **Concrete URIs only.** Subscribing to a template URI (`sunrise://patterns/{id}`) is rejected with `INVALID_PARAMS` — subscribe to concrete instances (`sunrise://patterns/5`) instead. The check rejects on `{` or `}` before any registry lookup so clients cannot probe what's registered.
+- **Concrete URIs only.** Subscribing to a template URI (`resparkable://patterns/{id}`) is rejected with `INVALID_PARAMS` — subscribe to concrete instances (`resparkable://patterns/5`) instead. The check rejects on `{` or `}` before any registry lookup so clients cannot probe what's registered.
 - **Registered URIs only.** Subscribing to a URI the registry doesn't know about is rejected — ghost subscriptions would never receive an update notification anyway.
 - **50 subscriptions per session.** Excess returns `INVALID_REQUEST` with a "Subscription limit exceeded" message. Unsubscribe first.
 - **Idempotent.** Duplicate subscribe / unsubscribe returns `ok` with no side effect.
@@ -201,12 +201,12 @@ Limits and rules (enforced in the protocol handler / session manager):
 
 What fires an updated notification:
 
-| Mutation                                                    | Fires for URI                |
-| ----------------------------------------------------------- | ---------------------------- |
-| Admin `PATCH /api/v1/admin/orchestration/mcp/resources/:id` | the row's `uri`              |
-| Knowledge document POST / confirm / PATCH / DELETE          | `sunrise://knowledge/search` |
-| Agent POST / PATCH / DELETE                                 | `sunrise://agents`           |
-| Workflow POST / PATCH / DELETE                              | `sunrise://workflows`        |
+| Mutation                                                    | Fires for URI                    |
+| ----------------------------------------------------------- | -------------------------------- |
+| Admin `PATCH /api/v1/admin/orchestration/mcp/resources/:id` | the row's `uri`                  |
+| Knowledge document POST / confirm / PATCH / DELETE          | `resparkable://knowledge/search` |
+| Agent POST / PATCH / DELETE                                 | `resparkable://agents`           |
+| Workflow POST / PATCH / DELETE                              | `resparkable://workflows`        |
 
 The wiring lives in `lib/orchestration/mcp/resource-update-hooks.ts` as named helpers (`notifyMcpAgentsChanged`, `notifyMcpWorkflowsChanged`, `notifyMcpKnowledgeChanged`). Mutation routes import the named helper rather than hard-coding the URI string — one place to change if a resource URI ever moves.
 
@@ -265,7 +265,7 @@ server → { completion: { values: ["1", "10", …], hasMore: false, total: 11 }
 
 - **For prompts**: the `completionsSpec` JSON column on `McpExposedPrompt` — shape `{ [argName: string]: string[] }`. Editable per-arg in the prompts admin UI (Phase 6 UI work captured in Phase 2's `completionsSpec` column).
 - **For resources**: the `completionsSpec` key inside `handlerConfig` — same shape.
-- **Special case**: `sunrise://knowledge/patterns/{number}` enumerates 1-21 dynamically without admin maintenance.
+- **Special case**: `resparkable://knowledge/patterns/{number}` enumerates 1-21 dynamically without admin maintenance.
 
 ### Limits
 
@@ -309,7 +309,7 @@ For freshly installed deployments that haven't run seed `015-mcp-prompts` yet, t
 
 ### Template syntax (server-side enforcement)
 
-Templates use `{{argument_name}}` substitution. The MCP protocol does not specify a templating engine — every server picks its own. Sunrise's engine is intentionally minimal and the rules below are **server-side guarantees**, not protocol-level ones (a different MCP server may behave differently):
+Templates use `{{argument_name}}` substitution. The MCP protocol does not specify a templating engine — every server picks its own. Resparkable's engine is intentionally minimal and the rules below are **server-side guarantees**, not protocol-level ones (a different MCP server may behave differently):
 
 - **Only argument names declared in `argumentsSpec` are interpolated.** Stray placeholders like `{{database_url}}` render literally. This is the security boundary that prevents an admin from accidentally (or maliciously) leaking server state. Other MCP server implementations may evaluate undeclared placeholders differently — write templates as if only declared names are safe.
 - Whitespace inside placeholders is tolerated (`{{ name }}` works).
@@ -328,7 +328,7 @@ No helpers, no partials, no conditionals, no lambdas. If the prompt-set needs te
 
 ### Treating prompt identity as a stable API contract
 
-MCP itself does not formally require prompt names to be immutable, but clients cache prompt identifiers, users build workflows around them, and end-users bookmark slash commands. In practice **prompt names and argument schemas are an API contract**. Sunrise enforces this at the schema layer — `name` is not in `updatePromptSchema`, so the admin UI cannot rename a prompt in place. To evolve a prompt's behaviour, **add a new versioned name** rather than mutating the existing one:
+MCP itself does not formally require prompt names to be immutable, but clients cache prompt identifiers, users build workflows around them, and end-users bookmark slash commands. In practice **prompt names and argument schemas are an API contract**. Resparkable enforces this at the schema layer — `name` is not in `updatePromptSchema`, so the admin UI cannot rename a prompt in place. To evolve a prompt's behaviour, **add a new versioned name** rather than mutating the existing one:
 
 ```
 analyse-pattern-v1   (the original)
@@ -341,16 +341,16 @@ Existing clients keep working against `-v1`; new clients adopt `-v2` on their ow
 
 What's safe to change on a deployed prompt and what isn't:
 
-| Change                                    | Compatibility            | Notes                                                                                                                                                                                                                                                                                |
-| ----------------------------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Add an optional argument                  | Usually safe             | Existing clients omit it; engine renders empty                                                                                                                                                                                                                                       |
-| Add a required argument                   | **Breaking**             | Existing invocations get `INVALID_PARAMS`. Add as optional first, then promote later.                                                                                                                                                                                                |
-| Remove an argument                        | **Potentially breaking** | Sunrise tolerates clients still passing the removed name (renders nothing), but: any template still referencing `{{removed}}` will render that placeholder literally — visible to users. Other MCP servers may reject unknown args outright. Update the template at the same commit. |
-| Rename an argument                        | **Breaking**             | A rename is "remove + add" from every client's perspective. Equivalent to a new required arg.                                                                                                                                                                                        |
-| Rename the prompt                         | **Breaking**             | Every client / bookmark / saved workflow breaks. Use a versioned new name instead.                                                                                                                                                                                                   |
-| Change semantics of the template silently | **Breaking in practice** | Wire format is identical but the meaning changes — users see surprising behaviour. Version the prompt rather than rewriting in place.                                                                                                                                                |
-| Change `description`                      | Safe                     | Display-only.                                                                                                                                                                                                                                                                        |
-| Toggle `isEnabled`                        | Safe at protocol level   | `notifications/prompts/list_changed` fires; well-behaved clients re-list.                                                                                                                                                                                                            |
+| Change                                    | Compatibility            | Notes                                                                                                                                                                                                                                                                                    |
+| ----------------------------------------- | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Add an optional argument                  | Usually safe             | Existing clients omit it; engine renders empty                                                                                                                                                                                                                                           |
+| Add a required argument                   | **Breaking**             | Existing invocations get `INVALID_PARAMS`. Add as optional first, then promote later.                                                                                                                                                                                                    |
+| Remove an argument                        | **Potentially breaking** | Resparkable tolerates clients still passing the removed name (renders nothing), but: any template still referencing `{{removed}}` will render that placeholder literally — visible to users. Other MCP servers may reject unknown args outright. Update the template at the same commit. |
+| Rename an argument                        | **Breaking**             | A rename is "remove + add" from every client's perspective. Equivalent to a new required arg.                                                                                                                                                                                            |
+| Rename the prompt                         | **Breaking**             | Every client / bookmark / saved workflow breaks. Use a versioned new name instead.                                                                                                                                                                                                       |
+| Change semantics of the template silently | **Breaking in practice** | Wire format is identical but the meaning changes — users see surprising behaviour. Version the prompt rather than rewriting in place.                                                                                                                                                    |
+| Change `description`                      | Safe                     | Display-only.                                                                                                                                                                                                                                                                            |
+| Toggle `isEnabled`                        | Safe at protocol level   | `notifications/prompts/list_changed` fires; well-behaved clients re-list.                                                                                                                                                                                                                |
 
 ### Prompts vs Tools — common misuse
 
@@ -409,7 +409,7 @@ The negotiated version is stored on the session (`McpSession.protocolVersion`) a
 
 ### Authentication challenge (WWW-Authenticate)
 
-401 responses include `WWW-Authenticate: Bearer realm="sunrise-mcp", error="invalid_token"` (RFC 6750 / RFC 9728). 2025-spec MCP clients use this to detect that the server is bearer-only and skip the OAuth discovery dance. OAuth 2.1 + DCR is captured as a separate roadmap item (see "Authentication" section below — to be added in Phase 7).
+401 responses include `WWW-Authenticate: Bearer realm="resparkable-mcp", error="invalid_token"` (RFC 6750 / RFC 9728). 2025-spec MCP clients use this to detect that the server is bearer-only and skip the OAuth discovery dance. OAuth 2.1 + DCR is captured as a separate roadmap item (see "Authentication" section below — to be added in Phase 7).
 
 ### Error codes
 
@@ -432,7 +432,7 @@ Claude Desktop example (`claude_desktop_config.json`):
 ```json
 {
   "mcpServers": {
-    "sunrise": {
+    "resparkable": {
       "url": "https://your-app.com/api/v1/mcp",
       "headers": {
         "Authorization": "Bearer smcp_your_key_here"

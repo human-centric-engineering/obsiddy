@@ -1,6 +1,6 @@
 # Authentication Decisions & Best Practices
 
-This document covers architectural decisions, performance considerations, and security best practices for authentication in Sunrise.
+This document covers architectural decisions, performance considerations, and security best practices for authentication in Resparkable.
 
 ## Decision History & Trade-offs
 

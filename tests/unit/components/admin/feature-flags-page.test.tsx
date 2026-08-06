@@ -9,7 +9,7 @@
  * - Handling fetch errors gracefully
  * - Callbacks: handleFlagSaved, handleCreateClick, handleEditClick, handleFormClose
  *
- * @see /Users/simonholmes/Documents/Dev/studio/sunrise-tweaks/components/admin/feature-flags-page.tsx
+ * @see /Users/simonholmes/Documents/Dev/studio/resparkable-tweaks/components/admin/feature-flags-page.tsx
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';

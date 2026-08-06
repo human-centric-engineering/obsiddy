@@ -2,7 +2,7 @@
 
 ## Overview
 
-Sunrise includes SEO configuration for search engine optimization, including dynamic sitemap generation, robots.txt configuration, and standardized metadata patterns for social sharing.
+Resparkable includes SEO configuration for search engine optimization, including dynamic sitemap generation, robots.txt configuration, and standardized metadata patterns for social sharing.
 
 ## Files
 
@@ -116,15 +116,15 @@ import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
   title: 'About',
-  description: 'Learn about Sunrise and our mission.',
+  description: 'Learn about Resparkable and our mission.',
   openGraph: {
-    title: 'About - Sunrise',
-    description: 'Learn about Sunrise and our mission.',
+    title: 'About - Resparkable',
+    description: 'Learn about Resparkable and our mission.',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'About - Sunrise',
-    description: 'Learn about Sunrise and our mission.',
+    title: 'About - Resparkable',
+    description: 'Learn about Resparkable and our mission.',
   },
 };
 
@@ -140,7 +140,7 @@ The root layout (`app/layout.tsx`) provides simple base metadata:
 ```typescript
 // app/layout.tsx
 export const metadata: Metadata = {
-  title: 'Sunrise - Next.js Starter',
+  title: 'Resparkable - Next.js Starter',
   description: 'A production-ready Next.js starter template...',
 };
 ```
@@ -153,14 +153,14 @@ Title templates are defined in route group layouts, not the root layout. Each ro
 // app/(public)/layout.tsx, app/(protected)/layout.tsx, app/(auth)/layout.tsx
 export const metadata: Metadata = {
   title: {
-    template: '%s - Sunrise', // Page titles become "About - Sunrise"
-    default: 'Sunrise',
+    template: '%s - Resparkable', // Page titles become "About - Resparkable"
+    default: 'Resparkable',
   },
   description: '...',
 };
 ```
 
-This means page titles like `title: 'About'` become "About - Sunrise" in the browser tab.
+This means page titles like `title: 'About'` become "About - Resparkable" in the browser tab.
 
 ### Metadata Inheritance
 
@@ -171,23 +171,23 @@ app/layout.tsx (root)
 └── Basic title and description
     │
     ├── app/(public)/layout.tsx
-    │   └── title.template: '%s - Sunrise'
+    │   └── title.template: '%s - Resparkable'
     │
     ├── app/(protected)/layout.tsx
-    │   └── title.template: '%s - Sunrise'
+    │   └── title.template: '%s - Resparkable'
     │
     ├── app/(auth)/layout.tsx
-    │   └── title.template: '%s - Sunrise'
+    │   └── title.template: '%s - Resparkable'
     │
     └── app/admin/layout.tsx
-        └── title.template: '%s - Admin - Sunrise'
+        └── title.template: '%s - Admin - Resparkable'
 ```
 
 **How it works:**
 
 - Page sets `title: 'About'`
-- Layout template transforms to "About - Sunrise"
-- Admin pages become "Users - Admin - Sunrise"
+- Layout template transforms to "About - Resparkable"
+- Admin pages become "Users - Admin - Resparkable"
 
 ### Twitter Cards
 
@@ -245,7 +245,7 @@ export const metadata: Metadata = {
         url: '/og/about.png',
         width: 1200,
         height: 630,
-        alt: 'About Sunrise',
+        alt: 'About Resparkable',
       },
     ],
   },
@@ -266,7 +266,7 @@ NEXT_PUBLIC_APP_URL=https://app.example.com
 
 ## Icons and Favicons
 
-Sunrise does not include favicon setup by default. To add icons:
+Resparkable does not include favicon setup by default. To add icons:
 
 1. **Static icons**: Place `favicon.ico` in the `app/` directory
 2. **Generated icons**: Create `app/icon.tsx` for dynamic generation

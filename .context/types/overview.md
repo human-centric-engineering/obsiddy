@@ -1,6 +1,6 @@
 # Type System Overview
 
-Quick reference for the Sunrise type system organization and key files.
+Quick reference for the Resparkable type system organization and key files.
 
 ## Directory Structure
 

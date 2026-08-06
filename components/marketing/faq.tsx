@@ -41,7 +41,7 @@ const maxWidthClasses = {
  * @example
  * <FAQ
  *   items={[
- *     { question: "What is Sunrise?", answer: "A Next.js starter template." },
+ *     { question: "What is Resparkable?", answer: "A Next.js starter template." },
  *     { question: "Is it free?", answer: "Yes, it's open source." },
  *   ]}
  * />

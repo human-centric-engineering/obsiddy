@@ -1,6 +1,6 @@
 # Codebase Test Triage & Quality Plan
 
-**Objective:** Systematically raise the floor of test quality across the entire Sunrise codebase using `/test-triage` for cheap grading, then targeted fixes. Identify areas needing deeper ceiling passes (full `/test-coverage` → `/test-plan` → `/test-write` → `/test-review` cycles).
+**Objective:** Systematically raise the floor of test quality across the entire Resparkable codebase using `/test-triage` for cheap grading, then targeted fixes. Identify areas needing deeper ceiling passes (full `/test-coverage` → `/test-plan` → `/test-write` → `/test-review` cycles).
 
 **Created:** 2026-04-22
 **Status:** In progress (Steps 1a–1d, 2a–2g, 3a–3h, 4a–4d, 5a–5f, 6a–6d, 7a–7e complete)

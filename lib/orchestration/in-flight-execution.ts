@@ -13,7 +13,7 @@
  * silently misinterpreting them.
  */
 
-export const IN_FLIGHT_EXECUTION_STORAGE_KEY = 'sunrise.orchestration.in-flight-execution.v1';
+export const IN_FLIGHT_EXECUTION_STORAGE_KEY = 'resparkable.orchestration.in-flight-execution.v1';
 
 export interface InFlightExecutionRef {
   executionId: string;

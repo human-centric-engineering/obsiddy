@@ -1,7 +1,7 @@
 /**
  * Known LLM provider registry
  *
- * Static catalogue of LLM providers Sunrise recognises out of the box.
+ * Static catalogue of LLM providers Resparkable recognises out of the box.
  * Each entry binds a provider flavour to its env-var name(s), default
  * base URL, and a recommended chat / embedding model. The setup wizard
  * uses this registry to surface "We detected `ANTHROPIC_API_KEY` —

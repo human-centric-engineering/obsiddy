@@ -1,7 +1,7 @@
 /**
  * Security Utilities Module
  *
- * Centralized security features for the Sunrise application.
+ * Centralized security features for the Resparkable application.
  *
  * Features:
  * - Rate limiting (LRU cache-based)

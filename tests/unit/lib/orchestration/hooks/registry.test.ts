@@ -925,7 +925,7 @@ describe('HMAC signing (via dispatchWebhook)', () => {
     vi.useRealTimers();
   });
 
-  it('adds X-Sunrise-Timestamp and X-Sunrise-Signature headers when hook.secret is set', async () => {
+  it('adds X-Resparkable-Timestamp and X-Resparkable-Signature headers when hook.secret is set', async () => {
     const secret = 'a'.repeat(64);
     vi.mocked(prisma.aiEventHook.findMany).mockResolvedValue([
       makeHook({
@@ -944,8 +944,8 @@ describe('HMAC signing (via dispatchWebhook)', () => {
 
     const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
     const headers = init.headers as Record<string, string>;
-    expect(headers['X-Sunrise-Timestamp']).toMatch(/^\d+$/);
-    expect(headers['X-Sunrise-Signature']).toMatch(/^sha256=[0-9a-f]{64}$/);
+    expect(headers['X-Resparkable-Timestamp']).toMatch(/^\d+$/);
+    expect(headers['X-Resparkable-Signature']).toMatch(/^sha256=[0-9a-f]{64}$/);
   });
 
   it('omits signing headers when hook.secret is null', async () => {
@@ -966,8 +966,8 @@ describe('HMAC signing (via dispatchWebhook)', () => {
 
     const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
     const headers = init.headers as Record<string, string>;
-    expect(headers['X-Sunrise-Timestamp']).toBeUndefined();
-    expect(headers['X-Sunrise-Signature']).toBeUndefined();
+    expect(headers['X-Resparkable-Timestamp']).toBeUndefined();
+    expect(headers['X-Resparkable-Signature']).toBeUndefined();
   });
 
   it('refreshes the timestamp on retries so receivers with strict staleness tolerance still accept them', async () => {
@@ -1026,13 +1026,15 @@ describe('HMAC signing (via dispatchWebhook)', () => {
       string,
       string
     >;
-    expect(firstHeaders['X-Sunrise-Timestamp']).toBeDefined();
-    expect(retryHeaders['X-Sunrise-Timestamp']).toBeDefined();
-    expect(Number(retryHeaders['X-Sunrise-Timestamp'])).toBeGreaterThan(
-      Number(firstHeaders['X-Sunrise-Timestamp'])
+    expect(firstHeaders['X-Resparkable-Timestamp']).toBeDefined();
+    expect(retryHeaders['X-Resparkable-Timestamp']).toBeDefined();
+    expect(Number(retryHeaders['X-Resparkable-Timestamp'])).toBeGreaterThan(
+      Number(firstHeaders['X-Resparkable-Timestamp'])
     );
     // Refreshed timestamp → refreshed signature
-    expect(retryHeaders['X-Sunrise-Signature']).not.toBe(firstHeaders['X-Sunrise-Signature']);
+    expect(retryHeaders['X-Resparkable-Signature']).not.toBe(
+      firstHeaders['X-Resparkable-Signature']
+    );
   });
 
   it('signing headers win when admin-supplied custom headers collide with reserved names', async () => {
@@ -1045,8 +1047,8 @@ describe('HMAC signing (via dispatchWebhook)', () => {
           type: 'webhook',
           url: 'https://example.com/collide',
           headers: {
-            'X-Sunrise-Signature': 'sha256=deadbeef',
-            'X-Sunrise-Timestamp': '0',
+            'X-Resparkable-Signature': 'sha256=deadbeef',
+            'X-Resparkable-Timestamp': '0',
           },
         },
         secret,
@@ -1061,8 +1063,8 @@ describe('HMAC signing (via dispatchWebhook)', () => {
 
     const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
     const headers = init.headers as Record<string, string>;
-    expect(headers['X-Sunrise-Signature']).toMatch(/^sha256=[0-9a-f]{64}$/);
-    expect(headers['X-Sunrise-Signature']).not.toBe('sha256=deadbeef');
-    expect(headers['X-Sunrise-Timestamp']).not.toBe('0');
+    expect(headers['X-Resparkable-Signature']).toMatch(/^sha256=[0-9a-f]{64}$/);
+    expect(headers['X-Resparkable-Signature']).not.toBe('sha256=deadbeef');
+    expect(headers['X-Resparkable-Timestamp']).not.toBe('0');
   });
 });

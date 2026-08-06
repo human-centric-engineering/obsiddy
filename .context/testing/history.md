@@ -1,6 +1,6 @@
 # Testing Implementation History
 
-Brief summary of key learnings and solutions discovered during the Sunrise testing infrastructure implementation.
+Brief summary of key learnings and solutions discovered during the Resparkable testing infrastructure implementation.
 
 ## Key Problem Solved
 

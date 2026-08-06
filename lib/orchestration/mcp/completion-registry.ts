@@ -89,7 +89,7 @@ async function loadCandidates(
 
   // ref/resource — special-case the patterns 1–21 enumeration since they
   // never change and admins shouldn't have to maintain a hardcoded list.
-  if (ref.uri.startsWith('sunrise://knowledge/patterns/') && argumentName === 'number') {
+  if (ref.uri.startsWith('resparkable://knowledge/patterns/') && argumentName === 'number') {
     return Array.from({ length: 21 }, (_, i) => String(i + 1));
   }
 

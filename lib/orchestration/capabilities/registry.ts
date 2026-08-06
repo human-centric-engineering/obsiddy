@@ -82,7 +82,7 @@ let appInited = false;
 // ─── App capability registration (fork-readiness seam) ───────────────────────
 
 /**
- * App-contributed capabilities, keyed by slug. An app built on Sunrise
+ * App-contributed capabilities, keyed by slug. An app built on Resparkable
  * pushes into this map at module-import time via `registerAppCapability()`;
  * the map is flushed into the dispatcher on the same lazy path as the
  * built-ins (see `registerBuiltInCapabilities`). Keyed by slug so

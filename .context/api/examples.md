@@ -1,6 +1,6 @@
 # API Client Examples
 
-Patterns for consuming the Sunrise API from client components, server components, and external services.
+Patterns for consuming the Resparkable API from client components, server components, and external services.
 
 ## Client Components
 

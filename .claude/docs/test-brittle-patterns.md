@@ -61,7 +61,7 @@ For POST/PATCH/DELETE, assertions like `expect(body.data.user.email).toBe(reques
 
 ### 9. Error response shape drift from the `errorResponse()` contract
 
-Sunrise's error envelope is `{ success: false, error: { code, message, details? } }`. Tests asserting `{ error: 'Something failed' }`, or just `body.error.code` without checking `body.success === false`, let shape drift ship silently — a later refactor can change the envelope without breaking the test.
+Resparkable's error envelope is `{ success: false, error: { code, message, details? } }`. Tests asserting `{ error: 'Something failed' }`, or just `body.error.code` without checking `body.success === false`, let shape drift ship silently — a later refactor can change the envelope without breaking the test.
 
 **Instead**: assert the full envelope shape — `body.success` AND `body.error.code` AND (where relevant) `body.error.message`. Consider a shared `parseErrorResponse()` helper that enforces the contract at the assertion boundary.
 

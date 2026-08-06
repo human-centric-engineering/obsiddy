@@ -29,7 +29,7 @@
  * tokens of the model's actual count.
  *
  * Reference: github.com/hmarr/openai-chat-tokens (MIT) — re-implemented
- * here to avoid a runtime dep and to use Sunrise's `gpt-tokenizer`.
+ * here to avoid a runtime dep and to use Resparkable's `gpt-tokenizer`.
  */
 
 import { encode as encodeO200k } from 'gpt-tokenizer/encoding/o200k_base';

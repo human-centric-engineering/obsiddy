@@ -42,7 +42,7 @@ not a blocker for that.
 
 `eslint-plugin-react-hooks` 7.1's `recommended` preset turns the **full React
 Compiler ruleset on as errors**. The decisive fact for how we configure it:
-**Sunrise does not run the React Compiler** — there is no `babel-plugin-react-compiler`
+**Resparkable does not run the React Compiler** — there is no `babel-plugin-react-compiler`
 and no `reactCompiler` flag in `next.config`. That splits the ruleset cleanly:
 
 - **Correctness rules** catch real bugs whether or not the compiler runs. Kept at
@@ -172,7 +172,7 @@ runs the shipped rule from `eslint.config.mjs` through ESLint's `Linter`.
 
 ### Fork-owned config seam — `lib/app/eslint.config.mjs`
 
-The boundary above is Sunrise's own. A **fork** that needs to add its _own_
+The boundary above is Resparkable's own. A **fork** that needs to add its _own_
 import-boundary rules (e.g. a framework tier enforcing `framework ↔ core`) does
 so without editing the root config: the root `eslint.config.mjs` imports and
 spreads the reserved `lib/app/eslint.config.mjs` (ships `export default []`) as
@@ -184,7 +184,7 @@ Two rules of the seam, both consequences of flat-config semantics already
 described above:
 
 - **Spread order is load-bearing — the seam lands last.** A later block overrides
-  an earlier one for overlapping `files`. A framework-tier fork (Sunrise →
+  an earlier one for overlapping `files`. A framework-tier fork (Resparkable →
   framework → leaf) spreads its `lib/framework/eslint.config.mjs` first and keeps
   the leaf seam last.
 - **`no-restricted-imports` replaces, it does not merge** (same footgun the
@@ -196,7 +196,7 @@ described above:
 The companion **CI seam** is a `package.json` addition, not a config file: the
 `lint` job runs `npm run app:ci-checks --if-present`, so a fork adds an
 `app:ci-checks` script (a boundary check, migration-hygiene lint, etc.) with **no
-`ci.yml` edit**. It no-ops in vanilla Sunrise, which ships no such script.
+`ci.yml` edit**. It no-ops in vanilla Resparkable, which ships no such script.
 
 ## Backlog (post-fork-readiness, not blockers)
 

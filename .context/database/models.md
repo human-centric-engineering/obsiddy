@@ -2,7 +2,7 @@
 
 ## Prisma Client Usage
 
-This document covers practical patterns for working with Prisma models in Sunrise, including CRUD operations, relations, validation, and performance optimization.
+This document covers practical patterns for working with Prisma models in Resparkable, including CRUD operations, relations, validation, and performance optimization.
 
 ## Prisma Client Setup
 

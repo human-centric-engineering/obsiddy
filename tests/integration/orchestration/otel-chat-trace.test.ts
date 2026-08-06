@@ -376,10 +376,10 @@ describe('StreamingChatHandler — OTEL span tree (integration)', () => {
     // Assert — chat.turn span: ok status, documented attributes
     const chatSpan = findSpan(tracer.spans, 'chat.turn');
     expect(chatSpan.status?.code).toBe('ok');
-    expect(chatSpan.attributes['sunrise.user_id']).toBe(USER_ID);
-    expect(chatSpan.attributes['sunrise.agent_slug']).toBe(AGENT_SLUG);
-    expect(chatSpan.attributes['sunrise.agent_id']).toBe(AGENT_ID);
-    expect(chatSpan.attributes['sunrise.conversation_id']).toBe(CONVERSATION_ID);
+    expect(chatSpan.attributes['resparkable.user_id']).toBe(USER_ID);
+    expect(chatSpan.attributes['resparkable.agent_slug']).toBe(AGENT_SLUG);
+    expect(chatSpan.attributes['resparkable.agent_id']).toBe(AGENT_ID);
+    expect(chatSpan.attributes['resparkable.conversation_id']).toBe(CONVERSATION_ID);
     expect(chatSpan.attributes['gen_ai.request.model']).toBe('gpt-4o-mini');
 
     // Assert — llm.call span: ok status, correct system/token attributes
@@ -388,7 +388,7 @@ describe('StreamingChatHandler — OTEL span tree (integration)', () => {
     expect(llmSpan.attributes['gen_ai.system']).toBe('openai');
     expect(llmSpan.attributes['gen_ai.usage.input_tokens']).toBe(10);
     expect(llmSpan.attributes['gen_ai.usage.output_tokens']).toBe(20);
-    expect(llmSpan.attributes['sunrise.tool_iteration']).toBe(1);
+    expect(llmSpan.attributes['resparkable.tool_iteration']).toBe(1);
 
     // Assert — exactly one llm.call span was recorded
     expect(tracer.spans.filter((s) => s.name === 'llm.call')).toHaveLength(1);
@@ -480,8 +480,8 @@ describe('StreamingChatHandler — OTEL span tree (integration)', () => {
     expect(llmCalls).toHaveLength(2);
 
     // tool_iteration increments across iterations
-    expect(llmCalls[0].attributes['sunrise.tool_iteration']).toBe(1);
-    expect(llmCalls[1].attributes['sunrise.tool_iteration']).toBe(2);
+    expect(llmCalls[0].attributes['resparkable.tool_iteration']).toBe(1);
+    expect(llmCalls[1].attributes['resparkable.tool_iteration']).toBe(2);
 
     // First call triggered a tool — usage came from the done chunk
     expect(llmCalls[0].attributes['gen_ai.usage.input_tokens']).toBe(15);
@@ -557,8 +557,8 @@ describe('StreamingChatHandler — OTEL span tree (integration)', () => {
     const failedSpan = llmCalls[0];
     expect(failedSpan.status?.code).toBe('error');
     expect(failedSpan.exceptions).toHaveLength(1);
-    expect(failedSpan.attributes['sunrise.provider.failover_from']).toBe('openai');
-    expect(failedSpan.attributes['sunrise.provider.failover_to']).toBe('anthropic');
+    expect(failedSpan.attributes['resparkable.provider.failover_from']).toBe('openai');
+    expect(failedSpan.attributes['resparkable.provider.failover_to']).toBe('anthropic');
 
     // Second span: ok status, fallback provider slug, correct token counts
     const successSpan = llmCalls[1];

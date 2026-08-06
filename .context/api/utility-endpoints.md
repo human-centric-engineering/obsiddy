@@ -125,7 +125,7 @@ POST /api/v1/contact
 {
   "name": "John Doe",
   "email": "john@example.com",
-  "subject": "Question about Sunrise",
+  "subject": "Question about Resparkable",
   "message": "I'd like to learn more about your product...",
   "website": ""
 }

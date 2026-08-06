@@ -1,6 +1,6 @@
 # OAuth Provider Integration
 
-This document covers setting up OAuth providers (Google, GitHub, etc.) for social login in Sunrise.
+This document covers setting up OAuth providers (Google, GitHub, etc.) for social login in Resparkable.
 
 ## Google OAuth Setup
 
@@ -45,7 +45,7 @@ export const auth = betterAuth({
 
 ## OAuth Components
 
-Sunrise includes reusable OAuth components in `components/forms/`.
+Resparkable includes reusable OAuth components in `components/forms/`.
 
 ### Generic OAuth Button
 

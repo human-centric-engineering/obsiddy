@@ -4,7 +4,7 @@
  * `lib/app/csp.ts` lets a fork embed third-party iframes without editing the
  * platform's CSP table. The values are spliced into a header, so the seam is
  * validated once at module load — this file exercises that filter with a mocked
- * seam, since the real one is empty in vanilla Sunrise.
+ * seam, since the real one is empty in vanilla Resparkable.
  *
  * Lives in its own file because the validated list is computed at import time;
  * each case needs a fresh module graph.
@@ -44,7 +44,7 @@ describe('CSP frame-src app seam', () => {
     vi.unstubAllEnvs();
   });
 
-  it('leaves frame-src at "self" when the seam is empty (vanilla Sunrise)', async () => {
+  it('leaves frame-src at "self" when the seam is empty (vanilla Resparkable)', async () => {
     const { getCSPConfig } = await loadHeadersWith([]);
 
     expect(getCSPConfig()['frame-src']).toEqual(["'self'"]);

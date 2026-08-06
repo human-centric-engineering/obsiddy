@@ -9,7 +9,7 @@
  * - Success and error states
  * - API client integration
  *
- * @see /Users/simonholmes/Documents/Dev/studio/sunrise/components/forms/contact-form.tsx
+ * @see /Users/simonholmes/Documents/Dev/studio/resparkable/components/forms/contact-form.tsx
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';

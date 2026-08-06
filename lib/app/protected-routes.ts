@@ -1,7 +1,7 @@
 /**
  * App-owned protected route prefixes.
  *
- * **Fork-owned scaffold** — Sunrise ships this empty (`[]`) and does NOT change
+ * **Fork-owned scaffold** — Resparkable ships this empty (`[]`) and does NOT change
  * it after release, so your edits merge cleanly on upgrade (the stable contract
  * is this export, not its value).
  *
@@ -22,9 +22,9 @@
  * proxy runtime.
  */
 export const appProtectedRoutes: string[] = [
-  // Obsiddy — the whole second brain is behind auth. Per-resource
+  // Resparkable — the whole second brain is behind auth. Per-resource
   // authorisation still happens in the route handlers; this is only the edge
   // redirect-to-login gate. Public share links live under `/s/*` (Release 2)
   // and are deliberately NOT listed here.
-  '/obsiddy',
+  '/resparkable',
 ];

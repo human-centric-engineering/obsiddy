@@ -16,7 +16,7 @@
  * - Renders Card components (Card, CardHeader, CardContent)
  * - Suspense boundary renders fallback during loading
  *
- * @see /Users/simonholmes/Documents/Dev/studio/sunrise/app/(auth)/accept-invite/page.tsx
+ * @see /Users/simonholmes/Documents/Dev/studio/resparkable/app/(auth)/accept-invite/page.tsx
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -234,7 +234,7 @@ describe('AcceptInvitePage', () => {
       const { metadata } = await import('@/app/(auth)/accept-invite/page');
 
       // Assert: Metadata description is correct
-      expect(metadata.description).toBe('Accept your invitation to join Sunrise');
+      expect(metadata.description).toBe('Accept your invitation to join Resparkable');
     });
   });
 

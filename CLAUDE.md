@@ -4,7 +4,7 @@ Instructions for Claude Code when working in this repository.
 
 ## Project Overview
 
-**Sunrise** is a production-ready Next.js 16 starter template with App Router, PostgreSQL/Prisma, better-auth, and Docker deployment. Optimized for AI-assisted development.
+**Resparkable** is a production-ready Next.js 16 starter template with App Router, PostgreSQL/Prisma, better-auth, and Docker deployment. Optimized for AI-assisted development.
 
 **Stack versions (breaking changes from prior versions — use MCP/Context7 for current docs):**
 
@@ -112,7 +112,7 @@ import { logger } from '../../lib/logging'; // ❌
 import { FormError } from './form-error'; // ❌ no exception for siblings
 ```
 
-**Why no sibling-import exception:** Sunrise is a starter template. Downstream forks copy folders, rename modules, and split capsules — `@/` survives those moves; `./` breaks silently. A single mechanical rule is also grep-checkable by `/pre-pr` and `/code-review`, removes "is this local or cross-module?" judgment, and avoids the slow drift toward inconsistency that exception-laden rules invite. We accept the cost: cohesive capsules (`components/forms/`, `components/admin/orchestration/workflow-builder/`) read slightly more verbosely than they would with `./` siblings. That trade is intentional, not an oversight.
+**Why no sibling-import exception:** Resparkable is a starter template. Downstream forks copy folders, rename modules, and split capsules — `@/` survives those moves; `./` breaks silently. A single mechanical rule is also grep-checkable by `/pre-pr` and `/code-review`, removes "is this local or cross-module?" judgment, and avoids the slow drift toward inconsistency that exception-laden rules invite. We accept the cost: cohesive capsules (`components/forms/`, `components/admin/orchestration/workflow-builder/`) read slightly more verbosely than they would with `./` siblings. That trade is intentional, not an oversight.
 
 ### API Response Format
 
@@ -265,15 +265,15 @@ All commands default to branch diff mode but accept file/folder paths. The test-
 
 **Entry point:** `.context/substrate.md` — full navigation and AI usage patterns
 
-> **Two namespace tiers are reserved for downstream forks — Sunrise core must
+> **Two namespace tiers are reserved for downstream forks — Resparkable core must
 > never create files or tables under either.** `/app` is the **leaf-fork** tier
 > (`.context/app/`, `lib/app/**` fork-owned scaffold, and
 > `prisma/schema/app.prisma` — which ships empty; the platform's own app-domain
 > models live in `prisma/schema/platform.prisma`). `/framework` is the
-> **framework-layer** tier for forks that sit _between_ Sunrise and their own
+> **framework-layer** tier for forks that sit _between_ Resparkable and their own
 > leaf forks (e.g. Daybreak): `lib/framework/`, `.context/framework/`,
 > `prisma/schema/framework-*.prisma`, and the `framework_` table prefix. Keeping
-> both empty upstream is what lets a fork's files there merge cleanly. Sunrise
+> both empty upstream is what lets a fork's files there merge cleanly. Resparkable
 > platform docs go under a named domain folder (below); the app boot seam is
 > `lib/app/bootstrap.ts` (empty `initApp()`). See
 > [`CUSTOMIZATION.md`](./CUSTOMIZATION.md#the-appplatform-model).

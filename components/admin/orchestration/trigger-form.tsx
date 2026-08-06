@@ -266,7 +266,7 @@ export function TriggerForm({ mode, initial, workflows, agents, enabledChannels,
                 <code>
                   HMAC-SHA256(&quot;{'{'}ts{'}'}.{'{'}rawBody{'}'}&quot;, secret)
                 </code>{' '}
-                and pass it in the <code>X-Sunrise-Signature</code> header. Save this value
+                and pass it in the <code>X-Resparkable-Signature</code> header. Save this value
                 somewhere safe — it&apos;s shown once on creation, then redacted.
               </p>
             </FieldHelp>

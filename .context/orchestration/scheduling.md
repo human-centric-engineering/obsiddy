@@ -168,7 +168,7 @@ A task held back by its interval reports the string `'skipped'` under its own ke
 
 The same table also gives each task an **in-flight latch** — a task still running from an earlier tick is never started a second time, even after the liveness watchdog below releases the overlap guard.
 
-Forks add their own recurring work through `registerAppJob`, which shares the throttle mechanism (`job-clock.ts`) but keeps a separate registry and clock, so a fork job named `retention` cannot throttle Sunrise's sweep — see [App jobs](#app-jobs--the-fork-seam-on-the-tick) below.
+Forks add their own recurring work through `registerAppJob`, which shares the throttle mechanism (`job-clock.ts`) but keeps a separate registry and clock, so a fork job named `retention` cannot throttle Resparkable's sweep — see [App jobs](#app-jobs--the-fork-seam-on-the-tick) below.
 
 **Response shape:**
 
@@ -265,7 +265,7 @@ Checklist for a scale-to-zero deployment:
 
 Verify it works the way any query-count claim should be verified — enable Prisma query logging and watch an idle deployment. After the first sweep arms the gate you should see **no** queries until the horizon, then one short burst.
 
-**Dev-only in-process ticker.** `instrumentation.ts` arms a 60s `setInterval` that calls `runMaintenanceTick()` directly when `NODE_ENV === 'development'` (first fire ~3s after server startup, after the dev compile warm-up). This is dev-only because production deploys an external cron that is authoritative and survives serverless cold starts; the dev ticker just prevents the "I queued an eval run, why didn't it move?" friction. Opt out with `SUNRISE_DISABLE_DEV_TICK=1` when you want to test the manual flow. The HTTP route and the dev ticker share the same body (`lib/orchestration/maintenance/run-tick.ts`) so the overlap guard, watchdog, and task chain stay identical across both callers.
+**Dev-only in-process ticker.** `instrumentation.ts` arms a 60s `setInterval` that calls `runMaintenanceTick()` directly when `NODE_ENV === 'development'` (first fire ~3s after server startup, after the dev compile warm-up). This is dev-only because production deploys an external cron that is authoritative and survives serverless cold starts; the dev ticker just prevents the "I queued an eval run, why didn't it move?" friction. Opt out with `RESPARKABLE_DISABLE_DEV_TICK=1` when you want to test the manual flow. The HTTP route and the dev ticker share the same body (`lib/orchestration/maintenance/run-tick.ts`) so the overlap guard, watchdog, and task chain stay identical across both callers.
 
 **Operational note — log message change.** The previous synchronous tick wrote a single `Maintenance tick completed` log line containing all per-task results. With background execution, the per-task results are now written from the background chain's `.then()` as `Maintenance tick background tasks completed` once the chain settles. Any log-based dashboard or alert keyed on the old `Maintenance tick completed` string needs to be updated to match the new message before relying on it. The synchronous response itself only carries the `schedules` result and the `backgroundTasks` name list — see the response shape above.
 
@@ -324,7 +324,7 @@ tick rather than standing up a second scheduler.
 
 `lib/orchestration/maintenance/app-jobs.ts` holds the registry;
 `lib/app/jobs.ts` is the fork-owned scaffold that fills it (ships empty, so
-vanilla Sunrise pays nothing — `runDueAppJobs()` short-circuits on an empty
+vanilla Resparkable pays nothing — `runDueAppJobs()` short-circuits on an empty
 registry).
 
 ```typescript

@@ -253,7 +253,7 @@ describe('sanitiseHookErrorMessage', () => {
   });
 
   it('replaces POSIX absolute paths with <path>', () => {
-    expect(sanitiseHookErrorMessage('Cannot read /Users/alice/code/sunrise/lib/foo.ts')).toBe(
+    expect(sanitiseHookErrorMessage('Cannot read /Users/alice/code/resparkable/lib/foo.ts')).toBe(
       'Cannot read <path>'
     );
     expect(sanitiseHookErrorMessage('Error in /home/runner/work/repo/lib/x.ts at line 42')).toBe(
@@ -965,7 +965,7 @@ describe('drainEngine: engine crash path', () => {
 
     // Error message contains an absolute path — the sanitiser MUST strip it
     // from the hook payload, but the DB row MUST retain the full message.
-    const dirtyMessage = 'Cannot read /Users/alice/code/sunrise/lib/foo.ts at line 42';
+    const dirtyMessage = 'Cannot read /Users/alice/code/resparkable/lib/foo.ts at line 42';
     mockExecute.mockReturnValue(
       // eslint-disable-next-line require-yield
       (async function* () {

@@ -1,10 +1,10 @@
 # Monitoring & Observability
 
-This domain covers production-ready monitoring and observability features for Sunrise.
+This domain covers production-ready monitoring and observability features for Resparkable.
 
 ## Overview
 
-Sunrise includes a comprehensive monitoring stack:
+Resparkable includes a comprehensive monitoring stack:
 
 | Feature                | Status | Location                           |
 | ---------------------- | ------ | ---------------------------------- |

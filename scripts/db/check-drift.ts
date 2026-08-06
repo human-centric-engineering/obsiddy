@@ -11,7 +11,7 @@
  * project's `lib/db/client` singleton). Exits 0 if every probe succeeds,
  * non-zero on the first failure.
  *
- * Two probe sets run together: Sunrise's own A-series (`DRIFT_OBJECTS` below)
+ * Two probe sets run together: Resparkable's own A-series (`DRIFT_OBJECTS` below)
  * and any fork-registered probes (`lib/app/db-drift.ts`). Forks register their
  * own unmodelled objects there — they never edit this platform script. The
  * probe primitives and registry live in `@/lib/db/drift-probes`.
@@ -56,7 +56,7 @@ const englishTsConfigExists: Probe = async () => {
 };
 
 /**
- * Sunrise's own (platform-owned) unmodelled objects — the A-series. Forks add
+ * Resparkable's own (platform-owned) unmodelled objects — the A-series. Forks add
  * their own via `lib/app/db-drift.ts`, never by editing this array.
  */
 const DRIFT_OBJECTS: DriftObject[] = [

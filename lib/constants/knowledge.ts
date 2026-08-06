@@ -29,7 +29,7 @@ export const DEFAULT_KNOWLEDGE_TAB: KnowledgeTab = KNOWLEDGE_TABS.MANAGE;
  *
  * Used by useTrackedUrlTabs to update document.title on tab change — which
  * OVERWRITES the layout's `%s - ${BRAND.name}` metadata template, so these must
- * route through the same seam or a fork sees "Sunrise" in the browser tab.
+ * route through the same seam or a fork sees "Resparkable" in the browser tab.
  */
 export const KNOWLEDGE_TAB_TITLES: Record<KnowledgeTab, string> = {
   [KNOWLEDGE_TABS.MANAGE]: `Manage - Knowledge Base - ${BRAND.name}`,

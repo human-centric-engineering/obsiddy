@@ -2,7 +2,7 @@
 
 ## System Architecture
 
-Sunrise implements a **monolithic architecture** using Next.js 16+ with the App Router pattern. The system separates concerns through route groups, server/client component boundaries, and a versioned API layer for external access.
+Resparkable implements a **monolithic architecture** using Next.js 16+ with the App Router pattern. The system separates concerns through route groups, server/client component boundaries, and a versioned API layer for external access.
 
 ### High-Level Architecture
 
@@ -259,7 +259,7 @@ sequenceDiagram
 
 ## Additional Systems
 
-Sunrise includes several supporting systems documented in their respective locations:
+Resparkable includes several supporting systems documented in their respective locations:
 
 | System         | Location             | Purpose                                 |
 | -------------- | -------------------- | --------------------------------------- |
@@ -367,7 +367,7 @@ For authentication security (sessions, passwords, OAuth), see [Auth Security](..
 
 ## Tenancy
 
-Sunrise is **single-tenant by default** and ships no tenancy machinery. Forks
+Resparkable is **single-tenant by default** and ships no tenancy machinery. Forks
 that need to host multiple isolated customers in one deployment follow the
 Postgres-RLS retrofit in [Multi-Tenancy Playbook](./multi-tenancy.md). The only
 trace in the baseline is an inert `TENANCY_MODE` seam (default `single`).

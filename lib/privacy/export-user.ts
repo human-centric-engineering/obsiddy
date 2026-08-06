@@ -82,7 +82,7 @@ export interface SubjectExport {
   attributions: Record<string, unknown[]>;
   /** Erasure receipts naming this subject. Normally empty for a live account. */
   erasureReceipts: unknown[];
-  /** App-owned data, from the `lib/app/data-export.ts` seam. Empty in vanilla Sunrise. */
+  /** App-owned data, from the `lib/app/data-export.ts` seam. Empty in vanilla Resparkable. */
   app: AppSubjectData;
 }
 

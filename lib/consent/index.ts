@@ -1,7 +1,7 @@
 /**
  * Cookie Consent Module
  *
- * GDPR/PECR-compliant cookie consent system for Sunrise.
+ * GDPR/PECR-compliant cookie consent system for Resparkable.
  *
  * @example
  * ```tsx

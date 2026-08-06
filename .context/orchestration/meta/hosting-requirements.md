@@ -1,6 +1,6 @@
-# Hosting Requirements — Sunrise + Orchestration Layer
+# Hosting Requirements — Resparkable + Orchestration Layer
 
-What it takes to run Sunrise in production with the agentic layer enabled, the gotchas that bite first, and how the realistic deployment targets compare. Written for engineers picking a platform **and** for smart readers who haven't deployed much before.
+What it takes to run Resparkable in production with the agentic layer enabled, the gotchas that bite first, and how the realistic deployment targets compare. Written for engineers picking a platform **and** for smart readers who haven't deployed much before.
 
 **Last updated:** 2026-05-06
 
@@ -35,10 +35,10 @@ If any of the words below are new, this section is the floor. None of these are 
 | **Managed platform**   | A service that runs your app for you (Vercel, Render, Fly.io). You give it a Git repo and env vars; it builds, deploys, and serves it.                                                              |
 | **Docker / container** | A way to package an app together with everything it needs to run, so it behaves the same on your laptop and on a server. The repo includes a `Dockerfile` that describes how to build that package. |
 | **Reverse proxy**      | A web server (usually nginx) that sits in front of your app, terminates HTTPS, and forwards requests to it. Most managed platforms hide this from you.                                              |
-| **SSE**                | Server-Sent Events — a way for the server to keep a single HTTP connection open and push messages over it. Sunrise uses SSE so chats can stream tokens.                                             |
-| **pgvector**           | A PostgreSQL extension that adds vector similarity search. Sunrise needs it so agents can search your knowledge base by meaning, not just keyword.                                                  |
+| **SSE**                | Server-Sent Events — a way for the server to keep a single HTTP connection open and push messages over it. Resparkable uses SSE so chats can stream tokens.                                         |
+| **pgvector**           | A PostgreSQL extension that adds vector similarity search. Resparkable needs it so agents can search your knowledge base by meaning, not just keyword.                                              |
 | **Function timeout**   | On serverless platforms, each request runs inside a "function" with a maximum duration (e.g. 60 s). Long agent runs and SSE streams can hit this ceiling.                                           |
-| **Cron / cron tick**   | A scheduler that runs a command on a schedule (e.g. every minute). Sunrise expects something external to "tick" one URL every minute.                                                               |
+| **Cron / cron tick**   | A scheduler that runs a command on a schedule (e.g. every minute). Resparkable expects something external to "tick" one URL every minute.                                                           |
 | **Migration**          | A change to the database schema. `prisma migrate deploy` applies any new migrations to the production DB. Must run before the new app starts.                                                       |
 | **Standalone build**   | A flag (`output: 'standalone'`) that makes Next.js bundle a small, self-contained Node server. Already enabled in `next.config.js`.                                                                 |
 
@@ -50,9 +50,9 @@ If you remember one thing: **pick a platform, give it your repo, set the environ
 
 ### 1.1 Process model
 
-In plain terms: Sunrise is a normal long-running web server (Node.js). Some platforms (Vercel) run web apps as short-lived "functions" instead, which is great for short requests but creates friction for the agentic layer's long streams.
+In plain terms: Resparkable is a normal long-running web server (Node.js). Some platforms (Vercel) run web apps as short-lived "functions" instead, which is great for short requests but creates friction for the agentic layer's long streams.
 
-Sunrise runs as a **single long-lived Node 20+ process** built from `next build` with `output: 'standalone'` (`next.config.js:4`). The orchestration layer assumes a real, persistent Node runtime — it is not designed for an Edge runtime, and several pieces (native modules, long SSE streams, in-process scheduling assumptions) preclude purely serverless execution models that hard-cap function duration at 60 seconds.
+Resparkable runs as a **single long-lived Node 20+ process** built from `next build` with `output: 'standalone'` (`next.config.js:4`). The orchestration layer assumes a real, persistent Node runtime — it is not designed for an Edge runtime, and several pieces (native modules, long SSE streams, in-process scheduling assumptions) preclude purely serverless execution models that hard-cap function duration at 60 seconds.
 
 | Requirement                           | Why it matters                                                                                          |
 | ------------------------------------- | ------------------------------------------------------------------------------------------------------- |
@@ -64,7 +64,7 @@ Sunrise runs as a **single long-lived Node 20+ process** built from `next build`
 
 ### 1.2 Native dependencies
 
-In plain terms: a few of the libraries Sunrise uses are not pure JavaScript — they include compiled binaries. Most platforms handle this transparently; the only platform-level catch is that very stripped-down Linux images (Alpine) need an extra package.
+In plain terms: a few of the libraries Resparkable uses are not pure JavaScript — they include compiled binaries. Most platforms handle this transparently; the only platform-level catch is that very stripped-down Linux images (Alpine) need an extra package.
 
 | Dependency      | Purpose                                  | Host implication                                          |
 | --------------- | ---------------------------------------- | --------------------------------------------------------- |
@@ -78,7 +78,7 @@ The `Dockerfile` already handles `libc6-compat` and the standalone trace; non-Do
 
 ### 1.3 Database — PostgreSQL with `pgvector`
 
-In plain terms: Sunrise needs PostgreSQL with one extra extension installed (`pgvector`) so the knowledge base can search documents by meaning. Most managed Postgres providers either include it or let you turn it on with one command. A Postgres install you do yourself on a VPS will need an extra `apt install` step.
+In plain terms: Resparkable needs PostgreSQL with one extra extension installed (`pgvector`) so the knowledge base can search documents by meaning. Most managed Postgres providers either include it or let you turn it on with one command. A Postgres install you do yourself on a VPS will need an extra `apt install` step.
 
 - The baseline migration (`prisma/migrations/00000000000000_baseline/migration.sql`) runs `CREATE EXTENSION vector` — originally added 2026-04-09 by `enable_pgvector`, absorbed into the baseline by the 2026-05-29 squash
 - `docker-compose.prod.yml` ships `pgvector/pgvector:pg15` for this reason
@@ -151,14 +151,14 @@ The MCP server (`/api/v1/mcp`), embed widget endpoints, and self-service API key
 
 ### 2.4 Embed widget on partner sites
 
-In plain terms: the chat widget that ships into a customer's marketing site is loaded by **their** browser, fetched from **your** Sunrise host, and runs inside a Shadow DOM on their page. That cross-origin posture imposes requirements on both sides.
+In plain terms: the chat widget that ships into a customer's marketing site is loaded by **their** browser, fetched from **your** Resparkable host, and runs inside a Shadow DOM on their page. That cross-origin posture imposes requirements on both sides.
 
-**Customer-site CSP.** The partner page's Content-Security-Policy must allow your Sunrise origin in:
+**Customer-site CSP.** The partner page's Content-Security-Policy must allow your Resparkable origin in:
 
 - `script-src` — to load `/api/v1/embed/widget.js`
 - `connect-src` — for the chat SSE stream + REST calls back to `/api/v1/embed/*`
 
-If the partner site has a strict CSP and forgets these, the widget loads as a no-op or throws CSP errors in the browser console. This is something operators must brief partners about — Sunrise cannot configure it on their behalf.
+If the partner site has a strict CSP and forgets these, the widget loads as a no-op or throws CSP errors in the browser console. This is something operators must brief partners about — Resparkable cannot configure it on their behalf.
 
 **`widget.js` is a dynamic API route, not a static file.** `app/api/v1/embed/widget.js/route.ts` regenerates the loader on each request. Per-platform implications:
 
@@ -173,7 +173,7 @@ The same applies to `/api/v1/embed/widget-config` (token-authed config fetch, ca
 
 ## 3. Background work and scheduling
 
-In plain terms: Sunrise doesn't run its own internal cron. It expects something external (your platform's cron feature, or `cron` on a Linux box) to POST to one URL every minute. That POST is what wakes the scheduler up.
+In plain terms: Resparkable doesn't run its own internal cron. It expects something external (your platform's cron feature, or `cron` on a Linux box) to POST to one URL every minute. That POST is what wakes the scheduler up.
 
 The scheduler is **stateless and pull-driven**:
 

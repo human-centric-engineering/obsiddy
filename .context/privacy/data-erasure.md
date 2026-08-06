@@ -1,6 +1,6 @@
 # Account Deletion & Right to Erasure
 
-How Sunrise erases a user and the data tied to them (GDPR Art. 17), and what it
+How Resparkable erases a user and the data tied to them (GDPR Art. 17), and what it
 deliberately retains. The entry point is `eraseUser()` in `lib/privacy/erase-user.ts`;
 both delete endpoints route through it.
 
@@ -152,8 +152,8 @@ resource cleanup) via registered hooks — see
 
 ## App / Fork Tables Relating to `User`
 
-An app built on Sunrise (or an external fork) keeps its own models in its own
-schema file and relates them to the Sunrise `User`. It **cannot** add a Prisma
+An app built on Resparkable (or an external fork) keeps its own models in its own
+schema file and relates them to the Resparkable `User`. It **cannot** add a Prisma
 `@relation` to `User` — that needs a reverse field _on_ `User`, a core edit to
 the most central, most merge-prone model. So the canonical pattern is a **plain
 `String` FK with no `@relation`**, and the referential action is written by hand
@@ -194,7 +194,7 @@ So the migration FK with an explicit `ON DELETE` is **mandatory**, not optional.
 ### What the FK cascade can't do — register a cleanup hook
 
 A `CASCADE` FK is erased automatically by `prisma.user.delete()`. But, exactly as
-for Sunrise's own tables, the cascade **cannot** (1) scrub residual PII left in
+for Resparkable's own tables, the cascade **cannot** (1) scrub residual PII left in
 columns of `SET NULL` retained rows, or (2) delete external resources (object
 storage, search indexes) keyed to the user. For those, register a hook with
 `lib/privacy/erasure-hooks.ts` — it runs inside the same `eraseUser()` flow,
@@ -249,7 +249,7 @@ on `/users/me` to prevent locking the system out of all admins.
 
 The last-admin count uses `humanAdminWhere` (`{ role: 'ADMIN', accountType:
 'HUMAN' }` from [`lib/auth/account.ts`](../../lib/auth/account.ts)), so it
-**excludes** the seeded `system@sunrise.local` config-owner (a `SERVICE`
+**excludes** the seeded `system@resparkable.local` config-owner (a `SERVICE`
 account: role `ADMIN`, no credential, cannot log in). Counting it would let the
 last human admin self-delete down to zero real operators, which would re-open
 the first-user-is-admin bootstrap and silently promote the next signup (issue
@@ -273,4 +273,4 @@ demoted or deleted). See
 - [Security Overview](../security/overview.md) — application security
 - [Auth Security](../auth/security.md) — sessions, password handling
 - `lib/privacy/erasure-hooks.ts` — the app erasure cleanup-hook registry
-- [`CUSTOMIZATION.md`](../../CUSTOMIZATION.md#4-database-schema) — Building on Sunrise: the satellite profile-table pattern for extending `User`
+- [`CUSTOMIZATION.md`](../../CUSTOMIZATION.md#4-database-schema) — Building on Resparkable: the satellite profile-table pattern for extending `User`

@@ -162,7 +162,7 @@ export const POST = withAuth(async (request, session) => {
     attachments: body.attachments,
     // Opaque scope carrier — validated + bounded by the request schema, then
     // threaded verbatim into every capability dispatch. Inert in vanilla
-    // Sunrise (no built-in reads it); a fork consuming it for access control
+    // Resparkable (no built-in reads it); a fork consuming it for access control
     // must re-validate against the user's entitlements (see schema SECURITY note).
     scope: body.scope,
     requestId,

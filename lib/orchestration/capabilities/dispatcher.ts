@@ -47,11 +47,11 @@ import {
   GEN_AI_OPERATION_NAME,
   GEN_AI_TOOL_NAME,
   SPAN_CAPABILITY_DISPATCH,
-  SUNRISE_AGENT_ID,
-  SUNRISE_CAPABILITY_SLUG,
-  SUNRISE_CAPABILITY_SUCCESS,
-  SUNRISE_CONVERSATION_ID,
-  SUNRISE_USER_ID,
+  RESPARKABLE_AGENT_ID,
+  RESPARKABLE_CAPABILITY_SLUG,
+  RESPARKABLE_CAPABILITY_SUCCESS,
+  RESPARKABLE_CONVERSATION_ID,
+  RESPARKABLE_USER_ID,
   setSpanAttributes,
   withSpan,
 } from '@/lib/orchestration/tracing';
@@ -440,12 +440,14 @@ class CapabilityDispatcher {
     return withSpan(
       SPAN_CAPABILITY_DISPATCH,
       {
-        [SUNRISE_CAPABILITY_SLUG]: slug,
+        [RESPARKABLE_CAPABILITY_SLUG]: slug,
         [GEN_AI_TOOL_NAME]: slug,
         [GEN_AI_OPERATION_NAME]: 'tool_call',
-        [SUNRISE_AGENT_ID]: context.agentId,
-        [SUNRISE_USER_ID]: context.userId ?? '',
-        ...(context.conversationId ? { [SUNRISE_CONVERSATION_ID]: context.conversationId } : {}),
+        [RESPARKABLE_AGENT_ID]: context.agentId,
+        [RESPARKABLE_USER_ID]: context.userId ?? '',
+        ...(context.conversationId
+          ? { [RESPARKABLE_CONVERSATION_ID]: context.conversationId }
+          : {}),
       },
       async (span) => {
         // 7. Validate args.
@@ -459,7 +461,7 @@ class CapabilityDispatcher {
               agentId: context.agentId,
               issues: err.issues,
             });
-            setSpanAttributes(span, { [SUNRISE_CAPABILITY_SUCCESS]: false });
+            setSpanAttributes(span, { [RESPARKABLE_CAPABILITY_SUCCESS]: false });
             return {
               success: false,
               error: {
@@ -482,7 +484,7 @@ class CapabilityDispatcher {
             agentId: context.agentId,
             error: err instanceof Error ? err.message : String(err),
           });
-          setSpanAttributes(span, { [SUNRISE_CAPABILITY_SUCCESS]: false });
+          setSpanAttributes(span, { [RESPARKABLE_CAPABILITY_SUCCESS]: false });
           return {
             success: false,
             error: {
@@ -492,7 +494,7 @@ class CapabilityDispatcher {
           };
         }
 
-        setSpanAttributes(span, { [SUNRISE_CAPABILITY_SUCCESS]: result.success });
+        setSpanAttributes(span, { [RESPARKABLE_CAPABILITY_SUCCESS]: result.success });
 
         // 9. Fire-and-forget cost log. The LLM call that triggered this
         //    tool already logged its own tokens, so we record zeros and
@@ -750,11 +752,11 @@ function formatValidationIssues(issues: unknown[]): string {
  * survive a dev hot-reload instead of silently resetting mid-session.
  */
 const globalForDispatcher = globalThis as unknown as {
-  sunriseCapabilityDispatcher?: CapabilityDispatcher;
+  resparkableCapabilityDispatcher?: CapabilityDispatcher;
 };
 
 export const capabilityDispatcher: CapabilityDispatcher =
-  (globalForDispatcher.sunriseCapabilityDispatcher ??= new CapabilityDispatcher());
+  (globalForDispatcher.resparkableCapabilityDispatcher ??= new CapabilityDispatcher());
 
 export type { CapabilityDispatcher };
 

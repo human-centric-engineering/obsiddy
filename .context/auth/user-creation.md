@@ -6,7 +6,7 @@
 
 ## Overview
 
-Sunrise supports three user creation patterns: **self-signup** (email/password or OAuth), **OAuth signup** (social login), and **invitation-based** (admin-initiated with password OR OAuth acceptance). All patterns prioritize security and user experience, and all patterns send welcome emails automatically.
+Resparkable supports three user creation patterns: **self-signup** (email/password or OAuth), **OAuth signup** (social login), and **invitation-based** (admin-initiated with password OR OAuth acceptance). All patterns prioritize security and user experience, and all patterns send welcome emails automatically.
 
 ## Pattern Comparison
 
@@ -45,12 +45,12 @@ Sunrise supports three user creation patterns: **self-signup** (email/password o
 
 ### First-admin bootstrap
 
-Sunrise ships **no default login credentials**. The first real account created on
+Resparkable ships **no default login credentials**. The first real account created on
 a fresh database — via email/password **or** OAuth — is automatically promoted to
 `ADMIN` by `userCreateBeforeHook` (`lib/auth/config.ts`). Every subsequent account
 is a regular `USER`. This is the Ghost/GitLab/Sentry bootstrap pattern.
 
-The seeded `system@sunrise.local` config-owner (`prisma/seeds/001-system-owner.ts`,
+The seeded `system@resparkable.local` config-owner (`prisma/seeds/001-system-owner.ts`,
 `role: ADMIN`, `accountType: SERVICE`, no credential `Account`, cannot log in) is
 a **SERVICE account**, not a real human, so it is excluded from the "is this the
 first user?" count. `accountType` (`HUMAN` | `SERVICE`) is a first-class axis
@@ -452,7 +452,7 @@ databaseHooks: {
         if (shouldSendWelcomeNow) {
           await sendEmail({
             to: user.email,
-            subject: 'Welcome to Sunrise',
+            subject: 'Welcome to Resparkable',
             react: WelcomeEmail({ userName: user.name, userEmail: user.email }),
           });
         }

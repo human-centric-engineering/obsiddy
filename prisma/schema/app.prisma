@@ -1,8 +1,8 @@
 // Fork-owned schema file — reserved for YOUR app's models.
 //
-// Sunrise ships this file empty and never adds models to it, the same way it
+// Resparkable ships this file empty and never adds models to it, the same way it
 // keeps `lib/app/**` and `.context/app/` empty, so a fork's models here merge
-// cleanly on every upstream sync. Sunrise's own app-domain models
+// cleanly on every upstream sync. Resparkable's own app-domain models
 // (ContactSubmission, FeatureFlag, AuthBootstrap) live in `platform.prisma`.
 //
 // The schema is multi-file (`prisma.config.ts` → `schema: 'prisma/schema'`), so

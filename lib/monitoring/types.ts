@@ -90,12 +90,12 @@ export interface HealthCheckResponse {
   /** Application version from package.json (the fork's app version) */
   version: string;
   /**
-   * Sunrise platform version this checkout corresponds to. Distinct from
+   * Resparkable platform version this checkout corresponds to. Distinct from
    * `version` because in a fork the two are owned by different parties:
-   * `version` is the fork's app version; `sunrise` is the upstream platform
-   * version. Sourced from `lib/sunrise-version.ts`. See `VERSIONING.md`.
+   * `version` is the fork's app version; `resparkable` is the upstream platform
+   * version. Sourced from `lib/resparkable-version.ts`. See `VERSIONING.md`.
    */
-  sunrise: string;
+  resparkable: string;
   /** Process uptime in seconds */
   uptime: number;
   /** Timestamp of the health check */

@@ -6,7 +6,7 @@
  * The signature breaks if the URL we reconstruct differs from the URL
  * the provider hit.
  *
- * In production, Sunrise typically sits behind a proxy (Vercel, Cloudflare,
+ * In production, Resparkable typically sits behind a proxy (Vercel, Cloudflare,
  * a load balancer) that terminates TLS and forwards the request over
  * plain HTTP to the Next.js process. `req.url` then reflects the internal
  * `http://` URL, not the public `https://` URL Twilio signed. Two

@@ -7,7 +7,7 @@
 ## Prerequisites
 
 - Render account ([render.com](https://render.com))
-- GitHub or GitLab repository with your Sunrise project
+- GitHub or GitLab repository with your Resparkable project
 
 ## Deployment Steps
 
@@ -16,7 +16,7 @@
 1. Go to [dashboard.render.com](https://dashboard.render.com)
 2. Click "New" > "PostgreSQL"
 3. Configure:
-   - **Name:** `sunrise-db`
+   - **Name:** `resparkable-db`
    - **Region:** Choose closest to your users
    - **PostgreSQL Version:** 15+
    - **Plan:** Free (for testing) or Starter ($7/month)
@@ -27,9 +27,9 @@
 
 1. Click "New" > "Web Service"
 2. Connect your GitHub/GitLab account
-3. Select your Sunrise repository
+3. Select your Resparkable repository
 4. Configure:
-   - **Name:** `sunrise`
+   - **Name:** `resparkable`
    - **Region:** Same as database
    - **Branch:** `main`
    - **Runtime:** Docker
@@ -44,8 +44,8 @@ In Web Service > Environment, add:
 ```
 DATABASE_URL=<Internal Database URL from step 1>
 BETTER_AUTH_SECRET=<generate with: openssl rand -base64 32>
-BETTER_AUTH_URL=https://sunrise.onrender.com
-NEXT_PUBLIC_APP_URL=https://sunrise.onrender.com
+BETTER_AUTH_URL=https://resparkable.onrender.com
+NEXT_PUBLIC_APP_URL=https://resparkable.onrender.com
 NODE_ENV=production
 ```
 
@@ -109,15 +109,15 @@ See [Render Blueprint Spec](https://render.com/docs/blueprint-spec) for the full
 ```yaml
 services:
   - type: web
-    name: sunrise
+    name: resparkable
     runtime: docker
-    repo: https://github.com/your-org/sunrise
+    repo: https://github.com/your-org/resparkable
     branch: main
     healthCheckPath: /api/health
     envVars:
       - key: DATABASE_URL
         fromDatabase:
-          name: sunrise-db
+          name: resparkable-db
           property: connectionString
       - key: BETTER_AUTH_SECRET
         generateValue: true
@@ -129,7 +129,7 @@ services:
         value: production
 
 databases:
-  - name: sunrise-db
+  - name: resparkable-db
     plan: starter
     postgresMajorVersion: 15
 ```
@@ -145,7 +145,7 @@ Deploy with Blueprint:
 For shared variables across services:
 
 1. Go to Dashboard > Environment Groups
-2. Create group (e.g., "sunrise-prod")
+2. Create group (e.g., "resparkable-prod")
 3. Add shared variables
 4. Link to services
 
@@ -228,10 +228,10 @@ render login
 render services list
 
 # View logs
-render logs --service sunrise
+render logs --service resparkable
 
 # Open shell
-render shell --service sunrise
+render shell --service resparkable
 ```
 
 ## Related Documentation

@@ -5,8 +5,8 @@
  *   1. Tier registry — `registerRateLimitTier` / `resolveRateLimitTier`, and
  *      its refusal to shadow built-in tiers.
  *   2. Rule registry — `registerRateLimitRule`'s SECURITY guard (app rules may
- *      not match Sunrise-protected surfaces) and its insertion position
- *      (after every Sunrise rule, before the catch-all).
+ *      not match Resparkable-protected surfaces) and its insertion position
+ *      (after every Resparkable rule, before the catch-all).
  *   3. End-to-end — `applyRateLimit` actually resolves an app tier and applies
  *      an app rule's cap (verified by exhausting a real bucket, not a mock).
  *
@@ -109,7 +109,7 @@ describe('registerRateLimitTier / resolveRateLimitTier', () => {
 
   it("treats prototype-chain keys as non-collisions (Object.hasOwn, not 'in')", () => {
     // `'toString' in RATE_LIMIT_TIERS` is `true` via Object.prototype, which
-    // would trip the built-in guard with a misleading "is a built-in Sunrise
+    // would trip the built-in guard with a misleading "is a built-in Resparkable
     // tier" message — confusing the author and blocking a legitimate tier
     // name. Object.hasOwn ignores the prototype chain, so registration goes
     // through (no built-in actually owns 'toString' as a tier).
@@ -156,11 +156,11 @@ describe('registerRateLimitRule — protected-namespace guard', () => {
   // '/api/v1/auth/...', '/api/v1/mcp...'), so any matcher that fires for an
   // arbitrary path under one of these namespaces is rejected. Specific
   // endpoints inside a namespace need not be probed individually — the prefix
-  // covers them (and stays stable as Sunrise adds new sub-routes).
+  // covers them (and stays stable as Resparkable adds new sub-routes).
   const protectedMatchers: Array<[string, RegExp | string]> = [
     ['core admin namespace (regex)', /^\/api\/v1\/admin\//],
     ['better-auth credential surface', /^\/api\/auth\//],
-    ['Sunrise app-layer auth', /^\/api\/v1\/auth\//],
+    ['Resparkable app-layer auth', /^\/api\/v1\/auth\//],
     ['MCP transport', /^\/api\/v1\/mcp(\/|$)/],
     ['overly-broad /api/v1 (shadows admin)', /^\/api\/v1\//],
     ['overly-broad /api (shadows auth)', /^\/api\//],
@@ -186,12 +186,12 @@ describe('registerRateLimitRule — protected-namespace guard', () => {
     expect(getEffectiveRateLimitPolicy()).not.toBe(RATE_LIMIT_POLICY);
   });
 
-  it('accepts a rule nested INSIDE a Sunrise sub-namespace — ordering, not the guard, protects', () => {
+  it('accepts a rule nested INSIDE a Resparkable sub-namespace — ordering, not the guard, protects', () => {
     // Namespace-prefix probes intentionally do NOT catch matchers more
     // specific than the probe (a regex like /^\/api\/v1\/admin\/orchestration\//
     // doesn't fire for /api/v1/admin/-probe- because the probe lacks
     // "orchestration"). The defence here is first-match-wins ordering: app
-    // rules splice in AFTER every Sunrise rule, so Sunrise's orchestration
+    // rules splice in AFTER every Resparkable rule, so Resparkable's orchestration
     // rule still wins for any orchestration path before the fork's rule is
     // ever evaluated. This test pins the behaviour so a future tightening
     // of the guard is a deliberate change, not an accident.
@@ -204,7 +204,7 @@ describe('registerRateLimitRule — protected-namespace guard', () => {
     // Rule is in the policy...
     expect(eff).not.toBe(RATE_LIMIT_POLICY);
     // ...but a request to /api/v1/admin/orchestration/agents still resolves
-    // to Sunrise's 'orchestration' tier (which comes first), not the fork's 'api'.
+    // to Resparkable's 'orchestration' tier (which comes first), not the fork's 'api'.
     expect(findRateLimitRule('/api/v1/admin/orchestration/agents', eff)?.tier).toBe(
       'orchestration'
     );
@@ -218,7 +218,7 @@ describe('getEffectiveRateLimitPolicy — insertion position', () => {
     expect(getEffectiveRateLimitPolicy()).toBe(RATE_LIMIT_POLICY);
   });
 
-  it('splices an app rule immediately before the catch-all, after all Sunrise rules', () => {
+  it('splices an app rule immediately before the catch-all, after all Resparkable rules', () => {
     const appRule: RateLimitRule = {
       match: /^\/api\/v1\/billing\//,
       tier: 'api',
@@ -234,7 +234,7 @@ describe('getEffectiveRateLimitPolicy — insertion position', () => {
     expect(eff[eff.length - 1]).toBe(baseCatchAll);
     // App rule sits immediately ahead of the catch-all.
     expect(eff[eff.length - 2]).toBe(appRule);
-    // Every Sunrise specific rule still precedes the app rule, unchanged & in order.
+    // Every Resparkable specific rule still precedes the app rule, unchanged & in order.
     expect(eff.slice(0, RATE_LIMIT_POLICY.length - 1)).toEqual(RATE_LIMIT_POLICY.slice(0, -1));
   });
 
@@ -245,7 +245,7 @@ describe('getEffectiveRateLimitPolicy — insertion position', () => {
     expect(rule?.key).toBe('api-key');
   });
 
-  it('does not change resolution for Sunrise-owned paths', () => {
+  it('does not change resolution for Resparkable-owned paths', () => {
     registerRateLimitRule({ match: /^\/api\/v1\/billing\//, tier: 'api', key: 'api-key' });
     const eff = getEffectiveRateLimitPolicy();
     expect(findRateLimitRule('/api/v1/admin/users', eff)?.tier).toBe('admin');
@@ -413,7 +413,7 @@ describe('applyRateLimit — enforces an app-registered tier + rule', () => {
     expect(blocked?.headers.get('X-RateLimit-Limit')).toBe('2');
   });
 
-  it('keeps Sunrise paths on their built-in tier even with an app rule registered', async () => {
+  it('keeps Resparkable paths on their built-in tier even with an app rule registered', async () => {
     // Arrange — register an unrelated app rule, then hit a core admin path.
     registerRateLimitTier('billing', makeLimiter(2));
     registerRateLimitRule({ match: /^\/api\/v1\/billing\//, tier: 'billing', key: 'ip' });
@@ -430,7 +430,7 @@ describe('applyRateLimit — enforces an app-registered tier + rule', () => {
       })
     );
 
-    // Assert — under cap, passes; the app rule didn't perturb Sunrise routing.
+    // Assert — under cap, passes; the app rule didn't perturb Resparkable routing.
     expect(res).toBeNull();
     RATE_LIMIT_TIERS.admin.reset(`mw:admin:session-user:user:${userId}`);
   });

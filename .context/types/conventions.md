@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document describes the type safety patterns and validation conventions used throughout the Sunrise project. Following these patterns ensures consistency, maintainability, and type safety across the codebase.
+This document describes the type safety patterns and validation conventions used throughout the Resparkable project. Following these patterns ensures consistency, maintainability, and type safety across the codebase.
 
 ## Type Organization
 

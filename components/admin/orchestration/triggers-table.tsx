@@ -57,7 +57,7 @@ export function TriggersTable({ triggers, enabledChannels }: Props) {
           <p className="text-muted-foreground mx-auto mt-2 max-w-2xl text-sm">
             A <strong>trigger</strong> is a webhook URL on this server that fires one of your
             workflows. When an external system (Twilio, Slack, Postmark, Meta) POSTs to that URL,
-            Sunrise verifies the signature and starts a new execution of the workflow.
+            Resparkable verifies the signature and starts a new execution of the workflow.
           </p>
         </div>
 

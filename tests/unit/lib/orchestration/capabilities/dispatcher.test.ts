@@ -54,7 +54,7 @@ const { searchKnowledgeWithEmbedding } = await import('@/lib/orchestration/knowl
 const { SearchKnowledgeCapability } =
   await import('@/lib/orchestration/capabilities/built-in/search-knowledge');
 const { registerTracer, resetTracer } = await import('@/lib/orchestration/tracing/registry');
-const { SPAN_CAPABILITY_DISPATCH, SUNRISE_CAPABILITY_SUCCESS } =
+const { SPAN_CAPABILITY_DISPATCH, RESPARKABLE_CAPABILITY_SUCCESS } =
   await import('@/lib/orchestration/tracing/attributes');
 const { MockTracer, findSpan } = await import('@/tests/helpers/mock-tracer');
 
@@ -1105,7 +1105,7 @@ describe('CapabilityDispatcher', () => {
       resetTracer();
     });
 
-    it('sets sunrise.capability.success=false on the capability.dispatch span for invalid_args', async () => {
+    it('sets resparkable.capability.success=false on the capability.dispatch span for invalid_args', async () => {
       // Arrange: OkCapability expects z.number() — passing a string triggers invalid_args
       capabilityDispatcher.register(new OkCapability());
       mockFindMany.mockResolvedValue([makeCapabilityRow()]);
@@ -1121,12 +1121,12 @@ describe('CapabilityDispatcher', () => {
       expect(result.success).toBe(false);
       expect(result.error?.code).toBe('invalid_args');
 
-      // Assert: the capability.dispatch span has sunrise.capability.success=false
+      // Assert: the capability.dispatch span has resparkable.capability.success=false
       const dispatchSpan = findSpan(tracer.spans, SPAN_CAPABILITY_DISPATCH);
-      expect(dispatchSpan.attributes[SUNRISE_CAPABILITY_SUCCESS]).toBe(false);
+      expect(dispatchSpan.attributes[RESPARKABLE_CAPABILITY_SUCCESS]).toBe(false);
     });
 
-    it('sets sunrise.capability.success=false on the capability.dispatch span for execution_error', async () => {
+    it('sets resparkable.capability.success=false on the capability.dispatch span for execution_error', async () => {
       // Arrange: ThrowingCapability.execute always throws
       capabilityDispatcher.register(new ThrowingCapability());
       mockFindMany.mockResolvedValue([makeCapabilityRow({ slug: 'throws' })]);
@@ -1138,9 +1138,9 @@ describe('CapabilityDispatcher', () => {
       expect(result.success).toBe(false);
       expect(result.error?.code).toBe('execution_error');
 
-      // Assert: the capability.dispatch span has sunrise.capability.success=false
+      // Assert: the capability.dispatch span has resparkable.capability.success=false
       const dispatchSpan = findSpan(tracer.spans, SPAN_CAPABILITY_DISPATCH);
-      expect(dispatchSpan.attributes[SUNRISE_CAPABILITY_SUCCESS]).toBe(false);
+      expect(dispatchSpan.attributes[RESPARKABLE_CAPABILITY_SUCCESS]).toBe(false);
     });
 
     it('threads non-empty traceId and spanId from the capability.dispatch span into logCost', async () => {

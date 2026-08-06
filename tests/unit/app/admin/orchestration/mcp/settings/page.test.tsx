@@ -34,7 +34,7 @@ import { API } from '@/lib/api/endpoints';
 
 const mockSettings = {
   isEnabled: true,
-  serverName: 'sunrise-mcp',
+  serverName: 'resparkable-mcp',
   serverVersion: '1.0.0',
   maxSessionsPerKey: 5,
   globalRateLimit: 60,

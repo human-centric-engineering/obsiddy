@@ -292,7 +292,7 @@ export function DefaultModelsForm({
 
   // Configured-provider gate. The form refuses to show dropdowns when
   // there are no providers — the operator can't pick a model that
-  // belongs to a provider Sunrise can't reach.
+  // belongs to a provider Resparkable can't reach.
   const configuredProviderSlugs = React.useMemo(
     () => new Set(providers.filter((p) => p.isActive).map((p) => p.slug)),
     [providers]
@@ -778,8 +778,8 @@ function NoProvidersCTA(): React.ReactElement {
         <p className="font-medium">No providers configured yet</p>
         <p className="text-muted-foreground">
           Default model assignments need at least one configured provider — the dropdowns would
-          otherwise list models Sunrise can&apos;t actually reach. Configure a provider first and
-          come back here to pick defaults.
+          otherwise list models Resparkable can&apos;t actually reach. Configure a provider first
+          and come back here to pick defaults.
         </p>
         <div className="flex flex-wrap gap-2 pt-1">
           <Button asChild size="sm">

@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 /**
  * BrandMark — the header/footer brand slot.
  *
- * **Fork-owned scaffold** — Sunrise ships this rendering `BRAND.name` as plain
+ * **Fork-owned scaffold** — Resparkable ships this rendering `BRAND.name` as plain
  * text and does NOT change it after release, so edits here merge cleanly on
  * upgrade (the stable contract is this file's export, not its body). Treat it
  * like the landing page: a starting point you're expected to modify. Full guide:

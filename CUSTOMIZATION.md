@@ -1,35 +1,35 @@
-# Building on Sunrise
+# Building on Resparkable
 
-The canonical guide for building your own application **on top of** Sunrise —
+The canonical guide for building your own application **on top of** Resparkable —
 whether you forked the repository on GitHub or copied it as a project starter.
 
 Audience: external forkers and app teams. If instead you want to contribute a
-change **back to Sunrise itself**, see [`CONTRIBUTING.md`](./CONTRIBUTING.md).
+change **back to Resparkable itself**, see [`CONTRIBUTING.md`](./CONTRIBUTING.md).
 For deep reference on any subsystem, see the [`.context/`](./.context/) docs.
 
 ---
 
 ## The app/platform model
 
-Sunrise is two tiers of code living in one repository:
+Resparkable is two tiers of code living in one repository:
 
-| Tier         | What it is                                                                                                                         | How you treat it                                            |
-| ------------ | ---------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| **Platform** | Sunrise itself — auth, API conventions, `lib/` utilities, orchestration, the security/rate-limit middleware, the migration tooling | An upgradable dependency. Prefer to extend it, not edit it. |
-| **Your app** | The product you build — your routes, components, models, capabilities, business logic                                              | Freely yours. Add it in new files alongside the platform.   |
+| Tier         | What it is                                                                                                                             | How you treat it                                            |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| **Platform** | Resparkable itself — auth, API conventions, `lib/` utilities, orchestration, the security/rate-limit middleware, the migration tooling | An upgradable dependency. Prefer to extend it, not edit it. |
+| **Your app** | The product you build — your routes, components, models, capabilities, business logic                                                  | Freely yours. Add it in new files alongside the platform.   |
 
 Two principles keep an upgrade from upstream a clean merge instead of a fight:
 
-1. **Extend through the seams, don't fork-and-edit.** Sunrise exposes
+1. **Extend through the seams, don't fork-and-edit.** Resparkable exposes
    designed extension points — add OAuth providers in `lib/auth/config.ts`, add
    models to the Prisma schema, drop new routes under `app/api/v1/` (they
    inherit rate limiting automatically), add pages to a route group, register
    capabilities/agents/workflows in the orchestration layer, declare your env
    vars in `lib/app/env.ts`, register app-scoped rate-limit tiers/rules, swap
    email/storage/analytics providers via their adapters ([§4](#4-configuration--environment--the-libapp-surface)).
-   The fewer existing Sunrise files you modify, the smaller every future merge conflict.
+   The fewer existing Resparkable files you modify, the smaller every future merge conflict.
 
-2. **Depend on the public surface, not internals.** Build against Sunrise's
+2. **Depend on the public surface, not internals.** Build against Resparkable's
    stable helpers rather than reaching into their implementations:
    - `@/` import alias everywhere (never relative paths) — survives upstream file moves
    - API envelope: `successResponse()` / `errorResponse()` (`lib/api/responses.ts`)
@@ -56,24 +56,24 @@ Two principles keep an upgrade from upstream a clean merge instead of a fight:
 | Dependencies & scripts     | `package.json` — see [§7](#7-adding-dependencies--scripts)                                                          |
 | Your own documentation     | `.context/app/` — the fork-owned docs folder (see below)                                                            |
 
-**Where your documentation goes — the `.context/app/` convention.** Sunrise's
+**Where your documentation goes — the `.context/app/` convention.** Resparkable's
 platform docs live under `.context/<domain>/` (e.g. `.context/auth/`,
-`.context/orchestration/`); those are Sunrise-owned and merge from upstream, so
+`.context/orchestration/`); those are Resparkable-owned and merge from upstream, so
 don't edit them. Put **your fork's own documentation in `.context/app/`** —
-Sunrise never creates or writes to that folder, so, like your other new files,
+Resparkable never creates or writes to that folder, so, like your other new files,
 nothing you add there ever conflicts on an upstream merge. Treat `.context/app/`
 as the fork-owned mirror of the platform substrate: add
 `.context/app/<feature>.md` files and, if you like, a `.context/app/README.md`
-index. (This convention is used across Sunrise forks; adopting it keeps app docs
+index. (This convention is used across Resparkable forks; adopting it keeps app docs
 findable in the same place in every fork.)
 
 **Two reserved fork tiers — `/app` (leaf) and `/framework`.** The `/app` surface
-above is the **leaf-fork** tier: fork Sunrise directly and build your product in
+above is the **leaf-fork** tier: fork Resparkable directly and build your product in
 `lib/app/**`, `.context/app/`, and `prisma/schema/app.prisma`. Some forks instead build a reusable
-**framework layer** that sits _between_ Sunrise and their own leaf forks (e.g.
-Daybreak). For those, Sunrise reserves a second tier one level up —
+**framework layer** that sits _between_ Resparkable and their own leaf forks (e.g.
+Daybreak). For those, Resparkable reserves a second tier one level up —
 `lib/framework/`, `.context/framework/`, `prisma/schema/framework-*.prisma`, and
-the `framework_` table prefix. **Sunrise core never creates files or tables
+the `framework_` table prefix. **Resparkable core never creates files or tables
 under either tier**, so both merge cleanly on upgrade. A framework fork owns
 `/framework` and re-exposes `/app` to _its_ leaf forks; boot both through the
 `lib/app/bootstrap.ts` seam ([§4](#4-configuration--environment--the-libapp-surface)).
@@ -92,14 +92,14 @@ under either tier**, so both merge cleanly on upgrade. A framework fork owns
   - `author`: Your name/organization
   - `repository`: Your repository URL
 - [ ] Update `README.md`:
-  - Replace "Sunrise" with your project name
+  - Replace "Resparkable" with your project name
   - Update description and features list
   - Update repository URLs
 - [ ] Copy `.env.example` to `.env.local`
 - [ ] Configure required environment variables (see `.env.example`)
 - [ ] Generate auth secret: `openssl rand -base64 32`
 - [ ] Set `BETTER_AUTH_SECRET` and `BETTER_AUTH_URL` in `.env.local`
-- [ ] **Change `PORT` in `.env.development`** — see below; Sunrise ships `3010`
+- [ ] **Change `PORT` in `.env.development`** — see below; Resparkable ships `3010`
       and your fork should not keep it
 - [ ] Run: `npm install`
 - [ ] Initialize database: `npm run db:migrate:dev`
@@ -108,7 +108,7 @@ under either tier**, so both merge cleanly on upgrade. A framework fork owns
 
 ### Claiming your own dev port
 
-Sunrise commits a `.env.development` holding one line:
+Resparkable commits a `.env.development` holding one line:
 
 ```bash
 PORT=3010
@@ -116,7 +116,7 @@ PORT=3010
 
 `npm run dev` reads it (via `scripts/dev-server.mjs`) and binds that port, so a
 checkout needs no `-p` flag and no per-developer setup. **Your fork inherits
-3010 on the first merge — change it.** Two apps derived from Sunrise that both
+3010 on the first merge — change it.** Two apps derived from Resparkable that both
 keep the default will fight over the port the moment they run together, and the
 second one to start fails with `EADDRINUSE`.
 
@@ -180,7 +180,7 @@ The rule underneath: a real environment variable always beats a file, and
   **tab titles** (written straight to `document.title`, so they would otherwise
   override the layout template), the legal/contact pages' metadata
   (`privacy`, `terms`, `contact`), the **header/footer brand**, and the email
-  templates in one place, no file edits. Defaults to `"Sunrise"` when unset.
+  templates in one place, no file edits. Defaults to `"Resparkable"` when unset.
   Consumed via `lib/brand.ts` (`BRAND.name`); import that constant if you add new
   brand-bearing surfaces. Marketing-page **body copy** (`app/(public)/*`,
   including `about/`'s description of the template itself) is not driven by this
@@ -192,7 +192,7 @@ The rule underneath: a real environment variable always beats a file, and
 - Set **`NEXT_PUBLIC_LEGAL_NAME`** when the copyright is held by a company whose
   name differs from the product — the public footer copyright (`© YEAR …`)
   attributes to this value, not the product name. Defaults to
-  `NEXT_PUBLIC_APP_NAME` (then `"Sunrise"`), so a fork that only sets the app
+  `NEXT_PUBLIC_APP_NAME` (then `"Resparkable"`), so a fork that only sets the app
   name keeps today's output. Consumed via `lib/brand.ts` (`BRAND.legalName`);
   it's deliberately broader than "copyright holder" so it can later drive other
   legal surfaces (Terms/Privacy boilerplate, email footers). Example: product
@@ -265,7 +265,7 @@ The rule underneath: a real environment variable always beats a file, and
 - If your product is invite-gated, closed-beta or B2B-provisioned, set
   `SIGNUP_MODE=invite_only`. It closes `POST /api/auth/sign-up/email`, every
   other un-invited account creation (OAuth included), and the `/signup` page —
-  the invitation system Sunrise already ships becomes the only way in. `open` is
+  the invitation system Resparkable already ships becomes the only way in. `open` is
   the default.
 - **Hiding the signup link is not enough**, which is why this is config rather
   than a copy edit: `POST /api/auth/sign-up/email` is reachable whatever your
@@ -281,7 +281,7 @@ The rule underneath: a real environment variable always beats a file, and
   platform call sites. Copy the platform default from `emails/<kind>.tsx` into
   `components/app/emails/<kind>.tsx`, adapt it, and register it in
   **`lib/app/emails.ts`** keyed by its `EmailKind`. Unset kinds keep the
-  platform default (which Sunrise keeps improving for cross-client
+  platform default (which Resparkable keeps improving for cross-client
   deliverability). Your override must accept that kind's props — the platform
   publishes a stable typed `EmailPropsMap` contract per kind in
   `lib/email/registry.ts`; changing a kind's props is a versioned public-surface
@@ -342,13 +342,13 @@ The rule underneath: a real environment variable always beats a file, and
 ## 4. Configuration & environment — the `lib/app/` surface
 
 `lib/app/` is the **auto-wired extension surface**. Each file is imported by the
-Sunrise core consumer that lives in the right runtime, so your registrations
+Resparkable core consumer that lives in the right runtime, so your registrations
 take effect with **zero wiring** — you fill in the file, you never hunt for a
 startup hook to call it from.
 
-**These files are fork-owned scaffold.** They ship as empty no-ops, and Sunrise
+**These files are fork-owned scaffold.** They ship as empty no-ops, and Resparkable
 does **not** change them after shipping them, so the edits you make merge cleanly
-when you pull an upstream release. (Contrast the marketing pages, which Sunrise
+when you pull an upstream release. (Contrast the marketing pages, which Resparkable
 _does_ keep improving — those stay sync-safe via the thin-shim in
 [§6](#6-landing-page--routes), not by editing the platform file in place.) The stable
 contract the platform depends on is each file's _export_ — the symbol named in
@@ -407,7 +407,7 @@ in **every** environment (it sits above the dev-only maintenance-ticker guards),
 isolated in a try/catch so a boot error is logged but never crashes
 instrumentation. **Import your framework tier _dynamically_** from here
 (`await import('@/lib/framework')`) — a _static_ framework specifier is resolved
-at `next build` and breaks the build in vanilla Sunrise or any fork without that
+at `next build` and breaks the build in vanilla Resparkable or any fork without that
 folder, which is exactly why core references only `@/lib/app/bootstrap` and
 carries zero framework vocabulary. A **framework-layer fork** (see the two-tier
 model below) boots its tier in `bootstrap.ts` and then delegates to a fresh
@@ -489,7 +489,7 @@ Three behaviours worth knowing:
 your tier's own import boundary (e.g. a `framework ↔ core` rule), add flat-config
 blocks to `lib/app/eslint.config.mjs` (ships `export default []`) instead of
 editing the root config. The root `eslint.config.mjs` spreads your array **last**
-— after every Sunrise block — so a block of yours **wins for its own `files`**.
+— after every Resparkable block — so a block of yours **wins for its own `files`**.
 Two things to know: (1) a framework-tier fork spreads its
 `lib/framework/eslint.config.mjs` first and keeps this leaf seam last; (2)
 flat-config **`no-restricted-imports` replaces, it does not merge** — a block
@@ -497,9 +497,9 @@ that restricts imports for a glob must **restate the base `@/`-alias ban** for
 that glob or relative-import enforcement silently drops there (see
 [`.context/architecture/lint-toolchain.md`](./.context/architecture/lint-toolchain.md#app-boundary--libapp)
 for the worked example). For **CI**, add an `app:ci-checks` script to
-`package.json` (a boundary check, migration-hygiene lint, etc.) — Sunrise's
+`package.json` (a boundary check, migration-hygiene lint, etc.) — Resparkable's
 `lint` job already runs `npm run app:ci-checks --if-present`, so it executes with
-**no `ci.yml` edit** (and no-ops in vanilla Sunrise, which ships no such script).
+**no `ci.yml` edit** (and no-ops in vanilla Resparkable, which ships no such script).
 
 **Environment variables — `lib/app/env.ts`.** Declare your own server-side env
 vars in `appEnvSchema`; the core validator merges them into the **same fail-fast
@@ -540,9 +540,9 @@ export function registerAppRateLimits(): void {
 }
 ```
 
-App rules are spliced in after every built-in Sunrise rule and before the
+App rules are spliced in after every built-in Resparkable rule and before the
 `/api/v1/` catch-all, so they govern your namespace only. Registration **throws**
-if a rule could match a Sunrise-protected surface (`/api/v1/admin/**`,
+if a rule could match a Resparkable-protected surface (`/api/v1/admin/**`,
 `/api/auth/**`, `/api/v1/auth/**`, `/api/v1/mcp/**`) or if a tier name collides with
 a built-in — you can't accidentally loosen the auth/admin caps, and the failure
 aborts boot rather than passing silently. The section tiers and per-flow caps are
@@ -623,7 +623,7 @@ admin's raw input, so a hostile stored value yields no iframe at all. See
 **Database drift probes — `lib/app/db-drift.ts`.** Register the Prisma-_unmodelled_
 DB objects your app adds — hand-written FK constraints, custom indexes (GIN/HNSW),
 CHECK constraints — so `npm run db:drift-check` (run in CI and by `/pre-pr`) probes
-them alongside Sunrise's own. Prisma can't see these objects, so without a probe a
+them alongside Resparkable's own. Prisma can't see these objects, so without a probe a
 future `migrate dev` can silently `DROP` one and nothing notices. Fill in the
 auto-wired `registerAppDriftProbes()` with `registerAppDriftProbe({ … })` calls
 using the probe factories from `@/lib/db/drift-probes` (`indexExists`,
@@ -637,9 +637,9 @@ using the probe factories from `@/lib/db/drift-probes` (`indexExists`,
 
 **Modifying the schema:**
 
-- Edit the schema in `prisma/schema/` — Sunrise's models are split into domain
+- Edit the schema in `prisma/schema/` — Resparkable's models are split into domain
   files there; **put your own app models in `prisma/schema/app.prisma`**, which
-  Sunrise ships **empty** and never adds models to (the platform's own
+  Resparkable ships **empty** and never adds models to (the platform's own
   app-domain models live in `platform.prisma`). It is fork-reserved in the same
   way `lib/app/**` and `.context/app/` are, so your models there merge cleanly
   on every upstream sync
@@ -658,7 +658,7 @@ using the probe factories from `@/lib/db/drift-probes` (`indexExists`,
 **Adding user-related data — use a satellite table, don't edit `User`:**
 
 Resist adding columns to the core `User` model. It's the most central, most
-merge-prone platform model (better-auth and Sunrise both evolve it) — editing it
+merge-prone platform model (better-auth and Resparkable both evolve it) — editing it
 is exactly the fork-and-edit trap that turns every upstream merge into a fight.
 Keep app-specific user data in **its own satellite table** in
 `prisma/schema/app.prisma`, linked by a plain `String` FK to `User.id`:
@@ -725,14 +725,14 @@ and types — don't widen `User`'s public shape for app-only fields.
 
 ### Marketing pages — the thin-shim pattern
 
-The marketing pages ship with Sunrise's own copy:
+The marketing pages ship with Resparkable's own copy:
 
 - **Landing page:** `app/(public)/page.tsx`
 - **About page:** `app/(public)/about/page.tsx`
 - **Contact page:** `app/(public)/contact/page.tsx`
 
 Editing these files in place is the worst case for upstream sync: they're large,
-Sunrise keeps improving them, and your rewrite collides with every upstream
+Resparkable keeps improving them, and your rewrite collides with every upstream
 change — a full-file, line-by-line conflict each release.
 
 **The fix is the thin-shim: reduce each platform route file to a one-line
@@ -741,7 +741,7 @@ never conflict on sync, and the route file shrinks to a single line that
 conflicts trivially ("keep mine").
 
 ```tsx
-// app/(public)/page.tsx — Sunrise-tracked; reduce to a re-export of YOUR content
+// app/(public)/page.tsx — Resparkable-tracked; reduce to a re-export of YOUR content
 // app:shim — replaced by app-owned content; keep this line on upstream merges
 export { default, metadata } from '@/components/app/marketing/home-page';
 ```
@@ -750,7 +750,7 @@ export { default, metadata } from '@/components/app/marketing/home-page';
 components/app/marketing/   ← all NEW files; upstream never touches them
 ├── home-page.tsx           ← your landing page (default export + `metadata`)
 ├── about-page.tsx
-└── contact-page.tsx        ← renders Sunrise's <ContactForm>; behavior unchanged
+└── contact-page.tsx        ← renders Resparkable's <ContactForm>; behavior unchanged
 ```
 
 Each content module just exports what the route needs — a `default` component
@@ -765,7 +765,7 @@ one-line, deterministic "keep mine". Label the shim with an `app:shim` region
 comment (as above) so the intent is obvious at merge time.
 
 **Contact page — behavior is untouched.** Only the displayed copy moves. Your
-`contact-page.tsx` keeps rendering Sunrise's `<ContactForm>`
+`contact-page.tsx` keeps rendering Resparkable's `<ContactForm>`
 (`@/components/forms/contact-form.tsx`), which posts to `/api/v1/contact` — Zod
 validation, honeypot, rate limit, DB write, and the admin email notification all
 stay exactly as the platform ships them. You're re-skinning the page, not
@@ -804,7 +804,7 @@ Functional app pages have no platform copy to conflict with — edit them direct
 
 ### Removing default public pages
 
-Sunrise ships public pages a given fork may not want: `/about`, `/contact`,
+Resparkable ships public pages a given fork may not want: `/about`, `/contact`,
 `/privacy`, `/terms` (alongside the `/` landing). Because the App Router derives
 routes from the folder tree, you remove one by **deleting its folder** under
 `app/(public)/` and dropping its link from the fork-owned nav lists in
@@ -812,7 +812,7 @@ routes from the folder tree, you remove one by **deleting its folder** under
 [§4](#4-configuration--environment--the-libapp-surface)). Adding a public page is
 the same in reverse — create `app/(public)/pricing/page.tsx`. Deleting a leaf page
 folder is a clean, Next-native operation; the only upstream-sync cost is the same
-as for any removed core file — if Sunrise later edits that exact page you get a
+as for any removed core file — if Resparkable later edits that exact page you get a
 routine delete/modify conflict, resolved with "keep mine (deleted)".
 
 **Legal-page caveat.** Two of these pages are linked from surfaces that always
@@ -845,7 +845,7 @@ app/(protected)/page.tsx` and self-guard it (`getServerSession()` →
     so its upstream-sync cost is the same as removing any core page.
 
 Either way there's no core proxy edit: the built-in `protectedRoutes` list stays
-as Sunrise ships it, and you extend behaviour through `lib/app/protected-routes.ts`
+as Resparkable ships it, and you extend behaviour through `lib/app/protected-routes.ts`
 and folder placement.
 
 ---
@@ -853,39 +853,39 @@ and folder placement.
 ## 7. Adding dependencies & scripts
 
 `package.json` is shared between the platform and your app, and an upstream
-upgrade is a three-way merge. Keep your additions in regions Sunrise never
+upgrade is a three-way merge. Keep your additions in regions Resparkable never
 touches so that merge stays clean.
 
 **Dependencies:**
 
 - ✅ **Add your own freely** — `npm install <your-package>`. New entries don't
-  collide with Sunrise's.
-- ❌ **Don't change the version of a dependency Sunrise already declares.**
-  Bumping or pinning a Sunrise-owned dependency yourself creates merge
+  collide with Resparkable's.
+- ❌ **Don't change the version of a dependency Resparkable already declares.**
+  Bumping or pinning a Resparkable-owned dependency yourself creates merge
   conflicts on every upgrade and can break platform code that relies on a
   specific version. Dependency versions are the platform's to manage — you
   receive them through upstream merges.
-- If you genuinely need a newer version of a Sunrise-owned dependency, raise it
+- If you genuinely need a newer version of a Resparkable-owned dependency, raise it
   upstream rather than overriding it locally.
 
 **Scripts:**
 
-- Sunrise owns the **unprefixed** script names (`dev`, `build`, `test`,
+- Resparkable owns the **unprefixed** script names (`dev`, `build`, `test`,
   `validate`, `db:*`, `smoke:*`, `email:*`, …).
 - ✅ **Add your app's scripts under an `app:*` namespace** — e.g.
   `app:import`, `app:report`, `app:backfill`. Namespacing guarantees they never
-  collide with a script a future Sunrise release adds.
-- ✅ **A framework-tier fork uses `framework:*`** — if you sit _between_ Sunrise
+  collide with a script a future Resparkable release adds.
+- ✅ **A framework-tier fork uses `framework:*`** — if you sit _between_ Resparkable
   and your own leaf forks (see the two reserved tiers in
   [The app/platform model](#the-appplatform-model)), take `framework:*` and leave
   `app:*` free for the forks downstream of you. Same rule, one tier up.
-- ❌ **Never edit or remove an existing Sunrise script.** Wrap it from an
+- ❌ **Never edit or remove an existing Resparkable script.** Wrap it from an
   `app:*` (or `framework:*`) script if you need to extend its behavior.
 
 ```jsonc
 {
   "scripts": {
-    "dev": "next dev", // ← Sunrise-owned: leave untouched
+    "dev": "next dev", // ← Resparkable-owned: leave untouched
     "app:import": "tsx scripts/app/import.ts", // ← leaf fork: app:* namespace
     "app:report": "tsx scripts/app/report.ts",
     "framework:sync": "tsx scripts/framework/sync.ts", // ← framework tier
@@ -895,7 +895,7 @@ touches so that merge stays clean.
 
 The same split applies to the `scripts/` directory itself: `scripts/app/` is
 leaf-fork-owned, `scripts/framework/` is framework-tier-owned, and everything
-else under `scripts/` is Sunrise's. Neither subdirectory exists upstream — that
+else under `scripts/` is Resparkable's. Neither subdirectory exists upstream — that
 is what lets a fork create one without a merge conflict.
 
 Two script names are **called by CI if they exist** and are otherwise a no-op:
@@ -908,18 +908,18 @@ your dependencies and namespaced scripts sit in regions upstream never edits.
 
 ---
 
-## 8. Tracking your Sunrise version
+## 8. Tracking your Resparkable version
 
 Your fork has **two versions**, deliberately separate. Understanding the split
-costs five minutes and saves the recurring "which Sunrise is this app on?"
+costs five minutes and saves the recurring "which Resparkable is this app on?"
 question forever.
 
 ### The two-version model
 
-| Version           | Source of truth                                      | Typed import (server-side)            | Yours or Sunrise's?                                                     |
-| ----------------- | ---------------------------------------------------- | ------------------------------------- | ----------------------------------------------------------------------- |
-| `version`         | [`package.json`](./package.json)                     | [`APP_VERSION`](./lib/app-version.ts) | **Yours** — your app's version. Bump on your own release cadence.       |
-| `SUNRISE_VERSION` | [`lib/sunrise-version.ts`](./lib/sunrise-version.ts) | (the file itself)                     | **Sunrise's** — which release of the upstream platform you're built on. |
+| Version               | Source of truth                                              | Typed import (server-side)            | Yours or Resparkable's?                                                     |
+| --------------------- | ------------------------------------------------------------ | ------------------------------------- | --------------------------------------------------------------------------- |
+| `version`             | [`package.json`](./package.json)                             | [`APP_VERSION`](./lib/app-version.ts) | **Yours** — your app's version. Bump on your own release cadence.           |
+| `RESPARKABLE_VERSION` | [`lib/resparkable-version.ts`](./lib/resparkable-version.ts) | (the file itself)                     | **Resparkable's** — which release of the upstream platform you're built on. |
 
 You already set the first one in [§1 First steps](#1-first-steps) by editing
 `package.json.version`. Server-side code reads it through the typed
@@ -927,29 +927,29 @@ You already set the first one in [§1 First steps](#1-first-steps) by editing
 `package.json` directly at module load (deliberately not via
 `process.env.npm_package_version`, which is unset under common production
 launchers like `node`-direct Docker entrypoints and Next.js standalone
-builds). The second version is set for you by whichever Sunrise release you
+builds). The second version is set for you by whichever Resparkable release you
 forked from, and updates automatically when you merge in a new upstream
 release.
 
 ### Why not just use `package.json.version`?
 
 Because **you** edit `package.json.version` to track your own app. If
-Sunrise's version were derived from it, the upstream version number would
+Resparkable's version were derived from it, the upstream version number would
 silently follow your fork's — and nobody could ask a running deployment
-_"which Sunrise are you on?"_ without you also publishing a mapping table.
+_"which Resparkable are you on?"_ without you also publishing a mapping table.
 
 The two version files are deliberate siblings in `lib/`:
 
 - `lib/app-version.ts` re-exports your `package.json.version` as a typed
-  `APP_VERSION` string. This file is **part of the platform** — Sunrise ships
+  `APP_VERSION` string. This file is **part of the platform** — Resparkable ships
   it, forks don't edit it (the indirection through `package.json` is the
   whole point — you edit `package.json`, not this file).
-- `lib/sunrise-version.ts` exports `SUNRISE_VERSION` directly. **Sunrise**
+- `lib/resparkable-version.ts` exports `RESPARKABLE_VERSION` directly. **Resparkable**
   maintainers bump the constant on each upstream release; you don't touch
   the file. The header comments in both files restate this so anyone
   scanning the source spots it immediately.
 
-> **Don't:** edit `lib/sunrise-version.ts` in your fork. The only way you'd
+> **Don't:** edit `lib/resparkable-version.ts` in your fork. The only way you'd
 > hit a merge conflict on this file is if you've edited it; resolving the
 > conflict in your favour permanently desyncs your reported version from
 > reality.
@@ -957,16 +957,16 @@ The two version files are deliberate siblings in `lib/`:
 > **Do:** let upstream merges update it. Treat the file as read-only from
 > the fork's perspective.
 
-### Where Sunrise surfaces it
+### Where Resparkable surfaces it
 
-Sunrise's `/api/health` endpoint already includes both versions in its
+Resparkable's `/api/health` endpoint already includes both versions in its
 response:
 
 ```json
 {
   "status": "ok",
   "version": "1.2.3", // your app
-  "sunrise": "0.5.0", // the platform release you're on
+  "resparkable": "0.5.0", // the platform release you're on
   "uptime": 1234,
   "timestamp": "2026-…"
 }
@@ -982,13 +982,13 @@ Import the constants from their canonical locations:
 
 ```ts
 import { APP_VERSION } from '@/lib/app-version';
-import { SUNRISE_VERSION } from '@/lib/sunrise-version';
+import { RESPARKABLE_VERSION } from '@/lib/resparkable-version';
 ```
 
 Common surfaces:
 
-- **Your own health endpoint**, if you replaced Sunrise's. Add
-  `sunrise: SUNRISE_VERSION` (and optionally `version: APP_VERSION`) to the
+- **Your own health endpoint**, if you replaced Resparkable's. Add
+  `resparkable: RESPARKABLE_VERSION` (and optionally `version: APP_VERSION`) to the
   payload.
 - **An admin "About" panel or sidebar footer** — one line, useful when
   triaging issues that might be release-specific.
@@ -997,10 +997,10 @@ Common surfaces:
 
 ### What to do when you upgrade
 
-When you pull a new Sunrise release into your fork:
+When you pull a new Resparkable release into your fork:
 
 1. **Read [`CHANGELOG.md`](./CHANGELOG.md)** for the range of versions you're
-   crossing — start at your previous `SUNRISE_VERSION` and read forward.
+   crossing — start at your previous `RESPARKABLE_VERSION` and read forward.
 2. **Pay particular attention to MAJOR bumps** — breaking changes to the
    public surface (see [`VERSIONING.md` → SemVer rules](./VERSIONING.md#semver-rules-at-10)).
    They're rare during `0.x` and don't force a MAJOR bump even when they
@@ -1013,34 +1013,34 @@ When you pull a new Sunrise release into your fork:
 The mechanical merge steps (migrations, schema, `package.json`) are in the
 next section.
 
-For the full version contract and how Sunrise releases are produced, see
+For the full version contract and how Resparkable releases are produced, see
 [`VERSIONING.md`](./VERSIONING.md) and
 [`CONTRIBUTING.md` → "Cutting a release"](./CONTRIBUTING.md#cutting-a-release).
 
 ---
 
-## 9. Staying in sync with upstream Sunrise
+## 9. Staying in sync with upstream Resparkable
 
-When you pull a new Sunrise release into your fork, the biggest moving part is
-the database migration history — your app's migrations and Sunrise's share one
+When you pull a new Resparkable release into your fork, the biggest moving part is
+the database migration history — your app's migrations and Resparkable's share one
 directory.
 
 **What does _not_ conflict.** Your own new files (routes, components, `lib/`
 modules, and your docs under `.context/app/`) are invisible to upstream, so they
 never conflict. `prisma/schema/app.prisma` is fork-reserved the same way —
-Sunrise ships it empty and adds no models to it, so the models you put there
+Resparkable ships it empty and adds no models to it, so the models you put there
 survive every sync untouched. The `lib/app/` bootstrap files ([§4](#4-configuration--environment--the-libapp-surface))
-are **fork-owned scaffold**: Sunrise ships them empty and doesn't re-edit them,
+are **fork-owned scaffold**: Resparkable ships them empty and doesn't re-edit them,
 so the registrations you add there merge cleanly too — no special handling. The
 files that _can_ conflict are the ones both you and upstream edit (the migration
 directory above, the marketing-page route shims ([§6](#6-landing-page--routes)) —
 a one-line "keep mine" when your content lives in app-owned files — branding, and
 `package.json` — see [§7](#7-adding-dependencies--scripts)); resolve those keeping
-your version, and add a follow-up rather than rewriting Sunrise's.
+your version, and add a follow-up rather than rewriting Resparkable's.
 
-- **One shared history.** App and Sunrise migrations both live in
+- **One shared history.** App and Resparkable migrations both live in
   `prisma/migrations/` and are applied in timestamp order. On an upstream
-  merge, new Sunrise migration folders **interleave with yours by timestamp**.
+  merge, new Resparkable migration folders **interleave with yours by timestamp**.
 - **Name your migrations distinctly.** Prefix app migrations so you can tell at
   a glance which are yours when they interleave — e.g.
   `db:migrate:dev -- --name app_add_orders`. Prisma applies migrations by
@@ -1048,8 +1048,8 @@ your version, and add a follow-up rather than rewriting Sunrise's.
   the prefix is purely for human triage.
 - **After merging a release:** run `npm run db:migrate:status` to see what's
   pending, then `npm run db:migrate:dev` (dev) / `npm run db:migrate:deploy`
-  (prod / CI) to apply the newly-merged Sunrise migrations.
-- **Never edit Sunrise's migration SQL.** If you need to adjust the result, add
+  (prod / CI) to apply the newly-merged Resparkable migrations.
+- **Never edit Resparkable's migration SQL.** If you need to adjust the result, add
   your own follow-up migration. Editing an applied migration desyncs every
   environment.
 - **Reading a release's migration set:** the migrations a release added are the

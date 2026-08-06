@@ -190,7 +190,7 @@ currently published snapshot survives a round-trip.
 - **Multiple concurrent drafts / branches.** Single-draft model is sufficient
   at this profile; multi-draft would need a junction table and is an additive
   future change.
-- **Per-environment promotion** (dev → staging → prod). Each Sunrise project
+- **Per-environment promotion** (dev → staging → prod). Each Resparkable project
   deploys itself; cross-environment promotion is a venture-studio process
   problem, not a runtime feature.
 

@@ -90,7 +90,7 @@ function buildEmailSubject(eventType: string, data: Record<string, unknown>): st
     agent_updated: 'Agent updated',
     execution_crashed: 'Workflow execution crashed',
   };
-  const base = titles[eventType] ?? `Sunrise event: ${eventType}`;
+  const base = titles[eventType] ?? `Resparkable event: ${eventType}`;
   const subject =
     typeof data.agentName === 'string'
       ? `${base} · ${data.agentName}`
@@ -99,7 +99,7 @@ function buildEmailSubject(eventType: string, data: Record<string, unknown>): st
         : typeof data.providerSlug === 'string'
           ? `${base} · ${data.providerSlug}`
           : base;
-  return `[Sunrise] ${subject}`;
+  return `[Resparkable] ${subject}`;
 }
 
 /**

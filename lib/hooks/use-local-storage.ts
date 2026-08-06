@@ -43,7 +43,7 @@ function isBrowser(): boolean {
  * value, mirroring the native StorageEvent shape closely enough that
  * a single handler can dispatch on either source.
  */
-const SAME_TAB_EVENT = 'sunrise:local-storage-write';
+const SAME_TAB_EVENT = 'resparkable:local-storage-write';
 
 interface SameTabPayload {
   key: string;

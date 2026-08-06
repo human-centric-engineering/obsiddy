@@ -8,7 +8,7 @@
  * cast error inside a vector query), which is what makes it expensive to
  * diagnose rather than merely broken.
  *
- * Sunrise's own knowledge corpus is guarded by `search.ts`. This module exists
+ * Resparkable's own knowledge corpus is guarded by `search.ts`. This module exists
  * because a fork that adds its own `vector(...)` table inherits the same failure
  * mode with none of the protection — and adding one is the *documented* path,
  * since the platform knowledge base is a global asset and per-user scoping there

@@ -157,7 +157,7 @@ describe('runSeeds()', () => {
 
   // Create a fresh tmp dir for each test so files never bleed across cases
   beforeEach(async () => {
-    tmpDir = await mkdtemp(join(tmpdir(), 'sunrise-runner-test-'));
+    tmpDir = await mkdtemp(join(tmpdir(), 'resparkable-runner-test-'));
     vi.clearAllMocks();
   });
 

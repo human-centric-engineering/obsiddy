@@ -4,7 +4,7 @@
  * Usage: npx tsx scripts/test-knowledge-base.ts [--seed-only] [--search-only]
  *
  * Requires:
- * - A running PostgreSQL with the sunrise database
+ * - A running PostgreSQL with the resparkable database
  * - For search: an embedding provider (OPENAI_API_KEY or Ollama running)
  * - For seed-only mode: no embedding provider needed (inserts without embeddings)
  */

@@ -2,7 +2,7 @@
 
 ## Overview
 
-Sunrise includes a GDPR/PECR-compliant cookie consent system that gives users control over optional cookies while ensuring essential functionality remains available. The system provides a configurable banner, preferences modal, and conditional script loading.
+Resparkable includes a GDPR/PECR-compliant cookie consent system that gives users control over optional cookies while ensuring essential functionality remains available. The system provides a configurable banner, preferences modal, and conditional script loading.
 
 **Documentation:**
 
@@ -10,7 +10,7 @@ Sunrise includes a GDPR/PECR-compliant cookie consent system that gives users co
 - [API Reference](./api.md) - Hooks, functions, types, and exports
 - [Account Deletion & Right to Erasure](./data-erasure.md) - GDPR Art. 17 erasure, the erase-vs-retain data model, and `eraseUser()`
 - [Subject Access Export](./data-export.md) - GDPR Art. 15/20 access, the source manifest and its coverage guard, and `exportUserData()`
-- [Anonymous Visitor ID](./visitor-id.md) - privacy posture of the `sunrise_vid` observability cookie (classification, retention, erasure)
+- [Anonymous Visitor ID](./visitor-id.md) - privacy posture of the `resparkable_vid` observability cookie (classification, retention, erasure)
 
 ## Architecture
 

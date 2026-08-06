@@ -590,7 +590,7 @@ function toOpenAiParts(
       // PDFs use OpenAI's native `file` content part — Chat Completions
       // gained inline PDF support in late 2024. The model reads both
       // the text layer and renders each page as an image. 32 MB / 100-
-      // page inline cap; Sunrise's 5 MB per-attachment ceiling keeps
+      // page inline cap; Resparkable's 5 MB per-attachment ceiling keeps
       // us well below either limit, so no Files-API upload path is
       // needed for v1.
       if (part.source.mediaType === 'application/pdf') {

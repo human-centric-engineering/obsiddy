@@ -7,7 +7,7 @@
  *
  * Lifecycle:
  *   - Listens to localStorage under
- *     `sunrise.orchestration.in-flight-execution.v1`.
+ *     `resparkable.orchestration.in-flight-execution.v1`.
  *   - When set, fetches an initial status snapshot once (mount), then
  *     hands off to `useExecutionStatusPoller` (3 s cadence — peripheral
  *     vision tolerates more latency than the modal's 1 s).

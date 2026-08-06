@@ -1,8 +1,8 @@
 blank_issues_enabled: true
 contact_links:
   - name: Question or Discussion
-    url: https://github.com/human-centric-engineering/sunrise/discussions
+    url: https://github.com/human-centric-engineering/resparkable/discussions
     about: Ask questions or discuss ideas with the community
   - name: Documentation
-    url: https://github.com/human-centric-engineering/sunrise#readme
+    url: https://github.com/human-centric-engineering/resparkable#readme
     about: Check the documentation and guides

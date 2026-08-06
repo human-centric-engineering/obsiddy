@@ -2,7 +2,7 @@
 
 ## Dependency Philosophy
 
-Sunrise follows a **lean dependency strategy**: use battle-tested libraries for complex problems (authentication, ORM, validation) while keeping the overall dependency count minimal to reduce maintenance burden and security surface area.
+Resparkable follows a **lean dependency strategy**: use battle-tested libraries for complex problems (authentication, ORM, validation) while keeping the overall dependency count minimal to reduce maintenance burden and security surface area.
 
 ### Core Dependencies
 
@@ -110,7 +110,7 @@ const users = await prisma.user.findMany();
 
 ### Service Layer Pattern (Optional)
 
-> **Note:** This is an optional pattern for complex business logic. Most Sunrise features use direct Prisma access in API routes or server components. Consider services when you have multi-step operations that coordinate multiple database calls, external APIs, and side effects (like sending emails).
+> **Note:** This is an optional pattern for complex business logic. Most Resparkable features use direct Prisma access in API routes or server components. Consider services when you have multi-step operations that coordinate multiple database calls, external APIs, and side effects (like sending emails).
 
 For complex business logic, create service modules that encapsulate dependencies:
 
@@ -167,7 +167,7 @@ export async function POST(request: Request) {
 
 ### Environment Configuration
 
-Sunrise uses validated environment variables via `lib/env.ts` instead of scattered `process.env` access:
+Resparkable uses validated environment variables via `lib/env.ts` instead of scattered `process.env` access:
 
 ```typescript
 // lib/env.ts - Zod-validated environment variables

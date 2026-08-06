@@ -3,7 +3,7 @@
 ## Overview
 
 A fork that wants its **own brand palette and typography** on its consumer-facing
-pages — while keeping `/admin` (or any other area) on the Sunrise defaults —
+pages — while keeping `/admin` (or any other area) on the Resparkable defaults —
 should never edit `app/globals.css` or the per-route-group layouts in place. That
 is the fork-and-edit trap: every page touched becomes a merge conflict on every
 upstream sync.
@@ -18,21 +18,21 @@ This composes with the other brand seams — `BRAND.name` (the app name), and th
 _content_; this handles the _visual theme_. Together they let a fork rebrand
 end-to-end without touching a platform file.
 
-> Vanilla Sunrise ships `app/brand-theme.css` **empty**, so every surface inherits
+> Vanilla Resparkable ships `app/brand-theme.css` **empty**, so every surface inherits
 > the `app/globals.css` defaults and the app is visually unchanged. The seam is
 > inert until a fork fills that file.
 
 ## The mechanism
 
-Four moving parts, all shipped by Sunrise:
+Four moving parts, all shipped by Resparkable:
 
-| Part                                    | File                          | Role                                                                          |
-| --------------------------------------- | ----------------------------- | ----------------------------------------------------------------------------- |
-| `classifySurface(pathname)` policy seam | `lib/app/surface.ts`          | Pure string predicate → `'admin' \| 'consumer'`. **Fork-owned** policy.       |
-| Server classification                   | `proxy.ts`                    | Sets the `x-surface` request header from `classifySurface(pathname)`.         |
-| First-paint attribute                   | `app/layout.tsx`              | Reads `x-surface`, renders `<html data-surface={surface}>`.                   |
-| Client re-sync                          | `components/surface-sync.tsx` | `<SurfaceSync>` keeps the attribute correct across App Router navigation.     |
-| Fork theme                              | `app/brand-theme.css`         | **Fork-owned.** Per-surface CSS-variable overrides. Empty in vanilla Sunrise. |
+| Part                                    | File                          | Role                                                                              |
+| --------------------------------------- | ----------------------------- | --------------------------------------------------------------------------------- |
+| `classifySurface(pathname)` policy seam | `lib/app/surface.ts`          | Pure string predicate → `'admin' \| 'consumer'`. **Fork-owned** policy.           |
+| Server classification                   | `proxy.ts`                    | Sets the `x-surface` request header from `classifySurface(pathname)`.             |
+| First-paint attribute                   | `app/layout.tsx`              | Reads `x-surface`, renders `<html data-surface={surface}>`.                       |
+| Client re-sync                          | `components/surface-sync.tsx` | `<SurfaceSync>` keeps the attribute correct across App Router navigation.         |
+| Fork theme                              | `app/brand-theme.css`         | **Fork-owned.** Per-surface CSS-variable overrides. Empty in vanilla Resparkable. |
 
 Flow: the proxy classifies each request and forwards `x-surface`; the root layout
 puts it on `<html data-surface>` for a correct first paint (and for portals — see
@@ -48,12 +48,12 @@ navigation. A fork's `brand-theme.css` scopes token overrides per surface, e.g.:
 ```
 
 A shadcn `<Button>` under a consumer route then resolves `bg-primary` to the
-fork's colour; the same component under `/admin` resolves it to the Sunrise
+fork's colour; the same component under `/admin` resolves it to the Resparkable
 default. No component changes — pure CSS-variable inheritance.
 
-## What Sunrise ships vs. what the fork owns
+## What Resparkable ships vs. what the fork owns
 
-- **Sunrise ships** the mechanism (proxy plumbing, the `<html data-surface>`
+- **Resparkable ships** the mechanism (proxy plumbing, the `<html data-surface>`
   wiring, `<SurfaceSync>`) and **empty scaffolds**: the `classifySurface` policy
   with a sensible default (admin vs. consumer) and an empty `brand-theme.css`.
 - **The fork owns** `app/brand-theme.css` (the palette/typography per surface),
@@ -86,7 +86,7 @@ portals; client sync = correct across navigation.
 
 > **Flash note.** `<SurfaceSync>` writes the attribute in `useEffect` (after
 > paint), so a client-side nav between two **differently-themed** surfaces can
-> show one frame of the old theme. In vanilla Sunrise there is no theme delta, so
+> show one frame of the old theme. In vanilla Resparkable there is no theme delta, so
 > no visible flash. A fork that fills `brand-theme.css` and wants the flash gone
 > can swap to a guarded layout-effect:
 >

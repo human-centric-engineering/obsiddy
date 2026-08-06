@@ -12,7 +12,7 @@
  * - `mergeDriftProbes` concatenates platform + app and refuses an app probe that
  *   shadows a platform (A-series) name;
  * - the shipped `lib/app/db-drift.ts` scaffold registers exactly what the
- *   framework tier registers and nothing of its own (vanilla Sunrise ships it
+ *   framework tier registers and nothing of its own (vanilla Resparkable ships it
  *   empty; this fork fills it — see the FORK NOTE on that test).
  *
  * @see lib/db/drift-probes.ts
@@ -28,7 +28,7 @@ vi.mock('@/lib/db/client', () => ({
 
 import { registerAppDriftProbes } from '@/lib/app/db-drift';
 import { prisma } from '@/lib/db/client';
-import { registerObsiddyDriftProbes } from '@/lib/framework/obsiddy/db-drift';
+import { registerResparkableDriftProbes } from '@/lib/framework/resparkable/db-drift';
 import {
   columnExists,
   constraintExists,
@@ -249,9 +249,9 @@ describe('mergeDriftProbes', () => {
 });
 
 describe('shipped lib/app/db-drift.ts scaffold', () => {
-  // FORK NOTE (Obsiddy): vanilla Sunrise asserts `toEqual([])` here — the
+  // FORK NOTE (Resparkable): vanilla Sunrise asserts `toEqual([])` here — the
   // scaffold ships empty and forks fill it, which `lib/app/db-drift.ts`'s own
-  // docblock calls "a starting point you're expected to modify". Obsiddy fills
+  // docblock calls "a starting point you're expected to modify". Resparkable fills
   // it with exactly one thing: the framework tier's probe registration.
   // Asserting identity with what the tier alone registers (rather than a
   // literal list of names) keeps the original test's intent — a stray probe
@@ -262,7 +262,7 @@ describe('shipped lib/app/db-drift.ts scaffold', () => {
   it('registers exactly the framework tier probes and nothing of its own', () => {
     // Arrange — what the framework tier registers on its own
     resetAppDriftProbes();
-    registerObsiddyDriftProbes();
+    registerResparkableDriftProbes();
     const tierProbes = getAppDriftProbes().map((p) => p.name);
 
     // Act — the shipped leaf scaffold

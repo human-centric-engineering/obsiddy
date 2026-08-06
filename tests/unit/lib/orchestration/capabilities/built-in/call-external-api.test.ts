@@ -281,7 +281,7 @@ describe('CallExternalApiCapability', () => {
   describe('forced headers and idempotency', () => {
     it('forcedHeaders override headers from args', async () => {
       bindCustomConfig({
-        forcedHeaders: { 'X-Vendor': 'sunrise', Accept: 'application/json' },
+        forcedHeaders: { 'X-Vendor': 'resparkable', Accept: 'application/json' },
       });
       const fetchSpy = mockFetchJson(200, { ok: true });
       const cap = new CallExternalApiCapability();
@@ -298,7 +298,7 @@ describe('CallExternalApiCapability', () => {
         string,
         string
       >;
-      expect(headers['X-Vendor']).toBe('sunrise');
+      expect(headers['X-Vendor']).toBe('resparkable');
       expect(headers.Accept).toBe('application/json');
     });
 

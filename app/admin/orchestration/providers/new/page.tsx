@@ -53,7 +53,7 @@ export default async function NewProviderPage() {
             <div className="text-sm">
               <p className="font-medium">No LLM API keys detected in your environment</p>
               <p className="text-muted-foreground mt-1">
-                Sunrise reads provider API keys from environment variables at startup — it never
+                Resparkable reads provider API keys from environment variables at startup — it never
                 stores them in the database. Add one of the following to your <code>.env</code> file
                 and restart the server before configuring a hosted provider:
               </p>

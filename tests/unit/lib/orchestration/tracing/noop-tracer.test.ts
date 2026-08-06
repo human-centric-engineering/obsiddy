@@ -55,7 +55,7 @@ describe('NOOP_SPAN methods', () => {
       NOOP_SPAN.setAttributes({
         'gen_ai.system': 'anthropic',
         'gen_ai.usage.input_tokens': 100,
-        'sunrise.cost_usd': 0.002,
+        'resparkable.cost_usd': 0.002,
       })
     ).not.toThrow();
   });

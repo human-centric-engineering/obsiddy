@@ -1,14 +1,14 @@
 # Orchestration Maturity Analysis
 
-Competitive assessment of Sunrise's agent orchestration against production-ready platforms. Covers functional capabilities, architectural gaps, and prioritised improvements.
+Competitive assessment of Resparkable's agent orchestration against production-ready platforms. Covers functional capabilities, architectural gaps, and prioritised improvements.
 
 **Last updated:** 2026-05-27 (PRs #237, #246, #250, #257, #258, #259, #260 — dataset-driven evaluations Phases 1–4 shipped: registered grader registry, polymorphic subject (agent or workflow), workflow-aware cost estimator, three RAG judge agents seeded, **new `judge_call` and `chat_turn` workflow step types** bringing the registry to 19 types, `workflow_as_judge` and `pairwise_judge_agent` graders, pairwise verdicts surfaced on the experiment compare page, eval CI gate decided by `lib/orchestration/evaluations/gate.ts` with API-key auth on eval-run endpoints, dataset cold-start "generate from description" + post-commit editable cases + trajectory diagnostics (tool calls + citations on the case dialog), dev in-process maintenance ticker, **knowledge-retrieval mode on `AiAgent`** (`model` / `first_turn` / `every_turn` / `keywords` + `knowledgeTriggerKeywords` array) with inline-citation rendering in chat, retention purge for executions + evaluations + MCP audit (terminal-only, coherent windows), and the multi-tenancy seam (`TENANCY_MODE=single` default + the inert `lib/db/client.ts` chokepoint plus an `.context/architecture/multi-tenancy.md` playbook). Earlier baseline rows from PRs #196–#204 — conversation provenance, agent profile inheritance, paramProfile / reasoningEffort, schema-mode guards, step descriptions, execution rerun, running-step side table — remain.)
 
 ## TL;DR
 
-Sunrise is a **full-stack agent orchestration platform** embedded in a production-grade Next.js/TypeScript application — not a standalone library or managed service. Against 12 evaluated platforms, it **leads** on cost/budget enforcement, provider resilience (circuit breakers + fallback chains), chat handler completeness, MCP server implementation with audit logging, inline citation grounding (envelope through API + chat + embed widget + opt-in citation guard), step-output provenance (typed source attribution lifted from `output.sources` onto the trace entry, rendered as colour-coded pills in the structured approval form and trace viewer, with an opt-in guard rule for enforcement — shipped May 2026), **conversation provenance + PII redaction** (per-message `agentVersionId` / `workflowVersionId` / `modelId` / `providerSlug` pinning plus content-addressed citation hashes plus deterministic Markdown export and registry-time-enforced PII redactor pairing on every capability — shipped May 2026 in PR #196), and **agent profile inheritance** (`AiAgentProfile` rows carry shared persona / brand voice / guardrails fragments composed at dispatch by the same resolver in both chat and workflow surfaces — shipped May 2026 in PR #204). It is **competitive** on DAG execution (now 19 step types after the `supervisor` ship; **plus** every step accepts a `description` for trace operators and every LLM-bearing step accepts a `reasoningEffort` knob — PR #197 + #198), capability dispatch, security (input/output guards, SSRF protection), scheduling/webhooks, embeddable chat, knowledge-base RAG (hybrid BM25-flavoured + vector search shipped May 2026), named-metric evaluation (faithfulness/groundedness/relevance, also May 2026), in-product trace observability (timeline strip, aggregates, per-step latency attribution, per-call cost breakdown — shipped late May 2026; **plus** a per-step running-state side table that surfaces per-branch lifecycle timestamps so parallel-branch wait segments render honestly — PR #202), **deterministic schema-mode guards** (PR #198 — `guard` steps can now Zod-validate a named step's output instead of LLM-prompting, eliminating the closed-set-hallucination class entirely), **execution rerun with lineage** (`POST /executions/:id/rerun` + `parentExecutionId` — PR #198 — operators retry against newer workflow versions without losing the supervisor verdict of the original), and external observability via a deliberately curated OTLP-only path (vendor-neutral tracer interface with a no-op default and a first-party `OtelTracer` adapter — shipped May 2026; forks point any OTLP backend at the spans, including Datadog, Honeycomb, Grafana Tempo, Langfuse, and MLflow ≥ 2.20). It **trails** on multi-agent coordination patterns and horizontal scaling (in-memory circuit breaker + budget mutex). The OTLP-only stance is a curation choice, not a gap — vendor-native SDKs (Langfuse, Datadog, MLflow) are deliberately out-of-scope for the starter template, layering on top in forks that need vendor-specific features rather than bundling for everyone.
+Resparkable is a **full-stack agent orchestration platform** embedded in a production-grade Next.js/TypeScript application — not a standalone library or managed service. Against 12 evaluated platforms, it **leads** on cost/budget enforcement, provider resilience (circuit breakers + fallback chains), chat handler completeness, MCP server implementation with audit logging, inline citation grounding (envelope through API + chat + embed widget + opt-in citation guard), step-output provenance (typed source attribution lifted from `output.sources` onto the trace entry, rendered as colour-coded pills in the structured approval form and trace viewer, with an opt-in guard rule for enforcement — shipped May 2026), **conversation provenance + PII redaction** (per-message `agentVersionId` / `workflowVersionId` / `modelId` / `providerSlug` pinning plus content-addressed citation hashes plus deterministic Markdown export and registry-time-enforced PII redactor pairing on every capability — shipped May 2026 in PR #196), and **agent profile inheritance** (`AiAgentProfile` rows carry shared persona / brand voice / guardrails fragments composed at dispatch by the same resolver in both chat and workflow surfaces — shipped May 2026 in PR #204). It is **competitive** on DAG execution (now 19 step types after the `supervisor` ship; **plus** every step accepts a `description` for trace operators and every LLM-bearing step accepts a `reasoningEffort` knob — PR #197 + #198), capability dispatch, security (input/output guards, SSRF protection), scheduling/webhooks, embeddable chat, knowledge-base RAG (hybrid BM25-flavoured + vector search shipped May 2026), named-metric evaluation (faithfulness/groundedness/relevance, also May 2026), in-product trace observability (timeline strip, aggregates, per-step latency attribution, per-call cost breakdown — shipped late May 2026; **plus** a per-step running-state side table that surfaces per-branch lifecycle timestamps so parallel-branch wait segments render honestly — PR #202), **deterministic schema-mode guards** (PR #198 — `guard` steps can now Zod-validate a named step's output instead of LLM-prompting, eliminating the closed-set-hallucination class entirely), **execution rerun with lineage** (`POST /executions/:id/rerun` + `parentExecutionId` — PR #198 — operators retry against newer workflow versions without losing the supervisor verdict of the original), and external observability via a deliberately curated OTLP-only path (vendor-neutral tracer interface with a no-op default and a first-party `OtelTracer` adapter — shipped May 2026; forks point any OTLP backend at the spans, including Datadog, Honeycomb, Grafana Tempo, Langfuse, and MLflow ≥ 2.20). It **trails** on multi-agent coordination patterns and horizontal scaling (in-memory circuit breaker + budget mutex). The OTLP-only stance is a curation choice, not a gap — vendor-native SDKs (Langfuse, Datadog, MLflow) are deliberately out-of-scope for the starter template, layering on top in forks that need vendor-specific features rather than bundling for everyone.
 
-The key differentiator is integration depth: teams using LangGraph, CrewAI, or similar frameworks still need to build auth, admin UI, API layer, consumer chat, deployment, and database management around the orchestration engine. Sunrise ships all of this as a single typed codebase with shared validation, making the path from "we need an AI feature" to a deployed, budget-enforced agent with admin controls significantly shorter.
+The key differentiator is integration depth: teams using LangGraph, CrewAI, or similar frameworks still need to build auth, admin UI, API layer, consumer chat, deployment, and database management around the orchestration engine. Resparkable ships all of this as a single typed codebase with shared validation, making the path from "we need an AI feature" to a deployed, budget-enforced agent with admin controls significantly shorter.
 
 2 P0 improvements would block production under load (distributed circuit breaker / budget state). The approval queue UI (previously P0 #4) shipped April 2026; hybrid search (previously P1 #8), citation/source attribution (previously P1 #2 in `improvement-priorities.md`), background workflow execution (Tier 2 #8), document-ingestion robustness (Tier 1 #5 — CSV row-level retrieval, per-page scanned-PDF diagnostics, opt-in PDF table extraction, all without new third-party dependencies), named-metric evaluation (Tier 2 #6 — faithfulness/groundedness/relevance scoring with re-score and per-agent trend), widget customisation (Tier 2 #7 — per-agent colours, fonts, header/footer copy, conversation starters, exposed via a public `/widget-config` endpoint and a CSS-custom-property-driven Shadow DOM theme layer; bumps widget customisation from "Adequate" to "Strong" against Dify/Flowise), the OTEL tracer plug-in (previously P0 #1, also Tier 3 #13 — vendor-neutral tracer interface with a no-op default and a first-party `OtelTracer` adapter; forks point any OTLP-compatible backend at the spans, with `AiCostLog` rows carrying nullable `traceId` / `spanId` for cost ↔ span join), **conversation provenance bundle** (Tier 8 #47, PR #196 — per-message version pinning, citation hash snapshots, JSON + deterministic Markdown export, registry-time-enforced PII redactor pairing on every capability, consent-gated cross-user access; closes the audit-defensibility procurement objection for regulated-domain partners), **agent profile inheritance** (PR #204 — `AiAgentProfile` rows carry shared persona / brand voice / guardrails across a fleet of agents, composed at dispatch by the same resolver in chat and workflow), **LLM parameter profile + per-step `reasoningEffort`** (PR #197 — `paramProfile` enum on every model row drives provider-specific request-shape construction; every LLM-bearing step config gains a `reasoningEffort` override with documented precedence; every trace entry captures the resolved `requestParams` so admins can verify their override landed), **workflow step `description` + schema-mode guards + execution rerun** (PR #198 — operator-facing trace narration on every step, deterministic Zod-backed guard validation that eliminates the closed-set-hallucination class, and `POST /executions/:id/rerun` with `parentExecutionId` lineage), and the **per-step running-state side table** (PR #202 — in-flight per-branch state on its own table so per-branch wait segments render honestly in the timeline and the orphan-sweep reaper runs cheaply on the indexed key) all shipped May 2026.
 
@@ -26,7 +26,7 @@ Twelve platforms evaluated across the agent orchestration space, grouped by type
 
 OpenAI AgentKit straddles the visual / managed boundary — it ships a hosted Agent Builder canvas plus an open-sourced ChatKit embed library, but the orchestration runtime itself is OpenAI-hosted. Listed under managed services since the engine is not self-hostable.
 
-Sunrise occupies a distinct position: a **code-first, self-hosted orchestration platform** embedded in a Next.js application — not a standalone framework or managed cloud service. This means it competes on engine design and integrated features rather than ecosystem breadth or managed infrastructure.
+Resparkable occupies a distinct position: a **code-first, self-hosted orchestration platform** embedded in a Next.js application — not a standalone framework or managed cloud service. This means it competes on engine design and integrated features rather than ecosystem breadth or managed infrastructure.
 
 ---
 
@@ -36,175 +36,175 @@ Rating scale: **Strong** (best-in-class or competitive), **Adequate** (functiona
 
 ### Core Engine
 
-| Capability                                  | Sunrise | LangGraph | CrewAI   | AutoGen  | Haystack | OpenAI SDK | Google ADK |
-| ------------------------------------------- | ------- | --------- | -------- | -------- | -------- | ---------- | ---------- |
-| DAG execution engine                        | Strong  | Strong    | Adequate | Adequate | Strong   | None       | Adequate   |
-| Step type variety (19 types)                | Strong  | Adequate  | Weak     | Weak     | Adequate | Weak       | Adequate   |
-| Per-step `description` (operator-facing)    | Strong  | None      | None     | None     | None     | None       | None       |
-| Per-step `reasoningEffort` override         | Strong  | None      | None     | None     | None     | Adequate   | None       |
-| Schema-mode guard (deterministic, no LLM)   | Strong  | None      | None     | None     | None     | None       | None       |
-| Execution rerun with lineage tracking       | Strong  | Adequate  | None     | None     | None     | Adequate   | None       |
-| Error strategies (retry/fallback/skip/fail) | Strong  | Adequate  | Weak     | Weak     | Adequate | Weak       | Adequate   |
-| Parallel step execution                     | Strong  | Strong    | Weak     | Adequate | Strong   | None       | Strong     |
-| Frozen context snapshots                    | Strong  | Strong    | None     | None     | None     | None       | None       |
-| Checkpoint/resume after crash               | Strong  | Strong    | Weak     | Weak     | None     | Adequate   | None       |
-| Template interpolation in prompts           | Strong  | Adequate  | None     | None     | None     | None       | None       |
-| Cancellation (client + DB)                  | Strong  | Strong    | None     | None     | None     | Adequate   | None       |
-| Step output provenance (audit trail)        | Strong  | None      | None     | None     | None     | None       | None       |
+| Capability                                  | Resparkable | LangGraph | CrewAI   | AutoGen  | Haystack | OpenAI SDK | Google ADK |
+| ------------------------------------------- | ----------- | --------- | -------- | -------- | -------- | ---------- | ---------- |
+| DAG execution engine                        | Strong      | Strong    | Adequate | Adequate | Strong   | None       | Adequate   |
+| Step type variety (19 types)                | Strong      | Adequate  | Weak     | Weak     | Adequate | Weak       | Adequate   |
+| Per-step `description` (operator-facing)    | Strong      | None      | None     | None     | None     | None       | None       |
+| Per-step `reasoningEffort` override         | Strong      | None      | None     | None     | None     | Adequate   | None       |
+| Schema-mode guard (deterministic, no LLM)   | Strong      | None      | None     | None     | None     | None       | None       |
+| Execution rerun with lineage tracking       | Strong      | Adequate  | None     | None     | None     | Adequate   | None       |
+| Error strategies (retry/fallback/skip/fail) | Strong      | Adequate  | Weak     | Weak     | Adequate | Weak       | Adequate   |
+| Parallel step execution                     | Strong      | Strong    | Weak     | Adequate | Strong   | None       | Strong     |
+| Frozen context snapshots                    | Strong      | Strong    | None     | None     | None     | None       | None       |
+| Checkpoint/resume after crash               | Strong      | Strong    | Weak     | Weak     | None     | Adequate   | None       |
+| Template interpolation in prompts           | Strong      | Adequate  | None     | None     | None     | None       | None       |
+| Cancellation (client + DB)                  | Strong      | Strong    | None     | None     | None     | Adequate   | None       |
+| Step output provenance (audit trail)        | Strong      | None      | None     | None     | None     | None       | None       |
 
-**Sunrise advantages:** 19 step types (after the `supervisor` ship; vs. LangGraph's node-based approach which is more flexible but less structured), per-step error strategies, dual cancellation paths, and step-output provenance — LLM/agent steps that emit `output.sources` get typed source attribution lifted onto the trace entry and rendered as colour-coded pills in the structured approval form and the trace viewer. The workflow-engine analogue of the chat-side citation envelope, with an opt-in guard rule that workflow authors paste into a `guard` step to enforce attribution. The new operator-facing primitives (May 2026) — `description` on every step carried onto every trace entry, a `reasoningEffort` knob on every LLM-bearing step, **schema-mode guards** that Zod-validate without an LLM call (eliminating closed-set hallucination), and **execution rerun** with `parentExecutionId` lineage — together close the trace-debuggability and version-iteration gaps. **Checkpoint recovery bumped to Strong** after the lease + dispatch cache (item 15) + the per-step running-state side table (PR #202) — recovery is no longer limited to `human_approval` pauses; orphan rows from crashed hosts are reaped by the maintenance tick and re-driven up to 3 times before terminal failure. LangGraph's `interrupt()` model still leads on multi-interrupt state editing, but the crash-recovery gap is closed for the single-instance deployment target.
+**Resparkable advantages:** 19 step types (after the `supervisor` ship; vs. LangGraph's node-based approach which is more flexible but less structured), per-step error strategies, dual cancellation paths, and step-output provenance — LLM/agent steps that emit `output.sources` get typed source attribution lifted onto the trace entry and rendered as colour-coded pills in the structured approval form and the trace viewer. The workflow-engine analogue of the chat-side citation envelope, with an opt-in guard rule that workflow authors paste into a `guard` step to enforce attribution. The new operator-facing primitives (May 2026) — `description` on every step carried onto every trace entry, a `reasoningEffort` knob on every LLM-bearing step, **schema-mode guards** that Zod-validate without an LLM call (eliminating closed-set hallucination), and **execution rerun** with `parentExecutionId` lineage — together close the trace-debuggability and version-iteration gaps. **Checkpoint recovery bumped to Strong** after the lease + dispatch cache (item 15) + the per-step running-state side table (PR #202) — recovery is no longer limited to `human_approval` pauses; orphan rows from crashed hosts are reaped by the maintenance tick and re-driven up to 3 times before terminal failure. LangGraph's `interrupt()` model still leads on multi-interrupt state editing, but the crash-recovery gap is closed for the single-instance deployment target.
 
 ### LLM Provider Management
 
-| Capability                     | Sunrise | LangGraph | CrewAI   | Haystack | Semantic Kernel | Bedrock  | Azure Foundry | AgentKit |
-| ------------------------------ | ------- | --------- | -------- | -------- | --------------- | -------- | ------------- | -------- |
-| Multi-provider abstraction     | Strong  | Strong    | Adequate | Strong   | Strong          | Adequate | Adequate      | None     |
-| Provider count (8+)            | Strong  | Strong    | Weak     | Strong   | Strong          | Adequate | Adequate      | None     |
-| Circuit breaker                | Strong  | None      | None     | None     | None            | N/A      | N/A           | None     |
-| Fallback chains (per-agent)    | Strong  | None      | None     | None     | None            | N/A      | N/A           | None     |
-| Model registry with tiers      | Strong  | None      | None     | None     | None            | Adequate | Adequate      | Adequate |
-| Provider selector (task-based) | Strong  | None      | None     | None     | None            | None     | None          | None     |
-| Provider health monitoring     | Strong  | None      | None     | None     | None            | N/A      | N/A           | N/A      |
+| Capability                     | Resparkable | LangGraph | CrewAI   | Haystack | Semantic Kernel | Bedrock  | Azure Foundry | AgentKit |
+| ------------------------------ | ----------- | --------- | -------- | -------- | --------------- | -------- | ------------- | -------- |
+| Multi-provider abstraction     | Strong      | Strong    | Adequate | Strong   | Strong          | Adequate | Adequate      | None     |
+| Provider count (8+)            | Strong      | Strong    | Weak     | Strong   | Strong          | Adequate | Adequate      | None     |
+| Circuit breaker                | Strong      | None      | None     | None     | None            | N/A      | N/A           | None     |
+| Fallback chains (per-agent)    | Strong      | None      | None     | None     | None            | N/A      | N/A           | None     |
+| Model registry with tiers      | Strong      | None      | None     | None     | None            | Adequate | Adequate      | Adequate |
+| Provider selector (task-based) | Strong      | None      | None     | None     | None            | None     | None          | None     |
+| Provider health monitoring     | Strong      | None      | None     | None     | None            | N/A      | N/A           | N/A      |
 
-**Sunrise advantages:** Circuit breaker, explicit fallback chains, and task-based model recommendation are ahead of every evaluated framework. No major framework ships provider-level resilience as a first-class feature. OpenAI AgentKit is the most pointed contrast — by design it is OpenAI-only, so the entire multi-provider / fallback / health-monitoring axis is structurally absent rather than missing. **Key gap:** Circuit breaker state is in-memory — breaks under horizontal scaling.
+**Resparkable advantages:** Circuit breaker, explicit fallback chains, and task-based model recommendation are ahead of every evaluated framework. No major framework ships provider-level resilience as a first-class feature. OpenAI AgentKit is the most pointed contrast — by design it is OpenAI-only, so the entire multi-provider / fallback / health-monitoring axis is structurally absent rather than missing. **Key gap:** Circuit breaker state is in-memory — breaks under horizontal scaling.
 
 ### Cost & Budget Management
 
-| Capability                           | Sunrise  | LangGraph | CrewAI | AutoGen | Haystack | Bedrock | Azure Foundry | AgentKit |
-| ------------------------------------ | -------- | --------- | ------ | ------- | -------- | ------- | ------------- | -------- |
-| Per-operation cost logging           | Strong   | Weak      | None   | None    | Weak     | Weak    | Weak          | Adequate |
-| Per-agent monthly budgets            | Strong   | None      | None   | None    | None     | None    | None          | None     |
-| Global monthly budget cap            | Strong   | None      | None   | None    | None     | None    | None          | None     |
-| 80% threshold warnings               | Strong   | None      | None   | None    | None     | None    | None          | None     |
-| Budget enforcement in execution loop | Strong   | None      | None   | None    | None     | None    | None          | None     |
-| Concurrent request mutex             | Adequate | None      | None   | None    | None     | N/A     | N/A           | N/A      |
-| Cost breakdown API                   | Strong   | Weak      | None   | None    | None     | Weak    | Weak          | Adequate |
+| Capability                           | Resparkable | LangGraph | CrewAI | AutoGen | Haystack | Bedrock | Azure Foundry | AgentKit |
+| ------------------------------------ | ----------- | --------- | ------ | ------- | -------- | ------- | ------------- | -------- |
+| Per-operation cost logging           | Strong      | Weak      | None   | None    | Weak     | Weak    | Weak          | Adequate |
+| Per-agent monthly budgets            | Strong      | None      | None   | None    | None     | None    | None          | None     |
+| Global monthly budget cap            | Strong      | None      | None   | None    | None     | None    | None          | None     |
+| 80% threshold warnings               | Strong      | None      | None   | None    | None     | None    | None          | None     |
+| Budget enforcement in execution loop | Strong      | None      | None   | None    | None     | None    | None          | None     |
+| Concurrent request mutex             | Adequate    | None      | None   | None    | None     | N/A     | N/A           | N/A      |
+| Cost breakdown API                   | Strong      | Weak      | None   | None    | None     | Weak    | Weak          | Adequate |
 
-**Sunrise advantage: This is the strongest differentiator.** No evaluated platform enforces budgets inside the execution loop — including OpenAI AgentKit, which surfaces token usage in the Usage dashboard but does not gate execution against a budget. All others delegate to external billing dashboards. **Key gap:** Budget mutex is in-memory — concurrent requests across instances can overspend.
+**Resparkable advantage: This is the strongest differentiator.** No evaluated platform enforces budgets inside the execution loop — including OpenAI AgentKit, which surfaces token usage in the Usage dashboard but does not gate execution against a budget. All others delegate to external billing dashboards. **Key gap:** Budget mutex is in-memory — concurrent requests across instances can overspend.
 
 ### Tool / Capability System
 
-| Capability                                           | Sunrise | LangGraph | CrewAI   | Haystack | OpenAI SDK | Dify     | Google ADK | AgentKit |
-| ---------------------------------------------------- | ------- | --------- | -------- | -------- | ---------- | -------- | ---------- | -------- |
-| Capability registry (DB-backed)                      | Strong  | None      | None     | None     | None       | Adequate | None       | Strong   |
-| Dispatch pipeline (7-stage)                          | Strong  | Adequate  | Weak     | Adequate | Adequate   | Adequate | Adequate   | Adequate |
-| Rate limiting per capability                         | Strong  | None      | None     | None     | None       | None     | None       | None     |
-| Approval gating                                      | Strong  | Strong    | None     | None     | Adequate   | None     | Adequate   | Adequate |
-| Zod validation on args                               | Strong  | Adequate  | Weak     | Adequate | Strong     | None     | Adequate   | Strong   |
-| Default-allow dispatch / default-deny LLM visibility | Strong  | None      | None     | None     | None       | None     | None       | None     |
-| Built-in capability library + recipe cookbook        | Strong  | Strong    | Adequate | Strong   | Strong     | Strong   | Strong     | Strong   |
-| MCP integration                                      | Strong  | Adequate  | Adequate | None     | Strong     | Adequate | Strong     | Strong   |
-| Third-party tool integrations                        | Weak    | Strong    | Adequate | Strong   | Adequate   | Strong   | Adequate   | Strong   |
+| Capability                                           | Resparkable | LangGraph | CrewAI   | Haystack | OpenAI SDK | Dify     | Google ADK | AgentKit |
+| ---------------------------------------------------- | ----------- | --------- | -------- | -------- | ---------- | -------- | ---------- | -------- |
+| Capability registry (DB-backed)                      | Strong      | None      | None     | None     | None       | Adequate | None       | Strong   |
+| Dispatch pipeline (7-stage)                          | Strong      | Adequate  | Weak     | Adequate | Adequate   | Adequate | Adequate   | Adequate |
+| Rate limiting per capability                         | Strong      | None      | None     | None     | None       | None     | None       | None     |
+| Approval gating                                      | Strong      | Strong    | None     | None     | Adequate   | None     | Adequate   | Adequate |
+| Zod validation on args                               | Strong      | Adequate  | Weak     | Adequate | Strong     | None     | Adequate   | Strong   |
+| Default-allow dispatch / default-deny LLM visibility | Strong      | None      | None     | None     | None       | None     | None       | None     |
+| Built-in capability library + recipe cookbook        | Strong      | Strong    | Adequate | Strong   | Strong     | Strong   | Strong     | Strong   |
+| MCP integration                                      | Strong      | Adequate  | Adequate | None     | Strong     | Adequate | Strong     | Strong   |
+| Third-party tool integrations                        | Weak        | Strong    | Adequate | Strong   | Adequate   | Strong   | Adequate   | Strong   |
 
-**Sunrise advantages:** The 7-stage dispatch pipeline (registry → binding → rate limit → approval → validation → timeout → cost log) and the default-allow/default-deny split are architecturally clean. OpenAI AgentKit's Connector Registry covers the registry + admin-managed integration surface and ships richer first-party tools (web search, file search, computer use, code interpreter) but does not gate dispatch on per-capability rate limits or expose a separate visibility-vs-allowed-call axis. The approval queue provides a full admin UI plus token-authenticated external channel endpoints — admins can approve from the browser, while Slack/email/SMS integrations use pre-signed HMAC tokens via webhook consumers. The 10 curated built-in capabilities + the `call_external_api` outbound-HTTP primitive + a comprehensive recipes cookbook (transactional email, payments, chat notifications, calendar events, document rendering — see `.context/orchestration/recipes/`) cover the integrations Sunrise's deployment profile actually needs without bundling vendor SDKs. The deliberate trade vs. LangChain's "1000+ tool integrations" is curation: every capability and recipe is verified end-to-end and dependency-free; LangChain's count includes community-contributed integrations of variable maintenance status.
+**Resparkable advantages:** The 7-stage dispatch pipeline (registry → binding → rate limit → approval → validation → timeout → cost log) and the default-allow/default-deny split are architecturally clean. OpenAI AgentKit's Connector Registry covers the registry + admin-managed integration surface and ships richer first-party tools (web search, file search, computer use, code interpreter) but does not gate dispatch on per-capability rate limits or expose a separate visibility-vs-allowed-call axis. The approval queue provides a full admin UI plus token-authenticated external channel endpoints — admins can approve from the browser, while Slack/email/SMS integrations use pre-signed HMAC tokens via webhook consumers. The 10 curated built-in capabilities + the `call_external_api` outbound-HTTP primitive + a comprehensive recipes cookbook (transactional email, payments, chat notifications, calendar events, document rendering — see `.context/orchestration/recipes/`) cover the integrations Resparkable's deployment profile actually needs without bundling vendor SDKs. The deliberate trade vs. LangChain's "1000+ tool integrations" is curation: every capability and recipe is verified end-to-end and dependency-free; LangChain's count includes community-contributed integrations of variable maintenance status.
 
 ### Multi-Agent Coordination
 
-| Capability                    | Sunrise  | LangGraph | AutoGen  | Google ADK | CrewAI   | Semantic Kernel | AgentKit |
-| ----------------------------- | -------- | --------- | -------- | ---------- | -------- | --------------- | -------- |
-| Planner LLM delegation        | Strong   | Strong    | Adequate | Strong     | Adequate | Adequate        | Strong   |
-| Explicit handoff primitives   | None     | Strong    | Strong   | Strong     | Adequate | Adequate        | Strong   |
-| Supervisor/worker topology    | Adequate | Strong    | Strong   | Strong     | Strong   | Adequate        | Strong   |
-| Swarm coordination            | None     | Strong    | Strong   | None       | None     | None            | None     |
-| Agent-to-agent protocol (A2A) | None     | None      | None     | Strong     | None     | None            | None     |
-| Recursion depth guard         | Strong   | Adequate  | Adequate | Adequate   | None     | None            | Adequate |
-| Named coordination patterns   | Weak     | Strong    | Strong   | Strong     | Adequate | Adequate        | Strong   |
-| Sub-agent context isolation   | Adequate | Strong    | Strong   | Strong     | Adequate | Adequate        | Strong   |
+| Capability                    | Resparkable | LangGraph | AutoGen  | Google ADK | CrewAI   | Semantic Kernel | AgentKit |
+| ----------------------------- | ----------- | --------- | -------- | ---------- | -------- | --------------- | -------- |
+| Planner LLM delegation        | Strong      | Strong    | Adequate | Strong     | Adequate | Adequate        | Strong   |
+| Explicit handoff primitives   | None        | Strong    | Strong   | Strong     | Adequate | Adequate        | Strong   |
+| Supervisor/worker topology    | Adequate    | Strong    | Strong   | Strong     | Strong   | Adequate        | Strong   |
+| Swarm coordination            | None        | Strong    | Strong   | None       | None     | None            | None     |
+| Agent-to-agent protocol (A2A) | None        | None      | None     | Strong     | None     | None            | None     |
+| Recursion depth guard         | Strong      | Adequate  | Adequate | Adequate   | None     | None            | Adequate |
+| Named coordination patterns   | Weak        | Strong    | Strong   | Strong     | Adequate | Adequate        | Strong   |
+| Sub-agent context isolation   | Adequate    | Strong    | Strong   | Strong     | Adequate | Adequate        | Strong   |
 
-**Sunrise position:** Multi-agent exists via the `orchestrator` step and `agent_call`, but coordination semantics are informal — the planner LLM decides routing rather than explicit typed patterns (handoff, swarm, round-robin, selector). LangGraph and AutoGen have 4–5 named, tested coordination topologies. Google ADK's A2A inter-agent protocol is an emerging standard worth tracking. OpenAI AgentKit (Agent Builder canvas) ships explicit handoff primitives between agents wired visually, plus supervisor topologies — Sunrise is behind on the named-pattern axis here too.
+**Resparkable position:** Multi-agent exists via the `orchestrator` step and `agent_call`, but coordination semantics are informal — the planner LLM decides routing rather than explicit typed patterns (handoff, swarm, round-robin, selector). LangGraph and AutoGen have 4–5 named, tested coordination topologies. Google ADK's A2A inter-agent protocol is an emerging standard worth tracking. OpenAI AgentKit (Agent Builder canvas) ships explicit handoff primitives between agents wired visually, plus supervisor topologies — Resparkable is behind on the named-pattern axis here too.
 
 ### Chat & Streaming
 
-| Capability                                                        | Sunrise | LangGraph | OpenAI SDK | Dify     | CrewAI   | AgentKit |
-| ----------------------------------------------------------------- | ------- | --------- | ---------- | -------- | -------- | -------- |
-| SSE streaming with tool loop                                      | Strong  | Strong    | Strong     | Strong   | Adequate | Strong   |
-| Rolling conversation summary                                      | Strong  | Adequate  | None       | None     | None     | Adequate |
-| Input guard (injection detection)                                 | Strong  | None      | Adequate   | Adequate | None     | Strong   |
-| Output guard (content filtering)                                  | Strong  | None      | Adequate   | Adequate | None     | Strong   |
-| Citation guard (under-cite / hallucinated)                        | Strong  | None      | None       | None     | None     | Adequate |
-| Inline citation envelope on responses                             | Strong  | None      | None       | None     | None     | Adequate |
-| Per-message version pinning (agent / workflow / model / provider) | Strong  | None      | None       | None     | None     | None     |
-| Per-message citation hash snapshots                               | Strong  | None      | None       | None     | None     | None     |
-| Conversation provenance bundle export (JSON + Markdown)           | Strong  | None      | None       | None     | None     | None     |
-| Registry-time enforced PII redactor on every capability           | Strong  | None      | None       | None     | None     | None     |
-| Consent-gated cross-user conversation access                      | Strong  | None      | None       | None     | None     | None     |
-| Agent profile inheritance (persona / voice / guardrails)          | Strong  | None      | None       | None     | None     | None     |
-| Provider fallback mid-stream                                      | Strong  | None      | None       | None     | None     | None     |
-| User memory system                                                | Strong  | Adequate  | Adequate   | Adequate | Adequate | Strong   |
-| Message caps (per-user, per-conversation)                         | Strong  | None      | None       | Adequate | None     | None     |
-| SSE keepalive / auto-reconnect                                    | Strong  | Adequate  | N/A        | Adequate | None     | Adequate |
-| Budget check mid-loop                                             | Strong  | None      | None       | None     | None     | None     |
+| Capability                                                        | Resparkable | LangGraph | OpenAI SDK | Dify     | CrewAI   | AgentKit |
+| ----------------------------------------------------------------- | ----------- | --------- | ---------- | -------- | -------- | -------- |
+| SSE streaming with tool loop                                      | Strong      | Strong    | Strong     | Strong   | Adequate | Strong   |
+| Rolling conversation summary                                      | Strong      | Adequate  | None       | None     | None     | Adequate |
+| Input guard (injection detection)                                 | Strong      | None      | Adequate   | Adequate | None     | Strong   |
+| Output guard (content filtering)                                  | Strong      | None      | Adequate   | Adequate | None     | Strong   |
+| Citation guard (under-cite / hallucinated)                        | Strong      | None      | None       | None     | None     | Adequate |
+| Inline citation envelope on responses                             | Strong      | None      | None       | None     | None     | Adequate |
+| Per-message version pinning (agent / workflow / model / provider) | Strong      | None      | None       | None     | None     | None     |
+| Per-message citation hash snapshots                               | Strong      | None      | None       | None     | None     | None     |
+| Conversation provenance bundle export (JSON + Markdown)           | Strong      | None      | None       | None     | None     | None     |
+| Registry-time enforced PII redactor on every capability           | Strong      | None      | None       | None     | None     | None     |
+| Consent-gated cross-user conversation access                      | Strong      | None      | None       | None     | None     | None     |
+| Agent profile inheritance (persona / voice / guardrails)          | Strong      | None      | None       | None     | None     | None     |
+| Provider fallback mid-stream                                      | Strong      | None      | None       | None     | None     | None     |
+| User memory system                                                | Strong      | Adequate  | Adequate   | Adequate | Adequate | Strong   |
+| Message caps (per-user, per-conversation)                         | Strong      | None      | None       | Adequate | None     | None     |
+| SSE keepalive / auto-reconnect                                    | Strong      | Adequate  | N/A        | Adequate | None     | Adequate |
+| Budget check mid-loop                                             | Strong      | None      | None       | None     | None     | None     |
 
-**Sunrise advantages:** The chat handler is comprehensive — mid-stream provider failover, input/output guards, rolling summaries, budget checks inside the tool loop, and a structured citation envelope (markers in the LLM-bound tool result, `[N]` rendered inline by chat / trace / embed surfaces, opt-in citation guard for under-cited or hallucinated markers) are all ahead of the field. **The conversation provenance bundle (PR #196, May 2026)** is a category-leading addition: every `AiMessage` row pins `agentVersionId`, `workflowVersionId`, `modelId`, `providerSlug` plus content-addressed citation hashes at write time, the JSON + deterministic Markdown export (`renderConversationMarkdown`) gives partners a verifiable audit artefact rather than "trust us, we logged it", and `BaseCapability.processesPii` + `redactProvenance` is enforced at registry-time so a PII-handling capability cannot ship without an explicit redactor. The consent-gated cross-user access model (`AiConversationShare` + `adminCanViewConversation` + `logConversationAccess` audit-of-audits) treats admins themselves as privacy-sensitive actors. **Agent profile inheritance (PR #204, May 2026)** lets a fleet of agents share persona / brand-voice / guardrails fragments composed at dispatch by the same resolver in both chat and workflow surfaces. This is the most production-hardened component, and now the most audit-defensible one too.
+**Resparkable advantages:** The chat handler is comprehensive — mid-stream provider failover, input/output guards, rolling summaries, budget checks inside the tool loop, and a structured citation envelope (markers in the LLM-bound tool result, `[N]` rendered inline by chat / trace / embed surfaces, opt-in citation guard for under-cited or hallucinated markers) are all ahead of the field. **The conversation provenance bundle (PR #196, May 2026)** is a category-leading addition: every `AiMessage` row pins `agentVersionId`, `workflowVersionId`, `modelId`, `providerSlug` plus content-addressed citation hashes at write time, the JSON + deterministic Markdown export (`renderConversationMarkdown`) gives partners a verifiable audit artefact rather than "trust us, we logged it", and `BaseCapability.processesPii` + `redactProvenance` is enforced at registry-time so a PII-handling capability cannot ship without an explicit redactor. The consent-gated cross-user access model (`AiConversationShare` + `adminCanViewConversation` + `logConversationAccess` audit-of-audits) treats admins themselves as privacy-sensitive actors. **Agent profile inheritance (PR #204, May 2026)** lets a fleet of agents share persona / brand-voice / guardrails fragments composed at dispatch by the same resolver in both chat and workflow surfaces. This is the most production-hardened component, and now the most audit-defensible one too.
 
 ### Human-in-the-Loop
 
-| Capability                        | Sunrise | LangGraph | Azure Foundry | AutoGen  | Google ADK |
-| --------------------------------- | ------- | --------- | ------------- | -------- | ---------- |
-| Pause/resume on approval          | Strong  | Strong    | Strong        | Adequate | Adequate   |
-| State serialisation at pause      | Strong  | Strong    | Strong        | Adequate | Adequate   |
-| Approval queue UI                 | Strong  | N/A       | Adequate      | None     | None       |
-| External approval channels        | Strong  | Adequate  | None          | None     | None       |
-| Approver delegation (scoping)     | Strong  | None      | None          | None     | None       |
-| Multi-interrupt parallel branches | None    | Strong    | None          | None     | None       |
-| Mid-run human edit of state       | None    | Strong    | None          | Adequate | None       |
-| Resume after process restart      | Strong  | Strong    | Strong        | Weak     | None       |
+| Capability                        | Resparkable | LangGraph | Azure Foundry | AutoGen  | Google ADK |
+| --------------------------------- | ----------- | --------- | ------------- | -------- | ---------- |
+| Pause/resume on approval          | Strong      | Strong    | Strong        | Adequate | Adequate   |
+| State serialisation at pause      | Strong      | Strong    | Strong        | Adequate | Adequate   |
+| Approval queue UI                 | Strong      | N/A       | Adequate      | None     | None       |
+| External approval channels        | Strong      | Adequate  | None          | None     | None       |
+| Approver delegation (scoping)     | Strong      | None      | None          | None     | None       |
+| Multi-interrupt parallel branches | None        | Strong    | None          | None     | None       |
+| Mid-run human edit of state       | None        | Strong    | None          | Adequate | None       |
+| Resume after process restart      | Strong      | Strong    | Strong        | Weak     | None       |
 
-**Sunrise advantage:** The approval system is the most complete of any evaluated platform. The admin UI (expandable rows, approve/reject actions, sidebar badge) handles browser-based approvals. Token-authenticated public endpoints (`/api/v1/orchestration/approvals/:id/{approve,reject}`) enable external channel approvals (Slack, email, WhatsApp, SMS) via stateless HMAC-signed tokens — no session cookies required. A notification dispatcher emits `workflow.paused_for_approval` hook and `approval_required` webhook events with pre-signed approve/reject URLs, so external consumers can build approval flows without generating tokens themselves. Approver scoping via `approverUserIds` enables delegation to non-owner admins. **Key gap:** LangGraph's `interrupt()` model is the gold standard — serialises full graph state, supports multiple concurrent interrupts, allows human edits before resume, and survives process restarts. Sunrise's `human_approval` step covers the core use case with a production-ready admin + external channel workflow but lacks LangGraph's depth on multi-interrupt and state-editing.
+**Resparkable advantage:** The approval system is the most complete of any evaluated platform. The admin UI (expandable rows, approve/reject actions, sidebar badge) handles browser-based approvals. Token-authenticated public endpoints (`/api/v1/orchestration/approvals/:id/{approve,reject}`) enable external channel approvals (Slack, email, WhatsApp, SMS) via stateless HMAC-signed tokens — no session cookies required. A notification dispatcher emits `workflow.paused_for_approval` hook and `approval_required` webhook events with pre-signed approve/reject URLs, so external consumers can build approval flows without generating tokens themselves. Approver scoping via `approverUserIds` enables delegation to non-owner admins. **Key gap:** LangGraph's `interrupt()` model is the gold standard — serialises full graph state, supports multiple concurrent interrupts, allows human edits before resume, and survives process restarts. Resparkable's `human_approval` step covers the core use case with a production-ready admin + external channel workflow but lacks LangGraph's depth on multi-interrupt and state-editing.
 
 ### Observability & Evaluation
 
-| Capability                   | Sunrise  | Haystack | LangGraph | Semantic Kernel | Dify     | Bedrock  | AgentKit |
-| ---------------------------- | -------- | -------- | --------- | --------------- | -------- | -------- | -------- |
-| OTEL span emission           | Strong   | Strong   | None      | Strong          | None     | None     | None     |
-| Langfuse integration         | Adequate | Strong   | None      | None            | None     | None     | None     |
-| MLflow integration           | None     | Strong   | None      | None            | None     | None     | None     |
-| Datadog / external APM       | Adequate | Strong   | None      | Adequate        | None     | Adequate | None     |
-| Built-in trace UI            | Strong   | Adequate | Strong    | None            | Strong   | Adequate | Strong   |
-| Per-step latency attribution | Adequate | Strong   | Strong    | None            | Strong   | Adequate | Strong   |
-| Named evaluation metrics     | Adequate | Strong   | Strong    | None            | Adequate | None     | Strong   |
-| Regression testing           | Adequate | Strong   | Strong    | None            | None     | None     | Strong   |
-| Cost attribution per step    | Strong   | Adequate | Weak      | None            | Adequate | Weak     | Adequate |
-| Audit log (config changes)   | Strong   | None     | None      | None            | Adequate | None     | Adequate |
+| Capability                   | Resparkable | Haystack | LangGraph | Semantic Kernel | Dify     | Bedrock  | AgentKit |
+| ---------------------------- | ----------- | -------- | --------- | --------------- | -------- | -------- | -------- |
+| OTEL span emission           | Strong      | Strong   | None      | Strong          | None     | None     | None     |
+| Langfuse integration         | Adequate    | Strong   | None      | None            | None     | None     | None     |
+| MLflow integration           | None        | Strong   | None      | None            | None     | None     | None     |
+| Datadog / external APM       | Adequate    | Strong   | None      | Adequate        | None     | Adequate | None     |
+| Built-in trace UI            | Strong      | Adequate | Strong    | None            | Strong   | Adequate | Strong   |
+| Per-step latency attribution | Adequate    | Strong   | Strong    | None            | Strong   | Adequate | Strong   |
+| Named evaluation metrics     | Adequate    | Strong   | Strong    | None            | Adequate | None     | Strong   |
+| Regression testing           | Adequate    | Strong   | Strong    | None            | None     | None     | Strong   |
+| Cost attribution per step    | Strong      | Adequate | Weak      | None            | Adequate | Weak     | Adequate |
+| Audit log (config changes)   | Strong      | None     | None      | None            | Adequate | None     | Adequate |
 
-**External observability shipped in May 2026 as a deliberately curated OTLP-only path.** Item 13 (OTEL plug-in, Tier 3 in `improvement-priorities.md`) added a vendor-neutral tracer interface in `lib/orchestration/tracing/` with a no-op default and a first-party `OtelTracer` adapter; forks point any OTLP-compatible backend (Datadog Agent's OTLP receiver, Honeycomb, Grafana Tempo, Langfuse-via-OTLP, MLflow ≥ 2.20's OTLP receiver) at the spans by constructing their own `TracerProvider` and calling `registerOtelTracer()`. Span attributes follow OpenTelemetry GenAI semantic conventions plus Sunrise extensions for execution / step / agent / cost correlation. `AiCostLog` rows gained nullable `traceId` / `spanId` columns so external trace backends can join cost data back to the originating span.
+**External observability shipped in May 2026 as a deliberately curated OTLP-only path.** Item 13 (OTEL plug-in, Tier 3 in `improvement-priorities.md`) added a vendor-neutral tracer interface in `lib/orchestration/tracing/` with a no-op default and a first-party `OtelTracer` adapter; forks point any OTLP-compatible backend (Datadog Agent's OTLP receiver, Honeycomb, Grafana Tempo, Langfuse-via-OTLP, MLflow ≥ 2.20's OTLP receiver) at the spans by constructing their own `TracerProvider` and calling `registerOtelTracer()`. Span attributes follow OpenTelemetry GenAI semantic conventions plus Resparkable extensions for execution / step / agent / cost correlation. `AiCostLog` rows gained nullable `traceId` / `spanId` columns so external trace backends can join cost data back to the originating span.
 
 **Why OTLP-only and not first-party Langfuse / Datadog / MLflow SDK adapters.** This mirrors the deliberate curation we shipped for Tier 1 #3 (the HTTP fetcher + recipes cookbook vs. LangChain's 1000+ vendor-specific integrations). OTLP is the universal standard — every modern observability platform either accepts OTLP natively or ships an OTLP shim. Bundling vendor-native SDKs into a starter template would add transitive dep trees, vendor opinions, and version-pin burden for forks that don't use that vendor — and stripping a vendor SDK out of a fork is harder than adding one in. The Langfuse, Datadog, and MLflow rows above are graded `Adequate` rather than `Strong` not because we're missing something, but because we deliberately chose to ship the standard and let forks layer vendor-native SDKs on top if they need vendor-specific features (Langfuse prompt management, Datadog APM-specific UI, MLflow experiment tracking). The OTLP path covers the trace ingestion case for all three. Haystack's `Strong` grading reflects Haystack-managed first-party integrations; the trade is theirs.
 
-**MLflow specifically:** MLflow's primary use case is ML experiment tracking (model artifacts, hyperparameters, runs). Sunrise's `AiEvaluationLog` + `AiEvaluationSession` already cover the LLM-specific equivalent natively (faithfulness / groundedness / relevance scoring with per-agent trend). For trace ingestion specifically, MLflow ≥ 2.20 accepts OTLP via its OTel-compatible receiver, so the OTLP path covers it without us shipping anything.
+**MLflow specifically:** MLflow's primary use case is ML experiment tracking (model artifacts, hyperparameters, runs). Resparkable's `AiEvaluationLog` + `AiEvaluationSession` already cover the LLM-specific equivalent natively (faithfulness / groundedness / relevance scoring with per-agent trend). For trace ingestion specifically, MLflow ≥ 2.20 accepts OTLP via its OTel-compatible receiver, so the OTLP path covers it without us shipping anything.
 
 **In-product** observability also narrowed materially earlier in May: named-metric evaluation scoring (faithfulness, groundedness, relevance — three metrics graded Adequate against Haystack's eight) shipped early in the month, then the trace viewer / latency attribution work (item 10) shipped at the end of the month. Per-step latency now decomposes into LLM time vs. engine + tool I/O overhead via a new `llmDurationMs` field; the execution detail page renders a Gantt-style timeline strip with slow-outlier highlighting, an aggregates card (p50 / p95 step duration, slowest step, LLM share, per-step-type breakdown), input/output side-by-side panels per step, a per-call cost sub-table for multi-turn executors, and six client-side filters (Failed / Slow / LLM only / Tool only / With approvals / All). LangSmith (LangGraph's companion) is richer but proprietary; Haystack is the open-source benchmark for first-party SDK breadth.
 
 ### Knowledge Base
 
-| Capability                              | Sunrise | Dify     | Haystack | LangGraph | Bedrock  | AgentKit |
-| --------------------------------------- | ------- | -------- | -------- | --------- | -------- | -------- |
-| Multi-format ingestion                  | Strong  | Strong   | Strong   | None      | Strong   | Strong   |
-| Semantic chunking                       | Strong  | Strong   | Strong   | None      | Adequate | Strong   |
-| CSV row-level retrieval                 | Strong  | Adequate | Adequate | None      | Adequate | Adequate |
-| Vector search (pgvector)                | Strong  | Strong   | Strong   | None      | Strong   | Strong   |
-| Hybrid search (BM25-flavoured + vector) | Strong  | Adequate | Strong   | None      | Adequate | Adequate |
-| Inline citation envelope to UI / API    | Strong  | None     | None     | None      | Adequate | Adequate |
-| Document lifecycle management           | Strong  | Strong   | Adequate | None      | Adequate | Strong   |
-| PDF preview/confirm flow                | Strong  | None     | None     | None      | None     | None     |
-| Per-page scanned-PDF diagnostics        | Strong  | None     | None     | None      | None     | None     |
-| PDF table extraction (opt-in)           | Strong  | Adequate | Strong   | None      | Strong   | Strong   |
-| Namespace/team isolation                | None    | Adequate | Adequate | None      | Adequate | Adequate |
-| Incremental document updates            | None    | Adequate | Adequate | None      | Adequate | Adequate |
+| Capability                              | Resparkable | Dify     | Haystack | LangGraph | Bedrock  | AgentKit |
+| --------------------------------------- | ----------- | -------- | -------- | --------- | -------- | -------- |
+| Multi-format ingestion                  | Strong      | Strong   | Strong   | None      | Strong   | Strong   |
+| Semantic chunking                       | Strong      | Strong   | Strong   | None      | Adequate | Strong   |
+| CSV row-level retrieval                 | Strong      | Adequate | Adequate | None      | Adequate | Adequate |
+| Vector search (pgvector)                | Strong      | Strong   | Strong   | None      | Strong   | Strong   |
+| Hybrid search (BM25-flavoured + vector) | Strong      | Adequate | Strong   | None      | Adequate | Adequate |
+| Inline citation envelope to UI / API    | Strong      | None     | None     | None      | Adequate | Adequate |
+| Document lifecycle management           | Strong      | Strong   | Adequate | None      | Adequate | Strong   |
+| PDF preview/confirm flow                | Strong      | None     | None     | None      | None     | None     |
+| Per-page scanned-PDF diagnostics        | Strong      | None     | None     | None      | None     | None     |
+| PDF table extraction (opt-in)           | Strong      | Adequate | Strong   | None      | Strong   | Strong   |
+| Namespace/team isolation                | None        | Adequate | Adequate | None      | Adequate | Adequate |
+| Incremental document updates            | None        | Adequate | Adequate | None      | Adequate | Adequate |
 
-**Sunrise advantages:** PDF preview/confirm workflow is unique. Document lifecycle (pending → processing → ready) is well-designed. Hybrid search (PR #139, May 2026) and the citation envelope (May 2026) close two prior gaps and pull RAG quality and trustworthiness ahead of all evaluated peers. Document-ingestion robustness (this PR, May 2026) adds CSV row-level chunking (a 50k-row CSV lets queries surface a single matching row), per-page scanned-PDF diagnostics that pinpoint which page ranges need external OCR, and an opt-in vector-grid table extraction — all delivered without bundling a new third-party dependency. **Key gaps:** No per-team scoping, no incremental document updates, no bundled OCR (deliberate — external workflow documented).
+**Resparkable advantages:** PDF preview/confirm workflow is unique. Document lifecycle (pending → processing → ready) is well-designed. Hybrid search (PR #139, May 2026) and the citation envelope (May 2026) close two prior gaps and pull RAG quality and trustworthiness ahead of all evaluated peers. Document-ingestion robustness (this PR, May 2026) adds CSV row-level chunking (a 50k-row CSV lets queries surface a single matching row), per-page scanned-PDF diagnostics that pinpoint which page ranges need external OCR, and an opt-in vector-grid table extraction — all delivered without bundling a new third-party dependency. **Key gaps:** No per-team scoping, no incremental document updates, no bundled OCR (deliberate — external workflow documented).
 
 ### Production Deployment & Scaling
 
-| Capability                       | Sunrise  | LangGraph | Bedrock | Azure Foundry | Dify     | AgentKit |
-| -------------------------------- | -------- | --------- | ------- | ------------- | -------- | -------- |
-| Self-hosted deployment           | Strong   | Strong    | N/A     | N/A           | Strong   | None     |
-| Managed hosting option           | None     | Strong    | Strong  | Strong        | Strong   | Strong   |
-| Horizontal scaling safety        | Weak     | Strong    | Strong  | Strong        | Adequate | Strong   |
-| Distributed task queue           | None     | Strong    | N/A     | N/A           | None     | N/A      |
-| Background execution model       | Weak     | Strong    | Strong  | Strong        | Adequate | Strong   |
-| Workflow versioning (git-native) | None     | Strong    | None    | Adequate      | None     | Adequate |
-| RBAC (admin/operator/consumer)   | Adequate | N/A       | Strong  | Strong        | Strong   | Adequate |
+| Capability                       | Resparkable | LangGraph | Bedrock | Azure Foundry | Dify     | AgentKit |
+| -------------------------------- | ----------- | --------- | ------- | ------------- | -------- | -------- |
+| Self-hosted deployment           | Strong      | Strong    | N/A     | N/A           | Strong   | None     |
+| Managed hosting option           | None        | Strong    | Strong  | Strong        | Strong   | Strong   |
+| Horizontal scaling safety        | Weak        | Strong    | Strong  | Strong        | Adequate | Strong   |
+| Distributed task queue           | None        | Strong    | N/A     | N/A           | None     | N/A      |
+| Background execution model       | Weak        | Strong    | Strong  | Strong        | Adequate | Strong   |
+| Workflow versioning (git-native) | None        | Strong    | None    | Adequate      | None     | Adequate |
+| RBAC (admin/operator/consumer)   | Adequate    | N/A       | Strong  | Strong        | Strong   | Adequate |
 
 **Key gaps:** Three in-memory stores (circuit breaker, budget mutex, maintenance tick) break under multiple instances. No distributed task queue for workflow execution. No background execution model for long-running workflows triggered by cron/webhooks.
 
@@ -212,7 +212,7 @@ Rating scale: **Strong** (best-in-class or competitive), **Adequate** (functiona
 
 ## Competitive Position Summary
 
-### Where Sunrise Leads
+### Where Resparkable Leads
 
 1. **Cost & budget enforcement** — the only platform with per-agent budgets, global caps, 80% warnings, and enforcement inside the execution loop. Every other system delegates to billing dashboards.
 
@@ -230,7 +230,7 @@ Rating scale: **Strong** (best-in-class or competitive), **Adequate** (functiona
 
 8. **Agent profile inheritance** (PR #204, May 2026) — `AiAgentProfile` rows carry shared persona / brand voice / guardrails fragments composed at dispatch by `resolveEffectivePrompt(agent, profile)`. The same resolver runs in both the streaming chat handler and the workflow `agent_call` executor, so a profile edit changes both behaviours atomically. Per-field modes (`inherit` / `override` / `append`) let each agent diverge from the profile field-by-field without breaking the link. No evaluated platform ships a first-class shared-persona model with this granularity.
 
-### Where Sunrise Is Competitive
+### Where Resparkable Is Competitive
 
 9. **DAG execution engine** — 19 step types with per-step error strategies, per-step `description` for trace operators, per-step `reasoningEffort` for reasoning-capable models, schema-mode `guard` for deterministic Zod validation, and execution rerun with `parentExecutionId` lineage now matches or leads every evaluated framework on workflow ergonomics. Crash recovery bumped to Strong after the lease + dispatch cache + running-step side table closed the gap that previously limited it to `human_approval` pauses.
 
@@ -238,9 +238,9 @@ Rating scale: **Strong** (best-in-class or competitive), **Adequate** (functiona
 
 11. **Platform-agnostic core** — no Next.js imports in `lib/orchestration/` enables testing without server runtime. Clean architectural boundary.
 
-### Where Sunrise Trails
+### Where Resparkable Trails
 
-12. **External observability backends — deliberate OTLP-only curation.** OTEL span emission shipped May 2026 (item 13) — forks point any OTLP-compatible backend at the spans by registering an OTEL `TracerProvider`. Langfuse, Datadog, Honeycomb, Tempo, and MLflow ≥ 2.20 all accept OTLP. We deliberately chose NOT to ship vendor-native SDKs (Langfuse-native, Datadog-native, MLflow-native) — the same curation argument as the HTTP fetcher + recipes vs. LangChain's 1000+ vendor integrations: bundling vendor SDKs into a starter template adds transitive deps, vendor opinions, and version-pin burden for forks that don't use that vendor, and stripping a vendor SDK out is harder than adding one in. Haystack's `Strong` grading reflects first-party SDK breadth — that's their tradeoff. Sunrise's tradeoff is one curated standard plus easy fork-side extensibility; vendor-specific features (Langfuse prompt management, Datadog APM-specific UI, MLflow experiment tracking) layer on top in a fork that needs them, not in the starter template that everyone copies.
+12. **External observability backends — deliberate OTLP-only curation.** OTEL span emission shipped May 2026 (item 13) — forks point any OTLP-compatible backend at the spans by registering an OTEL `TracerProvider`. Langfuse, Datadog, Honeycomb, Tempo, and MLflow ≥ 2.20 all accept OTLP. We deliberately chose NOT to ship vendor-native SDKs (Langfuse-native, Datadog-native, MLflow-native) — the same curation argument as the HTTP fetcher + recipes vs. LangChain's 1000+ vendor integrations: bundling vendor SDKs into a starter template adds transitive deps, vendor opinions, and version-pin burden for forks that don't use that vendor, and stripping a vendor SDK out is harder than adding one in. Haystack's `Strong` grading reflects first-party SDK breadth — that's their tradeoff. Resparkable's tradeoff is one curated standard plus easy fork-side extensibility; vendor-specific features (Langfuse prompt management, Datadog APM-specific UI, MLflow experiment tracking) layer on top in a fork that needs them, not in the starter template that everyone copies.
 
 13. **Multi-agent semantics** — informal planner-driven coordination vs. explicit typed patterns (handoffs, swarm, round-robin). Behind LangGraph, AutoGen, Google ADK.
 
@@ -248,9 +248,9 @@ Rating scale: **Strong** (best-in-class or competitive), **Adequate** (functiona
 
 15. **Human-in-the-loop depth** — `human_approval` with admin UI, token-authenticated external channel endpoints, notification dispatcher, and approver scoping covers the production use case well. Lacks LangGraph's multi-interrupt and state-edit capabilities (crash recovery itself is now Strong after PR #202).
 
-16. **Evaluation tooling** — three named-metric scorers (faithfulness, groundedness, relevance) plus an LLM-driven completion handler is behind Haystack's 8 named evaluators, LangSmith's regression testing harness, and OpenAI AgentKit's Evals product (datasets, trace grading, prompt optimisation, automated graders). Sunrise's eval surface is functional but narrower than the eval-platform-style tooling shipped by these competitors.
+16. **Evaluation tooling** — three named-metric scorers (faithfulness, groundedness, relevance) plus an LLM-driven completion handler is behind Haystack's 8 named evaluators, LangSmith's regression testing harness, and OpenAI AgentKit's Evals product (datasets, trace grading, prompt optimisation, automated graders). Resparkable's eval surface is functional but narrower than the eval-platform-style tooling shipped by these competitors.
 
-17. **Third-party integration breadth (raw count).** LangChain ships 1000+ community-contributed tool integrations; Sunrise curates 10 trusted built-ins plus the `call_external_api` outbound-HTTP primitive plus 5 recipe-driven patterns covering the most common shapes (email, payments, chat, calendar, document render). The trade is deliberate — curation + extensibility over count — but if a buyer's evaluation rubric is purely raw integration count, Sunrise will look thin. Mitigation is the recipe + `/orchestration-capability-builder` skill path: any new integration is a documented short walk away.
+17. **Third-party integration breadth (raw count).** LangChain ships 1000+ community-contributed tool integrations; Resparkable curates 10 trusted built-ins plus the `call_external_api` outbound-HTTP primitive plus 5 recipe-driven patterns covering the most common shapes (email, payments, chat, calendar, document render). The trade is deliberate — curation + extensibility over count — but if a buyer's evaluation rubric is purely raw integration count, Resparkable will look thin. Mitigation is the recipe + `/orchestration-capability-builder` skill path: any new integration is a documented short walk away.
 
 ---
 
@@ -258,14 +258,14 @@ Rating scale: **Strong** (best-in-class or competitive), **Adequate** (functiona
 
 ### P0 — Production Blockers
 
-Issues that would prevent recommending Sunrise orchestration for production workloads under load.
+Issues that would prevent recommending Resparkable orchestration for production workloads under load.
 
 | #   | Improvement                           | Current State                                                    | Target State                                                 | Benchmark         |
 | --- | ------------------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------ | ----------------- |
 | 2   | **Distributed circuit breaker state** | In-memory per instance                                           | Redis or Postgres-backed shared state                        | Standard practice |
 | 3   | **Distributed budget mutex**          | In-memory per instance; concurrent instances can overspend by N× | Redis-based distributed lock or Postgres `SELECT FOR UPDATE` | Standard practice |
 
-> **Resolved:** OTEL tracing instrumentation (previously P0 #1, also Tier 3 #13 in `improvement-priorities.md`) — shipped May 2026. Vendor-neutral `Tracer` interface in `lib/orchestration/tracing/` with a no-op default (zero allocations, zero new deps for forks not opting in). Every LLM call site, capability dispatch, workflow step, agent-call turn, and chat turn goes through `withSpan` (callback-shaped sites) or `withSpanGenerator` (async-generator-shaped sites — engine `execute()`, `workflow.step`, chat `run()`, streaming `llm.call`); both activate the span as the OTEL active context via `AsyncLocalStorage` so OTLP backends see a real parent/child waterfall, one trace per execution / chat turn. Tracer failures are caught at the wrap boundary so a broken tracer can never abort orchestration. Span attributes follow OpenTelemetry GenAI semantic conventions (`gen_ai.system`, `gen_ai.request.model`, `gen_ai.usage.input_tokens`, …) plus Sunrise extensions (`sunrise.execution_id`, `sunrise.step_id`, `sunrise.cost_usd`, `sunrise.provider.failover_from/to`, …). One first-party `OtelTracer` adapter ships, opted into via `registerOtelTracer()` after constructing a `TracerProvider`. Forks point any OTLP-compatible backend at the spans; sampling delegates entirely to OTEL. `AiCostLog` rows gained nullable `traceId` / `spanId` columns for cost ↔ span join.
+> **Resolved:** OTEL tracing instrumentation (previously P0 #1, also Tier 3 #13 in `improvement-priorities.md`) — shipped May 2026. Vendor-neutral `Tracer` interface in `lib/orchestration/tracing/` with a no-op default (zero allocations, zero new deps for forks not opting in). Every LLM call site, capability dispatch, workflow step, agent-call turn, and chat turn goes through `withSpan` (callback-shaped sites) or `withSpanGenerator` (async-generator-shaped sites — engine `execute()`, `workflow.step`, chat `run()`, streaming `llm.call`); both activate the span as the OTEL active context via `AsyncLocalStorage` so OTLP backends see a real parent/child waterfall, one trace per execution / chat turn. Tracer failures are caught at the wrap boundary so a broken tracer can never abort orchestration. Span attributes follow OpenTelemetry GenAI semantic conventions (`gen_ai.system`, `gen_ai.request.model`, `gen_ai.usage.input_tokens`, …) plus Resparkable extensions (`resparkable.execution_id`, `resparkable.step_id`, `resparkable.cost_usd`, `resparkable.provider.failover_from/to`, …). One first-party `OtelTracer` adapter ships, opted into via `registerOtelTracer()` after constructing a `TracerProvider`. Forks point any OTLP-compatible backend at the spans; sampling delegates entirely to OTEL. `AiCostLog` rows gained nullable `traceId` / `spanId` columns for cost ↔ span join.
 >
 > **Resolved:** Approval queue (previously P0 #4) — shipped April 2026. Admin UI with expandable rows, approve/reject actions, sidebar badge. External approval channels via HMAC-signed token endpoints, notification dispatcher with hook/webhook events, and approver scoping for delegated decisions.
 >
@@ -295,7 +295,7 @@ Issues that limit capability or reliability in real-world use.
 
 ### P2 — Competitive Parity
 
-Improvements that bring Sunrise to feature parity with leading platforms.
+Improvements that bring Resparkable to feature parity with leading platforms.
 
 | #   | Improvement                        | Current State                        | Target State                                                                           | Benchmark               |
 | --- | ---------------------------------- | ------------------------------------ | -------------------------------------------------------------------------------------- | ----------------------- |
@@ -326,7 +326,7 @@ Forward-looking improvements that would establish competitive advantages.
 
 **Platform-agnostic core.** The hard rule — no `next/*` imports in `lib/orchestration/` — is a genuine architectural advantage. It means the engine can be extracted, tested independently, or ported to a different host framework. Most visual platforms (Dify, Flowise) embed their logic in the UI layer.
 
-**Integrated cost tracking.** Rather than treating cost as an afterthought (external dashboard, billing API), Sunrise builds cost awareness into the execution loop itself. This is the right long-term architecture — cost is a first-class constraint alongside correctness and latency.
+**Integrated cost tracking.** Rather than treating cost as an afterthought (external dashboard, billing API), Resparkable builds cost awareness into the execution loop itself. This is the right long-term architecture — cost is a first-class constraint alongside correctness and latency.
 
 **Audit-first config management.** Instruction versioning, definition history, and the immutable audit log create a change trail that most frameworks entirely lack. This matters for compliance-heavy deployments.
 
@@ -354,9 +354,9 @@ Forward-looking improvements that would establish competitive advantages.
 
 ## Security & Safety
 
-### Sunrise Security Implementation
+### Resparkable Security Implementation
 
-Sunrise ships a multi-layered security model built into the orchestration core:
+Resparkable ships a multi-layered security model built into the orchestration core:
 
 - **Input guard** (`lib/orchestration/chat/input-guard.ts`): Detects 3 injection pattern types (system_override, role_confusion, delimiter_injection). Per-agent + global modes: `log_only` (default), `warn_and_continue`, `block`.
 - **Output guard** (`lib/orchestration/chat/output-guard.ts`): Content filtering with configurable topic boundaries, PII detection, and brand voice enforcement. Same 3 modes as input guard.
@@ -368,27 +368,27 @@ Sunrise ships a multi-layered security model built into the orchestration core:
 
 ### Security Comparison Matrix
 
-| Capability                     | Sunrise  | OpenAI SDK | Bedrock | Azure Foundry | LangGraph | Dify     | CrewAI   | AgentKit |
-| ------------------------------ | -------- | ---------- | ------- | ------------- | --------- | -------- | -------- | -------- |
-| Input injection detection      | Strong   | Adequate   | Strong  | Strong        | Adequate  | Adequate | Weak     | Strong   |
-| Output content filtering       | Strong   | Adequate   | Strong  | Strong        | Adequate  | Adequate | Weak     | Strong   |
-| SSRF protection                | Adequate | N/A        | N/A     | N/A           | None      | Adequate | None     | N/A      |
-| Credential management          | Strong   | N/A        | Strong  | Strong        | None      | Strong   | Weak     | Strong   |
-| Code execution sandbox         | None     | Strong     | Strong  | Strong        | None      | Adequate | Adequate | Strong   |
-| Multi-tenancy / data isolation | Strong   | N/A        | Strong  | Strong        | None      | Adequate | Weak     | Adequate |
-| OWASP Agentic Top 10 coverage  | Adequate | Adequate   | Strong  | Strong        | Weak      | Adequate | Weak     | Strong   |
+| Capability                     | Resparkable | OpenAI SDK | Bedrock | Azure Foundry | LangGraph | Dify     | CrewAI   | AgentKit |
+| ------------------------------ | ----------- | ---------- | ------- | ------------- | --------- | -------- | -------- | -------- |
+| Input injection detection      | Strong      | Adequate   | Strong  | Strong        | Adequate  | Adequate | Weak     | Strong   |
+| Output content filtering       | Strong      | Adequate   | Strong  | Strong        | Adequate  | Adequate | Weak     | Strong   |
+| SSRF protection                | Adequate    | N/A        | N/A     | N/A           | None      | Adequate | None     | N/A      |
+| Credential management          | Strong      | N/A        | Strong  | Strong        | None      | Strong   | Weak     | Strong   |
+| Code execution sandbox         | None        | Strong     | Strong  | Strong        | None      | Adequate | Adequate | Strong   |
+| Multi-tenancy / data isolation | Strong      | N/A        | Strong  | Strong        | None      | Adequate | Weak     | Adequate |
+| OWASP Agentic Top 10 coverage  | Adequate    | Adequate   | Strong  | Strong        | Weak      | Adequate | Weak     | Strong   |
 
 **Context:** OWASP published the Top 10 for Agentic Applications in December 2025 — the first formal risk taxonomy for autonomous AI agents. The EU AI Act's high-risk obligations take effect August 2026. Microsoft's open-source Agent Governance Toolkit (April 2026) covers all 10 OWASP categories and works with any framework.
 
-**Sunrise position:** Strong on input/output guards and data isolation. Missing code execution sandboxing (relevant for tool-use agents that generate code). The OWASP Agentic Top 10 should be used as a gap analysis checklist — Sunrise covers approximately 6/10 categories natively (injection, data leakage, insecure output, excessive permissions, rate limiting, logging/monitoring), with gaps in resource overconsumption isolation, supply chain validation, and sandbox enforcement.
+**Resparkable position:** Strong on input/output guards and data isolation. Missing code execution sandboxing (relevant for tool-use agents that generate code). The OWASP Agentic Top 10 should be used as a gap analysis checklist — Resparkable covers approximately 6/10 categories natively (injection, data leakage, insecure output, excessive permissions, rate limiting, logging/monitoring), with gaps in resource overconsumption isolation, supply chain validation, and sandbox enforcement.
 
 ---
 
 ## MCP (Model Context Protocol)
 
-### Sunrise MCP Implementation
+### Resparkable MCP Implementation
 
-Sunrise ships a **full MCP server** (`lib/orchestration/mcp/`, `app/api/v1/mcp/route.ts`) — not just client-side MCP tool calls:
+Resparkable ships a **full MCP server** (`lib/orchestration/mcp/`, `app/api/v1/mcp/route.ts`) — not just client-side MCP tool calls:
 
 - **Transport**: Streamable HTTP (JSON-RPC 2.0 over POST, SSE notification stream via GET, session termination via DELETE)
 - **Authentication**: Bearer token (MCP API keys), not session cookies. IP-level + per-key rate limiting.
@@ -402,17 +402,17 @@ Sunrise ships a **full MCP server** (`lib/orchestration/mcp/`, `app/api/v1/mcp/r
 
 ### MCP Comparison Matrix
 
-| Capability                | Sunrise | OpenAI SDK | LangGraph | CrewAI | Haystack | Google ADK | Azure Foundry | Dify   | AgentKit |
-| ------------------------- | ------- | ---------- | --------- | ------ | -------- | ---------- | ------------- | ------ | -------- |
-| MCP server implementation | Strong  | None       | None      | None   | Strong   | None       | Adequate      | None   | None     |
-| MCP client (tool calling) | None    | Strong     | Adequate  | Strong | Strong   | Strong     | Strong        | Strong | Strong   |
-| MCP tools exposure        | Strong  | N/A        | N/A       | N/A    | Strong   | N/A        | Adequate      | N/A    | N/A      |
-| MCP resources             | Strong  | N/A        | N/A       | N/A    | None     | N/A        | None          | N/A    | N/A      |
-| MCP audit logging         | Strong  | None       | None      | None   | None     | None       | None          | None   | None     |
-| MCP API key auth          | Strong  | N/A        | N/A       | N/A    | N/A      | N/A        | Adequate      | N/A    | N/A      |
-| Session management        | Strong  | N/A        | N/A       | N/A    | None     | N/A        | None          | N/A    | N/A      |
+| Capability                | Resparkable | OpenAI SDK | LangGraph | CrewAI | Haystack | Google ADK | Azure Foundry | Dify   | AgentKit |
+| ------------------------- | ----------- | ---------- | --------- | ------ | -------- | ---------- | ------------- | ------ | -------- |
+| MCP server implementation | Strong      | None       | None      | None   | Strong   | None       | Adequate      | None   | None     |
+| MCP client (tool calling) | None        | Strong     | Adequate  | Strong | Strong   | Strong     | Strong        | Strong | Strong   |
+| MCP tools exposure        | Strong      | N/A        | N/A       | N/A    | Strong   | N/A        | Adequate      | N/A    | N/A      |
+| MCP resources             | Strong      | N/A        | N/A       | N/A    | None     | N/A        | None          | N/A    | N/A      |
+| MCP audit logging         | Strong      | None       | None      | None   | None     | None       | None          | None   | None     |
+| MCP API key auth          | Strong      | N/A        | N/A       | N/A    | N/A      | N/A        | Adequate      | N/A    | N/A      |
+| Session management        | Strong      | N/A        | N/A       | N/A    | None     | N/A        | None          | N/A    | N/A      |
 
-**Sunrise position:** Most platforms support MCP as a **client** (calling MCP tools). Sunrise is one of very few that implements an MCP **server** — exposing its capabilities to external MCP clients. Haystack's Hayhooks also acts as an MCP server (exposing pipelines as tools). Azure Foundry added MCP server support in preview (mid-2025). The audit logging and API key auth on MCP are unique to Sunrise.
+**Resparkable position:** Most platforms support MCP as a **client** (calling MCP tools). Resparkable is one of very few that implements an MCP **server** — exposing its capabilities to external MCP clients. Haystack's Hayhooks also acts as an MCP server (exposing pipelines as tools). Azure Foundry added MCP server support in preview (mid-2025). The audit logging and API key auth on MCP are unique to Resparkable.
 
 **MCP protocol status (2026):** Donated to the Agentic AI Foundation (Linux Foundation) in December 2025. Adopted by OpenAI (March 2025), Azure (mid-2025), and all major frameworks. MCP is rapidly becoming the "USB-C for AI" — platforms without MCP support will face increasing integration friction.
 
@@ -420,9 +420,9 @@ Sunrise ships a **full MCP server** (`lib/orchestration/mcp/`, `app/api/v1/mcp/r
 
 ## Scheduling, Webhooks & Event Hooks
 
-### Sunrise Implementation
+### Resparkable Implementation
 
-Sunrise has three event/notification systems:
+Resparkable has three event/notification systems:
 
 **1. Cron Scheduling** (`lib/orchestration/scheduling/`):
 
@@ -451,27 +451,27 @@ Sunrise has three event/notification systems:
 
 ### Scheduling & Events Comparison Matrix
 
-| Capability                  | Sunrise | Dify     | n8n      | LangGraph Platform | Flowise | CrewAI Enterprise | Bedrock  |
-| --------------------------- | ------- | -------- | -------- | ------------------ | ------- | ----------------- | -------- |
-| Cron scheduling             | Strong  | Strong   | Strong   | Strong             | None    | Adequate          | Adequate |
-| Webhook triggers (inbound)  | Strong  | Strong   | Strong   | None               | None    | Adequate          | None     |
-| Event hooks (outbound)      | Strong  | Adequate | Strong   | None               | None    | None              | None     |
-| Delivery tracking + retry   | Strong  | None     | Adequate | None               | None    | None              | None     |
-| HMAC signature verification | Strong  | None     | None     | None               | None    | None              | None     |
-| Plugin/integration triggers | None    | Strong   | Strong   | None               | None    | Strong            | Adequate |
-| Manual retry (admin)        | Strong  | None     | Adequate | None               | None    | None              | None     |
+| Capability                  | Resparkable | Dify     | n8n      | LangGraph Platform | Flowise | CrewAI Enterprise | Bedrock  |
+| --------------------------- | ----------- | -------- | -------- | ------------------ | ------- | ----------------- | -------- |
+| Cron scheduling             | Strong      | Strong   | Strong   | Strong             | None    | Adequate          | Adequate |
+| Webhook triggers (inbound)  | Strong      | Strong   | Strong   | None               | None    | Adequate          | None     |
+| Event hooks (outbound)      | Strong      | Adequate | Strong   | None               | None    | None              | None     |
+| Delivery tracking + retry   | Strong      | None     | Adequate | None               | None    | None              | None     |
+| HMAC signature verification | Strong      | None     | None     | None               | None    | None              | None     |
+| Plugin/integration triggers | None        | Strong   | Strong   | None               | None    | Strong            | Adequate |
+| Manual retry (admin)        | Strong      | None     | Adequate | None               | None    | None              | None     |
 
-**Sunrise advantages:** The dual webhook + event hook system with HMAC signing, delivery tracking, and admin retry is more complete than any evaluated platform. Dify's trigger system (cron, webhook, plugin) is broader on inbound triggers but has no delivery tracking or retry. n8n has the richest general automation triggers but treats AI agents as nodes in a general workflow engine.
+**Resparkable advantages:** The dual webhook + event hook system with HMAC signing, delivery tracking, and admin retry is more complete than any evaluated platform. Dify's trigger system (cron, webhook, plugin) is broader on inbound triggers but has no delivery tracking or retry. n8n has the richest general automation triggers but treats AI agents as nodes in a general workflow engine.
 
-**Key gap:** No plugin/integration triggers (email, Slack, Salesforce). Dify and CrewAI Enterprise offer these natively. Sunrise requires external webhook integrations for third-party event sources.
+**Key gap:** No plugin/integration triggers (email, Slack, Salesforce). Dify and CrewAI Enterprise offer these natively. Resparkable requires external webhook integrations for third-party event sources.
 
 ---
 
 ## Embeddable Chat / Consumer API
 
-### Sunrise Implementation
+### Resparkable Implementation
 
-Sunrise has a consumer-facing deployment path:
+Resparkable has a consumer-facing deployment path:
 
 - **Consumer chat API** (`app/api/v1/chat/`): Stream endpoint, agent listing, conversation management — separate from admin API
 - **Embed widget** (`app/api/v1/embed/widget.js/`): JavaScript loader served as an API route. Shadow DOM isolation prevents style conflicts with host page.
@@ -482,17 +482,17 @@ Sunrise has a consumer-facing deployment path:
 
 ### Embed Comparison Matrix
 
-| Capability                  | Sunrise | Dify     | Flowise  | n8n  | LangGraph | CrewAI | Haystack | AgentKit |
-| --------------------------- | ------- | -------- | -------- | ---- | --------- | ------ | -------- | -------- |
-| Embeddable chat widget      | Strong  | Strong   | Strong   | None | None      | None   | None     | Strong   |
-| Shadow DOM isolation        | Strong  | None     | None     | N/A  | N/A       | N/A    | N/A      | Strong   |
-| Iframe embed                | None    | Strong   | Adequate | None | None      | None   | None     | None     |
-| Token-based auth            | Strong  | Adequate | Adequate | N/A  | N/A       | N/A    | N/A      | Strong   |
-| Embed proxy (hide API host) | None    | None     | Strong   | N/A  | N/A       | N/A    | N/A      | None     |
-| Widget customisation        | Strong  | Strong   | Strong   | N/A  | N/A       | N/A    | N/A      | Strong   |
-| Agent visibility modes      | Strong  | Adequate | Weak     | N/A  | N/A       | N/A    | N/A      | Adequate |
+| Capability                  | Resparkable | Dify     | Flowise  | n8n  | LangGraph | CrewAI | Haystack | AgentKit |
+| --------------------------- | ----------- | -------- | -------- | ---- | --------- | ------ | -------- | -------- |
+| Embeddable chat widget      | Strong      | Strong   | Strong   | None | None      | None   | None     | Strong   |
+| Shadow DOM isolation        | Strong      | None     | None     | N/A  | N/A       | N/A    | N/A      | Strong   |
+| Iframe embed                | None        | Strong   | Adequate | None | None      | None   | None     | None     |
+| Token-based auth            | Strong      | Adequate | Adequate | N/A  | N/A       | N/A    | N/A      | Strong   |
+| Embed proxy (hide API host) | None        | None     | Strong   | N/A  | N/A       | N/A    | N/A      | None     |
+| Widget customisation        | Strong      | Strong   | Strong   | N/A  | N/A       | N/A    | N/A      | Strong   |
+| Agent visibility modes      | Strong      | Adequate | Weak     | N/A  | N/A       | N/A    | N/A      | Adequate |
 
-**Sunrise position:** The embed widget with Shadow DOM isolation is architecturally clean — prevents CSS/JS conflicts that iframe-based embeds avoid but at the cost of cross-origin complexity. The 3 visibility modes (internal/public/invite_only) with invite tokens is more granular than Dify's or Flowise's approach. Code-first frameworks (LangGraph, CrewAI, Haystack, AutoGen) don't ship embed widgets — they are libraries, not platforms. OpenAI AgentKit's ChatKit (open-sourced October 2025) is the closest peer — a Shadow-DOM-isolated React embed library that talks to an OpenAI-hosted agent runtime. The widget itself is comparable; the trade is at the runtime layer (OpenAI-only, OpenAI-billed) rather than the embed layer.
+**Resparkable position:** The embed widget with Shadow DOM isolation is architecturally clean — prevents CSS/JS conflicts that iframe-based embeds avoid but at the cost of cross-origin complexity. The 3 visibility modes (internal/public/invite_only) with invite tokens is more granular than Dify's or Flowise's approach. Code-first frameworks (LangGraph, CrewAI, Haystack, AutoGen) don't ship embed widgets — they are libraries, not platforms. OpenAI AgentKit's ChatKit (open-sourced October 2025) is the closest peer — a Shadow-DOM-isolated React embed library that talks to an OpenAI-hosted agent runtime. The widget itself is comparable; the trade is at the runtime layer (OpenAI-only, OpenAI-billed) rather than the embed layer.
 
 > **Resolved:** Widget customisation (Tier 2 #7 in `improvement-priorities.md`) — shipped May 2026. Per-agent `widgetConfig` JSONB column (colours, fonts, header copy, conversation starters, footer caption) loaded by the widget on boot via a new public `/api/v1/embed/widget-config` endpoint. Inline `<style>` references CSS custom properties (`--sw-primary`, `--sw-surface`, `--sw-text`, `--sw-font`, …) so a single property write cascades through the Shadow DOM tree per partner site. Copy fields rendered via `textContent` / `setAttribute` (XSS-safe). Admin form's Embed tab gains a live preview pane and a soft WCAG AA contrast warning. Roundtrips through the per-agent export bundle, clone route, and full system backup.
 
@@ -502,11 +502,11 @@ Sunrise has a consumer-facing deployment path:
 
 ## Pricing & Licensing Landscape
 
-Sunrise is a self-hosted starter template with no licensing cost. This positions it differently from commercial platforms and managed services.
+Resparkable is a self-hosted starter template with no licensing cost. This positions it differently from commercial platforms and managed services.
 
 | Platform            | License                                                 | Free Tier                                 | Paid Tier                                                             | Key Commercial Lock-in                                          |
 | ------------------- | ------------------------------------------------------- | ----------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------- |
-| **Sunrise**         | Proprietary (starter template)                          | Full self-hosted                          | None                                                                  | None                                                            |
+| **Resparkable**     | Proprietary (starter template)                          | Full self-hosted                          | None                                                                  | None                                                            |
 | **LangGraph**       | MIT (library)                                           | OSS unlimited                             | Platform: LangSmith $39/seat/mo, Agent Server custom                  | LangSmith for production observability                          |
 | **CrewAI**          | MIT (library)                                           | 50 workflow executions                    | $25–$120K/yr (Ultra)                                                  | Enterprise tier for SOC2, SSO, PII masking                      |
 | **AutoGen/AG2**     | Apache 2.0                                              | Full OSS                                  | None                                                                  | None — community-driven                                         |
@@ -520,13 +520,13 @@ Sunrise is a self-hosted starter template with no licensing cost. This positions
 | **Bedrock Agents**  | Proprietary (managed)                                   | None                                      | Usage-based + Lambda costs                                            | AWS-only                                                        |
 | **Azure Foundry**   | Proprietary (managed)                                   | Azure free account services               | Usage-based + hosting                                                 | Azure-only                                                      |
 
-**Key insight:** The commercial lock-in risk in this space is not the framework license — it's the observability/deployment platform. LangGraph is MIT but production use practically requires LangSmith ($39/seat/mo + per-trace). CrewAI is MIT but Enterprise features (SOC2, SSO) start at custom pricing. OpenAI AgentKit takes the most opinionated stance: ChatKit and Guardrails are open-source, but the orchestration runtime, Evals, traces, and Agent Builder are all OpenAI-hosted and OpenAI-only — adoption locks in the model vendor as well as the platform vendor. Sunrise avoids both patterns by building observability and deployment into the platform itself, with OTLP-only external tracing for forks that want vendor-native dashboards.
+**Key insight:** The commercial lock-in risk in this space is not the framework license — it's the observability/deployment platform. LangGraph is MIT but production use practically requires LangSmith ($39/seat/mo + per-trace). CrewAI is MIT but Enterprise features (SOC2, SSO) start at custom pricing. OpenAI AgentKit takes the most opinionated stance: ChatKit and Guardrails are open-source, but the orchestration runtime, Evals, traces, and Agent Builder are all OpenAI-hosted and OpenAI-only — adoption locks in the model vendor as well as the platform vendor. Resparkable avoids both patterns by building observability and deployment into the platform itself, with OTLP-only external tracing for forks that want vendor-native dashboards.
 
 ---
 
 ## Application Development & Production Readiness
 
-Most agent orchestration systems are **libraries** or **managed services** — they solve the AI orchestration problem but leave everything else to the developer. Sunrise solves the orchestration problem inside a production-grade application platform that already handles authentication, database access, API design, server rendering, deployment, and UI components. This distinction matters more than any individual feature comparison.
+Most agent orchestration systems are **libraries** or **managed services** — they solve the AI orchestration problem but leave everything else to the developer. Resparkable solves the orchestration problem inside a production-grade application platform that already handles authentication, database access, API design, server rendering, deployment, and UI components. This distinction matters more than any individual feature comparison.
 
 ### The Integration Tax
 
@@ -548,11 +548,11 @@ Each of these is a standalone engineering effort. The integration work — wirin
 
 Dify and Flowise reduce this tax by offering visual platforms with built-in UI, but they trade away code-level control. Complex business logic, custom integrations, and non-standard workflows hit the visual builder ceiling quickly, requiring escape hatches into code nodes that feel bolted on rather than native.
 
-### What Sunrise Provides Out of the Box
+### What Resparkable Provides Out of the Box
 
-Sunrise ships orchestration as one layer within a complete, typed application stack:
+Resparkable ships orchestration as one layer within a complete, typed application stack:
 
-| Layer                    | Sunrise                                                                    | LangGraph + custom app              | Dify                            |
+| Layer                    | Resparkable                                                                | LangGraph + custom app              | Dify                            |
 | ------------------------ | -------------------------------------------------------------------------- | ----------------------------------- | ------------------------------- |
 | **Frontend framework**   | Next.js 16 / React 19                                                      | Build your own                      | Visual builder (limited)        |
 | **Type safety**          | End-to-end TypeScript, Zod validation at boundaries                        | Python ↔ TypeScript bridge required | YAML/JSON definitions           |
@@ -564,11 +564,11 @@ Sunrise ships orchestration as one layer within a complete, typed application st
 | **Orchestration engine** | 15-step DAG with budget enforcement                                        | Graph-based DAG (strongest)         | Visual DAG (adequate)           |
 | **Deployment**           | Docker Compose, single-repo                                                | Multi-service (Python + web app)    | Docker Compose                  |
 
-The practical consequence: a team using Sunrise can go from "we need an AI-powered feature" to a deployed, authenticated, budget-enforced agent with admin controls in days rather than months. The same team using LangGraph would spend those months building the application layer around the orchestration engine.
+The practical consequence: a team using Resparkable can go from "we need an AI-powered feature" to a deployed, authenticated, budget-enforced agent with admin controls in days rather than months. The same team using LangGraph would spend those months building the application layer around the orchestration engine.
 
 ### Web and Mobile Development
 
-Because Sunrise is a Next.js application, every orchestration capability is automatically available as:
+Because Resparkable is a Next.js application, every orchestration capability is automatically available as:
 
 - **Server-rendered pages** with SEO metadata, error boundaries, and loading states
 - **REST API endpoints** consumable by any client — React Native, Flutter, iOS/Android native, third-party integrations
@@ -577,13 +577,13 @@ Because Sunrise is a Next.js application, every orchestration capability is auto
 
 This is not achievable with Python-based frameworks (LangGraph, CrewAI, AutoGen, Haystack) without building a separate web layer. Teams building mobile or web products typically need both a Python backend for AI and a TypeScript frontend for the application — two codebases, two deployment pipelines, two sets of type definitions that must be kept in sync.
 
-Sunrise eliminates this split. The orchestration engine, API layer, admin UI, and consumer-facing components all live in one TypeScript codebase with shared types, shared validation schemas, and a single deployment artifact. A change to the agent configuration schema propagates from the Prisma model through the API validation to the admin form without manual synchronisation.
+Resparkable eliminates this split. The orchestration engine, API layer, admin UI, and consumer-facing components all live in one TypeScript codebase with shared types, shared validation schemas, and a single deployment artifact. A change to the agent configuration schema propagates from the Prisma model through the API validation to the admin form without manual synchronisation.
 
 ### Production Readiness Comparison
 
 "Production-ready" means different things at different layers. Most frameworks solve the orchestration layer but leave production concerns to the adopting team.
 
-| Concern                 | Sunrise                                                     | Code-first frameworks | Visual platforms        | Managed services        |
+| Concern                 | Resparkable                                                 | Code-first frameworks | Visual platforms        | Managed services        |
 | ----------------------- | ----------------------------------------------------------- | --------------------- | ----------------------- | ----------------------- |
 | **Rate limiting**       | Built-in at IP, user, agent, capability levels              | None — build your own | Basic (platform-level)  | Managed                 |
 | **Auth + RBAC**         | Admin/consumer roles, session management                    | None                  | Basic (workspace-level) | IAM-based               |
@@ -602,7 +602,7 @@ This advantage is strongest for teams building **products** — applications whe
 
 Similarly, enterprises already invested in AWS or Azure infrastructure will find Bedrock Agents or Azure Foundry more natural than adopting a new application framework. The integration tax argument reverses when the surrounding infrastructure already exists.
 
-The honest comparison is: Sunrise trades **ecosystem breadth and community size** (LangGraph has 400+ production deployments at companies like LinkedIn and Uber; CrewAI processes 450M+ monthly workflows) for **integration depth and time-to-production** for teams that need a complete application, not just an orchestration engine.
+The honest comparison is: Resparkable trades **ecosystem breadth and community size** (LangGraph has 400+ production deployments at companies like LinkedIn and Uber; CrewAI processes 450M+ monthly workflows) for **integration depth and time-to-production** for teams that need a complete application, not just an orchestration engine.
 
 ---
 
@@ -614,11 +614,11 @@ The closest architectural peer. Both use typed DAG execution with explicit state
 
 **What to learn from:** Checkpoint-per-step, `interrupt()` model, `Send` API for dynamic fan-out.
 
-**What Sunrise does better:** Cost enforcement, provider resilience, capability dispatch pipeline.
+**What Resparkable does better:** Cost enforcement, provider resilience, capability dispatch pipeline.
 
 ### Haystack — Observability Benchmark
 
-Not a competitor on orchestration complexity, but the gold standard for observability integration (5+ backends) and evaluation (8 named metrics). Sunrise should target Haystack's pluggable tracer pattern rather than LangSmith's commercial model.
+Not a competitor on orchestration complexity, but the gold standard for observability integration (5+ backends) and evaluation (8 named metrics). Resparkable should target Haystack's pluggable tracer pattern rather than LangSmith's commercial model.
 
 **What to learn from:** OTEL auto-instrumentation, `LangfuseConnector` pattern, named evaluators.
 
@@ -630,29 +630,29 @@ Newest entrant, but the A2A inter-agent protocol is potentially industry-definin
 
 ### OpenAI AgentKit — Hosted Visual Platform with Same-Surface Overlap
 
-The most direct overlap with Sunrise's product surface. Where AgentKit and Sunrise both ship: visual workflow builder, embeddable chat widget, knowledge / file search, named eval metrics, trace viewer, guardrails, admin-managed connectors. The fundamental trade is the runtime — AgentKit's orchestration engine is OpenAI-hosted and OpenAI-only; Sunrise self-hosts and is multi-provider with circuit breakers and per-agent fallback chains. AgentKit launched in late 2025 and consolidates what previously required stitching together the Agents SDK + Responses API + a hand-rolled UI; this raises the bar on "what good looks like" for everyone in the space.
+The most direct overlap with Resparkable's product surface. Where AgentKit and Resparkable both ship: visual workflow builder, embeddable chat widget, knowledge / file search, named eval metrics, trace viewer, guardrails, admin-managed connectors. The fundamental trade is the runtime — AgentKit's orchestration engine is OpenAI-hosted and OpenAI-only; Resparkable self-hosts and is multi-provider with circuit breakers and per-agent fallback chains. AgentKit launched in late 2025 and consolidates what previously required stitching together the Agents SDK + Responses API + a hand-rolled UI; this raises the bar on "what good looks like" for everyone in the space.
 
 **Where AgentKit leads:**
 
-- **Evals product** — datasets, automated graders, trace grading, prompt optimisation, RFT integration. More mature than Sunrise's three-metric scorer.
-- **Built-in tools** — web search, file search, computer use, code interpreter exposed through the Responses API as first-class capabilities. Sunrise's `call_external_api` + recipes cookbook is curation-first; AgentKit's are vendor-bundled.
-- **Named handoff primitives** — Agent Builder canvas wires agent-to-agent handoffs explicitly. Sunrise's `orchestrator` step is informal planner-driven coordination.
-- **Code execution sandbox** — Code Interpreter is a managed sandbox; Sunrise has none.
+- **Evals product** — datasets, automated graders, trace grading, prompt optimisation, RFT integration. More mature than Resparkable's three-metric scorer.
+- **Built-in tools** — web search, file search, computer use, code interpreter exposed through the Responses API as first-class capabilities. Resparkable's `call_external_api` + recipes cookbook is curation-first; AgentKit's are vendor-bundled.
+- **Named handoff primitives** — Agent Builder canvas wires agent-to-agent handoffs explicitly. Resparkable's `orchestrator` step is informal planner-driven coordination.
+- **Code execution sandbox** — Code Interpreter is a managed sandbox; Resparkable has none.
 - **Managed scaling** — horizontal scaling, background execution, distributed state are OpenAI's problem, not the adopter's.
 
-**Where Sunrise leads:**
+**Where Resparkable leads:**
 
-- **Provider freedom** — AgentKit cannot fall back to Anthropic, Google, Mistral, or local models on degradation. Sunrise's circuit breaker + per-agent fallback chains have no AgentKit equivalent.
+- **Provider freedom** — AgentKit cannot fall back to Anthropic, Google, Mistral, or local models on degradation. Resparkable's circuit breaker + per-agent fallback chains have no AgentKit equivalent.
 - **Cost / budget enforcement in-loop** — AgentKit surfaces token usage in the dashboard but does not gate execution against per-agent or global budgets.
 - **Self-hosting + source access** — every line of orchestration logic is in the fork; AgentKit's runtime is a black box.
-- **Inline citation envelope** — Sunrise's `Citation` envelope flowing through the LLM tool result, SSE stream, and persisted message metadata is more end-to-end than AgentKit's file-search citations.
-- **MCP server** — AgentKit consumes MCP; Sunrise also exposes capabilities to external MCP clients with audit logging and API-key auth.
-- **Application-stack integration** — Sunrise's auth, RBAC, audit log, admin UI, consumer chat, and database all live in one TypeScript codebase; AgentKit gives you a runtime, not an application.
+- **Inline citation envelope** — Resparkable's `Citation` envelope flowing through the LLM tool result, SSE stream, and persisted message metadata is more end-to-end than AgentKit's file-search citations.
+- **MCP server** — AgentKit consumes MCP; Resparkable also exposes capabilities to external MCP clients with audit logging and API-key auth.
+- **Application-stack integration** — Resparkable's auth, RBAC, audit log, admin UI, consumer chat, and database all live in one TypeScript codebase; AgentKit gives you a runtime, not an application.
 
 **What to learn from:** Evals product structure (dataset + grader + baseline comparison), Agent Builder's named handoff/supervisor primitives on a visual canvas, the Connector Registry as an admin abstraction, ChatKit's customisation surface.
 
-**Buyer-profile distinction:** AgentKit suits teams that have already standardised on OpenAI models, want zero-ops orchestration, and value evaluation tooling depth over runtime control. Sunrise suits teams that need multi-provider resilience, in-loop cost enforcement, source-level customisation, or an integrated full application stack rather than a runtime to graft onto an existing app.
+**Buyer-profile distinction:** AgentKit suits teams that have already standardised on OpenAI models, want zero-ops orchestration, and value evaluation tooling depth over runtime control. Resparkable suits teams that need multi-provider resilience, in-loop cost enforcement, source-level customisation, or an integrated full application stack rather than a runtime to graft onto an existing app.
 
 ### Managed Services (Bedrock, Azure Foundry) — Different Category
 
-These compete on infrastructure, not engine design. Sunrise will never match their scaling or compliance posture, but they will never match Sunrise's customisation depth or cost enforcement. They serve different buyer profiles: managed services for enterprises wanting turnkey AI; Sunrise for teams wanting control over the orchestration layer.
+These compete on infrastructure, not engine design. Resparkable will never match their scaling or compliance posture, but they will never match Resparkable's customisation depth or cost enforcement. They serve different buyer profiles: managed services for enterprises wanting turnkey AI; Resparkable for teams wanting control over the orchestration layer.

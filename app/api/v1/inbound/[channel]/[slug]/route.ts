@@ -229,7 +229,7 @@ export async function POST(
   const externalId = verifyResult.externalId ?? normalised.externalId ?? null;
 
   // Dedup scope depends on whether the channel uses a shared signing secret.
-  //   - slack / postmark: ONE secret per Sunrise instance, signing envelope does NOT
+  //   - slack / postmark: ONE secret per Resparkable instance, signing envelope does NOT
   //     bind the workflow URL, so a captured request can be replayed against any
   //     other workflow on the same channel. Dedup must be channel-global.
   //   - hmac: per-trigger secret, so a captured request only verifies on the

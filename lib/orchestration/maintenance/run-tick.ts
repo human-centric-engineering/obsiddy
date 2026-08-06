@@ -183,13 +183,13 @@ export async function runMaintenanceTick(
   }, BACKGROUND_TASK_MAX_MS);
 
   void Promise.allSettled([
-    // Sunrise's own tasks, each gated by its own minimum interval (#442). The
+    // Resparkable's own tasks, each gated by its own minimum interval (#442). The
     // helper contains per-task failures itself, so a rejection here would mean
     // the registry rather than a sweep.
     runDuePlatformJobs(startMs),
-    // Fork-owned seam (#469). Second so app work never delays Sunrise's own
+    // Fork-owned seam (#469). Second so app work never delays Resparkable's own
     // maintenance. `runDueAppJobs` never throws and returns undefined when no
-    // jobs are registered, so vanilla Sunrise is unaffected.
+    // jobs are registered, so vanilla Resparkable is unaffected.
     runDueAppJobs(),
   ])
     .then(async ([platformResult, appJobsResult]) => {

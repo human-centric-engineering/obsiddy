@@ -19,7 +19,7 @@
  * address when deciding whether a fresh database has any real users yet — so
  * the first person who signs up still becomes the admin.
  */
-export const SYSTEM_USER_EMAIL = 'system@sunrise.local';
+export const SYSTEM_USER_EMAIL = 'system@resparkable.local';
 
 /**
  * Fixed primary key of the singleton `AuthBootstrap` row.

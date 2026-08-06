@@ -22,7 +22,7 @@ const unit: SeedUnit = {
         slug: 'upload_to_storage',
         name: 'Upload to Storage',
         description:
-          'Persist a binary artefact (PDF, image, CSV) to the configured Sunrise storage backend (S3, Vercel Blob, or local) and return a URL the user can open. Path is admin-scoped — the LLM only supplies bytes, content type, and an optional filename.',
+          'Persist a binary artefact (PDF, image, CSV) to the configured Resparkable storage backend (S3, Vercel Blob, or local) and return a URL the user can open. Path is admin-scoped — the LLM only supplies bytes, content type, and an optional filename.',
         category: 'external',
         executionType: 'internal',
         executionHandler: 'UploadToStorageCapability',

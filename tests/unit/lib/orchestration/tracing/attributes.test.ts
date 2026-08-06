@@ -1,10 +1,10 @@
 /**
  * Unit tests for attribute key constants.
  *
- * This module guards against typos that silently misalign Sunrise spans
+ * This module guards against typos that silently misalign Resparkable spans
  * from OTEL GenAI semantic conventions. Two test strategies:
  *
- * 1. Regex shape — all GEN_AI_* and SUNRISE_* keys must conform to their
+ * 1. Regex shape — all GEN_AI_* and RESPARKABLE_* keys must conform to their
  *    namespace patterns. A typo like `gen-ai.system` or `gen_ai.System`
  *    fails the regex and surfaces immediately.
  *
@@ -57,23 +57,23 @@ describe('GEN_AI_* attribute keys', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 2. SUNRISE_* namespace shape
+// 2. RESPARKABLE_* namespace shape
 // ---------------------------------------------------------------------------
 
-describe('SUNRISE_* attribute keys', () => {
-  // Same structural contract as GEN_AI but with "sunrise." prefix.
-  const SUNRISE_PATTERN = /^sunrise\.[a-z][a-z0-9_.]*[a-z0-9]$/;
+describe('RESPARKABLE_* attribute keys', () => {
+  // Same structural contract as GEN_AI but with "resparkable." prefix.
+  const RESPARKABLE_PATTERN = /^resparkable\.[a-z][a-z0-9_.]*[a-z0-9]$/;
 
-  it('all SUNRISE_* constants match the Sunrise extension namespace pattern', () => {
+  it('all RESPARKABLE_* constants match the Resparkable extension namespace pattern', () => {
     // Arrange
-    const sunriseEntries = exportedByPrefix('SUNRISE_');
-    expect(sunriseEntries.length).toBeGreaterThan(0); // sanity
+    const resparkableEntries = exportedByPrefix('RESPARKABLE_');
+    expect(resparkableEntries.length).toBeGreaterThan(0); // sanity
 
     // Act + Assert
-    for (const [exportName, value] of sunriseEntries) {
+    for (const [exportName, value] of resparkableEntries) {
       expect(
-        typeof value === 'string' && SUNRISE_PATTERN.test(value),
-        `${exportName}="${String(value)}" does not match ${SUNRISE_PATTERN}`
+        typeof value === 'string' && RESPARKABLE_PATTERN.test(value),
+        `${exportName}="${String(value)}" does not match ${RESPARKABLE_PATTERN}`
       ).toBe(true);
     }
   });

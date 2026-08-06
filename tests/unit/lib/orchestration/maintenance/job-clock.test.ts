@@ -88,7 +88,7 @@ describe('createJobClock', () => {
 
   it('keeps two clocks from sharing state', () => {
     // Registries must not share a clock or a fork job named `retention` would
-    // throttle Sunrise's sweep.
+    // throttle Resparkable's sweep.
     const platform = createJobClock();
     const app = createJobClock();
     const t0 = 1_000_000;

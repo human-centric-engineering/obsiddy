@@ -2,7 +2,7 @@
 
 Entry point for the `.context/` documentation system. Load specific domains based on your task.
 
-**Project:** Sunrise — Next.js 16 starter template
+**Project:** Resparkable — Next.js 16 starter template
 **Stack:** Next.js 16, React 19, Prisma 7, Tailwind 4, better-auth
 **Updated:** 2026-02-06
 
@@ -39,16 +39,16 @@ Entry point for the `.context/` documentation system. Load specific domains base
 | **Commands**       | `commands.md`    | All CLI commands reference                        |
 | **Workflow**       | `workflow.md`    | Git, commits, PR process                          |
 
-> **Two fork tiers are reserved — Sunrise must never create or write under
+> **Two fork tiers are reserved — Resparkable must never create or write under
 > either.** `/app` is the **leaf-fork** tier: `.context/app/` is the fork-owned
 > documentation tree (mirroring this platform substrate), alongside the
 > `lib/app/**` scaffold and `prisma/schema/app.prisma` (ships empty; the
 > platform's own app-domain models live in `platform.prisma`).
 > `/framework` is the **framework-layer** tier for a fork
-> that sits between Sunrise and its own leaf forks (e.g. Daybreak):
+> that sits between Resparkable and its own leaf forks (e.g. Daybreak):
 > `.context/framework/`, `lib/framework/`, `prisma/schema/framework-*.prisma`,
 > and the `framework_` table prefix. Keeping both empty upstream is what lets a
-> fork's files there merge without ever conflicting; Sunrise platform docs always
+> fork's files there merge without ever conflicting; Resparkable platform docs always
 > go under a named domain folder above. See
 > [`CUSTOMIZATION.md`](../CUSTOMIZATION.md#the-appplatform-model).
 

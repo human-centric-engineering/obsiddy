@@ -68,9 +68,9 @@ export function broadcastMcpPromptsChanged(): void {
  * given URI. Called from:
  *   - the admin `PATCH /resources/[id]` route (resource row changed)
  *   - knowledge ingestion completion (re-embedded docs invalidate
- *     `sunrise://knowledge/search`)
- *   - agent / workflow CRUD (mutate `sunrise://agents` /
- *     `sunrise://workflows`)
+ *     `resparkable://knowledge/search`)
+ *   - agent / workflow CRUD (mutate `resparkable://agents` /
+ *     `resparkable://workflows`)
  *
  * No-op when nobody is subscribed, so callers can fire this freely.
  */

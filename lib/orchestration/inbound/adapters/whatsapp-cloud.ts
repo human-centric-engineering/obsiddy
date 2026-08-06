@@ -9,7 +9,7 @@
  * Verification:
  *   - POST: `X-Hub-Signature-256` header carries `sha256=<hex>`, an
  *     HMAC-SHA256 over the raw body using the app's `appSecret`. Same
- *     scheme as GitHub and Sunrise's existing generic-HMAC adapter.
+ *     scheme as GitHub and Resparkable's existing generic-HMAC adapter.
  *   - GET: Meta verifies webhook URL ownership on subscription via a
  *     query-string handshake — `hub.mode=subscribe&hub.verify_token=X&
  *     hub.challenge=Y`. The adapter constant-time compares the token

@@ -35,7 +35,7 @@ const SEED_FILE_PATTERN = /^\d{3}-[a-z0-9-]+\.ts$/;
  * BASENAME must match `NNN-slug.ts` (e.g. `001-system-owner.ts`) — the numeric
  * prefix fixes execution order within a directory.
  *
- * Discovery is recursive, so an app built on Sunrise can drop its own seeds in
+ * Discovery is recursive, so an app built on Resparkable can drop its own seeds in
  * a subdirectory (e.g. `prisma/seeds/app-foo/001-init.ts`). The `SeedHistory`
  * key is the file's path RELATIVE to `seedsDir` (minus `.ts`), so:
  *   - top-level files keep their bare-slug key (`001-system-owner`) — existing

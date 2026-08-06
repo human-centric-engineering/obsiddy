@@ -329,7 +329,7 @@ describe('lib/analytics/server - serverTrack', () => {
       expect(body.distinct_id).toBe('user-ph');
       expect(body.properties.plan).toBe('enterprise');
       expect(body.properties.referrer).toBe('google');
-      expect(body.properties.$lib).toBe('sunrise-server');
+      expect(body.properties.$lib).toBe('resparkable-server');
       expect(body.properties.$lib_version).toBe(APP_VERSION);
       expect(body.properties.$ip).toBe('192.168.1.1');
       expect(body.properties.$user_agent).toBe('PostHogTestAgent/2.0');
@@ -414,7 +414,7 @@ describe('lib/analytics/server - serverTrack', () => {
     beforeEach(() => {
       vi.mocked(detectProvider).mockReturnValue('plausible');
       vi.mocked(getPlausibleConfig).mockReturnValue({
-        domain: 'sunrise.example.com',
+        domain: 'resparkable.example.com',
         host: 'https://plausible.io',
       });
 
@@ -431,7 +431,7 @@ describe('lib/analytics/server - serverTrack', () => {
           ip: '10.10.10.10',
           userAgent: 'PlausibleTestAgent/1.0',
           page: {
-            url: 'https://sunrise.example.com/dashboard',
+            url: 'https://resparkable.example.com/dashboard',
           },
         },
       });
@@ -455,8 +455,8 @@ describe('lib/analytics/server - serverTrack', () => {
       // Verify body structure
       const body = JSON.parse(options.body);
       expect(body.name).toBe('page_view');
-      expect(body.url).toBe('https://sunrise.example.com/dashboard');
-      expect(body.domain).toBe('sunrise.example.com');
+      expect(body.url).toBe('https://resparkable.example.com/dashboard');
+      expect(body.domain).toBe('resparkable.example.com');
 
       // Props should be JSON-stringified and only include string/number/boolean
       const props = JSON.parse(body.props);
@@ -471,7 +471,7 @@ describe('lib/analytics/server - serverTrack', () => {
       });
 
       const body = JSON.parse(mockFetch.mock.calls[0][1].body);
-      expect(body.url).toBe('https://sunrise.example.com/');
+      expect(body.url).toBe('https://resparkable.example.com/');
     });
 
     it('should omit User-Agent and X-Forwarded-For headers when not in context', async () => {

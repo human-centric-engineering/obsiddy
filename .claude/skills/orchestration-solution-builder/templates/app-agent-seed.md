@@ -5,12 +5,12 @@ after `db:reset` — instead of being created ad-hoc through the admin API. Agen
 created via `POST /agents` are admin-editable rows but **do not** exist on a
 fresh deploy; a persistent app agent has to be seeded.
 
-**Do NOT copy a Sunrise _core_ seed** (`prisma/seeds/010-model-auditor.ts`,
+**Do NOT copy a Resparkable _core_ seed** (`prisma/seeds/010-model-auditor.ts`,
 `016-evaluation-judges.ts`, …) as your starting point. Those set
 `isSystem: true` because they are platform machinery — copying one verbatim
 silently elevates your app agent into the **reserved** class (undeletable,
 undeactivatable, instruction-locked, excluded from backup/export) while it
-masquerades as core. `isSystem` is reserved for Sunrise core; **app rows keep it
+masquerades as core. `isSystem` is reserved for Resparkable core; **app rows keep it
 `false`**. Start from this scaffold instead.
 
 ## Placement
@@ -79,7 +79,7 @@ const unit: SeedUnit = {
         maxTokens: 4096,
         monthlyBudgetUsd: 25,
         isActive: true,
-        // RESERVED for Sunrise core machinery. App/fork agents MUST keep this
+        // RESERVED for Resparkable core machinery. App/fork agents MUST keep this
         // false — true makes the row undeletable, undeactivatable,
         // instruction-locked, and invisible to config backup/export. Do not
         // "fix" this to true by copying a core seed.

@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to Sunrise will be documented in this file.
+All notable changes to Resparkable will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/) — see
@@ -18,17 +18,17 @@ release process.
 
 ### Added
 
-- **Obsiddy: your brain as a folder of markdown, out and back in.** The Obsidian
+- **Resparkable: your brain as a folder of markdown, out and back in.** The Obsidian
   on-ramp from plan §14, without a live sync engine — phase 15 plus the zip half
-  of 17. New `lib/framework/obsiddy/vault/**`:
+  of 17. New `lib/framework/resparkable/vault/**`:
   `layout.ts` (folder set, path safety, filenames), `markdown.ts` (frontmatter
   codec over `yaml@2`), `frontmatter.ts` (per-type Zod schemas), `notes.ts`
   (encode/decode, the project checkbox block), `zip.ts` (`fflate`, with the
   decompression caps), `export.ts`, `import-plan.ts` and `import.ts`. Two routes:
-  `GET /api/v1/obsiddy/vault/export` (returns a **zip**, the one Obsiddy endpoint
-  whose body is a file) and `POST /api/v1/obsiddy/vault/import` (multipart). A
-  page at `/obsiddy/vault`, a nav entry, `OBSIDDY_API.VAULT_EXPORT` /
-  `VAULT_IMPORT`, `OBSIDDY_ROUTES.VAULT`, a 10/hour `obsiddy-vault` rate-limit
+  `GET /api/v1/resparkable/vault/export` (returns a **zip**, the one Resparkable endpoint
+  whose body is a file) and `POST /api/v1/resparkable/vault/import` (multipart). A
+  page at `/resparkable/vault`, a nav entry, `RESPARKABLE_API.VAULT_EXPORT` /
+  `VAULT_IMPORT`, `RESPARKABLE_ROUTES.VAULT`, a 10/hour `resparkable-vault` rate-limit
   tier, and `'vault'` added to `THOUGHT_SOURCES`.
 
   **Two new direct dependencies, both named in the plan: `yaml` and `fflate`.**
@@ -49,7 +49,7 @@ release process.
   order, quote style, CRLF and trailing newlines are invisible to it, which §14
   blames for ~80% of reported conflicts elsewhere.
 
-  **`obsiddy-id` is a claim, never an address.** It is resolved through an index
+  **`resparkable-id` is a claim, never an address.** It is resolved through an index
   built from an owner-scoped read, so an id belonging to another user is simply
   absent and the note becomes a new row — plan §16.7's single most important sync
   test, asserted directly. The same rule covers the `^bt-` block ids in a project
@@ -66,12 +66,12 @@ release process.
   `archived:` is written but appears in no type's writable-key list, so a vault
   edit can never pull an item out of semantic search.
 
-  Not in scope, and unchanged from the plan: no `ObsiddyVault*` tables, no
+  Not in scope, and unchanged from the plan: no `ResparkableVault*` tables, no
   three-way merge base, no scheduling, no credentials, no git or cloud-drive
   transports. Those are §14's Release 4.
 
-- **Obsiddy: the capture box became a sidekick.** `<ObsiddySidekick>`
-  (`components/obsiddy/layout/obsiddy-sidekick.tsx`) replaces the 18rem capture
+- **Resparkable: the capture box became a sidekick.** `<ResparkableSidekick>`
+  (`components/resparkable/layout/resparkable-sidekick.tsx`) replaces the 18rem capture
   card in the shell's grid with a fixed, full-height, resizable drawer that
   overlays the page instead of narrowing it — the board, the graph and the
   planner get their width back, and the capture box gets room to think in.
@@ -80,31 +80,31 @@ release process.
   parks the panel (`inert`) rather than unmounting it, so a stray click cannot
   bin a half-written thought.
 
-  Two new endpoints back it. **`POST /api/v1/obsiddy/transcribe`** is the
+  Two new endpoints back it. **`POST /api/v1/resparkable/transcribe`** is the
   consumer-side sibling of the platform's admin-only transcribe route — it
   reuses `validateTranscribeUpload` / `getAudioProvider` / `logCost`, resolves
   the companion agent server-side for cost attribution (a browser-supplied
   `agentId` is overwritten), honours the org-wide `voiceInputGloballyEnabled`
   kill switch, deliberately does **not** gate on any agent's
   `enableVoiceInput` (that flag governs a chat surface; this microphone
-  addresses no agent), and persists no audio. New `obsiddy-audio` rate-limit
+  addresses no agent), and persists no audio. New `resparkable-audio` rate-limit
   tier, 10/min per session user.
 
-  **`POST /api/v1/obsiddy/documents/extract`** parses a file and returns its
+  **`POST /api/v1/resparkable/documents/extract`** parses a file and returns its
   text **without storing anything** — the other half of an ad-hoc attachment,
   where the destination is the capture box rather than the document library. A
   separate route rather than a flag on `/documents` because the two make
   different promises about what is kept. Capped at 20 000 characters with
   `characters`/`truncated` describing the whole document. Inherits the
-  `obsiddy-upload` cap (20/hour).
+  `resparkable-upload` cap (20/hour).
 
-  Transport for uploads moved to `components/obsiddy/documents/upload-request.ts`
+  Transport for uploads moved to `components/resparkable/documents/upload-request.ts`
   (`uploadDocument`), shared by the Documents page and the drawer.
-  `OBSIDDY_API` gains `TRANSCRIBE` and `DOCUMENTS_EXTRACT`.
-- **Obsiddy: every section explains itself.** New
-  `lib/framework/obsiddy/ui/section-help.ts` (`OBSIDDY_SECTION_HELP`,
+  `RESPARKABLE_API` gains `TRANSCRIBE` and `DOCUMENTS_EXTRACT`.
+- **Resparkable: every section explains itself.** New
+  `lib/framework/resparkable/ui/section-help.ts` (`RESPARKABLE_SECTION_HELP`,
   `findSectionHelp`) holds a per-section title, one-line blurb and ⓘ body, and
-  the new `<SectionHeader>` renders it from the Obsiddy shell — so a surface is
+  the new `<SectionHeader>` renders it from the Resparkable shell — so a surface is
   documented once, for every route, rather than fifteen times or not at all.
   The copy answers the question no screen was answering — **how do things get
   here** (the four ways to capture into the inbox, the 03:15 triage run, the
@@ -112,13 +112,13 @@ release process.
   (rejecting a suggestion is what stops it returning; an area with no weekly
   target has no effect on 15% of every task's score). Help text is plain,
   neutral English by rule, and states numbers rather than paraphrasing them.
-  `OBSIDDY_NAV_ITEMS` is now exported so a test fails when a section is added
+  `RESPARKABLE_NAV_ITEMS` is now exported so a test fails when a section is added
   without an explanation.
-- **Obsiddy phase 7b — the brain, from outside the app.** Eight capabilities and
+- **Resparkable phase 7b — the brain, from outside the app.** Eight capabilities and
   three slash-command prompts are exposed over MCP
-  (`prisma/seeds/framework-obsiddy/006-mcp.ts`, written from the manifest at
-  `lib/framework/obsiddy/mcp/exposure.ts`), so "what should I work on today?" and
-  "capture that" work from inside Claude Code. **No Obsiddy MCP code exists** —
+  (`prisma/seeds/framework-resparkable/006-mcp.ts`, written from the manifest at
+  `lib/framework/resparkable/mcp/exposure.ts`), so "what should I work on today?" and
+  "capture that" work from inside Claude Code. **No Resparkable MCP code exists** —
   `protocol-handler.ts` already sets `CapabilityContext.userId` from the key's
   creator and every brain capability already refuses to run without one, so
   per-user isolation over MCP is the owner-scope guard phase 6 shipped, reached
@@ -127,61 +127,61 @@ release process.
   **The manifest is the access control, and the intuitive reading is wrong.**
   `McpApiKey.scopedAgentId` looks like it narrows a key to that agent's bound
   capabilities; `listMcpTools()` scoping is default-allow and drops only
-  capabilities with an explicit `isEnabled: false` binding row, while Obsiddy's
+  capabilities with an explicit `isEnabled: false` binding row, while Resparkable's
   bindings work by absence. So every enabled tool is callable by every key.
-  Seven reads plus `obsiddy_capture` are on the list; everything that creates
+  Seven reads plus `resparkable_capture` are on the list; everything that creates
   structure — projects, goals, people, links, promotions, reviews, reprioritise
   — is deliberately absent, and `mcp/exposure.test.ts` asserts each one's
   absence individually so a new write capability has to be considered rather
   than inherited.
 
-  Also: `obsiddy_triage_accuracy`, a deterministic grader
-  (`lib/framework/obsiddy/evaluations/triage-accuracy.ts`) scoring
+  Also: `resparkable_triage_accuracy`, a deterministic grader
+  (`lib/framework/resparkable/evaluations/triage-accuracy.ts`) scoring
   `0.5 × decision + 0.5 × F1 over the link set`, and thirty hand-classified
   captured thoughts to run it against — seeded as an `AiDataset` and runnable
-  with `npm run framework:obsiddy:eval-triage`. It is a script rather than a
+  with `npm run framework:resparkable:eval-triage`. It is a script rather than a
   batch run for two reasons: core has no seam for registering a fork's grader
-  where the route-realm worker would see it (Sunrise ask #33), and the subject
-  writes — `obsiddy-triage` is bound to tools that create tasks, and a batch run
+  where the route-realm worker would see it (Resparkable ask #33), and the subject
+  writes — `resparkable-triage` is bound to tools that create tasks, and a batch run
   executes it as whoever queued it, so the script runs the cases as a throwaway
   user it deletes afterwards.
 
-  MCP **resources** (`obsiddy://today` and friends) are deferred, not worked
+  MCP **resources** (`resparkable://today` and friends) are deferred, not worked
   around: `resource-registry.ts` dispatches through a module-local handler map a
-  fork cannot extend (Sunrise ask #32). Every read path is exposed as a tool and
+  fork cannot extend (Resparkable ask #32). Every read path is exposed as a tool and
   works; the cost is one tool call where a resource read would have been free.
 
-- **Obsiddy answers a subject-access request** (GDPR Art. 15).
-  `collectObsiddySubjectData(scope)` (`repo/subject-export.ts`) returns all
+- **Resparkable answers a subject-access request** (GDPR Art. 15).
+  `collectResparkableSubjectData(scope)` (`repo/subject-export.ts`) returns all
   seventeen owner-scoped brain tables — thoughts, tasks, projects, goals, areas,
   people, documents and their extracted text, links, boards, tags, checklists,
   time blocks, reviews and the activity log — wired into the platform bundle
-  through `lib/app/data-export.ts`, which Sunrise 0.8.0 added as the fork seam
-  ([sunrise#467](https://github.com/human-centric-engineering/sunrise/issues/467)).
-  Obsiddy had Art. 17 covered since phase 1 (every table cascades from
-  `ObsiddySpace`); this is the half that had no seam to fill until now.
+  through `lib/app/data-export.ts`, which Resparkable 0.8.0 added as the fork seam
+  ([resparkable#467](https://github.com/human-centric-engineering/sunrise/issues/467)).
+  Resparkable had Art. 17 covered since phase 1 (every table cascades from
+  `ResparkableSpace`); this is the half that had no seam to fill until now.
 
-  `ObsiddySpace.inboxToken` is omitted — a live bearer secret, and core's rule is
+  `ResparkableSpace.inboxToken` is omitted — a live bearer secret, and core's rule is
   to withhold credential material even from its owner, because an export bundle
-  is a file that gets emailed and synced. `ObsiddyEmbedding` is excluded with a
+  is a file that gets emailed and synced. `ResparkableEmbedding` is excluded with a
   written reason: derived vectors over text already exported in full, which is
   the same ground on which core excludes `AiMessageEmbedding`. Every fetch uses
   Prisma's `omit` rather than `select`, so a column added tomorrow is exported by
-  default; a completeness guard reads `framework-obsiddy.prisma` directly and
+  default; a completeness guard reads `framework-resparkable.prisma` directly and
   fails the build if a table holding a `userId` is in neither the manifest nor
   the exclusion list. Left unwritten, that gap has no symptom — the bundle looks
   complete and quietly answers less than it claims.
 
-- **Obsiddy phase 8 — the lifecycle.** `enforceObsiddyRetention(scope)` enforces seven
-  of the eight `ObsiddySpace.retentionPolicy` windows that phase 1 shipped and nothing
+- **Resparkable phase 8 — the lifecycle.** `enforceResparkableRetention(scope)` enforces seven
+  of the eight `ResparkableSpace.retentionPolicy` windows that phase 1 shipped and nothing
   had applied — `staleEntityDays` is the exception and stays unread, because §11 says a
   person or company is never auto-archived and the settings card no longer offers it —
   running on the connection sweep's per-brain rotation
-  (`registerObsiddyJobs()`). New `GET /api/v1/obsiddy/stale` and
-  `POST /api/v1/obsiddy/stale/still-live`, an eighteenth capability
-  (`obsiddy_get_stale_digest`, read-only), a `stale_digest` step on
-  `obsiddy-horizon-check`, the retention windows in `/obsiddy/settings`, and a new
-  `/obsiddy/archive` surface holding both the digest and the archived-item lists.
+  (`registerResparkableJobs()`). New `GET /api/v1/resparkable/stale` and
+  `POST /api/v1/resparkable/stale/still-live`, an eighteenth capability
+  (`resparkable_get_stale_digest`, read-only), a `stale_digest` step on
+  `resparkable-horizon-check`, the retention windows in `/resparkable/settings`, and a new
+  `/resparkable/archive` surface holding both the digest and the archived-item lists.
   `includeArchived` gains a third value, `only`, which is what makes an archive view
   an archive rather than a longer list. No migration — every column this needed has
   existed since the first one.
@@ -199,15 +199,15 @@ release process.
   nothing and cost a row each to create, correct after a DST change and delete on
   erasure.
 
-- **Obsiddy phase 7 — the background.** Four scheduled workflows
-  (`obsiddy-nightly-triage`, `obsiddy-morning-briefing`, `obsiddy-weekly-review`,
-  `obsiddy-horizon-check`) on per-user `AiWorkflowSchedule` rows created by
-  `ensureObsiddySchedules()`, plus the connection sweep on `registerAppJob`. Three
-  new capabilities (`obsiddy_get_briefing`, `obsiddy_get_briefing_inputs`,
-  `obsiddy_notify`), a sixth agent (`obsiddy-briefer`), `GET /api/v1/obsiddy/briefing`
-  and `POST /api/v1/obsiddy/briefing/regenerate`. `GET /api/v1/obsiddy/today` gains a
-  `briefing` object. New migration `20260804150000_obsiddy_space_sweep_cursor`
-  (`ObsiddySpace.lastSweptAt`).
+- **Resparkable phase 7 — the background.** Four scheduled workflows
+  (`resparkable-nightly-triage`, `resparkable-morning-briefing`, `resparkable-weekly-review`,
+  `resparkable-horizon-check`) on per-user `AiWorkflowSchedule` rows created by
+  `ensureResparkableSchedules()`, plus the connection sweep on `registerAppJob`. Three
+  new capabilities (`resparkable_get_briefing`, `resparkable_get_briefing_inputs`,
+  `resparkable_notify`), a sixth agent (`resparkable-briefer`), `GET /api/v1/resparkable/briefing`
+  and `POST /api/v1/resparkable/briefing/regenerate`. `GET /api/v1/resparkable/today` gains a
+  `briefing` object. New migration `20260804150000_resparkable_space_sweep_cursor`
+  (`ResparkableSpace.lastSweptAt`).
 
   Two departures from the plan, both because the step type did not do what was
   assumed: the briefing's factual half is rendered by a service rather than a
@@ -215,12 +215,12 @@ release process.
   `workStyle` selection happens in code rather than via a `route` step (which is an
   LLM classifier, so it would spend a model call guessing a column we can read).
 
-- **Obsiddy: the way in** (phase 6c) — the per-turn context block, the app-owned
+- **Resparkable: the way in** (phase 6c) — the per-turn context block, the app-owned
   chat route, and the page. This is what turns fourteen capabilities into
   something you can talk to. Registered through the fork-owned
-  `lib/app/context-contributors.ts` scaffold; no Sunrise-owned source file is
-  touched. Rules and reasoning: `.context/framework/obsiddy/agents.md` §§10–12.
-  - **The `obsiddy` context block**, injected into every turn: today's date,
+  `lib/app/context-contributors.ts` scaffold; no Resparkable-owned source file is
+  touched. Rules and reasoning: `.context/framework/resparkable/agents.md` §§10–12.
+  - **The `resparkable` context block**, injected into every turn: today's date,
     weekday, ISO week and timezone; goals ordered longest-horizon-first with
     target dates as distances ("in 4d", "overdue by 2d") so the model never has
     to subtract; active projects with days since activity; the top five tasks
@@ -239,25 +239,25 @@ release process.
     they cannot — truncating on whole lines, because half an id in a prompt is
     worse than no id: the model will try to use it. A capped section says so, so
     the agent searches rather than assuming it has seen everything.
-  - **Invalidation lives in `recordObsiddyEvent`**, before the write and
+  - **Invalidation lives in `recordResparkableEvent`**, before the write and
     regardless of whether it succeeds. Every mutation in the tier records an
     event, so no service can forget — including ones written later.
     `reprioritiseTasks` invalidates directly: it is the one mutation that records
     no event, and precisely the one that reorders the block's task list.
-  - **`POST /api/v1/obsiddy/chat/stream`** — `withAuth`, `streamChat` directly,
+  - **`POST /api/v1/resparkable/chat/stream`** — `withAuth`, `streamChat` directly,
     `sseResponse`. Its own route because the consumer route deliberately drops
     `contextType` / `contextId` and the admin route requires `withAdminAuth`.
     Both context fields are pinned server-side (`contextId` is the session user,
     and the request schema has no such key, so an attempt is a 400 rather than a
     silently ignored field), and `agentSlug` is checked against
-    `OBSIDDY_CHAT_AGENT_SLUGS`. That check is the only thing between a browser
-    and `obsiddy-triage`: `streamChat` does not gate on `AiAgent.visibility`,
+    `RESPARKABLE_CHAT_AGENT_SLUGS`. That check is the only thing between a browser
+    and `resparkable-triage`: `streamChat` does not gate on `AiAgent.visibility`,
     which is what lets the companion stay `internal`. An unknown slug and a
     restricted one get an identical response.
-  - New rate-limit tier **`obsiddy-chat`** (20/min, session-user). Per-minute
+  - New rate-limit tier **`resparkable-chat`** (20/min, session-user). Per-minute
     rather than per-hour because chat is genuinely conversational; the per-turn
     spend ceiling is separate and lives on the agent row.
-  - **`/obsiddy/chat`**, on Obsiddy's own chat component rather than Sunrise's
+  - **`/resparkable/chat`**, on Resparkable's own chat component rather than Sunrise's
     `<ChatInterface>` — that one posts to a hardcoded admin endpoint with no prop
     for it (ask #26). It reuses the platform's `parseChatStreamEvent` and
     `getUserFacingError` (the wire contract and the error map, both genuinely
@@ -265,26 +265,26 @@ release process.
     and tool-argument-trace surfaces. It adds a chip naming **which tools ran**,
     in plain terms — an agent that quietly created three tasks while answering a
     question is the thing people stop trusting.
-  - New named exports: `registerObsiddyContextContributor`,
-    `invalidateObsiddyContext`, `OBSIDDY_CONTEXT_TYPE`
-    (`lib/framework/obsiddy/context`), `loadObsiddyContext`,
-    `renderObsiddyContext` (`…/context/contributor.ts`),
-    `obsiddyChatRequestSchema`, `OBSIDDY_API.CHAT_STREAM`,
-    `OBSIDDY_ROUTES.CHAT`, and `<ObsiddyChat>`.
+  - New named exports: `registerResparkableContextContributor`,
+    `invalidateResparkableContext`, `RESPARKABLE_CONTEXT_TYPE`
+    (`lib/framework/resparkable/context`), `loadResparkableContext`,
+    `renderResparkableContext` (`…/context/contributor.ts`),
+    `resparkableChatRequestSchema`, `RESPARKABLE_API.CHAT_STREAM`,
+    `RESPARKABLE_ROUTES.CHAT`, and `<ResparkableChat>`.
 
-- **Obsiddy: the agent layer** (phase 6b) — fourteen capabilities, five agents,
-  the shared `obsiddy-core` profile, and the four seeds that make them reachable.
+- **Resparkable: the agent layer** (phase 6b) — fourteen capabilities, five agents,
+  the shared `resparkable-core` profile, and the four seeds that make them reachable.
   Registered through the fork-owned `lib/app/capabilities.ts` scaffold, so no
-  Sunrise-owned file is touched. Full rules and reasoning:
-  `.context/framework/obsiddy/agents.md`.
-  - **Fourteen capabilities** — `obsiddy_capture`, `obsiddy_search`,
-    `obsiddy_list_tasks`, `obsiddy_promote_thought`, `obsiddy_upsert_task` /
-    `_project` / `_goal` / `_entity`, `obsiddy_link_entities`,
-    `obsiddy_find_connections`, `obsiddy_get_snapshot`, `obsiddy_write_review`,
-    `obsiddy_reprioritise`, `obsiddy_ideate`. Each calls the same service the
+  Resparkable-owned file is touched. Full rules and reasoning:
+  `.context/framework/resparkable/agents.md`.
+  - **Fourteen capabilities** — `resparkable_capture`, `resparkable_search`,
+    `resparkable_list_tasks`, `resparkable_promote_thought`, `resparkable_upsert_task` /
+    `_project` / `_goal` / `_entity`, `resparkable_link_entities`,
+    `resparkable_find_connections`, `resparkable_get_snapshot`, `resparkable_write_review`,
+    `resparkable_reprioritise`, `resparkable_ideate`. Each calls the same service the
     matching HTTP route does, so an agent-created task carries the same events,
     `completedAt` stamping and project-momentum bump as one created in the UI.
-  - **`obsiddy_promote_thought` is a deliberate addition to `plan.md` §5's
+  - **`resparkable_promote_thought` is a deliberate addition to `plan.md` §5's
     thirteen.** None of the thirteen could mark a thought as processed, so a
     nightly triage run created tasks and left every note sitting in the inbox
     looking untouched — then processed the same notes again the next night. It
@@ -293,7 +293,7 @@ release process.
     emits the `promoted` event the weekly review counts. **Dropping a thought is
     still not possible from any agent**: promotion is additive and visible,
     marking someone's note as rubbish unattended is neither.
-  - **The owner is resolved before a capability body runs.** `ObsiddyCapability`
+  - **The owner is resolved before a capability body runs.** `ResparkableCapability`
     mints the `OwnerScope` from `CapabilityContext.userId` — set by the platform
     from the session, the schedule's `createdBy`, or the MCP key's owner, none of
     them reachable from a model — and hands it to `run()`. A subclass cannot
@@ -301,173 +301,173 @@ release process.
     failure it prevents is a fourteenth capability that never had one.
   - **The model cannot influence the ranking.** All three `manualBoost*` fields
     are `omit()`ed from every upsert schema, so writing one is a type error
-    rather than a review note, and `obsiddy_reprioritise` accepts **no arguments
+    rather than a review note, and `resparkable_reprioritise` accepts **no arguments
     at all** — not a weight, not a filter, not an id. It triggers the
     deterministic scorer; it cannot steer it.
-  - **Provenance is pinned server-side.** `obsiddy_capture` sets
-    `source: 'agent'` rather than accepting one, and `obsiddy_link_entities`
+  - **Provenance is pinned server-side.** `resparkable_capture` sets
+    `source: 'agent'` rather than accepting one, and `resparkable_link_entities`
     cannot choose `origin` or `status`. Provenance the caller chooses is not
     provenance — and a link the model invented would move tasks up the user's
     ranking, since the scorer's goal-alignment walk follows accepted links.
   - **Every capability redacts its own audit row.** `AiMessage.provenance` sits
-    outside the Obsiddy erasure cascade, so the thirteen overrides keep structure
+    outside the Resparkable erasure cascade, so the thirteen overrides keep structure
     (ids, `type:id` refs, statuses, horizons, counts) and mask prose (titles,
     note bodies, search queries, and a third party's name **and** website). An id
     resolves to nothing once the row is erased; a title would survive in the
-    audit bundle for ever. `obsiddy_get_snapshot` keeps nothing at all.
+    audit bundle for ever. `resparkable_get_snapshot` keeps nothing at all.
   - **Reads carry `output.sources`**, which the engine lifts onto the workflow
     trace so the approval and trace UI can render "because of these four notes"
     as typed pills rather than free text. Confidence tracks the retrieval score
     instead of being asserted flat.
-  - **Five agents** — `obsiddy-companion` (0.4), `obsiddy-triage` (0.1),
-    `obsiddy-connector` (0.6, the one tuned for divergence), `obsiddy-strategist`
-    (0.3) and `obsiddy-judge` (`kind: 'judge'`, 0.0, the target of the horizon
-    check's `judge_call`). All inherit the `obsiddy-core` `AiAgentProfile` with
+  - **Five agents** — `resparkable-companion` (0.4), `resparkable-triage` (0.1),
+    `resparkable-connector` (0.6, the one tuned for divergence), `resparkable-strategist`
+    (0.3) and `resparkable-judge` (`kind: 'judge'`, 0.0, the target of the horizon
+    check's `judge_call`). All inherit the `resparkable-core` `AiAgentProfile` with
     `guardrailsMode: 'append'`, all are `knowledgeAccessMode: 'restricted'` (the
     global KB is not the user's notes), and all three guard modes are set
     explicitly rather than inheriting a deployment default.
   - **Bindings are the enforcement, not the prompts.** The connector cannot write
     a link, triage cannot create a project, goal or person, the strategist writes
-    only reviews, and `obsiddy-judge` is bound to nothing — zero rows means zero
+    only reviews, and `resparkable-judge` is bound to nothing — zero rows means zero
     advertised tools. Revocation is `isEnabled: false`, never deleting the row: a
     missing pivot row synthesizes a default-ALLOW binding in the dispatcher.
   - `001-capabilities` and `004-agent-capabilities` declare `hashInputs` over
     `capabilities/catalogue.ts`. The seed runner hashes a unit's own source to
     decide whether to re-run it, and those two files barely change — so without
-    it, upgrading Obsiddy delivers a new tool's code and no row for it, and the
+    it, upgrading Resparkable delivers a new tool's code and no row for it, and the
     dispatcher refuses it at `capability_inactive`.
-  - New seeds `prisma/seeds/framework-obsiddy/001-capabilities`,
+  - New seeds `prisma/seeds/framework-resparkable/001-capabilities`,
     `002-agent-profile`, `003-agents`, `004-agent-capabilities`. Capability rows
     are written **from the code catalogue**, so a row cannot drift from its
     handler; re-seeding rewrites prompts and function definitions (code
     artefacts) and leaves `isActive`, `rateLimit`, `requiresApproval`,
     `quarantineState`, `model`, `provider`, `temperature`, `maxTokens` and
     `AiAgentCapability.isEnabled` untouched.
-  - New named exports: `registerObsiddyCapabilities`,
-    `obsiddyCapabilityHandlers` (`lib/framework/obsiddy/capabilities`),
-    `OBSIDDY_CAPABILITIES`, `OBSIDDY_CAPABILITY_SLUGS`,
-    `OBSIDDY_CAPABILITY_CATEGORY`, `obsiddyCapabilitySpec`
-    (`…/capabilities/catalogue.ts`), `ObsiddyCapability`, `requireObsiddyUser`,
-    `MissingObsiddyUserError`, `maskFreeText`, `brainSources`
+  - New named exports: `registerResparkableCapabilities`,
+    `resparkableCapabilityHandlers` (`lib/framework/resparkable/capabilities`),
+    `RESPARKABLE_CAPABILITIES`, `RESPARKABLE_CAPABILITY_SLUGS`,
+    `RESPARKABLE_CAPABILITY_CATEGORY`, `resparkableCapabilitySpec`
+    (`…/capabilities/catalogue.ts`), `ResparkableCapability`, `requireResparkableUser`,
+    `MissingResparkableUserError`, `maskFreeText`, `brainSources`
     (`…/capabilities/base.ts`), `findNeighbours` / `hydrateNeighbours`
     (`…/services/neighbours.ts` — extracted from `services/ideate.ts` so the
-    ideation path and `obsiddy_find_connections` agree on what an empty result
+    ideation path and `resparkable_find_connections` agree on what an empty result
     means), and the `agent*Schema` argument schemas in
-    `lib/framework/obsiddy/validations.ts`.
+    `lib/framework/resparkable/validations.ts`.
 
-- **Obsiddy: the write paths the agent layer needs** (phase 6a) — four services
+- **Resparkable: the write paths the agent layer needs** (phase 6a) — four services
   and their HTTP routes, added ahead of the capabilities that call them so that
   every capability has an API-accessible twin rather than a private one. Each
   service is the single implementation the web UI, the agent layer and MCP all
   go through, which is what stops agent writes and UI writes diverging.
-  - `POST /api/v1/obsiddy/capture` — the idempotent front door. Deduping on
+  - `POST /api/v1/resparkable/capture` — the idempotent front door. Deduping on
     `externalId` means a redelivered webhook, a retried phone request and a
     double-tapped Shortcut return the original row (`200`) instead of creating a
     second inbox item (`201` for a genuine create). A deduped capture records no
     second `captured` event, so the weekly review's "what you finished" count
     stays honest.
-  - `GET /api/v1/obsiddy/snapshot` — the whole brain in an LLM-shaped payload:
+  - `GET /api/v1/resparkable/snapshot` — the whole brain in an LLM-shaped payload:
     goals, active projects, top tasks, area balance and capacity, at a fixed
     eight queries however many rows exist. Every section reports `truncated`
     when it stopped at its cap, because a section that silently stopped looks
     exactly like one that found everything. ETag'd.
-  - `POST /api/v1/obsiddy/ideate` — framings on demand, over a **wider**
+  - `POST /api/v1/resparkable/ideate` — framings on demand, over a **wider**
     similarity floor than the nightly sweep uses, because the interesting
     framings come from the nearly-unrelated pairs. Read-only; the only thing it
     persists is an `AiCostLog` row. Ids the model invents are stripped from each
     framing's `drawsOn`, since a hallucinated id is worse than no id — it looks
     like provenance.
-  - `GET`/`POST /api/v1/obsiddy/reviews` and `GET /api/v1/obsiddy/reviews/[id]` —
+  - `GET`/`POST /api/v1/resparkable/reviews` and `GET /api/v1/resparkable/reviews/[id]` —
     the write path for generated artefacts. Append-only by design: regenerating
     writes a new row, because "what did the strategist say three weeks ago" is
     the question the table exists to answer.
-  - New rate-limit tier **`obsiddy-ideate`** (10/hour, session-user), tighter
+  - New rate-limit tier **`resparkable-ideate`** (10/hour, session-user), tighter
     than the tier's other sub-caps because it is the only flow that buys tokens
     per request.
-  - New named exports: `OBSIDDY_AGENT_SLUGS`, `OBSIDDY_PROFILE_SLUG`,
-    `OBSIDDY_CHAT_AGENT_SLUGS` (`lib/framework/obsiddy/agents.ts`), and
-    `OBSIDDY_API.CAPTURE` / `.SNAPSHOT` / `.IDEATE` / `.REVIEWS` / `.reviewById`.
+  - New named exports: `RESPARKABLE_AGENT_SLUGS`, `RESPARKABLE_PROFILE_SLUG`,
+    `RESPARKABLE_CHAT_AGENT_SLUGS` (`lib/framework/resparkable/agents.ts`), and
+    `RESPARKABLE_API.CAPTURE` / `.SNAPSHOT` / `.IDEATE` / `.REVIEWS` / `.reviewById`.
 
-- **`OBSIDDY_NAV_ITEM`** (`lib/framework/obsiddy/protected-nav.ts`) — Obsiddy's
+- **`RESPARKABLE_NAV_ITEM`** (`lib/framework/resparkable/protected-nav.ts`) — Resparkable's
   header link, offered as a value rather than a registrar because the protected
   nav is a `null`-or-array *override*, not a registry: a framework tier can only
   offer an item the host places where it wants. The host spreads it in
   `lib/app/protected-nav.ts`. This replaces the hand-edit of
-  `components/layouts/protected-nav.tsx` that Obsiddy carried since phase 5, so
-  **Obsiddy now touches zero Sunrise-owned files.**
+  `components/layouts/protected-nav.tsx` that Resparkable carried since phase 5, so
+  **Resparkable now touches zero Sunrise-owned files.**
 
 
-- **Obsiddy phase 5 — the UI layer** (Release 1, phases 5 and 5b): twelve
-  authenticated surfaces under `app/(protected)/obsiddy/**` — Today, Inbox,
+- **Resparkable phase 5 — the UI layer** (Release 1, phases 5 and 5b): twelve
+  authenticated surfaces under `app/(protected)/resparkable/**` — Today, Inbox,
   Search, Projects, Goals, Areas, People, Documents, Connections, Graph, Boards
-  and Plan — plus personal Settings. Components live in `components/obsiddy/**`
-  and page paths in the new `OBSIDDY_ROUTES` (`lib/framework/obsiddy/ui/routes.ts`).
-- **Obsiddy: new API endpoints backing those surfaces** — `GET /api/v1/obsiddy/counts`,
-  `/connections`, `/graph`; `POST /api/v1/obsiddy/thoughts/[id]/promote`; enriched
+  and Plan — plus personal Settings. Components live in `components/resparkable/**`
+  and page paths in the new `RESPARKABLE_ROUTES` (`lib/framework/resparkable/ui/routes.ts`).
+- **Resparkable: new API endpoints backing those surfaces** — `GET /api/v1/resparkable/counts`,
+  `/connections`, `/graph`; `POST /api/v1/resparkable/thoughts/[id]/promote`; enriched
   reads at `/projects/[id]/view`, `/entities/[id]/view`, `/tasks/[id]/view`; and the
   boards layer: `/boards` (+ `[id]`, `/view`, `/cards`, `/cards/[cardId]`, `/export`,
   `/restore`), `/tags` (+ `[id]`), `PATCH /tasks/[id]/tags`,
   `/tasks/[id]/checklist` and `/checklist/[id]`.
-- **Obsiddy: `ObsiddySpace.connectionStrengthFloor`** (migration
-  `20260730160000_obsiddy_connection_floor`) — the similarity a pair must clear to be
+- **Resparkable: `ResparkableSpace.connectionStrengthFloor`** (migration
+  `20260730160000_resparkable_connection_floor`) — the similarity a pair must clear to be
   proposed as a connection, per user. Nullable; `null` uses the measured 0.55 default.
   The right value is model-dependent, and a mis-tuned floor produces exactly the same
-  output as a sweep with nothing left to find. Exposed on `GET`/`PATCH /obsiddy/space`.
-- **Obsiddy: `listLinksForEntity` / `listLinksForEntities`** on the links repo, and
+  output as a sweep with nothing left to find. Exposed on `GET`/`PATCH /resparkable/space`.
+- **Resparkable: `listLinksForEntity` / `listLinksForEntities`** on the links repo, and
   `statuses` on `LinkFilters` — a detail page needs links on *either* end of a
   polymorphic edge, and the review queue filters by two statuses at once.
-- **Obsiddy: task status changes now record `{ statusFrom, statusTo }`** on their
+- **Resparkable: task status changes now record `{ statusFrom, statusTo }`** on their
   `updated` event, and `findLatestStatusChanges` reads the newest per task in one
   `DISTINCT ON`. This is what lets a board say how long a card has sat in its column
   (§12) without giving up its fixed query count; cards with no such event fall back to
   "untouched since", worded differently so the two are never confused.
-- **Obsiddy: `findTasksByIds`** on the tasks repo — the explicit-board read needs
+- **Resparkable: `findTasksByIds`** on the tasks repo — the explicit-board read needs
   exactly its pinned tasks rather than the top N by score.
-- **Obsiddy: `renumberChecklistItems`** on the checklist repo — the counterpart to
+- **Resparkable: `renumberChecklistItems`** on the checklist repo — the counterpart to
   `renumberBoardCards`. `planMove` computes a moved item's position against the
   *spread* list once a gap has collapsed, so the spread has to be written in the
   same pass or the item lands at a coordinate its siblings never moved to.
 
-- **Obsiddy framework-tier scaffold** (Release 1, phase 0) — the reserved
-  `/framework` tier is now occupied by Obsiddy: `lib/framework/obsiddy/` with
-  `initObsiddy()` and `obsiddyEnvSchema`, the tier import boundary in
+- **Resparkable framework-tier scaffold** (Release 1, phase 0) — the reserved
+  `/framework` tier is now occupied by Resparkable: `lib/framework/resparkable/` with
+  `initResparkable()` and `resparkableEnvSchema`, the tier import boundary in
   `lib/framework/eslint.config.mjs` (including the D5 owner/shared repo rule),
-  an empty `prisma/schema/framework-obsiddy.prisma`, and
-  `.context/framework/obsiddy/install.md`. Wired through four Sunrise seams —
+  an empty `prisma/schema/framework-resparkable.prisma`, and
+  `.context/framework/resparkable/install.md`. Wired through four Sunrise seams —
   `bootstrap.ts` (dynamic import), `env.ts`, `eslint.config.mjs`,
-  `protected-routes.ts` (`/obsiddy`) — with **zero Sunrise-owned files
+  `protected-routes.ts` (`/resparkable`) — with **zero Sunrise-owned files
   modified**.
-- **`lib/app/leaf-bootstrap.ts`** — new boot seam Obsiddy re-exposes to the leaf
-  forks built on it, so a leaf fork and Obsiddy don't contend over
-  `lib/app/bootstrap.ts`. Ships empty; called by `initObsiddy()` after Obsiddy's
+- **`lib/app/leaf-bootstrap.ts`** — new boot seam Resparkable re-exposes to the leaf
+  forks built on it, so a leaf fork and Resparkable don't contend over
+  `lib/app/bootstrap.ts`. Ships empty; called by `initResparkable()` after Resparkable's
   own registrations, so a leaf fork can override them.
-- **Obsiddy data model** (Release 1, phase 1) — 18 `framework_obsiddy_*` models
-  in `prisma/schema/framework-obsiddy.prisma` and the hand-edited migration
-  `20260728222816_add_second_brain`. One satellite table (`ObsiddySpace`) with a
+- **Resparkable data model** (Release 1, phase 1) — 18 `framework_resparkable_*` models
+  in `prisma/schema/framework-resparkable.prisma` and the hand-edited migration
+  `20260728222816_add_second_brain`. One satellite table (`ResparkableSpace`) with a
   hand-written `ON DELETE CASCADE` FK to `user`, one polymorphic edge table and
   one polymorphic `vector(1536)` embedding table, so the whole brain cascades on
   erasure and there is a single HNSW index to maintain.
-- **`registerObsiddyDriftProbes()`** (`lib/framework/obsiddy/db-drift.ts`) — six
+- **`registerResparkableDriftProbes()`** (`lib/framework/resparkable/db-drift.ts`) — six
   probes over the Postgres objects Prisma cannot model, registered from
   `lib/app/db-drift.ts`. The two `GENERATED` probes assert `is_generated`, not
   just column existence, so a column silently recreated as a plain `tsvector`
   fails the check instead of never being populated.
-- **`ensureObsiddySpace()`** (`lib/framework/obsiddy/services/space.ts`) —
+- **`ensureResparkableSpace()`** (`lib/framework/resparkable/services/space.ts`) —
   idempotent, race-safe first-use creation of a user's space, plus
-  `getObsiddySpace()` and `findSpaceByInboxToken()`.
-- **Obsiddy repo layer and CRUD API** (Release 1, phase 2) —
-  `lib/framework/obsiddy/repo/*` with the branded `OwnerScope` type, seven
-  entity repos, `lib/framework/obsiddy/services/*` (resource descriptors, slug
+  `getResparkableSpace()` and `findSpaceByInboxToken()`.
+- **Resparkable repo layer and CRUD API** (Release 1, phase 2) —
+  `lib/framework/resparkable/repo/*` with the branded `OwnerScope` type, seven
+  entity repos, `lib/framework/resparkable/services/*` (resource descriptors, slug
   resolution, activity events) and 20 route files under
-  `app/api/v1/obsiddy/**` covering tasks, projects, goals, areas, thoughts,
+  `app/api/v1/resparkable/**` covering tasks, projects, goals, areas, thoughts,
   entities and time blocks. `DELETE` archives; `?permanent=true` destroys.
-- **`scripts/framework/obsiddy/smoke-isolation.ts`**
-  (`npm run framework:obsiddy:smoke-isolation`) — proves cross-user isolation
+- **`scripts/framework/resparkable/smoke-isolation.ts`**
+  (`npm run framework:resparkable:smoke-isolation`) — proves cross-user isolation
   and the erasure cascade against a real database. Namespaced and kept out of
   `scripts/smoke/` because `CUSTOMIZATION.md` §7 reserves the unprefixed script
   names, `smoke:*` included, for the platform.
-- **Obsiddy priority engine** (Release 1, phase 3) —
-  `lib/framework/obsiddy/priority/score.ts` is a pure, I/O-free function over
+- **Resparkable priority engine** (Release 1, phase 3) —
+  `lib/framework/resparkable/priority/score.ts` is a pure, I/O-free function over
   six weighted factors (urgency, goal alignment, project momentum, area balance,
   effort fit, staleness) plus an additive `manualBoost`, so `+1` provably
   outranks every unboosted task and `-1` provably sinks below them. An expired
@@ -477,58 +477,58 @@ release process.
   queries and persists `priorityScore` + `priorityFactors`; `rescoreTask()`
   narrows that to one row and runs on every task mutation, so a pin takes effect
   immediately instead of at 3am.
-- **Obsiddy snooze** (`lib/framework/obsiddy/services/snooze.ts`) — `snoozeItem`
+- **Resparkable snooze** (`lib/framework/resparkable/services/snooze.ts`) — `snoozeItem`
   / `unsnoozeItem` over tasks, thoughts and projects, with presets
   (`later_today`, `tomorrow`, `next_week`, `next_month`) resolved server-side in
-  `ObsiddySpace.timezone` rather than by the caller. `snoozeCount` counts the
+  `ResparkableSpace.timezone` rather than by the caller. `snoozeCount` counts the
   gesture and is never decremented, and is never an input to the scorer. Exposed
-  as `POST /api/v1/obsiddy/{tasks,thoughts,projects}/[id]/snooze` and
+  as `POST /api/v1/resparkable/{tasks,thoughts,projects}/[id]/snooze` and
   `.../unsnooze`.
-- **`lib/framework/obsiddy/time/zoned.ts`** — wall-clock arithmetic in the
+- **`lib/framework/resparkable/time/zoned.ts`** — wall-clock arithmetic in the
   user's zone (`wallClockAt`, `instantAtWallClock`, `startOfZonedDay`,
   `startOfZonedWeek`, `addZonedDays`, `addZonedMonths`, `timeOfDayAt`), built on
   `Intl` with no new dependency. Days are 23 or 25 hours long twice a year, and
-  every scheduling phrase in Obsiddy resolves through here rather than through
+  every scheduling phrase in Resparkable resolves through here rather than through
   server time.
-- **`GET /api/v1/obsiddy/today`** — the dashboard's only fetch: ranked tasks
+- **`GET /api/v1/resparkable/today`** — the dashboard's only fetch: ranked tasks
   enriched with project and area, today's time blocks, inbox count, goals at
   risk, unreviewed connections, the latest review and this week's remaining
   capacity, in a fixed number of queries regardless of task count. ETag'd.
-- **`GET /api/v1/obsiddy/inbox`** — captured thoughts with their suggested links
+- **`GET /api/v1/resparkable/inbox`** — captured thoughts with their suggested links
   and the strongest suggested project, resolved in two batched queries. ETag'd.
-- **`GET` / `PATCH /api/v1/obsiddy/space`** — the caller's effective settings
+- **`GET` / `PATCH /api/v1/resparkable/space`** — the caller's effective settings
   with defaults resolved, plus `customised` flags. `inboxToken` is deliberately
   never included. Backed by Zod schemas for the three previously unvalidated
   `Json` columns (`priorityWeightsSchema` — which requires the weights to sum to
   1 — `energyProfileSchema`, `retentionPolicySchema`) and by
-  `lib/framework/obsiddy/settings.ts`, whose resolvers safe-parse those columns
+  `lib/framework/resparkable/settings.ts`, whose resolvers safe-parse those columns
   and fall back to documented defaults rather than letting a malformed blob
   write `NaN` into every score.
 
-- **`scripts/framework/obsiddy/smoke-priority.ts`**
-  (`npm run framework:obsiddy:smoke-priority`) — exercises the ranking, snooze
+- **`scripts/framework/resparkable/smoke-priority.ts`**
+  (`npm run framework:resparkable:smoke-priority`) — exercises the ranking, snooze
   and aggregate paths against a real database: the space bootstrap, the batched
   score write, `sumMinutesByArea`'s raw SQL, a real indexed
   `ORDER BY priorityScore`, preset resolution in `Pacific/Auckland`, and that
   none of the new surfaces leak across users.
-- **Obsiddy semantic layer** (Release 1, phase 4) — the brain is now searchable
-  by meaning. `searchObsiddy()`
-  (`lib/framework/obsiddy/search/hybrid-search.ts`) is the **only** search entry
+- **Resparkable semantic layer** (Release 1, phase 4) — the brain is now searchable
+  by meaning. `searchResparkable()`
+  (`lib/framework/resparkable/search/hybrid-search.ts`) is the **only** search entry
   point and takes an `OwnerScope` as a required field, so a route param or an LLM
   tool argument cannot become one. It runs three passes: vector + BM25 over the
   one embedding table, the generated tsvector for tasks (which are deliberately
   not embedded), and — only when `includeArchived` is set — a keyword pass over
   the archived corpus, which by design has no vectors at all.
-- **All Obsiddy vector SQL lives in `lib/framework/obsiddy/repo/embeddings.ts`.**
+- **All Resparkable vector SQL lives in `lib/framework/resparkable/repo/embeddings.ts`.**
   The plan put it in `search/`, but the tier lint boundary forbids Prisma outside
   `repo/**` — which is the stronger arrangement, because the raw SQL is the one
   place a `WHERE "userId"` can be forgotten and this confines it to the layer
   whose every function carries a verified scope. Includes
-  `assertObsiddyModelMatchesStoredVectors()`, a port of the platform's private
+  `assertResparkableModelMatchesStoredVectors()`, a port of the platform's private
   dimension guard (upstream
   [#491](https://github.com/human-centric-engineering/sunrise/issues/491) asks
   for a shared version).
-- **Obsiddy indexer** (`lib/framework/obsiddy/embedding/{canonical,indexer}.ts`)
+- **Resparkable indexer** (`lib/framework/resparkable/embedding/{canonical,indexer}.ts`)
   — `canonicalText()` and `contentHash()` are pure and cover **semantic content
   only**, never rendered markdown, so formatting noise (CRLF, trailing
   whitespace, a `null` → `''` description) is not an edit. `indexedHash` is nulled
@@ -536,45 +536,45 @@ release process.
   not an embedding call: `reindexPending()` compares the recomputed hash against
   what is stored and only then spends anything. That is what lets a mutation path
   null the column without knowing which fields are semantic.
-- **Obsiddy connection engine** (`lib/framework/obsiddy/search/connections.ts`) —
+- **Resparkable connection engine** (`lib/framework/resparkable/search/connections.ts`) —
   `findConnections()` is read-only and idempotent; `sweepConnections()` persists
   pairs above a 0.72 similarity floor as
-  `ObsiddyLink{ origin: 'rule', status: 'suggested' }`. Both read
+  `ResparkableLink{ origin: 'rule', status: 'suggested' }`. Both read
   **already-stored** vectors and do neighbour search in SQL, so the sweep costs
   no embedding tokens. Pair exclusion — including the `rejected` tombstone, in
   both directions — happens inside the query, so no caller can forget it.
-- **Obsiddy document ingestion**
-  (`lib/framework/obsiddy/documents/{ingest,chunking}.ts`) — reuses the
+- **Resparkable document ingestion**
+  (`lib/framework/resparkable/documents/{ingest,chunking}.ts`) — reuses the
   platform's `parseDocument()` (PDF, DOCX, EPUB, CSV, HTML, MD, TXT) and its
-  markdown and semantic chunkers, but stores rows in Obsiddy's own tables:
+  markdown and semantic chunkers, but stores rows in Resparkable's own tables:
   `.context/orchestration/knowledge.md` is explicit that the platform KB is a
   global asset and per-user scoping there is an anti-pattern. Dedupes on
   `fileHash` scoped to the owner, and queues indexing rather than embedding
   inline.
-- **`ObsiddySettings`** — an instance-settings singleton and the one Obsiddy
+- **`ResparkableSettings`** — an instance-settings singleton and the one Resparkable
   table with no `userId`, so also the one outside the D1 erasure cascade. Holds
   `documentOriginals` (`discard | retain`) and `maxDocumentBytes`, exposed at
-  `GET|PATCH /api/v1/admin/obsiddy/settings` and `/admin/obsiddy/settings`.
-- **New Obsiddy routes** — `GET /obsiddy/search`, `POST /obsiddy/reindex`,
-  `GET|POST /obsiddy/links`, `PATCH /obsiddy/links/[id]`,
-  `POST /obsiddy/connections/sweep`, `GET|POST /obsiddy/documents`,
-  `GET|DELETE /obsiddy/documents/[id]`,
-  `GET /obsiddy/documents/[id]/download`. There is deliberately no
-  `DELETE /obsiddy/links/[id]`: rejecting sets `status: 'rejected'`, which is the
+  `GET|PATCH /api/v1/admin/resparkable/settings` and `/admin/resparkable/settings`.
+- **New Resparkable routes** — `GET /resparkable/search`, `POST /resparkable/reindex`,
+  `GET|POST /resparkable/links`, `PATCH /resparkable/links/[id]`,
+  `POST /resparkable/connections/sweep`, `GET|POST /resparkable/documents`,
+  `GET|DELETE /resparkable/documents/[id]`,
+  `GET /resparkable/documents/[id]/download`. There is deliberately no
+  `DELETE /resparkable/links/[id]`: rejecting sets `status: 'rejected'`, which is the
   tombstone that stops the sweep re-proposing a dismissed pair forever.
-- **`registerObsiddyRateLimits()`** (`lib/framework/obsiddy/rate-limit.ts`) —
+- **`registerResparkableRateLimits()`** (`lib/framework/resparkable/rate-limit.ts`) —
   per-flow sub-caps for the four expensive paths (search 30/min; reindex and
   sweep 5/hour; document upload 20/hour), keyed on the session user. Wired
-  through the `lib/app/rate-limit.ts` seam with one call, so a later Obsiddy
+  through the `lib/app/rate-limit.ts` seam with one call, so a later Resparkable
   release can add one without every host editing that file.
-- **`registerObsiddyAdminNav()`** (`lib/framework/obsiddy/admin-nav.ts`) — the
-  Obsiddy admin section, wired through `lib/app/admin-nav.ts`. Client-safe by
+- **`registerResparkableAdminNav()`** (`lib/framework/resparkable/admin-nav.ts`) — the
+  Resparkable admin section, wired through `lib/app/admin-nav.ts`. Client-safe by
   necessity: the sidebar reads the registry during render.
-- **`lib/framework/obsiddy/api/endpoints.ts`** — Obsiddy's own endpoint
-  constants. `lib/api/endpoints.ts` is Sunrise-owned, so adding Obsiddy's routes
+- **`lib/framework/resparkable/api/endpoints.ts`** — Resparkable's own endpoint
+  constants. `lib/api/endpoints.ts` is Sunrise-owned, so adding Resparkable's routes
   there would be a merge conflict inflicted on every host on every upgrade.
-- **`scripts/framework/obsiddy/smoke-search.ts`**
-  (`npm run framework:obsiddy:smoke-search`) — 26 assertions against a real
+- **`scripts/framework/resparkable/smoke-search.ts`**
+  (`npm run framework:resparkable:smoke-search`) — 26 assertions against a real
   database over the pgvector SQL, the HNSW index, tsvector ranking, cross-user
   isolation (**including the case where another user's row is the better vector
   match**), the sweep, the tombstone, and the archive transaction. Runs with real
@@ -584,27 +584,27 @@ release process.
 
 ### Security
 
-- **Obsiddy schedules are deleted when their owner is erased.**
+- **Resparkable schedules are deleted when their owner is erased.**
   `AiWorkflowSchedule.createdBy` is `onDelete: SetNull`, so per-user schedules would
   otherwise outlive the account — enabled, with a live `nextRunAt`, firing for ever
-  against a deleted user. Obsiddy now registers an erasure cleanup hook, and because
+  against a deleted user. Resparkable now registers an erasure cleanup hook, and because
   `eraseUser()` reads a plain module-scope registry without lazily initialising any
-  `lib/app/*` seam (the sunrise#462 module-split shape, for a registry that fix did
-  not cover), the connection-sweep job independently deletes Obsiddy schedules whose
+  `lib/app/*` seam (the resparkable#462 module-split shape, for a registry that fix did
+  not cover), the connection-sweep job independently deletes Resparkable schedules whose
   `createdBy` is null. Relatedly, `inputTemplate` is stored empty: it carries no
   email address — the address is resolved at send time from the row erasure deletes
   — and no `userId` either, because the template becomes the execution's `inputData`
   and a step declaring no `args` receives it, which a `.strict()` capability schema
   rejects. The owner travels on `execution.userId`, stamped from `createdBy`.
 
-- **`obsiddy_notify` cannot be made to send arbitrary mail.** It takes a
+- **`resparkable_notify` cannot be made to send arbitrary mail.** It takes a
   closed-set notification name and an optional integer — no recipient, no subject,
   no body — and every word a recipient reads is rendered server-side. A free-text
   notifier bound to an agent would be an exfiltration channel for the brain and a
   phishing primitive sent from the product's own address.
 
 - **Rejected connection suggestions are never pruned by retention.** The connection
-  sweep excludes any pair that already has an `ObsiddyLink` row, so a `rejected` row
+  sweep excludes any pair that already has an `ResparkableLink` row, so a `rejected` row
   is the tombstone that stops a suggestion the user turned down being proposed again
   every week for ever. `pruneStaleSuggestedLinks` matches `status: 'suggested'`
   positively rather than excluding `'rejected'`, because the negative form is one
@@ -624,12 +624,12 @@ release process.
   legitimate `/search?q=two words`; `safeCallbackUrl()` now returns the
   normalised value, so the string that reaches `router.push()` is the one that
   was judged safe. The OAuth path was never affected — better-auth applies its
-  own stricter allowlist. Carried as a local patch to a Sunrise-owned file
-  pending [sunrise#506](https://github.com/human-centric-engineering/sunrise/issues/506).
+  own stricter allowlist. Carried as a local patch to a Resparkable-owned file
+  pending [resparkable#506](https://github.com/human-centric-engineering/sunrise/issues/506).
 
-- **`Cache-Control: private, no-cache` on Obsiddy's per-user read endpoints**
-  (`lib/framework/obsiddy/api/cache.ts`, applied by `/obsiddy/today`,
-  `/obsiddy/inbox` and `/obsiddy/space`). Sunrise sets no cache directive on
+- **`Cache-Control: private, no-cache` on Resparkable's per-user read endpoints**
+  (`lib/framework/resparkable/api/cache.ts`, applied by `/resparkable/today`,
+  `/resparkable/inbox` and `/resparkable/space`). Sunrise sets no cache directive on
   `/api/v1/**`, and a response carrying an `ETag` with no freshness information
   is heuristically cacheable (RFC 9111 §4.2.2) — so a shared proxy could store
   one person's dashboard and serve it to the next caller. `no-cache` rather than
@@ -638,25 +638,52 @@ release process.
   is upstream
   [#487](https://github.com/human-centric-engineering/sunrise/issues/487).
 - **Uploaded document originals are discarded by default**
-  (`ObsiddySettings.documentOriginals = 'discard'`). Sunrise's `StorageProvider`
+  (`ResparkableSettings.documentOriginals = 'discard'`). Sunrise's `StorageProvider`
   has no read method at all, and `LocalProvider` ignores `public: false` — it
   writes into `public/uploads/`, which Next serves statically at a guessable URL.
   Retaining a user's uploaded PDF on a default install would therefore publish it.
-  Obsiddy keeps the extracted text and the embedding chunks, which is what the
+  Resparkable keeps the extracted text and the embedding chunks, which is what the
   product actually queries, and drops the bytes. Retention is an operator setting
   that the admin page **disables** on providers that cannot store privately or
   cannot sign URLs, rather than warning and allowing it; when retained, the stored
   URL is never returned to a client and downloads go through a 5-minute signed
   URL. Upstream
   [#490](https://github.com/human-centric-engineering/sunrise/issues/490).
-- **`GET /api/v1/obsiddy/search` does not log the query text.** It is the most
+- **`GET /api/v1/resparkable/search` does not log the query text.** It is the most
   sensitive string a user sends this product, and a log line outlives the search;
   the route logs its length and the hit count instead.
 
 ### Changed
 
-- **Obsiddy has a visual identity: "amber phosphor on volcanic glass"** — and its
-  daylight face, the same glass held to the sun. The app ran on stock Sunrise
+- **BREAKING — the project is renamed Obsiddy → Resparkable, and the fork's own
+  brand name goes with it.** Every public identifier moves: the 19 Prisma models
+  (`ObsiddySpace` → `ResparkableSpace`, and so on), the 19 tables they map to
+  (`framework_obsiddy_*` → `framework_resparkable_*`), every route under
+  `/obsiddy/**` and `/api/v1/obsiddy/**`, the `OBSIDDY_*` constants, the tier
+  directories (`lib/framework/obsiddy/`, `prisma/schema/framework-obsiddy.prisma`,
+  `.context/framework/obsiddy/`), the four `framework:obsiddy:*` npm scripts, and
+  the package name. The GitHub repository is renamed too; GitHub redirects the old
+  URL, but remotes should be repointed.
+
+  **The rename also covers `Sunrise` where it named this codebase's brand.** The
+  starter template writes its own name into 561 fork-owned files and offers no
+  seam for a fork to rebrand, so a fork that wants its own name has to rewrite
+  them. **`Sunrise` survives only where it names the upstream project rather than
+  this one**: the ~90 links to upstream issues, the `gh issue list --repo
+  human-centric-engineering/sunrise` commands, `sunrise-asks.md` (a register of
+  asks against a repo that is still called sunrise), and the prose that
+  distinguishes a Sunrise-owned file from this tier. Collapsing those would have
+  produced "every edit to a Resparkable-owned file is a merge conflict" inside
+  Resparkable, and pointed two `gh` commands at the wrong repository.
+
+  **Migrations were rewritten in place rather than fronted with a rename
+  migration**, so this requires a database reset; there is no upgrade path from an
+  Obsiddy database. Inherited template links that pointed at the upstream repo —
+  the landing-page CTAs, the issue-template links, `package.json`'s `bugs` and
+  `homepage` — now point at this one.
+
+- **Resparkable has a visual identity: "amber phosphor on volcanic glass"** — and its
+  daylight face, the same glass held to the sun. The app ran on stock Resparkable
   blue-on-white with no webfonts at all; it now has a designed system,
   documented in
   [`.context/ui/design-language.md`](./.context/ui/design-language.md).
@@ -716,7 +743,7 @@ release process.
   below 11px is the most common failure of this aesthetic and the codebase had a
   lot of it.
 
-- **Obsiddy chat: one panel, paced streaming, and a wait that explains itself.**
+- **Resparkable chat: one panel, paced streaming, and a wait that explains itself.**
   The transcript and composer are now two regions of a single bordered panel
   rather than two boxes with the page showing through the gap. The user's turn
   keeps its bubble; the assistant's loses it in favour of a rule down the left —
@@ -733,13 +760,13 @@ release process.
   same event as the answer finishing being read. Disabled under
   `prefers-reduced-motion`.
 
-  **New `<ThinkingIndicator>`** (`components/obsiddy/chat/`) — dots plus the
+  **New `<ThinkingIndicator>`** (`components/resparkable/chat/`) — dots plus the
   handler's own status string, replacing a static italic "Thinking…" that was
   indistinguishable from a hung page during a ten-second tool call. Duplicated
   from the admin component rather than imported, per the tier rule: contracts are
   imported (`parseChatStreamEvent`), renderings are not.
 
-  **New `<AutoGrowTextarea>`** (`components/obsiddy/ui/`) — one row when empty,
+  **New `<AutoGrowTextarea>`** (`components/resparkable/ui/`) — one row when empty,
   grows to ten, scrolls past that. Measures `scrollHeight` after collapsing to
   `auto` rather than counting newlines, which soft wrap makes wrong. Plus a mic
   button in the composer, reusing `<VoiceCaptureButton>`; dictation lands in the
@@ -757,7 +784,7 @@ release process.
   something rather than holding anything.
 
   This was invisible debt for the life of the codebase, not a regression from the
-  new palette. Sunrise's light theme set `--color-background` **and**
+  new palette. Resparkable's light theme set `--color-background` **and**
   `--color-card` to the same `#ffffff`, so a bordered box that omitted `bg-card`
   rendered identically to one that had it, and nothing ever revealed the
   omission. The moment the page background stopped being card-white and grew a
@@ -770,7 +797,7 @@ release process.
 - **Machine output is monospaced.** New `.terminal-surface` class switches a
   subtree to JetBrains Mono with the leading monospace needs at reading length
   (`1.7`, because identical glyph widths strip the word shapes that carry the eye
-  across a line). Applied to the Obsiddy chat transcript and composer, the capture
+  across a line). Applied to the Resparkable chat transcript and composer, the capture
   `<Textarea>`, and the morning briefing's title and body — everywhere the app is
   talking to you, or you are talking to it.
 
@@ -780,8 +807,8 @@ release process.
   entity notes stay in the reading font. Streaming chat output now ends in a
   `.terminal-caret` in place of an italic "Thinking…". The admin orchestration
   chat already had its own `font-mono` treatment and is left alone — it is
-  Sunrise-owned. Rules in
-  [`.context/framework/obsiddy/ui.md` §12](./.context/framework/obsiddy/ui.md).
+  Resparkable-owned. Rules in
+  [`.context/framework/resparkable/ui.md` §12](./.context/framework/resparkable/ui.md).
 
 - **`<BrandMark>` renders a shard mark and wordmark, and takes `className`.**
   The fork-owned brand slot returned a bare string; it now returns an inline SVG
@@ -797,11 +824,11 @@ release process.
   a while, the brand, nav and account menu all left the viewport, and "scroll
   back to the top to change section" is a tax paid on every navigation.
 
-- **The Obsiddy section header carries a group eyebrow.** `<SectionHeader>` now
+- **The Resparkable section header carries a group eyebrow.** `<SectionHeader>` now
   prints the rail group a section belongs to — Daily, Organise, Knowledge,
-  Manage — above the `h1`, derived from `OBSIDDY_NAV_GROUPS` rather than
-  duplicated, longest-href-wins so `/obsiddy` doesn't match everything. It is
-  deliberately not the word "Obsiddy": the rail head and app nav both say that,
+  Manage — above the `h1`, derived from `RESPARKABLE_NAV_GROUPS` rather than
+  duplicated, longest-href-wins so `/resparkable` doesn't match everything. It is
+  deliberately not the word "Resparkable": the rail head and app nav both say that,
   and this shell removed that duplication once already.
 
 - **The signed-in app shell is full-bleed.** New `.app-shell` utility in
@@ -815,33 +842,33 @@ release process.
   `fullWidth` defaults to `false`, so the marketing header keeps the centred
   measure its sections are built on. Forks that want the old app frame back pass
   nothing and swap `.app-shell` for `container mx-auto px-4`. Filed upstream as
-  Sunrise ask #35 — this is one of the few core-file edits Obsiddy carries.
-- **Obsiddy: the section nav is a grouped rail, not fourteen pills.**
-  `<ObsiddyNav>` now exports `OBSIDDY_NAV_GROUPS` — four named groups (Daily,
-  Organise, Knowledge, Manage) — and derives the existing `OBSIDDY_NAV_ITEMS`
+  Sunrise ask #35 — this is one of the few core-file edits Resparkable carries.
+- **Resparkable: the section nav is a grouped rail, not fourteen pills.**
+  `<ResparkableNav>` now exports `RESPARKABLE_NAV_GROUPS` — four named groups (Daily,
+  Organise, Knowledge, Manage) — and derives the existing `RESPARKABLE_NAV_ITEMS`
   export from them, so a section can no longer be in the nav but outside the
   list `section-help.test.ts` checks. Above `lg` it renders as a sticky left
-  rail that collapses to icons (remembered under `obsiddy.nav.collapsed.v1`);
+  rail that collapses to icons (remembered under `resparkable.nav.collapsed.v1`);
   below `lg` it is a section switcher, because fourteen stacked rows is most of
-  a phone screen. The shell (`app/(protected)/obsiddy/layout.tsx`) is a two-
-  column flex as a result, and dropped its own "Obsiddy" title block: the app
+  a phone screen. The shell (`app/(protected)/resparkable/layout.tsx`) is a two-
+  column flex as a result, and dropped its own "Resparkable" title block: the app
   nav and the rail head both already said it, and the product tagline under it
   duplicated the section blurb one line below. `<SectionHeader>` now carries the
   page's `h1` (was `h2`), and the board detail page's name demotes to `h2`
-  behind it. `OBSIDDY_NAV_ITEMS`, its shape, and every route are unchanged.
-- **Obsiddy: `POST /api/v1/obsiddy/links` now goes through `linkEntities`**
-  (`lib/framework/obsiddy/services/links.ts`). The endpoint checks, the
+  behind it. `RESPARKABLE_NAV_ITEMS`, its shape, and every route are unchanged.
+- **Resparkable: `POST /api/v1/resparkable/links` now goes through `linkEntities`**
+  (`lib/framework/resparkable/services/links.ts`). The endpoint checks, the
   identical-404 rule and the server-pinned `origin` / `status` / `reviewedAt`
-  were inline in the route; `obsiddy_link_entities` needs all three, and a
+  were inline in the route; `resparkable_link_entities` needs all three, and a
   capability that reimplemented them would drift — which is exactly the
   divergence the "handlers stay thin" rule exists to prevent. Behaviour change:
-  a hand-asserted link now records a `linked` `ObsiddyEvent`, which it never did.
-- **Obsiddy: `PATCH /api/v1/obsiddy/tasks/[id]/tags` is now `PUT`.** The route
+  a hand-asserted link now records a `linked` `ResparkableEvent`, which it never did.
+- **Resparkable: `PATCH /api/v1/resparkable/tasks/[id]/tags` is now `PUT`.** The route
   always replaced the whole tag set; it used `PATCH` only because `apiClient` had
   no `put` and adding one would have been a core-file edit. #495 landed the verb.
   **Breaking for any caller built against the old verb** — the body and response
   are unchanged.
-- **Obsiddy: retention capability is read from the provider, not inferred from
+- **Resparkable: retention capability is read from the provider, not inferred from
   its name.** `resolveRetentionCapability()` named `local` and refused it, because
   the local provider wrote into `public/uploads/` and ignored `public: false`.
   #490 gave it a private root and a signed read route, which made the name check
@@ -853,26 +880,26 @@ release process.
   false. An install on `STORAGE_PROVIDER=s3` with neither `S3_USE_ACL` nor
   `S3_OBJECTS_PRIVATE_BY_DEFAULT` set, and `documentOriginals: 'retain'`, will
   stop retaining new uploads _and_ start returning 404 from
-  `GET /api/v1/obsiddy/documents/[id]/download` for originals it already holds.
+  `GET /api/v1/resparkable/documents/[id]/download` for originals it already holds.
   That is the correct fail-closed answer — nothing can distinguish that bucket
   from a wide-open one — and the admin settings page names the reason on screen.
   Set `S3_OBJECTS_PRIVATE_BY_DEFAULT=true` to restore retention.
-- **Obsiddy: `assertObsiddyModelMatchesStoredVectors` delegates to the platform
+- **Resparkable: `assertResparkableModelMatchesStoredVectors` delegates to the platform
   guard** exported by #491, instead of carrying ~40 duplicated lines. The fork
   still supplies owner-scoped closures — an unscoped aggregate would make one
   user's search latency grow with the whole install's corpus and let one user's
   mismatched vectors throw for everybody — and keeps its structured `logger.error`
   via catch/rethrow, because a thrown string is not queryable.
-- **Obsiddy: `lib/framework/obsiddy/db-drift.ts` imports `generatedColumnExists`**
+- **Resparkable: `lib/framework/resparkable/db-drift.ts` imports `generatedColumnExists`**
   from `@/lib/db/drift-probes` rather than defining its own. #481 landed it and
   switched core's A1 probe to it, closing the same blind spot upstream.
 
-- ~~**`components/layouts/protected-nav.tsx` gains one `/obsiddy` entry.**~~
+- ~~**`components/layouts/protected-nav.tsx` gains one `/resparkable` entry.**~~
   **Reverted before release.** #473 landed the `lib/app/protected-nav.ts` seam
-  the entry was waiting on, so the core file is pristine again and Obsiddy
+  the entry was waiting on, so the core file is pristine again and Resparkable
   registers through the seam. Added and removed within the same unreleased cycle;
   no released version carried the edit.
-- **Archiving an Obsiddy item now deletes its embedding rows in the same
+- **Archiving an Resparkable item now deletes its embedding rows in the same
   transaction** as the archive (`archiveAndDropVectors()`), rather than leaving
   them behind a `WHERE archivedAt IS NULL` filter. A filtered vector search
   degrades recall silently as history grows — no error, no symptom — so the index
@@ -881,34 +908,34 @@ release process.
 
 ### Removed
 
-- **`updateSpace()`** (`lib/framework/obsiddy/repo/space.ts`) — replaced by
+- **`updateSpace()`** (`lib/framework/resparkable/repo/space.ts`) — replaced by
   `updateSpaceSettings()`, which takes the patch in domain terms and translates
   a `null` Json column into `Prisma.DbNull`. Added and removed within the same
   unreleased cycle; no released version exposed it.
 - **`privateCacheHeaders()` and `withPrivateCache()`**
-  (`lib/framework/obsiddy/api/cache.ts`) — the per-route `Cache-Control`
+  (`lib/framework/resparkable/api/cache.ts`) — the per-route `Cache-Control`
   workaround, redundant once #487 made `private, no-cache` the default on every
   JSON envelope and on `checkConditional()`'s 304. Deleted rather than left as
   no-ops a future route author would copy without knowing. `PRIVATE_NO_CACHE`
   survives for the board export, which returns a raw `Response` and so never
   passes through the envelope helpers. Same unreleased cycle.
 
-- **Obsiddy erasure cascade was incomplete** (`20260728232937_obsiddy_space_cascade`).
+- **Resparkable erasure cascade was incomplete** (`20260728232937_resparkable_space_cascade`).
   The phase-1 migration gave every scoped table a plain `userId` column with no
-  FK, so deleting a user removed only the `ObsiddySpace` row and left every
+  FK, so deleting a user removed only the `ResparkableSpace` row and left every
   task, thought, project and event behind — personal data surviving an erasure
   that reported success. Every scoped table now has a real FK to
-  `framework_obsiddy_space("userId") ON DELETE CASCADE`, and the migration
+  `framework_resparkable_space("userId") ON DELETE CASCADE`, and the migration
   deletes rows already orphaned by its absence. Found by the isolation smoke
   script against a real database; no mocked test could have caught it.
 
 ### Fixed
 
-- **Obsiddy's background workflows failed on a cold server, and only on a cold
-  server.** `initObsiddy()` now calls `registerBuiltInCapabilities()` at boot.
+- **Resparkable's background workflows failed on a cold server, and only on a cold
+  server.** `initResparkable()` now calls `registerBuiltInCapabilities()` at boot.
 
   Core's capability registry is a `globalThis` singleton
-  ([sunrise#462](https://github.com/human-centric-engineering/sunrise/issues/462)),
+  ([resparkable#462](https://github.com/human-centric-engineering/sunrise/issues/462)),
   so a registration crosses module realms — but the "have I registered yet"
   guards are ordinary module-scoped booleans, so the registry is only filled
   when something *calls* the initialiser. The chat handler, the MCP tool
@@ -917,10 +944,10 @@ release process.
 
   So on a process that had served no chat, agent or MCP request, the scheduler
   firing a workflow of `tool_call` steps found an empty map and every step
-  failed with `unknown_capability`. That is all four Obsiddy background
+  failed with `unknown_capability`. That is all four Resparkable background
   workflows, at 03:15 and 04:30, on a server that has been quiet all night —
   **the failure was likeliest exactly when it mattered, and hid under load.**
-  It also read as a fork bug, because the error names Obsiddy's own slug while
+  It also read as a fork bug, because the error names Resparkable's own slug while
   the fork's registration code is working perfectly.
 
   Found by starting the server, not by a test. Unit tests register explicitly,
@@ -930,30 +957,30 @@ release process.
   the failure mode is an empty registry, and only a lookup proves it isn't.
 
   Interim: the real fix is one line in core, filed as
-  [sunrise#537](https://github.com/human-centric-engineering/sunrise/issues/537).
+  [resparkable#537](https://github.com/human-centric-engineering/sunrise/issues/537).
 
-- **Every Obsiddy background workflow would have failed silently after the
-  Sunrise 0.8.0 merge.**
-  [sunrise#502](https://github.com/human-centric-engineering/sunrise/issues/502)
+- **Every Resparkable background workflow would have failed silently after the
+  Resparkable 0.8.0 merge.**
+  [resparkable#502](https://github.com/human-centric-engineering/sunrise/issues/502)
   made schedule-triggered runs **system-owned** — the scheduler now writes
   `userId: null` on the execution and passes `null` into the engine instead of
   `schedule.createdBy`. That is correct for the org-level cron rows core has in
   mind: `AiWorkflowExecution.userId` is `onDelete: Cascade`, so naming an
   operator meant erasing them destroyed the organisation's entire scheduled-run
-  history. It is also the removal of the **only** mechanism by which Obsiddy's
+  history. It is also the removal of the **only** mechanism by which Resparkable's
   per-user schedules knew whose brain a 04:30 run was working on, so
-  `requireObsiddyUser` would have thrown `MissingObsiddyUserError` on every step
+  `requireResparkableUser` would have thrown `MissingResparkableUserError` on every step
   of the nightly triage, the morning briefing, the weekly review and the horizon
   check.
 
   The owner now travels on the schedule row's `scope` column
-  (`OBSIDDY_SCHEDULE_OWNER_KEY`), which is the carrier core provides for exactly
+  (`RESPARKABLE_SCHEDULE_OWNER_KEY`), which is the carrier core provides for exactly
   this — admin-written, validated on read, stamped onto the execution and
   threaded into `CapabilityContext.scope`, with core naming and reading no keys
   of its own. Unlike `inputTemplate` it never becomes `ctx.inputData`, so it
   cannot collide with a step's `.strict()` argument schema. `context.userId`
   still wins when both are present, so the fallback can only ever fill a gap and
-  never redirect a live session at another brain. `ensureObsiddySchedules` gained
+  never redirect a live session at another brain. `ensureResparkableSchedules` gained
   a third correction that stamps rows written before the move — without it an
   upgraded install carries silently broken schedules for ever.
 
@@ -961,12 +988,12 @@ release process.
   already `string | null`, so the change type-checked; the 1,978 tier tests
   stayed green because they mock that boundary. A merge can be green on both
   sides and still be broken in the seam between them. Filed upstream as
-  [sunrise#532](https://github.com/human-centric-engineering/sunrise/issues/532).
+  [resparkable#532](https://github.com/human-centric-engineering/sunrise/issues/532).
 
-- **Obsiddy's first write by any new user returned a 500.**
-  `ensureObsiddySpace()` existed and was tested but was called from nowhere,
-  while `20260728232937_obsiddy_space_cascade` gave every scoped table a real FK
-  to `framework_obsiddy_space("userId")`. A user who had never had a space row
+- **Resparkable's first write by any new user returned a 500.**
+  `ensureResparkableSpace()` existed and was tested but was called from nowhere,
+  while `20260728232937_resparkable_space_cascade` gave every scoped table a real FK
+  to `framework_resparkable_space("userId")`. A user who had never had a space row
   therefore hit a foreign-key violation on the first thing they did. The space
   bootstrap now wraps `create` on every resource descriptor — the layer the HTTP
   routes and the phase-6 capabilities share — so it cannot be forgotten by a new
@@ -981,7 +1008,7 @@ release process.
 
 ## [0.8.0] — 2026-08-04
 
-> **Alpha release.** Tenth tagged Sunrise release. **MINOR bump** — a large
+> **Alpha release.** Tenth tagged Resparkable release. **MINOR bump** — a large
 > batch: an issue burn-down and a security sweep on top of new fork-facing
 > surface.
 >
@@ -1167,7 +1194,7 @@ release process.
   argument-parse time, which happens before it loads any `.env` file. A `PORT=`
   line in `.env.local` was therefore visible to the app and invisible to the
   server hosting it, leaving `-p` on the command line as the only way to move a
-  dev server. For anyone running several Sunrise-derived apps side by side —
+  dev server. For anyone running several Resparkable-derived apps side by side —
   reverse-proxying `*.test` hostnames to loopback ports, say — that meant
   remembering which app owned which port, every time.
 
@@ -1191,10 +1218,10 @@ release process.
   the files. Deployed containers are untouched — the Docker image runs the
   standalone server, which reads `process.env.PORT` directly.
 
-  **For forks:** Sunrise now ships a committed `.env.development` setting
+  **For forks:** Resparkable now ships a committed `.env.development` setting
   `PORT=3010` — the one env file `.gitignore` deliberately permits, for
   non-secret settings that should travel with the repo. `npm run dev` needs no
-  arguments in any clone. **Change the value in your fork:** two Sunrise-derived
+  arguments in any clone. **Change the value in your fork:** two Resparkable-derived
   apps that both keep 3010 collide the moment they run together. See
   [`CUSTOMIZATION.md`](./CUSTOMIZATION.md#claiming-your-own-dev-port).
 
@@ -1252,7 +1279,7 @@ release process.
   production builds.
 
 - **Subject access (GDPR Art. 15) now has a seam, matching erasure** (#467) —
-  Sunrise implemented the *erasure* half of GDPR carefully — `eraseUser()`, a
+  Resparkable implemented the *erasure* half of GDPR carefully — `eraseUser()`, a
   documented per-table `onDelete` policy, an append-only receipt, a registration
   seam for app-owned cleanup — and had nothing at all for the *access* half.
   Every fork holding personal data wrote it themselves, each one independently
@@ -1309,7 +1336,7 @@ release process.
   arrives by email. Both take the `exportLimiter` sub-cap and send
   `Cache-Control: no-store`. Documented in `.context/privacy/data-export.md`.
 
-- **`SIGNUP_MODE`, the seam to run a fork invite-only** (#463) — Sunrise ships a
+- **`SIGNUP_MODE`, the seam to run a fork invite-only** (#463) — Resparkable ships a
   complete invitation system whose premise is that access is *granted*, beside an
   email/password signup endpoint that was unconditionally open with no config to
   close it. A fork whose product is invite-gated could only edit a core auth file
@@ -1512,7 +1539,7 @@ release process.
   origins from `appFrameSrc` and `getCSPConfig()` folds them into the global CSP.
   Only exact `https://` origins are accepted (left-most wildcard and port
   allowed); anything else is dropped and logged at warn at module load, since
-  these values are spliced into a response header. Empty in vanilla Sunrise —
+  these values are spliced into a response header. Empty in vanilla Resparkable —
   locked by `tests/unit/lib/app/defaults.test.ts`. See
   [`.context/security/overview.md`](./.context/security/overview.md#third-party-iframes--the-frame-src-seam).
 
@@ -1567,9 +1594,9 @@ release process.
 
 - **`framework:*` is now a reserved script namespace, and CI runs
   `framework:ci-checks`** (#483). CUSTOMIZATION.md §7 reserved `app:*` for the
-  leaf-fork tier but left a framework-tier fork (one sitting between Sunrise and
+  leaf-fork tier but left a framework-tier fork (one sitting between Resparkable and
   its own forks) with nowhere to put a script — while `scripts/smoke/README.md`
-  actively told it to add to Sunrise-owned `smoke:*`. Both are corrected, and
+  actively told it to add to Resparkable-owned `smoke:*`. Both are corrected, and
   `scripts/app/` + `scripts/framework/` are now documented as tier-owned
   directories. The `lint` job calls `framework:ci-checks --if-present`, mirroring
   the existing `app:ci-checks` seam, so the reservation is real rather than a
@@ -1811,9 +1838,9 @@ release process.
   `20260730140000_add_message_role_createdat_index`.
 
 - **Tab titles and legal-page metadata now route through the `BRAND` seam**
-  (#432). `SETTINGS_TAB_TITLES` and `KNOWLEDGE_TAB_TITLES` hardcoded `"Sunrise"`,
+  (#432). `SETTINGS_TAB_TITLES` and `KNOWLEDGE_TAB_TITLES` hardcoded `"Resparkable"`,
   and `useUrlTabs` writes them straight to `document.title` — so a fork with
-  `NEXT_PUBLIC_APP_NAME` set still showed "Sunrise" in the browser tab on
+  `NEXT_PUBLIC_APP_NAME` set still showed "Resparkable" in the browser tab on
   `/settings` and the admin knowledge base, overriding correct layout metadata.
   The static metadata on `app/(public)/{privacy,terms,contact}` had the same
   hardcode. All now interpolate `BRAND.name`. `about/` is deliberately left
@@ -1906,9 +1933,9 @@ release process.
 
 ## [0.7.0] — 2026-07-09
 
-> **Alpha release.** Ninth tagged Sunrise release. **MINOR bump** — adds new
+> **Alpha release.** Ninth tagged Resparkable release. **MINOR bump** — adds new
 > public surface: seven fork-facing seams and primitives requested by Daybreak
-> under the fork-first pattern, all additive and inert in vanilla Sunrise until
+> under the fork-first pattern, all additive and inert in vanilla Resparkable until
 > a fork opts in. Two chat guard seams — **`registerGuardFloorContributor`**
 > (raise an inline input/output/citation guard to a per-turn minimum; raise-only)
 > and its post-detection sibling **`registerGuardEventContributor`**
@@ -1964,7 +1991,7 @@ release process.
   `consumerChatRequestSchema` (`POST /api/v1/chat/stream`) now takes an optional
   `scope: Record<string, string>`, threaded verbatim into every capability
   dispatch for the turn as `CapabilityContext.scope` — the same carrier the
-  internal chat handler already threads. Inert in vanilla Sunrise (no built-in
+  internal chat handler already threads. Inert in vanilla Resparkable (no built-in
   reads it); a fork can surface-scope a consumer conversation without shadowing
   the route. Because it arrives on an untrusted end-user request it is bounded
   (≤ 32 entries, keys ≤ 100 chars, values ≤ 500 chars), and a fork reading it
@@ -1982,7 +2009,7 @@ release process.
   `userId` (a cross-user leak). Deciding *when* to resume stays the caller's job
   (the handler never resumes by tuple on its own); the existing
   `@@index([contextType, contextId])` supports it — no migration. Inert in vanilla
-  Sunrise (no core surface calls it).
+  Resparkable (no core surface calls it).
 
 ### Changed
 
@@ -2005,15 +2032,15 @@ release process.
   through an eval-shaped path. The `phase` option widens from the closed
   `'summary' | 'scoring'` union to an open `string`, letting a caller tag its own
   span/cost phase (e.g. `'slot-extraction'`). No behaviour change: the OTEL
-  attributes (`gen_ai.operation.name`, `sunrise.evaluation.phase`) and the
+  attributes (`gen_ai.operation.name`, `resparkable.evaluation.phase`) and the
   omitted-`phase` default (`'evaluation'`) are unchanged. The `tryParseJson` /
   `stripCodeFence` JSON parse helpers remain in `parse-structured.ts` (every
   caller is an evaluation grader).
 
 ## [0.6.0] — 2026-07-06
 
-> **Alpha release.** Eighth tagged Sunrise release. **MINOR bump** — adds new
-> public surface, all fork-facing seams that stay inert in vanilla Sunrise: the
+> **Alpha release.** Eighth tagged Resparkable release. **MINOR bump** — adds new
+> public surface, all fork-facing seams that stay inert in vanilla Resparkable: the
 > capability `register()` **slug override + pre-execute `guard`**
 > (`CapabilityRegisterOptions` / `CapabilityGuard` / `CapabilityGuardDecision`;
 > guard runs as dispatch step 4a, fail-closed), the **knowledge
@@ -2087,7 +2114,7 @@ release process.
   `no-restricted-imports` **replace-not-merge** footgun (restate the `@/`-alias
   ban per glob). The CI `lint` job runs `npm run app:ci-checks --if-present`, so
   a fork adds an `app:ci-checks` script to `package.json` with **no `ci.yml`
-  edit** (no-op in vanilla Sunrise). Both default to inert. (#382)
+  edit** (no-op in vanilla Resparkable). Both default to inert. (#382)
 - **`lib/app/bootstrap.ts` — fork-owned server boot seam (`initApp`).** A new
   `lib/app/**` seam: `instrumentation.ts` `register()` calls the reserved,
   empty-by-default `initApp()` once per server process for one-time startup work
@@ -2096,11 +2123,11 @@ release process.
   isolated in a try/catch, so a fork's boot failure is logged but never crashes
   instrumentation or stops the dev ticker arming. Core imports only
   `@/lib/app/bootstrap`; a fork imports its own tier **dynamically** from there
-  (a static `@/lib/framework` specifier breaks `next build` in vanilla Sunrise).
+  (a static `@/lib/framework` specifier breaks `next build` in vanilla Resparkable).
   Also **reserves a second fork-namespace tier, `/framework`**, for
-  framework-layer forks that sit between Sunrise and their own leaf forks
+  framework-layer forks that sit between Resparkable and their own leaf forks
   (`lib/framework/`, `.context/framework/`, `prisma/schema/framework-*.prisma`,
-  the `framework_` table prefix) — Sunrise core never creates files or tables
+  the `framework_` table prefix) — Resparkable core never creates files or tables
   there, generalising #371's `/app` (leaf) reservation to two tiers. Default
   (empty `initApp`) is unchanged behaviour. (#385)
 - **`lib/app/protected-routes.ts` — fork-owned protected-route registry.** A new
@@ -2241,9 +2268,9 @@ release process.
 
 ## [0.5.0] — 2026-07-01
 
-> **Alpha release.** Seventh tagged Sunrise release. **MINOR bump** — adds new
+> **Alpha release.** Seventh tagged Resparkable release. **MINOR bump** — adds new
 > public surface: two generic core seams a downstream framework layer needs, both
-> inert in vanilla Sunrise. The per-dispatch **scope carrier**
+> inert in vanilla Resparkable. The per-dispatch **scope carrier**
 > (`CapabilityContext.scope`, threaded verbatim from a new `ChatRequest.scope`;
 > core names no keys and no built-in capability reads it) lets a consumer make a
 > capability refuse to run outside its intended scope. The **context-contributor
@@ -2281,7 +2308,7 @@ release process.
 
 ## [0.4.1] — 2026-07-01
 
-> **Alpha release.** Sixth tagged Sunrise release. **PATCH bump** — no change to
+> **Alpha release.** Sixth tagged Resparkable release. **PATCH bump** — no change to
 > the covered public surface (see [`VERSIONING.md`](./VERSIONING.md#covered)):
 > one backward-compatible enhancement to an uncovered `lib/db/` helper plus
 > routine dependency and CI maintenance. Cut as a clean forking point. Ships in
@@ -2299,7 +2326,7 @@ release process.
 
 ## [0.4.0] — 2026-06-30
 
-> **Alpha release.** Fifth tagged Sunrise release. **MINOR bump** — adds new
+> **Alpha release.** Fifth tagged Resparkable release. **MINOR bump** — adds new
 > public surface: the per-surface theming seam (`data-surface` + the fork-owned
 > `classifySurface` / `DEFAULT_SURFACE` policy in `lib/app/surface.ts`,
 > `<SurfaceSync>`, and the empty `app/brand-theme.css`), the agent field registry
@@ -2320,7 +2347,7 @@ release process.
 - **Legal-name brand seam (`BRAND.legalName` / `NEXT_PUBLIC_LEGAL_NAME`).** The
   public footer copyright now attributes to a fork's legal entity rather than its
   product name. `lib/brand.ts` gains `legalName`, defaulting to
-  `NEXT_PUBLIC_LEGAL_NAME` → `NEXT_PUBLIC_APP_NAME` → `"Sunrise"`, so a fork that
+  `NEXT_PUBLIC_LEGAL_NAME` → `NEXT_PUBLIC_APP_NAME` → `"Resparkable"`, so a fork that
   only renames the app is byte-for-byte unchanged; set `NEXT_PUBLIC_LEGAL_NAME`
   (registered in `lib/env.ts`) when the copyright holder differs from the product
   (e.g. product "ConQuest" © "All Too Human Ltd"). Deliberately broader than
@@ -2330,13 +2357,13 @@ release process.
 - **Per-surface theming seam (`data-surface`) + fork-owned `app/brand-theme.css`.**
   A fork can now repaint one rendering surface (e.g. its consumer-facing pages)
   with its own palette/typography while leaving others (e.g. `/admin`) on the
-  Sunrise defaults — without editing `app/globals.css` or any platform layout.
+  Resparkable defaults — without editing `app/globals.css` or any platform layout.
   `proxy.ts` classifies each request via the fork-owned `classifySurface(pathname)`
   policy seam (`lib/app/surface.ts`, exporting the `Surface` type) and forwards an
   `x-surface` request header; the root layout renders `<html data-surface>`; the
   new `<SurfaceSync>` client component (`components/surface-sync.tsx`) keeps that
   attribute correct across App Router navigation. The fork's per-surface CSS-variable
-  overrides live in `app/brand-theme.css`, which **ships empty** — vanilla Sunrise
+  overrides live in `app/brand-theme.css`, which **ships empty** — vanilla Resparkable
   is visually unchanged until a fork fills it. Documented (including the six
   design constraints — `<html>`-level marker for portals, the client re-sync, the
   subtree pin, the two dark-mode selector forms, the `:has()` backdrop, and
@@ -2429,10 +2456,10 @@ release process.
 - **Email subject lines now honor the `BRAND.name` seam.** Five transactional
   email subjects (contact-form notification, welcome on signup, welcome after
   verification, user invitation, admin webhook test) hardcoded the literal
-  `"Sunrise"` while their bodies already used `BRAND.name` — so a fork setting
+  `"Resparkable"` while their bodies already used `BRAND.name` — so a fork setting
   `NEXT_PUBLIC_APP_NAME` got branded bodies but stale subjects (and a
   subject/body mismatch on the invitation). All five now interpolate
-  `BRAND.name`. Vanilla Sunrise is unchanged (the name defaults to `"Sunrise"`).
+  `BRAND.name`. Vanilla Resparkable is unchanged (the name defaults to `"Resparkable"`).
 - **Full-config backup no longer silently drops agent fields.** The
   backup/restore agent schema, exporter, and importer had drifted from the
   `AiAgent` model and omitted `kind`, `reasoningEffort`, `persona`, `guardrails`,
@@ -2454,7 +2481,7 @@ release process.
 
 ## [0.3.0] — 2026-06-26
 
-> **Alpha release.** Fourth tagged Sunrise release. **MINOR bump** — adds new
+> **Alpha release.** Fourth tagged Resparkable release. **MINOR bump** — adds new
 > public surface (the `<BrandMark>` header/footer brand slot, the public-nav /
 > footer override seam — `publicNavItems` / `footerNavItems` / `footerLegalItems`
 > with the `PublicNavItem` type and `DEFAULT_*` lists — and the email-template
@@ -2471,12 +2498,12 @@ release process.
 
 - **Fork-readiness seams — header/footer brand, public nav, and auth emails.**
   Three near-universal fork customizations no longer require editing
-  Sunrise-core files in place (which conflicts on every upstream sync); each is
+  Resparkable-core files in place (which conflicts on every upstream sync); each is
   now a **fork-owned scaffold** the platform auto-resolves against, with a
   platform default. New public surface: the `<BrandMark>` slot
   (`components/brand/brand-mark.tsx`) — the header/footer brand is a render
   concern (image/wordmark/text), so the seam is a component; `AppHeader` renders
-  it where it previously hardcoded `'Sunrise'`, and `logoText` becomes an
+  it where it previously hardcoded `'Resparkable'`, and `logoText` becomes an
   optional caller override with no default. The public-nav override
   (`lib/app/public-nav.ts`) exports `publicNavItems` / `footerNavItems` /
   `footerLegalItems` (`PublicNavItem[] | null`, default `null` = platform
@@ -2490,10 +2517,10 @@ release process.
   per-kind overrides in `lib/app/emails.ts` and platform call sites
   (`lib/auth/config.ts`, `app/api/v1/users/invite/route.ts`) resolve through it.
   Changing an email kind's props is a versioned public-surface change. Vanilla
-  Sunrise output is unchanged when no override is set. See
+  Resparkable output is unchanged when no override is set. See
   [`CUSTOMIZATION.md`](./CUSTOMIZATION.md) §2 and §4. [#347]
 - **Anonymous visitor observability — durable signed `visitorId` in server logs.**
-  The proxy now issues a durable, HMAC-signed `sunrise_vid` cookie (HttpOnly,
+  The proxy now issues a durable, HMAC-signed `resparkable_vid` cookie (HttpOnly,
   SameSite=Lax, Secure in production, 180-day TTL) and folds a `visitorId` into
   the log context alongside `requestId`, so an anonymous visitor's journey
   (page load → contact form → chat) can be correlated across requests for error
@@ -2513,7 +2540,7 @@ release process.
 
 ## [0.2.0] — 2026-06-25
 
-> **Alpha release.** Third tagged Sunrise release. **MINOR bump** — adds new
+> **Alpha release.** Third tagged Resparkable release. **MINOR bump** — adds new
 > public surface (the `transcribeStream` streaming speech-to-text provider seam
 > with the `TranscribeChunk` / `TranscribeAudio` types, optional
 > provider-enforced structured output on `runStructuredCompletion`, and the
@@ -2589,7 +2616,7 @@ release process.
 
 ## [0.1.0] — 2026-06-24
 
-> **Alpha release.** Second tagged Sunrise release. **MINOR bump** — adds new
+> **Alpha release.** Second tagged Resparkable release. **MINOR bump** — adds new
 > public surface (the `registerAppDriftProbe` drift-probe seam, the
 > `User.accountType` field, and the `NEXT_PUBLIC_APP_NAME` brand seam) on top of
 > the auth-bootstrap hardening and the orchestration fixes below. Ships in `0.x`
@@ -2603,7 +2630,7 @@ release process.
   #284). A new auto-wired `lib/app/*` seam exporting `registerAppDriftProbes()`,
   so a fork can register its **own** Prisma-unmodelled DB objects (hand-written
   FK constraints, custom indexes, CHECK constraints) and have
-  `npm run db:drift-check` (CI + `/pre-pr`) probe them alongside Sunrise's
+  `npm run db:drift-check` (CI + `/pre-pr`) probe them alongside Resparkable's
   A-series — without editing the platform-owned `scripts/db/check-drift.ts`. New
   module `lib/db/drift-probes.ts` exposes the probe primitives (`indexExists`,
   `constraintExists`, `columnExists`) and registry (`registerAppDriftProbe`,
@@ -2634,9 +2661,9 @@ release process.
   layouts and the auth pages) and the email templates, with no file edits.
   Consumed via the new `lib/brand.ts` (`BRAND.name`), which reads
   `process.env.NEXT_PUBLIC_APP_NAME` directly so it is safe on both server and
-  client; registered in `lib/env.ts` and `.env.example`. Defaults to `"Sunrise"`
+  client; registered in `lib/env.ts` and `.env.example`. Defaults to `"Resparkable"`
   — unset leaves every surface byte-for-byte unchanged. Marketing-page body copy
-  is intentionally out of scope (a separate content concern); `SUNRISE_VERSION`
+  is intentionally out of scope (a separate content concern); `RESPARKABLE_VERSION`
   and internal platform identifiers deliberately do not use this seam.
 
 ### Changed
@@ -2649,7 +2676,7 @@ release process.
   DB error in the check never blocks signup. The seed unit formerly at
   `prisma/seeds/001-test-users.ts` is renamed to
   `prisma/seeds/001-system-owner.ts` and provisions a single non-login
-  `system@sunrise.local` config-owner (`role: ADMIN`, `accountType: SERVICE`, no
+  `system@resparkable.local` config-owner (`role: ADMIN`, `accountType: SERVICE`, no
   credential) instead of the login-able `admin@example.com` / `test@example.com`
   users. New export: `SYSTEM_USER_EMAIL` from `lib/auth/constants.ts`.
 - **Orchestration seeds resolve the config owner deterministically** via
@@ -2698,7 +2725,7 @@ release process.
 - **Removed the documented-but-nonfunctional default seed credentials.** The
   README previously advertised `admin@example.com` / `test@example.com` with
   `password123`, but the seed never created the better-auth credential records,
-  so those logins never worked. Sunrise now ships **zero default login
+  so those logins never worked. Resparkable now ships **zero default login
   credentials**; admin access is bootstrapped by the first-signup rule above.
 - **Closed an admin re-bootstrap privilege-escalation window and related
   miscounts.** "Real human admin" is now a single predicate (`accountType:
@@ -2715,22 +2742,22 @@ release process.
 
 ## [0.0.1] — 2026-05-30
 
-> **Alpha release.** First tagged Sunrise release. Ships in `0.x` per
+> **Alpha release.** First tagged Resparkable release. Ships in `0.x` per
 > [`VERSIONING.md`](./VERSIONING.md#0x-alpha-semantics--loose-by-design) —
 > forks adopting this release should expect real merge work between any two
 > `0.x` releases. The strict SemVer contract activates at `1.0.0`.
 
 The entries below are the fork-readiness pass — the work that makes
-Sunrise safe to fork and to merge upstream releases into.
+Resparkable safe to fork and to merge upstream releases into.
 
 ### Added
 
-- **Versioning infrastructure** — `lib/sunrise-version.ts` (`SUNRISE_VERSION`
+- **Versioning infrastructure** — `lib/resparkable-version.ts` (`RESPARKABLE_VERSION`
   constant), `lib/app-version.ts` (`APP_VERSION` — the fork-owned counterpart
   derived from `package.json.version` via a direct import, eliminating the
   brittle `process.env.npm_package_version` detour), `VERSIONING.md`
-  (public-surface contract), this `CHANGELOG.md`, and a `sunrise` field on
-  the public `/api/health` response so any deployment exposes which Sunrise
+  (public-surface contract), this `CHANGELOG.md`, and a `resparkable` field on
+  the public `/api/health` response so any deployment exposes which Resparkable
   it's running. Includes `lib/validations/monitoring.ts` (Zod schema for
   runtime validation of the health-response shape at the client boundary).
 - **Fork-extension seams** (the registries batch) — auto-wired `lib/app/`
@@ -2744,7 +2771,7 @@ Sunrise safe to fork and to merge upstream releases into.
   pattern; see [`.context/privacy/data-erasure.md`](./.context/privacy/data-erasure.md).
 - **Multi-tenancy playbook** — opt-in playbook with a `TENANCY_MODE`
   environment seam and an inert `lib/tenancy/client.ts` so a fork can retrofit
-  Postgres RLS without forking the platform. Sunrise stays single-tenant by
+  Postgres RLS without forking the platform. Resparkable stays single-tenant by
   default. See [`.context/architecture/multi-tenancy.md`](./.context/architecture/multi-tenancy.md).
 - **Public fork-onboarding guide** — `CUSTOMIZATION.md` at repo root, covering
   the app/platform model, the `lib/app/` extension surface, the `package.json`

@@ -27,7 +27,7 @@ import { BRAND } from '@/lib/brand';
  *   - Key/value table of non-action top-level fields
  *   - `changes` block (rendered as field: from → to) when present
  *   - Action buttons for approval events (approveUrl / rejectUrl)
- *   - Sunrise footer
+ *   - Resparkable footer
  */
 
 export interface EventNotificationProps {

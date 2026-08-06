@@ -206,7 +206,7 @@ Send a **single message with 5 Agent tool calls** (one per axis) using `model: "
 > **Integration-only (pairs tagged `type: integration`):**
 >
 > - **Status code missing** — test invokes the handler (`POST(...)`, `GET(...)`, etc.) but never asserts on `response.status`. The HTTP status IS part of the contract; body-only assertions let 200/500/etc. drift silently. See integration pattern #7 in `test-brittle-patterns.md`.
-> - **Error envelope drift** — test asserts `{ error: 'string' }` or only `body.error.code` without checking `body.success === false`. Sunrise's error envelope is `{ success: false, error: { code, message, details? } }` — partial checks let shape drift ship. See integration pattern #9.
+> - **Error envelope drift** — test asserts `{ error: 'string' }` or only `body.error.code` without checking `body.success === false`. Resparkable's error envelope is `{ success: false, error: { code, message, details? } }` — partial checks let shape drift ship. See integration pattern #9.
 > - **Persistence asserted through the response body only** — for POST/PATCH/DELETE tests, flag when the test asserts on `body.data.X` fields that the request body trivially echoes (e.g. `expect(body.data.user.email).toBe(requestBody.email)`) and never reads the DB back. This proves the handler echoed input, not that the write landed. See integration pattern #8.
 >
 > For each finding, emit confidence 0–100 using the scoring guide below. Do NOT flag legitimate structural assertions (e.g. `expect(result.isPending).toBe(true)` where `isPending` is a boolean field, or `expect(body.success).toBe(true)` where `success` is the API envelope field) — score those low or don't emit.

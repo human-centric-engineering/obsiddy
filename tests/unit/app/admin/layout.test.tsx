@@ -11,7 +11,7 @@
  * - Authenticated non-admin → redirect('/dashboard')
  * - Authenticated admin → renders children
  *
- * @see /Users/simonholmes/Documents/Dev/studio/sunrise/app/admin/layout.tsx
+ * @see /Users/simonholmes/Documents/Dev/studio/resparkable/app/admin/layout.tsx
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';

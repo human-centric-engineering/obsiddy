@@ -1,6 +1,6 @@
 # Sentry Integration
 
-Sunrise includes a Sentry abstraction layer that works in no-op mode by default and activates when Sentry is configured.
+Resparkable includes a Sentry abstraction layer that works in no-op mode by default and activates when Sentry is configured.
 
 ## Current State
 

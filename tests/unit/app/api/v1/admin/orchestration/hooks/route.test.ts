@@ -287,7 +287,7 @@ describe('POST /hooks', () => {
         action: {
           type: 'webhook',
           url: 'https://example.com/hook',
-          headers: { 'x-sunrise-signature': 'sha256=deadbeef' },
+          headers: { 'x-resparkable-signature': 'sha256=deadbeef' },
         },
       })
     );

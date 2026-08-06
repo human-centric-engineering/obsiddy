@@ -1,7 +1,7 @@
 /**
  * Tests: the `next/font` stubs in tests/setup.ts
  *
- * Base Sunrise loads no custom font, so nothing else in the suite exercises
+ * Base Resparkable loads no custom font, so nothing else in the suite exercises
  * these mocks — without this file the stub could rot silently and a fork would
  * rediscover the original failure. Font loaders run at MODULE SCOPE, so a
  * broken stub fails at import time and takes down every test that touches a

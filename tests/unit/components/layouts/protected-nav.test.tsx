@@ -15,8 +15,8 @@
  *
  * `usePathname` is globally mocked to '/' (tests/setup.ts).
  *
- * FORK NOTE (Obsiddy): this fork FILLS the seam, so the platform-default case
- * below stubs it back to `null` — without that it would render Obsiddy's
+ * FORK NOTE (Resparkable): this fork FILLS the seam, so the platform-default case
+ * below stubs it back to `null` — without that it would render Resparkable's
  * override while claiming to test the default, and still pass, because the
  * override happens to contain the same three links. A second block at the end
  * covers the fork's real seam.
@@ -56,7 +56,7 @@ describe('ProtectedNav', () => {
   it('renders the platform default links when no override is set', async () => {
     asUser();
     vi.resetModules();
-    // FORK (Obsiddy): stub the filled seam back to null so this case tests
+    // FORK (Resparkable): stub the filled seam back to null so this case tests
     // DEFAULT_PROTECTED_NAV rather than the fork's override.
     vi.doMock('@/lib/app/protected-nav', () => ({ protectedNavItems: null }));
     const { ProtectedNav } = await import('@/components/layouts/protected-nav');
@@ -167,22 +167,25 @@ describe('ProtectedNav', () => {
 });
 
 /**
- * FORK (Obsiddy): the seam as this fork actually ships it.
+ * FORK (Resparkable): the seam as this fork actually ships it.
  *
  * These render the REAL `lib/app/protected-nav.ts` — no `vi.doMock` — because
- * the thing worth pinning is that Obsiddy's link reaches the header *and* that
+ * the thing worth pinning is that Resparkable's link reaches the header *and* that
  * filling the seam did not drop a platform link on the way through. The seam
  * replaces the default wholesale, so losing "Profile" here loses it everywhere,
  * with nothing else to notice.
  */
-describe('ProtectedNav — Obsiddy override', () => {
-  it('renders Obsiddy alongside every platform link', async () => {
+describe('ProtectedNav — Resparkable override', () => {
+  it('renders Resparkable alongside every platform link', async () => {
     asUser();
     vi.resetModules();
     const { ProtectedNav } = await import('@/components/layouts/protected-nav');
     render(React.createElement(ProtectedNav));
 
-    expect(screen.getByRole('link', { name: /obsiddy/i })).toHaveAttribute('href', '/obsiddy');
+    expect(screen.getByRole('link', { name: /resparkable/i })).toHaveAttribute(
+      'href',
+      '/resparkable'
+    );
     for (const name of [/dashboard/i, /profile/i, /settings/i]) {
       expect(screen.getByRole('link', { name })).toBeInTheDocument();
     }
@@ -190,17 +193,20 @@ describe('ProtectedNav — Obsiddy override', () => {
     expect(screen.queryByRole('link', { name: /admin/i })).toBeNull();
   });
 
-  it('keeps Obsiddy active on a nested surface', async () => {
+  it('keeps Resparkable active on a nested surface', async () => {
     asUser();
     vi.resetModules();
-    vi.mocked(usePathname).mockReturnValue('/obsiddy/projects/proj_1');
+    vi.mocked(usePathname).mockReturnValue('/resparkable/projects/proj_1');
 
     const { ProtectedNav } = await import('@/components/layouts/protected-nav');
     render(React.createElement(ProtectedNav));
 
-    // OBSIDDY_NAV_ITEM is deliberately not `exact`: a user on the board page
+    // RESPARKABLE_NAV_ITEM is deliberately not `exact`: a user on the board page
     // must not see a header claiming they are nowhere.
-    expect(screen.getByRole('link', { name: /obsiddy/i })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('link', { name: /resparkable/i })).toHaveAttribute(
+      'aria-current',
+      'page'
+    );
   });
 
   it('does not treat a same-prefix path without a separator as active', async () => {
@@ -208,7 +214,7 @@ describe('ProtectedNav — Obsiddy override', () => {
     vi.resetModules();
     // '/settings-beta' starts with the same characters as '/settings' but is a
     // different route — the match must require the '/' boundary. Same shape as
-    // the case that would light up '/obsiddy' while viewing '/obsiddy-archive'.
+    // the case that would light up '/resparkable' while viewing '/resparkable-archive'.
     vi.mocked(usePathname).mockReturnValue('/settings-beta');
 
     const { ProtectedNav } = await import('@/components/layouts/protected-nav');
@@ -228,6 +234,6 @@ describe('ProtectedNav — Obsiddy override', () => {
     render(React.createElement(ProtectedNav));
 
     expect(screen.queryByRole('link', { name: /admin/i })).toBeNull();
-    expect(screen.getByRole('link', { name: /obsiddy/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /resparkable/i })).toBeInTheDocument();
   });
 });

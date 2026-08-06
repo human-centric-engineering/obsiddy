@@ -42,8 +42,8 @@ The capability binding only references the **access token** env var. A separate 
 
 Two viable patterns:
 
-- **Cron-triggered workflow** that runs every ~50 minutes (Google access tokens expire after 60), calls the OAuth refresh endpoint, and writes the new token to a key/value store. The Sunrise app reads from that store at request time
-- **Sidecar service** that holds the refresh token and exposes a local-only HTTP endpoint the Sunrise app calls to fetch a fresh access token. Removes the env-var-rotation problem at the cost of one more deployable
+- **Cron-triggered workflow** that runs every ~50 minutes (Google access tokens expire after 60), calls the OAuth refresh endpoint, and writes the new token to a key/value store. The Resparkable app reads from that store at request time
+- **Sidecar service** that holds the refresh token and exposes a local-only HTTP endpoint the Resparkable app calls to fetch a fresh access token. Removes the env-var-rotation problem at the cost of one more deployable
 
 Either way: the access token in env is the boundary. The capability never sees a refresh token; refresh-flow secrets live elsewhere.
 

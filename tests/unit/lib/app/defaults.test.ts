@@ -1,7 +1,7 @@
 /**
  * Tests: lib/app/ seams ship as no-op defaults
  *
- * Every `lib/app/*` file is a fork-owned scaffold that Sunrise ships EMPTY. This
+ * Every `lib/app/*` file is a fork-owned scaffold that Resparkable ships EMPTY. This
  * file exercises the REAL defaults to lock in that contract — a stray default
  * registration would silently apply to every install (a lint rule every fork
  * inherits, an auth email swapped out, a restricted agent's document access
@@ -14,7 +14,7 @@
  * exist precisely so you fill them. When you fill one, **pin the new value**
  * rather than deleting the row:
  *
- *     // BEFORE (Sunrise default)
+ *     // BEFORE (Resparkable default)
  *     assert: () => expect(appEslintConfig).toEqual([]),
  *     // AFTER  (fork spreads its own tier config)
  *     assert: () => expect(appEslintConfig).toEqual(frameworkEslintConfig),
@@ -23,16 +23,16 @@
  * row loses it silently. The table below is the whole surface — one row per
  * seam — so a fork's diff here is a line, not a rewrite. See CUSTOMIZATION.md §4.
  *
- * FORK NOTE (Obsiddy): this fork fills nine of these seams — `eslint.config.mjs`
- * (spreads the framework tier), `bootstrap.ts` (boots Obsiddy), `rate-limit.ts`
+ * FORK NOTE (Resparkable): this fork fills nine of these seams — `eslint.config.mjs`
+ * (spreads the framework tier), `bootstrap.ts` (boots Resparkable), `rate-limit.ts`
  * (seven per-flow sub-caps), `capabilities.ts` (the seventeen agent tools),
- * `context-contributors.ts` (the per-turn `obsiddy` context block),
+ * `context-contributors.ts` (the per-turn `resparkable` context block),
  * `jobs.ts` (the connection sweep),
- * `admin-nav.ts` (the Obsiddy section), `protected-routes.ts` (`/obsiddy`),
+ * `admin-nav.ts` (the Resparkable section), `protected-routes.ts` (`/resparkable`),
  * `protected-nav.ts` and `auth-landing.ts`.
  * Each row below is pinned rather than deleted, so a stray addition to a filled
- * seam still fails. The Obsiddy boot chain itself is covered by
- * tests/unit/lib/framework/obsiddy/scaffold.test.ts.
+ * seam still fails. The Resparkable boot chain itself is covered by
+ * tests/unit/lib/framework/resparkable/scaffold.test.ts.
  *
  * @see lib/app/ · CUSTOMIZATION.md §4
  */
@@ -41,21 +41,21 @@ import { readdirSync } from 'node:fs';
 import path from 'node:path';
 import { describe, it, expect, afterEach, vi } from 'vitest';
 
-// FORK (Obsiddy): `lib/app/data-export.ts` is filled here, and its collector
+// FORK (Resparkable): `lib/app/data-export.ts` is filled here, and its collector
 // queries seventeen tables. This file is a seam test — it asserts what each
 // `lib/app/*` export IS, not what the tier does behind it — so the tier's data
 // access is stubbed rather than run. Without this the row below needs a live
 // database, which no other row here does.
-vi.mock('@/lib/framework/obsiddy/repo/subject-export', () => ({
-  collectObsiddySubjectData: vi.fn().mockResolvedValue({}),
+vi.mock('@/lib/framework/resparkable/repo/subject-export', () => ({
+  collectResparkableSubjectData: vi.fn().mockResolvedValue({}),
 }));
 
 import { registerAppRateLimits } from '@/lib/app/rate-limit';
 import { registerAppCapabilities } from '@/lib/orchestration/capabilities';
 import { capabilityDispatcher } from '@/lib/orchestration/capabilities/dispatcher';
 import { buildContext } from '@/lib/orchestration/chat/context-builder';
-import { OBSIDDY_CAPABILITIES } from '@/lib/framework/obsiddy/capabilities/catalogue';
-import { OBSIDDY_CONTEXT_TYPE } from '@/lib/framework/obsiddy/context/type';
+import { RESPARKABLE_CAPABILITIES } from '@/lib/framework/resparkable/capabilities/catalogue';
+import { RESPARKABLE_CONTEXT_TYPE } from '@/lib/framework/resparkable/context/type';
 import { initAppCapabilities } from '@/lib/app/capabilities';
 import { initAppContextContributors } from '@/lib/app/context-contributors';
 import { initAppNav } from '@/lib/app/admin-nav';
@@ -75,7 +75,7 @@ import { initLeafApp } from '@/lib/app/leaf-bootstrap';
 import { appFrameSrc } from '@/lib/app/csp';
 import frameworkEslintConfig from '@/lib/framework/eslint.config.mjs';
 import { DEFAULT_PROTECTED_NAV } from '@/lib/protected-nav/types';
-import { OBSIDDY_NAV_ITEM } from '@/lib/framework/obsiddy/protected-nav';
+import { RESPARKABLE_NAV_ITEM } from '@/lib/framework/resparkable/protected-nav';
 import { initAppUserCreatedHooks } from '@/lib/app/user-created';
 import { collectAppSubjectData } from '@/lib/app/data-export';
 import { getAppJobs, __resetAppJobsForTests } from '@/lib/orchestration/maintenance/app-jobs';
@@ -113,8 +113,8 @@ const SEAM_DEFAULTS: SeamDefault[] = [
   {
     seam: 'lib/app/rate-limit.ts',
     risk: 'a stray tier or rule would re-cap every install',
-    // FORK (Obsiddy): Sunrise asserts the effective policy is the base policy BY
-    // IDENTITY — no app rules at all. Obsiddy fills this seam with per-flow
+    // FORK (Resparkable): Sunrise asserts the effective policy is the base policy BY
+    // IDENTITY — no app rules at all. Resparkable fills this seam with per-flow
     // sub-caps for its expensive routes (every `/search` request embeds the
     // query; `/reindex` and `/connections/sweep` start batch jobs; `/documents`
     // parses an upload; `/transcribe` ships audio to a paid provider; `/vault`
@@ -125,7 +125,7 @@ const SEAM_DEFAULTS: SeamDefault[] = [
     // the namespace.
     //
     // The order matters and is the registration order in
-    // `lib/framework/obsiddy/rate-limit.ts` — a rule spliced in the wrong place
+    // `lib/framework/resparkable/rate-limit.ts` — a rule spliced in the wrong place
     // is a rule that never matches.
     assert: () => {
       registerAppRateLimits();
@@ -134,18 +134,18 @@ const SEAM_DEFAULTS: SeamDefault[] = [
       const appRules = effective.filter((rule) => !RATE_LIMIT_POLICY.includes(rule));
 
       expect(appRules.map((rule) => String(rule.match))).toEqual([
-        String(/^\/api\/v1\/obsiddy\/search(?:\/|$)/),
-        String(/^\/api\/v1\/obsiddy\/reindex(?:\/|$)/),
-        String(/^\/api\/v1\/obsiddy\/connections\/sweep(?:\/|$)/),
-        String(/^\/api\/v1\/obsiddy\/documents(?:\/|$)/),
-        String(/^\/api\/v1\/obsiddy\/transcribe(?:\/|$)/),
-        String(/^\/api\/v1\/obsiddy\/vault(?:\/|$)/),
-        String(/^\/api\/v1\/obsiddy\/ideate(?:\/|$)/),
-        String(/^\/api\/v1\/obsiddy\/chat(?:\/|$)/),
-        String(/^\/api\/v1\/obsiddy\/briefing\/regenerate(?:\/|$)/),
+        String(/^\/api\/v1\/resparkable\/search(?:\/|$)/),
+        String(/^\/api\/v1\/resparkable\/reindex(?:\/|$)/),
+        String(/^\/api\/v1\/resparkable\/connections\/sweep(?:\/|$)/),
+        String(/^\/api\/v1\/resparkable\/documents(?:\/|$)/),
+        String(/^\/api\/v1\/resparkable\/transcribe(?:\/|$)/),
+        String(/^\/api\/v1\/resparkable\/vault(?:\/|$)/),
+        String(/^\/api\/v1\/resparkable\/ideate(?:\/|$)/),
+        String(/^\/api\/v1\/resparkable\/chat(?:\/|$)/),
+        String(/^\/api\/v1\/resparkable\/briefing\/regenerate(?:\/|$)/),
       ]);
 
-      // Every Obsiddy rule is keyed on the session user, not the IP: this is
+      // Every Resparkable rule is keyed on the session user, not the IP: this is
       // authenticated per-person work, and IP keying would make one household
       // share a search budget.
       expect(appRules.every((rule) => rule.key === 'session-user')).toBe(true);
@@ -158,17 +158,17 @@ const SEAM_DEFAULTS: SeamDefault[] = [
   {
     seam: 'lib/app/capabilities.ts',
     risk: 'a stray capability would be dispatchable on every install',
-    // FORK (Obsiddy): Sunrise asserts this returns undefined, which was a proxy
-    // for "registers nothing" only while the seam was empty. Obsiddy fills it,
+    // FORK (Resparkable): Sunrise asserts this returns undefined, which was a proxy
+    // for "registers nothing" only while the seam was empty. Resparkable fills it,
     // so a `toBeUndefined()` here would pass no matter WHAT was registered —
     // vacuous, and vacuous in the seam whose stray registration is dispatchable
     // on every install. Pin the set instead: an extra tool fails, and so does
-    // one that escapes the `obsiddy_` namespace.
+    // one that escapes the `resparkable_` namespace.
     assert: () => {
       initAppCapabilities();
       registerAppCapabilities();
 
-      for (const spec of OBSIDDY_CAPABILITIES) {
+      for (const spec of RESPARKABLE_CAPABILITIES) {
         expect(capabilityDispatcher.has(spec.slug), spec.slug).toBe(true);
       }
     },
@@ -176,25 +176,25 @@ const SEAM_DEFAULTS: SeamDefault[] = [
   {
     seam: 'lib/app/context-contributors.ts',
     risk: 'a stray contributor would inject prompt context into every chat turn',
-    // FORK (Obsiddy): same reasoning as the row above. Obsiddy registers exactly
+    // FORK (Resparkable): same reasoning as the row above. Resparkable registers exactly
     // one type, and the assertion is behavioural — `buildContext` for that type
     // must reach a loader rather than the "no context loader" placeholder core
     // falls back to.
     assert: async () => {
       initAppContextContributors();
 
-      // No `userId` on the request, so the Obsiddy loader returns '' without
+      // No `userId` on the request, so the Resparkable loader returns '' without
       // touching the database — enough to prove the type resolves to a loader.
-      const framed = await buildContext(OBSIDDY_CONTEXT_TYPE, 'unused');
+      const framed = await buildContext(RESPARKABLE_CONTEXT_TYPE, 'unused');
 
-      expect(framed).toContain(`type: ${OBSIDDY_CONTEXT_TYPE}`);
+      expect(framed).toContain(`type: ${RESPARKABLE_CONTEXT_TYPE}`);
       expect(framed).not.toContain('No context loader');
     },
   },
   {
     seam: 'lib/app/admin-nav.ts',
     risk: 'a stray section would appear in every install’s admin sidebar',
-    // FORK (Obsiddy): Sunrise asserts an empty registry; Obsiddy adds one
+    // FORK (Resparkable): Sunrise asserts an empty registry; Resparkable adds one
     // section. Pinning the exact shape keeps the original intent — a stray
     // section still fails — and pins the two things that would break the sidebar
     // if they drifted: the title must not collide with a core section (the
@@ -206,9 +206,9 @@ const SEAM_DEFAULTS: SeamDefault[] = [
 
       const sections = getRegisteredNavSections();
       expect(sections).toHaveLength(1);
-      expect(sections[0].title).toBe('Obsiddy');
+      expect(sections[0].title).toBe('Resparkable');
       expect(sections[0].title).not.toBe('AI Orchestration');
-      expect(sections[0].items?.map((item) => item.href)).toEqual(['/admin/obsiddy/settings']);
+      expect(sections[0].items?.map((item) => item.href)).toEqual(['/admin/resparkable/settings']);
     },
   },
   {
@@ -223,7 +223,7 @@ const SEAM_DEFAULTS: SeamDefault[] = [
   {
     seam: 'lib/app/protected-nav.ts',
     risk: 'a stray non-null list would silently REPLACE the authenticated nav',
-    // FORK (Obsiddy): pinned to the platform default plus one Obsiddy link. The
+    // FORK (Resparkable): pinned to the platform default plus one Resparkable link. The
     // point of pinning rather than deleting is that this still fails if a second
     // item appears, or if a platform link is dropped on the way through — the
     // seam REPLACES the default, so losing "Profile" here loses it everywhere
@@ -231,12 +231,12 @@ const SEAM_DEFAULTS: SeamDefault[] = [
     assert: () => {
       expect(protectedNavItems).toEqual([
         DEFAULT_PROTECTED_NAV[0],
-        OBSIDDY_NAV_ITEM,
+        RESPARKABLE_NAV_ITEM,
         ...DEFAULT_PROTECTED_NAV.slice(1),
       ]);
       expect(protectedNavItems?.map((item) => item.href)).toEqual([
         '/dashboard',
-        '/obsiddy',
+        '/resparkable',
         '/profile',
         '/settings',
         '/admin',
@@ -259,25 +259,25 @@ const SEAM_DEFAULTS: SeamDefault[] = [
   {
     seam: 'lib/app/data-export.ts',
     risk: 'a stray collector would leak app rows into every install’s subject-access export',
-    // FORK (Obsiddy): Sunrise asserts this returns `{}` — no app tables at all.
-    // Obsiddy fills the seam, because a brain is nothing but personal data and
+    // FORK (Resparkable): Sunrise asserts this returns `{}` — no app tables at all.
+    // Resparkable fills the seam, because a brain is nothing but personal data and
     // an empty Art. 15 export would answer nothing. Pinned rather than deleted,
-    // per the SEAM_DEFAULTS convention sunrise#480 established.
+    // per the SEAM_DEFAULTS convention resparkable#480 established.
     //
     // The original intent is preserved and is what makes this still worth
-    // asserting: the bundle must carry EXACTLY one key, `obsiddy`. A second
+    // asserting: the bundle must carry EXACTLY one key, `resparkable`. A second
     // collector appearing here — a host project's own tables spread in beside
     // the tier's, or a section name colliding — is the leak the row guards
     // against, and it still fails. What the tier puts inside that key is
     // covered by its own manifest guard,
-    // tests/unit/lib/framework/obsiddy/privacy/subject-export.test.ts.
+    // tests/unit/lib/framework/resparkable/privacy/subject-export.test.ts.
     assert: async () => {
       const bundle = await collectAppSubjectData({
         userId: 'user-1',
         email: 'user@example.com',
       });
 
-      expect(Object.keys(bundle)).toEqual(['obsiddy']);
+      expect(Object.keys(bundle)).toEqual(['resparkable']);
     },
   },
   {
@@ -286,11 +286,11 @@ const SEAM_DEFAULTS: SeamDefault[] = [
     // That instrumentation calls this in all envs, try/catch-isolated, is
     // covered by tests/unit/instrumentation.test.ts.
     //
-    // FORK (Obsiddy): Sunrise ships an empty async fn; Obsiddy fills it to boot
+    // FORK (Resparkable): Sunrise ships an empty async fn; Resparkable fills it to boot
     // its tier. What still matters — and is asserted — is that the boot chain
     // resolves cleanly with no return value, since instrumentation.ts awaits it
     // inside a try/catch and a rejection would leave the tier half-booted. The
-    // chain itself is covered by lib/framework/obsiddy/scaffold.test.ts.
+    // chain itself is covered by lib/framework/resparkable/scaffold.test.ts.
     assert: async () => {
       await expect(initApp()).resolves.toBeUndefined();
     },
@@ -319,10 +319,10 @@ const SEAM_DEFAULTS: SeamDefault[] = [
   {
     seam: 'lib/app/protected-routes.ts',
     risk: 'a stray path would put a public route behind auth on every install',
-    // FORK (Obsiddy): the whole second brain is behind auth. Pinned to exactly
+    // FORK (Resparkable): the whole second brain is behind auth. Pinned to exactly
     // one prefix — `/s/*` public share links (Release 2) must never appear here,
     // and a stray entry would put a marketing page behind login.
-    assert: () => expect(appProtectedRoutes).toEqual(['/obsiddy']),
+    assert: () => expect(appProtectedRoutes).toEqual(['/resparkable']),
   },
   {
     seam: 'lib/app/env.ts',
@@ -336,7 +336,7 @@ const SEAM_DEFAULTS: SeamDefault[] = [
     // The root eslint.config.mjs spreads this array last; that spread itself is
     // exercised by every `npm run lint` run.
     //
-    // FORK (Obsiddy): Sunrise asserts `toEqual([])`. Obsiddy fills it with
+    // FORK (Resparkable): Sunrise asserts `toEqual([])`. Resparkable fills it with
     // exactly one thing — the framework tier's config, spread FIRST so any later
     // leaf block still wins for its own paths. Asserting identity with the tier
     // array (rather than a shape) keeps the original intent: a stray block added
@@ -346,16 +346,16 @@ const SEAM_DEFAULTS: SeamDefault[] = [
   {
     seam: 'lib/app/jobs.ts',
     risk: 'a stray job would run on every install\u2019s maintenance tick',
-    // FORK (Obsiddy): Sunrise asserts this is empty. Obsiddy fills it with the
+    // FORK (Resparkable): Sunrise asserts this is empty. Resparkable fills it with the
     // connection sweep — a continuous per-user pass over stored vectors, which
     // is the shape `registerAppJob({ intervalMs })` was argued for upstream
-    // (#469) and the shape a cron row fits badly. The other four Obsiddy
+    // (#469) and the shape a cron row fits badly. The other four Resparkable
     // workflows are calendar events and stay on `AiWorkflowSchedule`.
     // Pinning the exact set keeps the original intent: a stray job still fails.
     assert: () => {
       __resetAppJobsForTests();
       // getAppJobs() triggers the lazy init, so this exercises the REAL seam.
-      expect(getAppJobs().map((job) => job.name)).toEqual(['obsiddy:connection-sweep']);
+      expect(getAppJobs().map((job) => job.name)).toEqual(['resparkable:connection-sweep']);
     },
   },
   {
@@ -364,12 +364,12 @@ const SEAM_DEFAULTS: SeamDefault[] = [
     assert: () => expect(initAppUserCreatedHooks()).toBeUndefined(),
   },
   {
-    // FORK (Obsiddy): not a Sunrise seam. Obsiddy re-exposes `/app` to the leaf
-    // forks that install it, so `initApp()` boots Obsiddy and Obsiddy calls this
+    // FORK (Resparkable): not a Sunrise seam. Resparkable re-exposes `/app` to the leaf
+    // forks that install it, so `initApp()` boots Resparkable and Resparkable calls this
     // — the leaf tier's own hook. It ships empty for the same reason every seam
     // above does, and the drift guard below would flag it if it had no row.
     seam: 'lib/app/leaf-bootstrap.ts',
-    risk: 'a stray default would run one-time work on every Obsiddy install’s boot',
+    risk: 'a stray default would run one-time work on every Resparkable install’s boot',
     assert: async () => {
       await expect(initLeafApp()).resolves.toBeUndefined();
     },

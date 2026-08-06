@@ -8,7 +8,7 @@
  * - Preventing duplicate tracking on re-renders
  * - Resetting identification ref on logout
  *
- * @see /Users/simonholmes/Documents/Dev/studio/sunrise/components/analytics/user-identifier.tsx
+ * @see /Users/simonholmes/Documents/Dev/studio/resparkable/components/analytics/user-identifier.tsx
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';

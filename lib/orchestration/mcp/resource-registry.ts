@@ -1,9 +1,9 @@
 /**
  * MCP Resource Registry
  *
- * Maps registered `sunrise://` URIs to internal handler functions.
+ * Maps registered `resparkable://` URIs to internal handler functions.
  * No user-supplied URI ever reaches fetch() — all handlers call
- * internal Sunrise functions only.
+ * internal Resparkable functions only.
  *
  * Platform-agnostic: no Next.js imports.
  */
@@ -122,7 +122,7 @@ export async function readMcpResource(
 
 /**
  * Pattern-match parameterized URIs against registered resources.
- * For example, `sunrise://knowledge/patterns/5` matches a resource
+ * For example, `resparkable://knowledge/patterns/5` matches a resource
  * with resourceType `pattern_detail`.
  */
 async function readMcpResourceByPattern(
@@ -197,8 +197,8 @@ export function clearMcpResourceCache(): void {
  * Returns true when:
  *   - the URI matches an enabled resource exactly, OR
  *   - it is a concrete instance of an enabled parameterised template
- *     (e.g. `sunrise://knowledge/patterns/5` is a concrete instance of
- *     `sunrise://knowledge/patterns/{number}`).
+ *     (e.g. `resparkable://knowledge/patterns/5` is a concrete instance of
+ *     `resparkable://knowledge/patterns/{number}`).
  */
 export async function isRegisteredMcpResourceUri(uri: string): Promise<boolean> {
   const all = await listMcpResources();

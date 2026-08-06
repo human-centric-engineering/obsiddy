@@ -3,7 +3,7 @@
 **Last Updated**: 2026-02-06
 **Status**: Complete
 
-This document provides a high-level overview of the error handling architecture in Sunrise. For detailed implementation guidance, see the linked documentation.
+This document provides a high-level overview of the error handling architecture in Resparkable. For detailed implementation guidance, see the linked documentation.
 
 ## Table of Contents
 

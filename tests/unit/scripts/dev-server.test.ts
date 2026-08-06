@@ -1,5 +1,5 @@
 /**
- * Tests for `scripts/dev-server.mjs` — the launcher that lets a Sunrise app
+ * Tests for `scripts/dev-server.mjs` — the launcher that lets a Resparkable app
  * declare its dev port in an env file instead of a remembered `-p` flag.
  *
  * The behaviour that matters is the *precedence* between the four ways a port

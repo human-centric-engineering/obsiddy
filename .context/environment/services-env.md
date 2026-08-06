@@ -54,7 +54,7 @@ visible to the app but not to the server hosting it. `scripts/dev-server.mjs`
 reads only the port variable out of those files and passes it to the child
 process. Nothing else about env loading changes.
 
-**Running several Sunrise apps at once:** give each fork its own port in a
+**Running several Resparkable apps at once:** give each fork its own port in a
 committed `.env.development` (the one env file `.gitignore` permits), and
 `npm run dev` needs no arguments in any of them. The port is independent of the
 URL the app is served on — behind a reverse proxy, bind the loopback port here
@@ -72,8 +72,8 @@ better-auth derives its trusted origin from `BETTER_AUTH_URL`, so the proxied
 hostname needs no separate allow-listing. `ALLOWED_ORIGINS` stays unset unless
 a _different_ origin calls the API.
 
-**Sunrise ships `PORT=3010` in a committed `.env.development`.** A fork should
-change it — two Sunrise-derived apps that both keep the default collide the
+**Resparkable ships `PORT=3010` in a committed `.env.development`.** A fork should
+change it — two Resparkable-derived apps that both keep the default collide the
 moment they run together. See
 [`CUSTOMIZATION.md`](../../CUSTOMIZATION.md#claiming-your-own-dev-port).
 

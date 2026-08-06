@@ -1,6 +1,6 @@
 # Subject Access Export (Right of Access)
 
-How Sunrise gives a data subject a copy of what it holds about them (GDPR
+How Resparkable gives a data subject a copy of what it holds about them (GDPR
 Art. 15), and how a fork extends that to its own tables. The entry point is
 `exportUserData()` in `lib/privacy/export-user.ts`; both export endpoints route
 through it.
@@ -69,7 +69,7 @@ worse than no export at all — it closes the question with a wrong answer.
 
 Erasure does not have this problem. Forget an `onDelete` and
 `prisma.user.delete()` throws `P2003`; erasure breaks loudly, in CI, for
-everyone. Access has no equivalent natural failure, so Sunrise manufactures one:
+everyone. Access has no equivalent natural failure, so Resparkable manufactures one:
 
 `tests/unit/lib/privacy/export-sources.test.ts` parses `prisma/schema/*.prisma`
 and fails if a model that identifies a person is missing from
@@ -197,7 +197,7 @@ erased — `smoke:erasure` is where that assertion belongs.
 
 A table can identify a person without declaring a Prisma relation to `User` —
 and then it is invisible to a relation-based scan, **and to the erasure
-cascade**. Sunrise has two, both in the manifest by hand:
+cascade**. Resparkable has two, both in the manifest by hand:
 
 | Table               | Identified by                    | How it is matched                     |
 | ------------------- | -------------------------------- | ------------------------------------- |
@@ -333,12 +333,12 @@ transport (streaming, an expiring download) rather than by dropping rows.
 
 ## GDPR Mapping
 
-| Requirement                        | Status                                                                          |
-| ---------------------------------- | ------------------------------------------------------------------------------- |
-| **Art. 15 — Right of access**      | ✅ Full bundle, scope disclosed in `meta`, both self-service and admin paths.   |
-| **Art. 20 — Data portability**     | ✅ Structured, machine-readable JSON, delivered on request.                     |
-| **Art. 12(3) — Response deadline** | ⚠️ Process, not code. Sunrise makes the response immediate; the clock is yours. |
-| **Identity re-verification**       | ⏳ Not implemented — the session is the only proof. See below.                  |
+| Requirement                        | Status                                                                              |
+| ---------------------------------- | ----------------------------------------------------------------------------------- |
+| **Art. 15 — Right of access**      | ✅ Full bundle, scope disclosed in `meta`, both self-service and admin paths.       |
+| **Art. 20 — Data portability**     | ✅ Structured, machine-readable JSON, delivered on request.                         |
+| **Art. 12(3) — Response deadline** | ⚠️ Process, not code. Resparkable makes the response immediate; the clock is yours. |
+| **Identity re-verification**       | ⏳ Not implemented — the session is the only proof. See below.                      |
 
 ### Deliberately not implemented
 

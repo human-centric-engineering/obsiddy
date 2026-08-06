@@ -116,7 +116,7 @@ export function ImportAgentsDialog({ open, onOpenChange, onImported }: ImportAge
                 A <strong>bundle</strong> is a JSON file that contains one or more agent
                 configurations — their name, system instructions, model, temperature, budget, and
                 which capabilities are attached. It&apos;s a portable snapshot you can move between
-                Sunrise instances (e.g. staging → production) or share with colleagues.
+                Resparkable instances (e.g. staging → production) or share with colleagues.
               </p>
               <p className="text-foreground mt-2 font-medium">How to create a bundle</p>
               <p>
@@ -161,7 +161,7 @@ export function ImportAgentsDialog({ open, onOpenChange, onImported }: ImportAge
             </FieldHelp>
           </DialogTitle>
           <DialogDescription>
-            Upload a JSON bundle exported from this or another Sunrise instance. Existing agents
+            Upload a JSON bundle exported from this or another Resparkable instance. Existing agents
             (matched by slug) are kept by default — choose <em>Overwrite</em> only if you want the
             bundle to replace them.
           </DialogDescription>
@@ -173,9 +173,9 @@ export function ImportAgentsDialog({ open, onOpenChange, onImported }: ImportAge
               Bundle file{' '}
               <FieldHelp title="What file do I pick?">
                 Choose the <code>.json</code> file you downloaded when you clicked &ldquo;Export
-                selected&rdquo; on an agents list (this instance or another Sunrise install). The
-                file contains agent configurations — no secrets, API keys, or conversation data are
-                included.
+                selected&rdquo; on an agents list (this instance or another Resparkable install).
+                The file contains agent configurations — no secrets, API keys, or conversation data
+                are included.
               </FieldHelp>
             </Label>
             <Input

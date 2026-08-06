@@ -1,6 +1,6 @@
-# Testing Patterns for Sunrise
+# Testing Patterns for Resparkable
 
-Best practices and proven patterns for writing tests in the Sunrise project.
+Best practices and proven patterns for writing tests in the Resparkable project.
 
 ## Quick Navigation
 

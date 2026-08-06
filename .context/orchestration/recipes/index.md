@@ -8,10 +8,10 @@ Recipes are pattern-named (`payment-charge.md`), not vendor-named (`stripe.md`).
 
 The original plan for "expanded built-in capability library" envisioned shipping `StripeCapability`, `PostmarkCapability`, `SlackCapability`, `GoogleCalendarCapability`, etc. We deliberately don't, for two reasons:
 
-1. **Dependency bloat.** Each vendor SDK adds a transitive dependency tree, version-pin burden, and security surface. Sunrise is a starter template that downstream forks copy — extra deps compound the cost.
+1. **Dependency bloat.** Each vendor SDK adds a transitive dependency tree, version-pin burden, and security surface. Resparkable is a starter template that downstream forks copy — extra deps compound the cost.
 2. **Vendor lock-in by naming.** Naming a capability after a vendor ships a product opinion. Different forks pick different vendors for the same shape (Postmark vs SendGrid; Stripe vs Adyen; Google Calendar vs Microsoft Graph). The recipe shape is the durable contract; the vendor underneath is replaceable.
 
-The trade-off — versus LangChain's "1000+ integrations" — is honest: Sunrise ships **one curated outbound-HTTP primitive plus documented patterns** for the integrations developers actually wire up. The `/orchestration-capability-builder` skill provides the same delivery mechanism developers would use to add anything not covered by a recipe.
+The trade-off — versus LangChain's "1000+ integrations" — is honest: Resparkable ships **one curated outbound-HTTP primitive plus documented patterns** for the integrations developers actually wire up. The `/orchestration-capability-builder` skill provides the same delivery mechanism developers would use to add anything not covered by a recipe.
 
 ## What every recipe covers
 

@@ -1,9 +1,9 @@
 ---
 name: orchestration-agent-architect
 description: |
-  Architect for Sunrise's agent orchestration system. Designs agentic solutions
+  Architect for Resparkable's agent orchestration system. Designs agentic solutions
   by selecting from 21 design patterns, composing multi-pattern architectures,
-  and mapping designs to Sunrise's orchestration primitives (agents, capabilities,
+  and mapping designs to Resparkable's orchestration primitives (agents, capabilities,
   workflows, knowledge bases). Use when a developer wants to design, plan, or
   debug an AI agent system — whether they say "build me a chatbot", "I need an
   agent that can look up orders", "design an AI pipeline", or "why is my agent
@@ -177,11 +177,11 @@ Warn against these common mistakes:
 
 ---
 
-## Mapping Patterns to Sunrise Primitives
+## Mapping Patterns to Resparkable Primitives
 
-Every pattern maps to concrete Sunrise orchestration primitives:
+Every pattern maps to concrete Resparkable orchestration primitives:
 
-| Pattern                               | Sunrise primitive                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| Pattern                               | Resparkable primitive                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Prompt Chaining (1)                   | Sequential `llm_call` steps or `chain` step                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | Routing (2)                           | `route` step type in workflow                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
@@ -214,7 +214,7 @@ When a developer describes a business problem and wants you to build an agentic 
 1. **Understand the problem** — what inputs, outputs, actions, and decisions are involved?
 2. **Select patterns** — use the Pattern Selection Guide above
 3. **Check composition recipes** — does a recipe already cover this use case?
-4. **Map to Sunrise** — use the table above to identify which agents, capabilities, workflows, and knowledge base setup are needed
+4. **Map to Resparkable** — use the table above to identify which agents, capabilities, workflows, and knowledge base setup are needed
 5. **Determine complexity** — simple (single agent, no workflow), moderate (1-2 agents + workflow), or complex (multi-agent + approval gates + KB)
 6. **Implement** — use `/orchestration-solution-builder` for end-to-end implementation, or the individual builder skills for specific subsystems:
    - `/orchestration-capability-builder` — custom agent tools
@@ -229,10 +229,10 @@ When the developer says or implies "build it", invoke the `orchestration-solutio
 
 Load these files when you need more depth:
 
-| When you need...                                  | Read                                   |
-| ------------------------------------------------- | -------------------------------------- |
-| Detail on Patterns 1–10                           | `references/patterns-1-to-10.md`       |
-| Detail on Patterns 11–21                          | `references/patterns-11-to-21.md`      |
-| Context engineering, token costs, pricing         | `references/context-and-costs.md`      |
-| Emerging patterns, agent security, tracing        | `references/emerging-concepts.md`      |
-| Sunrise code examples for agents, caps, workflows | `references/sunrise-implementation.md` |
+| When you need...                                      | Read                                       |
+| ----------------------------------------------------- | ------------------------------------------ |
+| Detail on Patterns 1–10                               | `references/patterns-1-to-10.md`           |
+| Detail on Patterns 11–21                              | `references/patterns-11-to-21.md`          |
+| Context engineering, token costs, pricing             | `references/context-and-costs.md`          |
+| Emerging patterns, agent security, tracing            | `references/emerging-concepts.md`          |
+| Resparkable code examples for agents, caps, workflows | `references/resparkable-implementation.md` |

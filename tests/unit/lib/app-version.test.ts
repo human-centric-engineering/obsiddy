@@ -2,13 +2,13 @@
  * Tests: Fork's app version constant
  *
  * `APP_VERSION` is derived from `package.json.version` (the fork's app
- * version — distinct from `SUNRISE_VERSION` which is the upstream platform
- * version). Symmetric to `tests/unit/lib/sunrise-version.test.ts`.
+ * version — distinct from `RESPARKABLE_VERSION` which is the upstream platform
+ * version). Symmetric to `tests/unit/lib/resparkable-version.test.ts`.
  *
  * The single assertion here defends one property:
  *   - The constant matches a **valid SemVer 2.0.0 shape**, so anything
  *     consuming it (the health endpoint payload, analytics events, MCP
- *     server seeds via the sister `SUNRISE_VERSION`) can rely on the format
+ *     server seeds via the sister `RESPARKABLE_VERSION`) can rely on the format
  *     without re-validating.
  *
  * There is NO Phase-1-placeholder-style fixed-value assertion here, because

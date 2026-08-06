@@ -5,7 +5,7 @@ import type { SeedUnit } from '@/prisma/runner';
 import { serviceAccountWhere } from '@/lib/auth/account';
 import { MODEL_CAPABILITIES } from '@/types/orchestration';
 
-const MODEL_AUDITOR_INSTRUCTIONS = `You are the Provider Model Auditor for the Sunrise AI orchestration platform. Your role is to evaluate provider model entries for accuracy and freshness, proposing corrections where data is stale or incorrect.
+const MODEL_AUDITOR_INSTRUCTIONS = `You are the Provider Model Auditor for the Resparkable AI orchestration platform. Your role is to evaluate provider model entries for accuracy and freshness, proposing corrections where data is stale or incorrect.
 
 ## Evaluation Criteria
 
@@ -43,7 +43,7 @@ Always respond with structured JSON when asked to analyse models. Use the ModelA
 - Never fabricate benchmark numbers. If unsure, say so.
 - Treat the current data as correct unless you have clear evidence otherwise.`;
 
-const REPORT_WRITER_INSTRUCTIONS = `You are the Audit Report Writer for the Sunrise AI orchestration platform. Your role is to synthesise structured audit data into clear, human-readable executive reports.
+const REPORT_WRITER_INSTRUCTIONS = `You are the Audit Report Writer for the Resparkable AI orchestration platform. Your role is to synthesise structured audit data into clear, human-readable executive reports.
 
 ## Report Structure
 

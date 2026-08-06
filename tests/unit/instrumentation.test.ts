@@ -36,7 +36,7 @@ const ARMED = 'Dev maintenance ticker armed';
 const savedEnv = {
   NEXT_RUNTIME: process.env.NEXT_RUNTIME,
   NODE_ENV: process.env.NODE_ENV,
-  SUNRISE_DISABLE_DEV_TICK: process.env.SUNRISE_DISABLE_DEV_TICK,
+  RESPARKABLE_DISABLE_DEV_TICK: process.env.RESPARKABLE_DISABLE_DEV_TICK,
 };
 
 function setEnv(env: { runtime?: string; node?: string; disableTick?: string }): void {
@@ -44,8 +44,8 @@ function setEnv(env: { runtime?: string; node?: string; disableTick?: string }):
   else process.env.NEXT_RUNTIME = env.runtime;
   // NODE_ENV is readonly in the Node types; assign through a cast.
   (process.env as Record<string, string | undefined>).NODE_ENV = env.node;
-  if (env.disableTick === undefined) delete process.env.SUNRISE_DISABLE_DEV_TICK;
-  else process.env.SUNRISE_DISABLE_DEV_TICK = env.disableTick;
+  if (env.disableTick === undefined) delete process.env.RESPARKABLE_DISABLE_DEV_TICK;
+  else process.env.RESPARKABLE_DISABLE_DEV_TICK = env.disableTick;
 }
 
 beforeEach(() => {
@@ -59,8 +59,8 @@ afterEach(() => {
   vi.useRealTimers();
   (process.env as Record<string, string | undefined>).NEXT_RUNTIME = savedEnv.NEXT_RUNTIME;
   (process.env as Record<string, string | undefined>).NODE_ENV = savedEnv.NODE_ENV;
-  (process.env as Record<string, string | undefined>).SUNRISE_DISABLE_DEV_TICK =
-    savedEnv.SUNRISE_DISABLE_DEV_TICK;
+  (process.env as Record<string, string | undefined>).RESPARKABLE_DISABLE_DEV_TICK =
+    savedEnv.RESPARKABLE_DISABLE_DEV_TICK;
 });
 
 describe('register() — app boot seam', () => {

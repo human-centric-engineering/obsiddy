@@ -32,7 +32,7 @@ afterEach(() => {
 
 describe('runDueAppJobs', () => {
   it('returns undefined when no job is registered', async () => {
-    // Vanilla Sunrise: the seam must not add a key to the tick's log line.
+    // Vanilla Resparkable: the seam must not add a key to the tick's log line.
     await expect(runDueAppJobs()).resolves.toBeUndefined();
   });
 

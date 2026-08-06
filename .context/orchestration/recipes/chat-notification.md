@@ -194,7 +194,7 @@ Outbound webhooks don't sign. If you migrate to Slack's chat.postMessage Web API
 2. Set `SLACK_WEBHOOK_URL=<the URL>` in `.env.local`
 3. Add `hooks.slack.com` to `ORCHESTRATION_ALLOWED_HOSTS`
 4. Bind `call_external_api` to a test agent with the §5 binding, embedding the URL in the agent prompt
-5. Open a chat: _"Post 'hello from sunrise' to the team channel"_
+5. Open a chat: _"Post 'hello from resparkable' to the team channel"_
 6. **Verify:**
    - Message appears in `#test-bot-output`
    - Trace shows the request body
@@ -209,4 +209,4 @@ Outbound webhooks don't sign. If you migrate to Slack's chat.postMessage Web API
 - [Recipes index](./index.md)
 - [`call_external_api` capability](../capabilities.md)
 - Sibling: [transactional-email.md](./transactional-email.md) — same single-shot send pattern but for email
-- Related: [Webhook events](../hooks.md) — for the **other** direction (Sunrise emitting webhooks to listeners)
+- Related: [Webhook events](../hooks.md) — for the **other** direction (Resparkable emitting webhooks to listeners)

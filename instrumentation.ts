@@ -39,7 +39,7 @@ export async function register(): Promise<void> {
   }
 
   if (process.env.NODE_ENV !== 'development') return;
-  if (process.env.SUNRISE_DISABLE_DEV_TICK === '1') return;
+  if (process.env.RESPARKABLE_DISABLE_DEV_TICK === '1') return;
 
   const { runMaintenanceTick } = await import('@/lib/orchestration/maintenance/run-tick');
   const { logger } = await import('@/lib/logging');
@@ -48,7 +48,7 @@ export async function register(): Promise<void> {
 
   logger.info('Dev maintenance ticker armed', {
     intervalMs: INTERVAL_MS,
-    disableEnv: 'SUNRISE_DISABLE_DEV_TICK=1',
+    disableEnv: 'RESPARKABLE_DISABLE_DEV_TICK=1',
   });
 
   // First tick fires ~3s after startup so the initial dev compile +

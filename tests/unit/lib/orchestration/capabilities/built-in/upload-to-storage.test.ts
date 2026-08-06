@@ -344,7 +344,7 @@ describe('UploadToStorageCapability.execute()', () => {
     });
   });
 
-  // Private-object capability gate — the contract added for sunrise#490.
+  // Private-object capability gate — the contract added for resparkable#490.
   describe('private object capability gate', () => {
     it('refuses public:false BEFORE uploading when the provider cannot store private objects', async () => {
       bindCustomConfig({ public: false });
@@ -366,7 +366,7 @@ describe('UploadToStorageCapability.execute()', () => {
 
     it('refuses a signed-URL binding on S3 that has ACLs off and is not private by default', async () => {
       // Previously this uploaded a public object and handed back a signed URL
-      // to it — the silent failure sunrise#490 was filed about.
+      // to it — the silent failure resparkable#490 was filed about.
       bindCustomConfig({ signedUrlTtlSeconds: 300 });
       mockStorageClient = {
         name: 's3',

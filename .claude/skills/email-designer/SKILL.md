@@ -1,7 +1,7 @@
 ---
 name: email-designer
 description: |
-  Email template designer for Sunrise. Builds React Email templates
+  Email template designer for Resparkable. Builds React Email templates
   that render reliably across Gmail, Outlook, Apple Mail, and Yahoo:
   inline styles or `pixelBasedPreset` Tailwind, mobile-responsive
   600px max-width, clear single-CTA structure, dark-mode safe. Use
@@ -12,7 +12,7 @@ description: |
 
 # Email Designer Skill
 
-Production-ready email templates in Sunrise use React Email rendered server-side and dispatched via Resend. The seven templates already in `emails/` (welcome, verify-email, reset-password, invitation, contact-notification, workflow-notification, escalation-notification) are the canonical references — copy their structure when adding a new one.
+Production-ready email templates in Resparkable use React Email rendered server-side and dispatched via Resend. The seven templates already in `emails/` (welcome, verify-email, reset-password, invitation, contact-notification, workflow-notification, escalation-notification) are the canonical references — copy their structure when adding a new one.
 
 ## Technology Stack
 
@@ -121,7 +121,7 @@ export default function EmailName({ userName, actionUrl, expiresAt }: EmailNameP
               src={`${process.env.NEXT_PUBLIC_APP_URL}/logo.png`}
               width="120"
               height="40"
-              alt="Sunrise Logo"
+              alt="Resparkable Logo"
             />
           </Section>
 
@@ -159,7 +159,7 @@ export default function EmailName({ userName, actionUrl, expiresAt }: EmailNameP
           <Hr style={hr} />
           <Section style={footer}>
             <Text style={footerText}>
-              © {new Date().getFullYear()} Sunrise. All rights reserved.
+              © {new Date().getFullYear()} Resparkable. All rights reserved.
             </Text>
             <Text style={footerText}>
               <Link href={`${process.env.NEXT_PUBLIC_APP_URL}/privacy`} style={link}>
@@ -290,13 +290,13 @@ describe('WelcomeEmail', () => {
     const html = await render(<WelcomeEmail userName="John Doe" userEmail="john@example.com" />);
 
     expect(html).toContain('John Doe');
-    expect(html).toContain('Welcome to Sunrise');
+    expect(html).toContain('Welcome to Resparkable');
   });
 
   it('should include preview text', async () => {
     const html = await render(<WelcomeEmail userName="John Doe" userEmail="john@example.com" />);
 
-    expect(html).toContain('Welcome to Sunrise');
+    expect(html).toContain('Welcome to Resparkable');
   });
 
   it('should have proper HTML structure', async () => {

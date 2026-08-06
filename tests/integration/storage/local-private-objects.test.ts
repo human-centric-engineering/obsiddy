@@ -1,5 +1,5 @@
 /**
- * Local private storage against a real filesystem (sunrise#490).
+ * Local private storage against a real filesystem (resparkable#490).
  *
  * The unit suite for `LocalProvider` mocks `fs`, which is fine for branch
  * coverage but cannot demonstrate the two claims that actually matter here:

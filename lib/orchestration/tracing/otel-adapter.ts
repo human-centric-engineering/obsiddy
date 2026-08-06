@@ -1,7 +1,7 @@
 /**
  * OpenTelemetry adapter for the orchestration `Tracer` interface.
  *
- * Maps Sunrise's vendor-neutral span shape onto the OTEL JS API.
+ * Maps Resparkable's vendor-neutral span shape onto the OTEL JS API.
  * `@opentelemetry/api` is an optional/peer dependency — this file is
  * compiled but only loaded when `registerOtelTracer()` is called from
  * the bootstrap helper, which has its own runtime guard.
@@ -124,7 +124,7 @@ class OtelSpan implements Span {
 export class OtelTracer implements Tracer {
   constructor(
     private readonly otel: OtelModule,
-    private readonly tracerName: string = 'sunrise-orchestration'
+    private readonly tracerName: string = 'resparkable-orchestration'
   ) {}
 
   startSpan(name: string, options?: StartSpanOptions): Span {

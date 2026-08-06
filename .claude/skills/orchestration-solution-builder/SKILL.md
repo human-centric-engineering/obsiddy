@@ -1,7 +1,7 @@
 ---
 name: orchestration-solution-builder
 description: |
-  End-to-end orchestration solution builder for Sunrise. Takes a business
+  End-to-end orchestration solution builder for Resparkable. Takes a business
   problem — "build me a customer support chatbot", "I need an AI assistant
   that can look up orders and process refunds", "create a content review
   pipeline" — and produces everything needed: providers, agents, capabilities,
@@ -53,7 +53,7 @@ You build complete agentic solutions from problem description to running system.
 
 ### Step 1: Ensure at least one provider is configured
 
-Sunrise is provider-agnostic. **Fresh installs ship with no providers** — system-seeded agents have empty `provider` and `model` strings and rely on the runtime resolver (`lib/orchestration/llm/agent-resolver.ts`) to pick a model from the matrix at call time. Developer onboarding runs through the rewritten setup wizard, which detects available env vars and surfaces what is wired.
+Resparkable is provider-agnostic. **Fresh installs ship with no providers** — system-seeded agents have empty `provider` and `model` strings and rely on the runtime resolver (`lib/orchestration/llm/agent-resolver.ts`) to pick a model from the matrix at call time. Developer onboarding runs through the rewritten setup wizard, which detects available env vars and surfaces what is wired.
 
 Check what is already configured:
 
@@ -91,7 +91,7 @@ Default models per TaskType (`routing` / `chat` / `reasoning` / `embeddings` / `
 
 One agent per distinct role. Pick the model **by TaskType**, not by hardcoded name — that way solutions stay portable across the providers the operator has configured.
 
-> **Reserved flag — never set `isSystem: true` on app/fork rows.** `isSystem` marks a row as **Sunrise core machinery**: it becomes undeletable, undeactivatable, slug- and instruction-locked, and is excluded from config backup/export (the protections live on `AiAgent`, `AiCapability`, and `AiWorkflow`; `AiAgentProfile` carries the column too). It is **not** a "built-in look" badge. The agent **API** path is already safe — `createAgentSchema` has no `isSystem` field, so a `POST` can never set it. The **seed** path is the footgun: a core seed copied as a template silently elevates your agent. See [Persisting app agents](#persisting-app-agents-the-seed-path) before seeding.
+> **Reserved flag — never set `isSystem: true` on app/fork rows.** `isSystem` marks a row as **Resparkable core machinery**: it becomes undeletable, undeactivatable, slug- and instruction-locked, and is excluded from config backup/export (the protections live on `AiAgent`, `AiCapability`, and `AiWorkflow`; `AiAgentProfile` carries the column too). It is **not** a "built-in look" badge. The agent **API** path is already safe — `createAgentSchema` has no `isSystem` field, so a `POST` can never set it. The **seed** path is the footgun: a core seed copied as a template silently elevates your agent. See [Persisting app agents](#persisting-app-agents-the-seed-path) before seeding.
 
 | Role              | TaskType    | Temperature | Why                             |
 | ----------------- | ----------- | ----------- | ------------------------------- |
@@ -136,7 +136,7 @@ Agent updates are **versioned** — `PATCH /agents/:id` creates an `AiAgentVersi
 
 API-created agents are admin-editable rows, but they **don't exist on a fresh install** or survive a `db:reset`. An app/fork agent that must always be present (e.g. a questionnaire extractor your app dispatches in code) has to be **seeded**.
 
-**Do not copy a Sunrise core seed as your template.** The obvious examples — `prisma/seeds/010-model-auditor.ts`, `016-evaluation-judges.ts` — all set `isSystem: true` because they ARE core machinery; copying one verbatim silently elevates your app agent into the reserved class (see the callout above) while it masquerades as platform machinery. Start from the app-agent scaffold instead: [`templates/app-agent-seed.md`](templates/app-agent-seed.md).
+**Do not copy a Resparkable core seed as your template.** The obvious examples — `prisma/seeds/010-model-auditor.ts`, `016-evaluation-judges.ts` — all set `isSystem: true` because they ARE core machinery; copying one verbatim silently elevates your app agent into the reserved class (see the callout above) while it masquerades as platform machinery. Start from the app-agent scaffold instead: [`templates/app-agent-seed.md`](templates/app-agent-seed.md).
 
 The rules:
 

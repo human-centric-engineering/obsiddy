@@ -190,7 +190,7 @@ A new executor that hits the LLM via `runLlmCall` gets telemetry capture **for f
 
 ## OTEL tracing
 
-Every step + LLM call + capability dispatch is wrapped in an OTEL span via the helpers in `lib/orchestration/tracing/`. Default registration is a no-op (zero-cost when not used); forks opt into ingestion by calling `registerOtelTracer()` after constructing their own `TracerProvider`. The span tree is `workflow.execute` → `workflow.step` → `llm.call` / `agent_call.turn` / `capability.dispatch`. Span attributes follow OpenTelemetry GenAI semantic conventions plus Sunrise extensions for execution / step / agent / cost correlation.
+Every step + LLM call + capability dispatch is wrapped in an OTEL span via the helpers in `lib/orchestration/tracing/`. Default registration is a no-op (zero-cost when not used); forks opt into ingestion by calling `registerOtelTracer()` after constructing their own `TracerProvider`. The span tree is `workflow.execute` → `workflow.step` → `llm.call` / `agent_call.turn` / `capability.dispatch`. Span attributes follow OpenTelemetry GenAI semantic conventions plus Resparkable extensions for execution / step / agent / cost correlation.
 
 `AiCostLog` rows carry optional `traceId` / `spanId` columns so external trace backends can join cost data back to the originating span.
 

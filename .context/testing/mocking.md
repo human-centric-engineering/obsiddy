@@ -1,6 +1,6 @@
 # Mocking Strategies
 
-Mocking patterns for external dependencies in the Sunrise project. This guide covers when to mock, what to mock, and how to mock common dependencies.
+Mocking patterns for external dependencies in the Resparkable project. This guide covers when to mock, what to mock, and how to mock common dependencies.
 
 ## Mock Philosophy
 

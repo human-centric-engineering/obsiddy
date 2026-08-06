@@ -19,7 +19,7 @@ import { classifySurface } from '@/lib/app/surface';
  *
  * Timing: the update runs in `useEffect` (after paint), so a client-side nav
  * between two DIFFERENTLY-themed surfaces can show one frame of the old theme.
- * Vanilla Sunrise ships an empty `app/brand-theme.css`, so there is no theme
+ * Vanilla Resparkable ships an empty `app/brand-theme.css`, so there is no theme
  * delta and no visible flash. A fork that fills brand-theme.css and wants the
  * flash gone can swap to a guarded layout-effect:
  *

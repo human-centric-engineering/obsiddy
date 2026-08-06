@@ -2,7 +2,7 @@
 
 ## Overview
 
-Sunrise includes a library of marketing components for building landing pages and promotional content. These components are composable, responsive, and follow shadcn/ui patterns.
+Resparkable includes a library of marketing components for building landing pages and promotional content. These components are composable, responsive, and follow shadcn/ui patterns.
 
 ## Component Library
 
@@ -28,7 +28,7 @@ Eye-catching hero section for landing pages.
 ```tsx
 <Hero
   badge="New Release"
-  title="Build faster with Sunrise"
+  title="Build faster with Resparkable"
   description="Production-ready Next.js starter template for rapid development."
   primaryAction={{ label: 'Get Started', href: '/signup' }}
   secondaryAction={{ label: 'Learn More', href: '/about', variant: 'outline' }}
@@ -143,12 +143,12 @@ Accordion-based FAQ section.
 <FAQ
   items={[
     {
-      question: 'What is Sunrise?',
-      answer: 'Sunrise is a production-ready Next.js starter template.',
+      question: 'What is Resparkable?',
+      answer: 'Resparkable is a production-ready Next.js starter template.',
     },
     {
       question: 'Is it free to use?',
-      answer: 'Yes, Sunrise is open source and free for personal and commercial use.',
+      answer: 'Yes, Resparkable is open source and free for personal and commercial use.',
     },
   ]}
   maxWidth="2xl" // "sm", "md", "lg", "xl", "2xl", "3xl"
@@ -169,7 +169,7 @@ Call-to-action banner for encouraging user action.
 ```tsx
 <CTA
   title="Ready to get started?"
-  description="Start building your next project with Sunrise today."
+  description="Start building your next project with Resparkable today."
   primaryAction={{ label: 'Get Started', href: '/signup' }}
   secondaryAction={{ label: 'Contact Sales', href: '/contact', variant: 'outline' }}
   variant="gradient" // "default", "gradient", or "card"
@@ -233,7 +233,7 @@ export default function LandingPage() {
     <>
       <Hero
         badge="v1.0 Released"
-        title="Build faster with Sunrise"
+        title="Build faster with Resparkable"
         description="The production-ready Next.js starter."
         primaryAction={{ label: 'Get Started', href: '/signup' }}
         secondaryAction={{ label: 'View Demo', href: '/demo' }}

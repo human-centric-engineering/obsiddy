@@ -1,10 +1,10 @@
 # Log Aggregation
 
-Guide for integrating Sunrise's structured logging with external log aggregation services.
+Guide for integrating Resparkable's structured logging with external log aggregation services.
 
 ## Overview
 
-Sunrise's structured logging system outputs JSON in production, making it compatible with major log aggregation platforms:
+Resparkable's structured logging system outputs JSON in production, making it compatible with major log aggregation platforms:
 
 ```json
 {
@@ -315,7 +315,7 @@ services:
   web:
     # ... existing config
     labels:
-      com.datadoghq.ad.logs: '[{"source": "nodejs", "service": "sunrise"}]'
+      com.datadoghq.ad.logs: '[{"source": "nodejs", "service": "resparkable"}]'
 
   datadog-agent:
     image: datadog/agent:latest
@@ -338,7 +338,7 @@ DD_SITE=datadoghq.com  # or datadoghq.eu for EU
 
 ### Parsing Configuration
 
-Create a pipeline in DataDog to parse Sunrise logs:
+Create a pipeline in DataDog to parse Resparkable logs:
 
 ```yaml
 # datadog-pipeline.yml
@@ -379,7 +379,7 @@ npm install dd-trace
 import tracer from 'dd-trace';
 
 tracer.init({
-  service: 'sunrise',
+  service: 'resparkable',
   env: process.env.NODE_ENV,
 });
 
@@ -396,11 +396,11 @@ Configure the task definition:
 {
   "containerDefinitions": [
     {
-      "name": "sunrise",
+      "name": "resparkable",
       "logConfiguration": {
         "logDriver": "awslogs",
         "options": {
-          "awslogs-group": "/ecs/sunrise",
+          "awslogs-group": "/ecs/resparkable",
           "awslogs-region": "us-east-1",
           "awslogs-stream-prefix": "ecs",
           "awslogs-create-group": "true"
@@ -422,8 +422,8 @@ Install and configure CloudWatch agent:
       "files": {
         "collect_list": [
           {
-            "file_path": "/var/log/sunrise/*.log",
-            "log_group_name": "sunrise",
+            "file_path": "/var/log/resparkable/*.log",
+            "log_group_name": "resparkable",
             "log_stream_name": "{instance_id}",
             "timestamp_format": "%Y-%m-%dT%H:%M:%S.%fZ"
           }
@@ -463,9 +463,9 @@ Resources:
   ErrorAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: sunrise-errors
+      AlarmName: resparkable-errors
       MetricName: ErrorCount
-      Namespace: Sunrise
+      Namespace: Resparkable
       Statistic: Sum
       Period: 300
       EvaluationPeriods: 1
@@ -487,7 +487,7 @@ services:
       driver: loki
       options:
         loki-url: 'http://loki:3100/loki/api/v1/push'
-        labels: 'service=sunrise,env=production'
+        labels: 'service=resparkable,env=production'
 
   loki:
     image: grafana/loki:latest
@@ -544,13 +544,13 @@ storage_config:
 
 ```logql
 # Errors by service
-{service="sunrise"} |= "error"
+{service="resparkable"} |= "error"
 
 # JSON parsing
-{service="sunrise"} | json | level="error"
+{service="resparkable"} | json | level="error"
 
 # Aggregation
-sum(rate({service="sunrise"} | json | level="error" [5m])) by (context_endpoint)
+sum(rate({service="resparkable"} | json | level="error" [5m])) by (context_endpoint)
 ```
 
 ## Elastic Stack (ELK)
@@ -566,12 +566,12 @@ filebeat.inputs:
     processors:
       - decode_json_fields:
           fields: ['message']
-          target: 'sunrise'
+          target: 'resparkable'
           overwrite_keys: true
 
 output.elasticsearch:
   hosts: ['elasticsearch:9200']
-  index: 'sunrise-%{+yyyy.MM.dd}'
+  index: 'resparkable-%{+yyyy.MM.dd}'
 
 setup.kibana:
   host: 'kibana:5601'
@@ -581,7 +581,7 @@ setup.kibana:
 
 ```json
 {
-  "index_patterns": ["sunrise-*"],
+  "index_patterns": ["resparkable-*"],
   "mappings": {
     "properties": {
       "timestamp": { "type": "date" },
@@ -665,7 +665,7 @@ log.info('Request completed');
 
 ### 5. Avoid Logging Sensitive Data
 
-Sunrise automatically sanitizes:
+Resparkable automatically sanitizes:
 
 - Passwords, tokens, API keys (always)
 - PII like emails, names, IPs (in production)

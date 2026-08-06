@@ -104,7 +104,7 @@ describe('parseEpub', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.writeFile.mockResolvedValue(undefined);
-    mocks.mkdtemp.mockResolvedValue('/tmp/sunrise-epub-abc123');
+    mocks.mkdtemp.mockResolvedValue('/tmp/resparkable-epub-abc123');
     mocks.rm.mockResolvedValue(undefined);
     resetEpubInstance();
   });
@@ -125,10 +125,10 @@ describe('parseEpub', () => {
       // Assert: temp dir created with mkdtemp (unpredictable, mode 0700) and
       // the buffer written inside it.
       expect(mocks.mkdtemp).toHaveBeenCalledTimes(1);
-      expect(mocks.mkdtemp.mock.calls[0][0] as string).toContain('sunrise-epub-');
+      expect(mocks.mkdtemp.mock.calls[0][0] as string).toContain('resparkable-epub-');
       expect(mocks.writeFile).toHaveBeenCalledTimes(1);
       const [path, buf] = mocks.writeFile.mock.calls[0] as [string, Buffer];
-      expect(path).toBe('/tmp/sunrise-epub-abc123/book.epub');
+      expect(path).toBe('/tmp/resparkable-epub-abc123/book.epub');
       expect(Buffer.isBuffer(buf)).toBe(true);
     });
 
@@ -146,7 +146,7 @@ describe('parseEpub', () => {
         string,
         { recursive: boolean; force: boolean },
       ];
-      expect(path).toBe('/tmp/sunrise-epub-abc123');
+      expect(path).toBe('/tmp/resparkable-epub-abc123');
       expect(opts).toEqual({ recursive: true, force: true });
     });
 
@@ -166,7 +166,7 @@ describe('parseEpub', () => {
       // Act + Assert: error re-thrown, but the mkdtemp directory is still cleaned up
       await expect(parseEpub(fakeBuffer(), 'book.epub')).rejects.toThrow('ENOSPC');
       expect(mocks.rm).toHaveBeenCalledTimes(1);
-      expect(mocks.rm.mock.calls[0][0]).toBe('/tmp/sunrise-epub-abc123');
+      expect(mocks.rm.mock.calls[0][0]).toBe('/tmp/resparkable-epub-abc123');
     });
 
     it('should not throw if removing the temp directory fails', async () => {

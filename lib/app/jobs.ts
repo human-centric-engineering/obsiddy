@@ -1,7 +1,7 @@
 /**
  * App recurring-job registrations.
  *
- * **Fork-owned scaffold** — Sunrise ships this empty and does NOT change it
+ * **Fork-owned scaffold** — Resparkable ships this empty and does NOT change it
  * after release, so your edits here merge cleanly on upgrade (the stable
  * contract is this file's export, not its body). Treat it like the other
  * `lib/app/*` seams.
@@ -34,17 +34,17 @@
  *
  * Full guide: CUSTOMIZATION.md §4 · .context/orchestration/scheduling.md
  */
-import { registerObsiddyJobs } from '@/lib/framework/obsiddy/jobs';
+import { registerResparkableJobs } from '@/lib/framework/resparkable/jobs';
 
 export function initAppJobs(): void {
-  // Obsiddy's connection sweep — a continuous per-user pass over stored vectors,
+  // Resparkable's connection sweep — a continuous per-user pass over stored vectors,
   // which is why it rides the tick rather than a cron row (the other four
-  // Obsiddy workflows are genuine calendar events and stay on `AiWorkflowSchedule`).
+  // Resparkable workflows are genuine calendar events and stay on `AiWorkflowSchedule`).
   //
   // Static import on purpose, like `lib/app/capabilities.ts` and
   // `lib/app/context-contributors.ts`: core calls this lazily from
-  // `app-jobs.ts`, where there is nowhere to await, and this repo IS the Obsiddy
+  // `app-jobs.ts`, where there is nowhere to await, and this repo IS the Resparkable
   // tier so the path always resolves. A host project adds the same two lines;
-  // see `.context/framework/obsiddy/install.md`.
-  registerObsiddyJobs();
+  // see `.context/framework/resparkable/install.md`.
+  registerResparkableJobs();
 }

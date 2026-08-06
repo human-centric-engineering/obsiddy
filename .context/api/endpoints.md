@@ -11,7 +11,7 @@
 
 ## API Design Principles
 
-Sunrise implements RESTful APIs through Next.js route handlers with the following principles:
+Resparkable implements RESTful APIs through Next.js route handlers with the following principles:
 
 - **Versioning**: All public APIs use `/api/v1/` prefix
 - **Resource-Based**: URLs represent resources (nouns), not actions

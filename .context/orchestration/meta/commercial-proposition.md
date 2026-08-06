@@ -1,6 +1,6 @@
-# What Sunrise Offers
+# What Resparkable Offers
 
-Sunrise is a platform for building AI agents that do real work — not just generate text, but use tools, follow multi-step processes, look things up in your documents, and operate within budget and safety constraints you define. It ships as a single TypeScript codebase: the orchestration engine, a 20-page admin interface, consumer-facing chat, 133 API endpoints, a PostgreSQL database with 29 models, and Docker deployment configuration. You own and modify the entire stack. It is not a library you wire into your own application, and it is not a managed service you rent from a cloud provider. It is the application.
+Resparkable is a platform for building AI agents that do real work — not just generate text, but use tools, follow multi-step processes, look things up in your documents, and operate within budget and safety constraints you define. It ships as a single TypeScript codebase: the orchestration engine, a 20-page admin interface, consumer-facing chat, 133 API endpoints, a PostgreSQL database with 29 models, and Docker deployment configuration. You own and modify the entire stack. It is not a library you wire into your own application, and it is not a managed service you rent from a cloud provider. It is the application.
 
 ---
 
@@ -8,33 +8,33 @@ Sunrise is a platform for building AI agents that do real work — not just gene
 
 Building an AI-powered product today typically means assembling a stack from parts. You pick an orchestration engine for chaining LLM calls, then build everything else around it — authentication, admin dashboard, API layer, cost tracking, deployment pipeline, safety guards. That integration work routinely exceeds the orchestration work itself.
 
-Sunrise removes that assembly step. Orchestration is one layer within a complete, typed application — sharing authentication, validation, error handling, and deployment with everything else. A change to the agent configuration schema propagates from the database through the API to the admin form without manual synchronisation. You start with a working product and customise it, rather than starting with a library and building a product around it.
+Resparkable removes that assembly step. Orchestration is one layer within a complete, typed application — sharing authentication, validation, error handling, and deployment with everything else. A change to the agent configuration schema propagates from the database through the API to the admin form without manual synchronisation. You start with a working product and customise it, rather than starting with a library and building a product around it.
 
 ---
 
-## Sunrise is / Sunrise is not
+## Resparkable is / Resparkable is not
 
 A frequent positioning conversation starts with "wait, is this like X?" — where X has ranged from LangChain to OpenAI AgentKit to Cursor to AWS Bedrock. The honest boundaries:
 
-**Sunrise is:**
+**Resparkable is:**
 
 - A full-stack Next.js 16 application with agent orchestration baked in — the entire app is the artefact, not just the engine.
 - Self-hosted. You own the codebase and operate the deployment.
-- Single-tenant per deployment by default. One organisation, one Sunrise; multi-tenancy is achieved by running separate instances. (A documented retrofit path exists for forks that need in-deployment multi-tenancy — `TENANCY_MODE` env var, an inert seam at `lib/db/client.ts`, and a Postgres-RLS playbook at `.context/architecture/multi-tenancy.md`. The seam throws at import on `multi` until a fork wires the rest, so a half-finished bring-up fails loud rather than running unscoped queries.)
+- Single-tenant per deployment by default. One organisation, one Resparkable; multi-tenancy is achieved by running separate instances. (A documented retrofit path exists for forks that need in-deployment multi-tenancy — `TENANCY_MODE` env var, an inert seam at `lib/db/client.ts`, and a Postgres-RLS playbook at `.context/architecture/multi-tenancy.md`. The seam throws at import on `multi` until a fork wires the rest, so a half-finished bring-up fails loud rather than running unscoped queries.)
 - Provider-agnostic. Eight LLM provider families with circuit breakers and fallback chains; switching is a config change, not a code change.
 - Citation-grounded. Inline numbered citations flow through API, chat, and embed widget; an opt-in guard blocks ungrounded responses.
 - Budget-capped inside the execution loop — agents that exceed their monthly budget literally cannot spend more.
 - Brandable per-agent for partner-site deployment.
-- An MCP **server** as well as client — external MCP clients can call Sunrise's capabilities with audit logging and API-key auth.
+- An MCP **server** as well as client — external MCP clients can call Resparkable's capabilities with audit logging and API-key auth.
 - A substrate for AI-assisted development that produces production-grade code (see "Built for AI-assisted development" below).
 
-**Sunrise is not:**
+**Resparkable is not:**
 
-- A managed SaaS you rent. There is no Sunrise cloud; you deploy it yourself.
+- A managed SaaS you rent. There is no Resparkable cloud; you deploy it yourself.
 - A mobile or edge runtime. It runs on a server (Node.js + PostgreSQL); it does not run on a phone.
-- An on-device privacy product. Privacy-by-physics requires no server in the loop; Sunrise has a server.
+- An on-device privacy product. Privacy-by-physics requires no server in the loop; Resparkable has a server.
 - A Python framework, notebook tool, or research toolkit. The codebase is TypeScript / Next.js end-to-end.
-- A library you embed in someone else's application — Sunrise _is_ the application.
+- A library you embed in someone else's application — Resparkable _is_ the application.
 - Vendor-locked to OpenAI, AWS, Azure, or any cloud.
 - A multi-tenant SaaS out of the box. The schema and in-memory state assume one organisation per deployment. (The playbook in `.context/architecture/multi-tenancy.md` describes the retrofit path — it's a deliberate fork-time decision, not a runtime flag.)
 - A chatbot toolkit or no-code platform. The centre of gravity is a code-first, type-safe platform that engineers extend.
@@ -65,7 +65,7 @@ For anything consequential — processing a refund, publishing content, submitti
 
 ### Built for AI-assisted development
 
-Sunrise is not just a working app — it's a working app _plus the rules and scaffolding_ that make AI coding agents produce production-grade output rather than flaky prototypes. `CLAUDE.md` declares the stack versions, security rules, import conventions, and which utilities to reuse. `.context/` is a 100+ file documentation substrate covering API patterns, auth, security, testing, orchestration, and admin UI — written for AI agents to read alongside the code. The bundled skills (`/api-builder`, `/form-builder`, `/component-builder`, `/page-builder`, `/test-*`) and gates (`/pre-pr`, `/security-review`, `/ultrareview`) catch drift before it merges. The result: when you ask Claude Code or Cursor to build a feature, it follows established patterns instead of inventing new ones — and the codebase stays coherent across hundreds of AI-generated edits instead of degrading into a patchwork.
+Resparkable is not just a working app — it's a working app _plus the rules and scaffolding_ that make AI coding agents produce production-grade output rather than flaky prototypes. `CLAUDE.md` declares the stack versions, security rules, import conventions, and which utilities to reuse. `.context/` is a 100+ file documentation substrate covering API patterns, auth, security, testing, orchestration, and admin UI — written for AI agents to read alongside the code. The bundled skills (`/api-builder`, `/form-builder`, `/component-builder`, `/page-builder`, `/test-*`) and gates (`/pre-pr`, `/security-review`, `/ultrareview`) catch drift before it merges. The result: when you ask Claude Code or Cursor to build a feature, it follows established patterns instead of inventing new ones — and the codebase stays coherent across hundreds of AI-generated edits instead of degrading into a patchwork.
 
 ### It goes where your users are
 
@@ -119,7 +119,7 @@ For processes more complex than a conversation, you compose workflows: multi-ste
 
 If you are not sure where to start, a built-in design patterns library covers 21 agentic patterns — routing, chaining, reflection, planning, multi-agent coordination, and more — with an interactive explorer and an advisor chatbot that recommends patterns based on your use case.
 
-For vendor integrations — sending transactional email, charging customers, posting to a chat platform, creating a calendar event, rendering a PDF — Sunrise takes a deliberate stance: rather than bundling SDKs for every vendor, you get one sharpened generic outbound-HTTP capability plus a comprehensive recipes cookbook that documents how to wire it for each common pattern (with worked examples for two or three vendors per pattern). The trade-off versus a "thousand integrations" framework is honest: Sunrise stays dependency-light and version-stable; the integrations you actually wire up are documented end-to-end and unbiased to a specific vendor; anything not covered by a recipe is a documented short walk away via the capability builder.
+For vendor integrations — sending transactional email, charging customers, posting to a chat platform, creating a calendar event, rendering a PDF — Resparkable takes a deliberate stance: rather than bundling SDKs for every vendor, you get one sharpened generic outbound-HTTP capability plus a comprehensive recipes cookbook that documents how to wire it for each common pattern (with worked examples for two or three vendors per pattern). The trade-off versus a "thousand integrations" framework is honest: Resparkable stays dependency-light and version-stable; the integrations you actually wire up are documented end-to-end and unbiased to a specific vendor; anything not covered by a recipe is a documented short walk away via the capability builder.
 
 The platform supports eight LLM provider types — Anthropic, OpenAI, Google, Mistral, Cohere, Voyage AI, Ollama, and any OpenAI-compatible endpoint. You can start with a local model for development, deploy with a commercial provider, and add fallbacks across vendors. Switching or adding providers does not require code changes.
 
@@ -127,7 +127,7 @@ The platform supports eight LLM provider types — Anthropic, OpenAI, Google, Mi
 
 ## What you can build with this
 
-Sunrise is designed for products where an AI agent needs to be more than a chatbot — where it needs to act, to know things, and to operate safely within defined boundaries.
+Resparkable is designed for products where an AI agent needs to be more than a chatbot — where it needs to act, to know things, and to operate safely within defined boundaries.
 
 A few patterns that the platform supports well: customer-facing assistants grounded in your documentation. Internal tools that automate multi-step processes with human oversight at critical points. Domain-expert agents that combine specialist knowledge with the ability to look up records, call APIs, and take actions. Embeddable advisors deployed on partner websites. Workflow automation where AI handles the judgment calls and humans handle the exceptions.
 
@@ -137,7 +137,7 @@ The `business-applications.md` companion document explores thirty concrete oppor
 
 ## Getting started
 
-Sunrise is a Next.js 16 application. Clone the repository, configure environment variables for your LLM providers and database, run migrations, and start the dev server. A setup wizard walks through initial configuration — provider credentials, default model selection, basic safety settings. From there, you create your first agent in the admin dashboard and it is callable through the API within minutes. The codebase is TypeScript throughout — if you can read a Next.js application, you can read and modify Sunrise.
+Resparkable is a Next.js 16 application. Clone the repository, configure environment variables for your LLM providers and database, run migrations, and start the dev server. A setup wizard walks through initial configuration — provider credentials, default model selection, basic safety settings. From there, you create your first agent in the admin dashboard and it is callable through the API within minutes. The codebase is TypeScript throughout — if you can read a Next.js application, you can read and modify Resparkable.
 
 ---
 

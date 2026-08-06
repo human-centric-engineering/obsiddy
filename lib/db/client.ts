@@ -34,7 +34,7 @@ import { env } from '@/lib/env';
  */
 if (env.TENANCY_MODE === 'multi') {
   throw new Error(
-    'TENANCY_MODE=multi is not implemented by the Sunrise template. Multi-tenancy ' +
+    'TENANCY_MODE=multi is not implemented by the Resparkable template. Multi-tenancy ' +
       'requires the Postgres-RLS retrofit documented in .context/architecture/multi-tenancy.md ' +
       '(wrap this client so every tenant-scoped call runs inside a $transaction that issues ' +
       'SET LOCAL app.current_org). Complete that work and remove this guard, or set TENANCY_MODE=single.'
@@ -50,7 +50,7 @@ const globalForPrisma = globalThis as unknown as {
  * Connection pool (reused across hot reloads in development).
  *
  * `max` defaults to 10 — node-postgres's own default, and the right size for
- * Sunrise's documented deploy target: a single long-running process
+ * Resparkable's documented deploy target: a single long-running process
  * (docker-compose, Render, Railway) that genuinely wants a warm pool.
  *
  * A function-per-request platform is the opposite case. Each warm instance

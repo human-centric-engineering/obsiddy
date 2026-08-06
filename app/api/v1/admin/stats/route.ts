@@ -26,7 +26,7 @@ const PROCESS_START_TIME = Date.now();
 
 // APP_VERSION is the fork's app version, derived from package.json via the
 // shared constant in `lib/app-version.ts`. See VERSIONING.md for why this is
-// separate from SUNRISE_VERSION.
+// separate from RESPARKABLE_VERSION.
 
 /**
  * GET /api/v1/admin/stats

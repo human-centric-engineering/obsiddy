@@ -7,7 +7,7 @@
 ## Prerequisites
 
 - Vercel account ([vercel.com](https://vercel.com))
-- GitHub, GitLab, or Bitbucket repository with your Sunrise project
+- GitHub, GitLab, or Bitbucket repository with your Resparkable project
 - PostgreSQL database (Vercel Postgres or external provider)
 
 ## Deployment Steps
@@ -16,7 +16,7 @@
 
 1. Go to [vercel.com/new](https://vercel.com/new)
 2. Click "Import Git Repository"
-3. Select your Sunrise repository
+3. Select your Resparkable repository
 4. Vercel auto-detects Next.js and configures everything
 
 ### 2. Configure Environment Variables

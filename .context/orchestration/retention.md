@@ -1,6 +1,6 @@
 # Data Retention & Pruning
 
-How Sunrise automatically deletes aged operational data. All pruning is enforced
+How Resparkable automatically deletes aged operational data. All pruning is enforced
 by `enforceRetentionPolicies()` in `lib/orchestration/retention.ts`, run as one
 task of the unified maintenance tick (`POST /api/v1/admin/orchestration/maintenance/tick`,
 called ~every 60s by an external cron). The sweep itself is throttled to **at

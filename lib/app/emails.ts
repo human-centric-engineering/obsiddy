@@ -1,7 +1,7 @@
 /**
  * App email template overrides.
  *
- * **Fork-owned scaffold** — Sunrise ships this empty (= every email uses the
+ * **Fork-owned scaffold** — Resparkable ships this empty (= every email uses the
  * platform default) and does NOT change it after release, so your edits here
  * merge cleanly on upgrade (the stable contract is this file's export, not its
  * value). Treat it like the landing page: a starting point you're expected to

@@ -1,6 +1,6 @@
 # Session Management
 
-This document covers server-side and client-side session handling patterns in Sunrise.
+This document covers server-side and client-side session handling patterns in Resparkable.
 
 ## Server-Side Session Access
 

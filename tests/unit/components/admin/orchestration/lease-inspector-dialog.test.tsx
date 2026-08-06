@@ -64,7 +64,7 @@ function makeSnapshot(
 }
 
 /**
- * Build a mock fetch that responds with the Sunrise success envelope wrapping
+ * Build a mock fetch that responds with the Resparkable success envelope wrapping
  * the given snapshot. parseApiResponse validates { success, data } — we must
  * provide that shape rather than the raw snapshot.
  */

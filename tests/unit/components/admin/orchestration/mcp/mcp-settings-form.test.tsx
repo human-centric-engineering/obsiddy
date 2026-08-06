@@ -46,7 +46,7 @@ import { McpSettingsForm } from '@/components/admin/orchestration/mcp/mcp-settin
 
 const FULL_SETTINGS = {
   isEnabled: true,
-  serverName: 'Sunrise MCP Server',
+  serverName: 'Resparkable MCP Server',
   serverVersion: '1.0.0',
   maxSessionsPerKey: 5,
   globalRateLimit: 60,
@@ -67,7 +67,7 @@ describe('McpSettingsForm', () => {
   describe('Initial render', () => {
     it('renders all form fields with initial values', () => {
       render(<McpSettingsForm initialSettings={FULL_SETTINGS} />);
-      expect(document.getElementById('serverName')).toHaveValue('Sunrise MCP Server');
+      expect(document.getElementById('serverName')).toHaveValue('Resparkable MCP Server');
       expect(document.getElementById('serverVersion')).toHaveValue('1.0.0');
       expect(document.getElementById('maxSessionsPerKey')).toHaveValue(5);
       expect(document.getElementById('globalRateLimit')).toHaveValue(60);
@@ -76,7 +76,7 @@ describe('McpSettingsForm', () => {
 
     it('renders defaults when initialSettings is null', () => {
       render(<McpSettingsForm initialSettings={null} />);
-      expect(document.getElementById('serverName')).toHaveValue('Sunrise MCP Server');
+      expect(document.getElementById('serverName')).toHaveValue('Resparkable MCP Server');
       expect(document.getElementById('globalRateLimit')).toHaveValue(60);
     });
 
@@ -120,7 +120,7 @@ describe('McpSettingsForm', () => {
           expect.stringContaining('/mcp/settings'),
           expect.objectContaining({
             body: expect.objectContaining({
-              serverName: 'Sunrise MCP Server',
+              serverName: 'Resparkable MCP Server',
               globalRateLimit: 60,
               maxSessionsPerKey: 5,
               auditRetentionDays: 90,

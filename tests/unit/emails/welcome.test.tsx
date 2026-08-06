@@ -12,7 +12,7 @@ describe('WelcomeEmail', () => {
   it('should render with all required props', async () => {
     const html = await render(<WelcomeEmail {...defaultProps} />);
 
-    expect(html).toContain('Welcome to Sunrise!');
+    expect(html).toContain('Welcome to Resparkable!');
     expect(html).toContain('John Doe');
     expect(html).toContain('john@example.com');
   });
@@ -20,7 +20,7 @@ describe('WelcomeEmail', () => {
   it('should include preview text', async () => {
     const html = await render(<WelcomeEmail {...defaultProps} />);
 
-    expect(html).toContain('Welcome to Sunrise - Let&#x27;s get started');
+    expect(html).toContain('Welcome to Resparkable - Let&#x27;s get started');
   });
 
   it('should have proper HTML structure', async () => {

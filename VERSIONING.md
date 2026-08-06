@@ -1,54 +1,54 @@
 # Versioning
 
-The versioning contract for the Sunrise **platform** — what each release number
+The versioning contract for the Resparkable **platform** — what each release number
 commits to, what's covered, and what isn't.
 
-**Audience:** Sunrise maintainers cutting releases, and fork authors deciding
+**Audience:** Resparkable maintainers cutting releases, and fork authors deciding
 whether an upstream upgrade is safe to merge. Cutting a release: see
 [`CONTRIBUTING.md` → "Cutting a release"](./CONTRIBUTING.md#cutting-a-release).
 Tracking the version inside a fork: see
-[`CUSTOMIZATION.md` → "Tracking your Sunrise version"](./CUSTOMIZATION.md#8-tracking-your-sunrise-version).
+[`CUSTOMIZATION.md` → "Tracking your Resparkable version"](./CUSTOMIZATION.md#8-tracking-your-resparkable-version).
 
 ---
 
 ## Status
 
-Sunrise is currently **`0.x` (alpha)**. The strict [SemVer](https://semver.org/)
+Resparkable is currently **`0.x` (alpha)**. The strict [SemVer](https://semver.org/)
 contract described below activates at `1.0.0`; during `0.x`, forks should expect
 real merge work between any two releases. See
 [SemVer §4](https://semver.org/#spec-item-4) for why that's allowed.
 
 The current version of the platform lives in
-[`lib/sunrise-version.ts`](./lib/sunrise-version.ts) as
-`SUNRISE_VERSION`. Forks **do not** edit that file (see the
+[`lib/resparkable-version.ts`](./lib/resparkable-version.ts) as
+`RESPARKABLE_VERSION`. Forks **do not** edit that file (see the
 "Tracking the version in a fork" section below).
 
 ---
 
-## What is Sunrise's version?
+## What is Resparkable's version?
 
 A fork has **two versions**, deliberately separate:
 
-| Version           | Source of truth                                      | Exposed as a typed import via         | Owned by | What it means                                              |
-| ----------------- | ---------------------------------------------------- | ------------------------------------- | -------- | ---------------------------------------------------------- |
-| `version`         | `package.json`                                       | [`APP_VERSION`](./lib/app-version.ts) | The fork | The fork's app version (your product)                      |
-| `SUNRISE_VERSION` | [`lib/sunrise-version.ts`](./lib/sunrise-version.ts) | (the file itself)                     | Sunrise  | The upstream platform version this checkout corresponds to |
+| Version               | Source of truth                                              | Exposed as a typed import via         | Owned by    | What it means                                              |
+| --------------------- | ------------------------------------------------------------ | ------------------------------------- | ----------- | ---------------------------------------------------------- |
+| `version`             | `package.json`                                               | [`APP_VERSION`](./lib/app-version.ts) | The fork    | The fork's app version (your product)                      |
+| `RESPARKABLE_VERSION` | [`lib/resparkable-version.ts`](./lib/resparkable-version.ts) | (the file itself)                     | Resparkable | The upstream platform version this checkout corresponds to |
 
 `APP_VERSION` imports `package.json` directly at module load — it is not
 derived from `process.env.npm_package_version`, which is unset under common
 production launchers (Docker `CMD ["node", ...]`, Next.js standalone, PM2,
 some serverless runtimes). The two constants `APP_VERSION` and
-`SUNRISE_VERSION` are the canonical import sites; server-side code should
+`RESPARKABLE_VERSION` are the canonical import sites; server-side code should
 read these rather than reaching into `package.json` or hard-coding a literal.
 
 Both are surfaced on the (public) `/api/health` endpoint as `version` and
-`sunrise` respectively, so operators and the eventual HCE Hub can ask any
-deployment which Sunrise it's on without guessing.
+`resparkable` respectively, so operators and the eventual HCE Hub can ask any
+deployment which Resparkable it's on without guessing.
 
-**Why two?** Because if `SUNRISE_VERSION` were derived from
-`package.json.version`, Sunrise's version would silently follow whatever the
-fork sets — making _"which Sunrise are you on?"_ unanswerable. The two files
-are deliberate siblings: `lib/sunrise-version.ts` is Sunrise-owned (forks
+**Why two?** Because if `RESPARKABLE_VERSION` were derived from
+`package.json.version`, Resparkable's version would silently follow whatever the
+fork sets — making _"which Resparkable are you on?"_ unanswerable. The two files
+are deliberate siblings: `lib/resparkable-version.ts` is Resparkable-owned (forks
 never edit it, upstream merges keep it current); `lib/app-version.ts` is
 fork-owned-by-reference (its body imports `package.json`, which the fork
 edits on every app release).
@@ -142,7 +142,7 @@ In practice, during `0.x`:
   at `0.x` forever if we did, since by definition the surface isn't stable
   yet. Breaking changes still get a CHANGELOG entry; they just don't force
   a MAJOR.
-- `SUNRISE_VERSION` still updates per release, so forks can pin to a known
+- `RESPARKABLE_VERSION` still updates per release, so forks can pin to a known
   revision. They just shouldn't expect SemVer's strict guarantees between two
   `0.x` versions.
 - **Forks should expect real merge work between any two `0.x` releases.**
@@ -154,8 +154,8 @@ In practice, during `0.x`:
 
 There are no pre-set graduation criteria. `1.0.0` is the deliberate "we'll
 commit to the SemVer contract above" decision — a judgement call between the
-Sunrise maintainers when the surface "feels right" and at least one production
-app has shipped on Sunrise.
+Resparkable maintainers when the surface "feels right" and at least one production
+app has shipped on Resparkable.
 
 When we graduate, the strict rules above kick in: a MAJOR bump from that point
 on means a real break in the contract, and forks can rely on MINOR/PATCH
@@ -180,9 +180,9 @@ Mechanics: [`CONTRIBUTING.md` → "Cutting a release"](./CONTRIBUTING.md#cutting
 
 ## Tracking the version in a fork
 
-If you're building **on** Sunrise rather than maintaining it, the fork-side
+If you're building **on** Resparkable rather than maintaining it, the fork-side
 guide lives in
-[`CUSTOMIZATION.md` → "Tracking your Sunrise version"](./CUSTOMIZATION.md#8-tracking-your-sunrise-version)
+[`CUSTOMIZATION.md` → "Tracking your Resparkable version"](./CUSTOMIZATION.md#8-tracking-your-resparkable-version)
 — where the constant lives, why it's separate from your `package.json.version`,
 how it travels through upstream merges, and where you might surface it in
 your own app.
@@ -199,7 +199,7 @@ any of them yet:
 - **`git describe --tags`-derived version strings** — e.g. encoding "15 commits
   ahead of `v1.0.0`" automatically. Worth considering once we've shipped a few
   releases.
-- **A `/api/sunrise-version` discovery endpoint** — only meaningful when the
+- **A `/api/resparkable-version` discovery endpoint** — only meaningful when the
   HCE Hub starts consuming it.
 - **Automated release tooling** (`changesets`, `release-please`, etc.) —
   overkill until release frequency demands it.

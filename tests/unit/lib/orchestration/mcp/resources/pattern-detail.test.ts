@@ -42,7 +42,7 @@ describe('handlePatternDetail', () => {
   });
 
   it('returns error JSON for a URI with no pattern number', async () => {
-    const result = await handlePatternDetail('sunrise://knowledge/patterns/', null, {
+    const result = await handlePatternDetail('resparkable://knowledge/patterns/', null, {
       scopedAgentId: null,
       apiKeyId: 'key-1',
     });
@@ -53,7 +53,7 @@ describe('handlePatternDetail', () => {
   });
 
   it('returns error JSON for a non-numeric pattern segment', async () => {
-    const result = await handlePatternDetail('sunrise://knowledge/patterns/abc', null, {
+    const result = await handlePatternDetail('resparkable://knowledge/patterns/abc', null, {
       scopedAgentId: null,
       apiKeyId: 'key-1',
     });
@@ -65,7 +65,7 @@ describe('handlePatternDetail', () => {
   it('returns mimeType application/json', async () => {
     vi.mocked(prisma.aiKnowledgeChunk.findMany).mockResolvedValue([makeChunk()] as never);
 
-    const result = await handlePatternDetail('sunrise://knowledge/patterns/1', null, {
+    const result = await handlePatternDetail('resparkable://knowledge/patterns/1', null, {
       scopedAgentId: null,
       apiKeyId: 'key-1',
     });
@@ -76,7 +76,7 @@ describe('handlePatternDetail', () => {
   it('echoes the URI back in the result', async () => {
     vi.mocked(prisma.aiKnowledgeChunk.findMany).mockResolvedValue([makeChunk()] as never);
 
-    const uri = 'sunrise://knowledge/patterns/3';
+    const uri = 'resparkable://knowledge/patterns/3';
     const result = await handlePatternDetail(uri, null, { scopedAgentId: null, apiKeyId: 'key-1' });
 
     expect(result.uri).toBe(uri);
@@ -85,7 +85,7 @@ describe('handlePatternDetail', () => {
   it('queries aiKnowledgeChunk with correct patternNumber', async () => {
     vi.mocked(prisma.aiKnowledgeChunk.findMany).mockResolvedValue([makeChunk()] as never);
 
-    await handlePatternDetail('sunrise://knowledge/patterns/7', null, {
+    await handlePatternDetail('resparkable://knowledge/patterns/7', null, {
       scopedAgentId: null,
       apiKeyId: 'key-1',
     });
@@ -100,7 +100,7 @@ describe('handlePatternDetail', () => {
   it('orders chunks by chunkKey ascending', async () => {
     vi.mocked(prisma.aiKnowledgeChunk.findMany).mockResolvedValue([makeChunk()] as never);
 
-    await handlePatternDetail('sunrise://knowledge/patterns/1', null, {
+    await handlePatternDetail('resparkable://knowledge/patterns/1', null, {
       scopedAgentId: null,
       apiKeyId: 'key-1',
     });
@@ -115,7 +115,7 @@ describe('handlePatternDetail', () => {
   it('selects only the required fields', async () => {
     vi.mocked(prisma.aiKnowledgeChunk.findMany).mockResolvedValue([makeChunk()] as never);
 
-    await handlePatternDetail('sunrise://knowledge/patterns/1', null, {
+    await handlePatternDetail('resparkable://knowledge/patterns/1', null, {
       scopedAgentId: null,
       apiKeyId: 'key-1',
     });
@@ -135,7 +135,7 @@ describe('handlePatternDetail', () => {
   it('returns error JSON when pattern number is not found', async () => {
     vi.mocked(prisma.aiKnowledgeChunk.findMany).mockResolvedValue([]);
 
-    const result = await handlePatternDetail('sunrise://knowledge/patterns/99', null, {
+    const result = await handlePatternDetail('resparkable://knowledge/patterns/99', null, {
       scopedAgentId: null,
       apiKeyId: 'key-1',
     });
@@ -149,7 +149,7 @@ describe('handlePatternDetail', () => {
       makeChunk({ content: 'Overview content', section: 'Overview', chunkType: 'overview' }),
     ] as never);
 
-    const result = await handlePatternDetail('sunrise://knowledge/patterns/1', null, {
+    const result = await handlePatternDetail('resparkable://knowledge/patterns/1', null, {
       scopedAgentId: null,
       apiKeyId: 'key-1',
     });
@@ -171,7 +171,7 @@ describe('handlePatternDetail', () => {
       makeChunk({ patternName: 'Should be ignored', section: 'Details' }),
     ] as never);
 
-    const result = await handlePatternDetail('sunrise://knowledge/patterns/2', null, {
+    const result = await handlePatternDetail('resparkable://knowledge/patterns/2', null, {
       scopedAgentId: null,
       apiKeyId: 'key-1',
     });
@@ -187,7 +187,7 @@ describe('handlePatternDetail', () => {
       makeChunk({ content: 'Section 3', section: 'Examples', chunkType: 'example' }),
     ] as never);
 
-    const result = await handlePatternDetail('sunrise://knowledge/patterns/5', null, {
+    const result = await handlePatternDetail('resparkable://knowledge/patterns/5', null, {
       scopedAgentId: null,
       apiKeyId: 'key-1',
     });
@@ -202,7 +202,7 @@ describe('handlePatternDetail', () => {
 
     await expect(
       handlePatternDetail(
-        'sunrise://knowledge/patterns/1',
+        'resparkable://knowledge/patterns/1',
         { someConfig: true },
         { scopedAgentId: null, apiKeyId: 'key-1' }
       )

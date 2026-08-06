@@ -69,7 +69,7 @@ vi.mock('@/lib/api/context', () => ({
 const mockResendSend = vi.fn();
 vi.mock('@/lib/email/client', () => ({
   getResendClient: vi.fn(() => ({ emails: { send: mockResendSend } })),
-  getDefaultSender: vi.fn(() => 'Sunrise <noreply@example.com>'),
+  getDefaultSender: vi.fn(() => 'Resparkable <noreply@example.com>'),
   isEmailEnabled: vi.fn(() => true),
 }));
 vi.mock('@react-email/render', () => ({
@@ -77,7 +77,7 @@ vi.mock('@react-email/render', () => ({
 }));
 
 // Distinctive brand name so the subject assertion proves BRAND.name interpolation
-// rather than the "Sunrise" default (covered by lib/brand.test.tsx).
+// rather than the "Resparkable" default (covered by lib/brand.test.tsx).
 vi.mock('@/lib/brand', () => ({ BRAND: { name: 'Aurora Labs' } }));
 
 // ─── Imports after mocks ─────────────────────────────────────────────────────
@@ -285,7 +285,7 @@ describe('POST /api/v1/admin/orchestration/webhooks/:id/test', () => {
       };
       expect(parsed.event).toBe('ping');
       expect(typeof parsed.timestamp).toBe('string');
-      expect(parsed.data.message).toBe('Test event from Sunrise webhook configuration.');
+      expect(parsed.data.message).toBe('Test event from Resparkable webhook configuration.');
 
       // Compute expected HMAC using the real crypto module
       const expectedSignature = crypto
@@ -521,7 +521,7 @@ describe('POST /api/v1/admin/orchestration/webhooks/:id/test', () => {
       expect(mockResendSend).toHaveBeenCalledTimes(1);
       expect(mockResendSend).toHaveBeenCalledWith(
         expect.objectContaining({
-          from: 'Sunrise <noreply@example.com>',
+          from: 'Resparkable <noreply@example.com>',
           to: TEST_EMAIL,
           subject: '[Aurora Labs] Test event',
           html: expect.stringContaining('rendered'),

@@ -1,7 +1,7 @@
 /**
  * Admin nav registry (fork-readiness seam).
  *
- * Lets an app built on Sunrise add its own admin sidebar sections without
+ * Lets an app built on Resparkable add its own admin sidebar sections without
  * editing `components/admin/admin-sidebar.tsx`. The sidebar renders the core
  * sections followed by everything registered here.
  *

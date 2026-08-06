@@ -94,7 +94,7 @@ interface ChatRequest {
 - Omit `conversationId` to create a new `AiConversation` — `contextType` and `contextId` are persisted on the row at creation time only.
 - Supply `conversationId` to continue an existing conversation. Mismatched `userId` / `agentId` → `conversation_not_found`.
 - `entityContext` is opaque to the handler — it's passed straight through to `CapabilityContext.entityContext` so capabilities can read it.
-- `scope` is opaque to the handler — it's threaded straight through to `CapabilityContext.scope` (a generic carrier; core reads no keys). Absent and inert in vanilla Sunrise.
+- `scope` is opaque to the handler — it's threaded straight through to `CapabilityContext.scope` (a generic carrier; core reads no keys). Absent and inert in vanilla Resparkable.
 - `requestId` is a correlation ID for structured log tracing. When provided, the handler creates a scoped logger via `logger.withContext({ requestId })` so all log entries from the chat turn are traceable. The chat stream route extracts this from the `x-request-id` header automatically.
 - `signal` is forwarded into every `provider.chatStream` call.
 - `includeTrace` is the admin-only opt-in for inline tool-call diagnostics. See [Inline trace annotations](#inline-trace-annotations-admin-only) below.
@@ -524,13 +524,13 @@ const conversationId =
 const events = streamChat({ message, agentSlug, userId, conversationId, contextType, contextId });
 ```
 
-It returns the **id** of the user's most-recent-active conversation for that tuple (ordered by `updatedAt` desc), or `null` if none. The query is always scoped to `userId` + `agentId` + `isActive`, so a surface can never resume into another user's, another agent's, or an archived conversation — centralising that scoping is the point (a hand-rolled copy that forgets `userId` is a cross-user leak). **Deciding when to resume is the caller's job** — the handler never resumes by tuple on its own (a chat request with no `conversationId` still opens a fresh conversation), so this is opt-in per surface. Vanilla Sunrise ships no surface that calls it; it's the primitive a fork (or a future core UI) uses instead of re-deriving the query. The existing `@@index([contextType, contextId])` on `AiConversation` supports the lookup — no migration.
+It returns the **id** of the user's most-recent-active conversation for that tuple (ordered by `updatedAt` desc), or `null` if none. The query is always scoped to `userId` + `agentId` + `isActive`, so a surface can never resume into another user's, another agent's, or an archived conversation — centralising that scoping is the point (a hand-rolled copy that forgets `userId` is a cross-user leak). **Deciding when to resume is the caller's job** — the handler never resumes by tuple on its own (a chat request with no `conversationId` still opens a fresh conversation), so this is opt-in per surface. Vanilla Resparkable ships no surface that calls it; it's the primitive a fork (or a future core UI) uses instead of re-deriving the query. The existing `@@index([contextType, contextId])` on `AiConversation` supports the lookup — no migration.
 
 ## Guard-floor seam
 
 The three inline guards — input (prompt-injection scan), [output](./output-guard.md) (topic/brand), [citation](./output-guard.md#citation-guard) — resolve their mode from the agent config (falling back to the global setting). `registerGuardFloorContributor(key, contributor)` lets a fork enforce a per-turn **minimum** mode for any of them without editing the guard sites — e.g. a governance policy that says "this surface must at least warn on output".
 
-**A floor only ever RAISES a guard, never lowers it.** Strictness is ordered `none` < `log_only` < `warn_and_continue` < `block`, and the effective mode is `max(resolved agent/global mode, strictest registered floor)`. An empty registry leaves guard-mode resolution byte-for-byte unchanged (inert in vanilla Sunrise).
+**A floor only ever RAISES a guard, never lowers it.** Strictness is ordered `none` < `log_only` < `warn_and_continue` < `block`, and the effective mode is `max(resolved agent/global mode, strictest registered floor)`. An empty registry leaves guard-mode resolution byte-for-byte unchanged (inert in vanilla Resparkable).
 
 A contributor is keyed on the turn's `(contextType, contextId, agentId)` and returns a `GuardFloors` = `Partial<Record<'input'|'output'|'citation', GuardMode>>` (it may be async). The handler collects floors **once** per turn (`collectGuardFloors`) and applies each via `applyGuardFloor(guard, resolvedMode, floors)` at the three guard sites. Multiple contributors merge to the strictest per guard; a contributor that throws is logged and ignored (never fails the turn); a returned value that isn't a known `GuardMode` is dropped.
 
@@ -551,7 +551,7 @@ Pairs with the [Guard-events seam](#guard-events-seam) below: a floor is a **pre
 
 The post-detection sibling of the guard-floor seam. When an inline guard **flags**, the handler calls `emitGuardEvent(...)` so a fork can OBSERVE the firing and react — notify, log, escalate — without editing the guard sites or changing detection. `registerGuardEventContributor(key, contributor)` registers the observer.
 
-**Fire-and-forget.** Emission never delays or breaks the turn: each contributor runs on a microtask (so it can't block the handler), and a synchronous throw or an async rejection is swallowed and logged. It fires **before** the `block` short-circuit, so a `block` outcome is still observed. An empty registry is a no-op — inert in vanilla Sunrise.
+**Fire-and-forget.** Emission never delays or breaks the turn: each contributor runs on a microtask (so it can't block the handler), and a synchronous throw or an async rejection is swallowed and logged. It fires **before** the `block` short-circuit, so a `block` outcome is still observed. An empty registry is a no-op — inert in vanilla Resparkable.
 
 A contributor receives a `GuardEventContext` keyed on the turn's `(contextType, contextId, agentId, userId, conversationId)` and a `GuardEvent` = `{ guard: 'input'|'output'|'citation', outcome: GuardMode }` — where `outcome` is the effective mode the guard acted in (`block` = turn stopped, `warn_and_continue` = warned, `log_only` = logged only, `none` = flagged but no action). It is **observation only**: it cannot change detection or the action taken (use a guard-floor contributor to raise strictness).
 
@@ -633,7 +633,7 @@ Dispatcher-level failures (`unknown_capability`, `rate_limited`, `requires_appro
 
 ## OTEL tracing
 
-The chat turn is wrapped in a top-level `chat.turn` span; each pass through the streaming retry loop opens an `llm.call` child span. Mid-stream provider failover is recorded as an exception + `sunrise.provider.failover_from` / `sunrise.provider.failover_to` attributes on the failed span; the retry attempt opens a fresh `llm.call` sibling. Capability dispatches automatically attach as children of the active `llm.call` via the dispatcher's internal wrap.
+The chat turn is wrapped in a top-level `chat.turn` span; each pass through the streaming retry loop opens an `llm.call` child span. Mid-stream provider failover is recorded as an exception + `resparkable.provider.failover_from` / `resparkable.provider.failover_to` attributes on the failed span; the retry attempt opens a fresh `llm.call` sibling. Capability dispatches automatically attach as children of the active `llm.call` via the dispatcher's internal wrap.
 
 Span status follows OTEL conventions: `error` for caught exceptions (provider error, internal error, `ChatError`); `ok` for in-try error events (budget exceeded, output guard block, conversation cap) — application-level outcomes equivalent to HTTP 4xx, not transport failures.
 

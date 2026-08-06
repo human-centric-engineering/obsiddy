@@ -1,7 +1,7 @@
 /**
  * App guard-event contributor registrations.
  *
- * **Fork-owned scaffold** — Sunrise ships this empty and does NOT change it
+ * **Fork-owned scaffold** — Resparkable ships this empty and does NOT change it
  * after release, so your edits here merge cleanly on upgrade (the stable
  * contract is this file's export, not its body). Treat it like the other
  * `lib/app/*` seams.

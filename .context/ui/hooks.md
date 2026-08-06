@@ -23,12 +23,12 @@ export function useLocalStorage<T>(
 ### Caveats
 
 - Do **not** store `Date`, `Map`, `Set`, class instances, or functions — they don't survive the JSON round-trip. Store plain data only.
-- Version your keys when the stored shape might change (e.g., `sunrise.mything.v1`). Bump the version on breaking changes so stale drafts are ignored silently.
+- Version your keys when the stored shape might change (e.g., `resparkable.mything.v1`). Bump the version on breaking changes so stale drafts are ignored silently.
 
 ### Example
 
 ```tsx
-const [draft, setDraft, clearDraft] = useLocalStorage('sunrise.wizard.v1', {
+const [draft, setDraft, clearDraft] = useLocalStorage('resparkable.wizard.v1', {
   stepIndex: 0,
   name: '',
 });

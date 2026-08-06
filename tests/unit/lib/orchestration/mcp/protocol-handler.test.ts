@@ -599,7 +599,7 @@ describe('handleMcpRequest', () => {
     it('returns the resources list', async () => {
       vi.mocked(listMcpResources).mockResolvedValue([
         {
-          uri: 'sunrise://agents',
+          uri: 'resparkable://agents',
           name: 'Agents',
           description: 'Agent list',
           mimeType: 'application/json',
@@ -614,7 +614,7 @@ describe('handleMcpRequest', () => {
 
     it('returns all resources without nextCursor when count is <= 50', async () => {
       const resources = Array.from({ length: 5 }, (_, i) => ({
-        uri: `sunrise://resource_${i}`,
+        uri: `resparkable://resource_${i}`,
         name: `Resource ${i}`,
         description: `Desc ${i}`,
         mimeType: 'application/json',
@@ -630,7 +630,7 @@ describe('handleMcpRequest', () => {
 
     it('returns first 50 resources with nextCursor when more than 50 exist', async () => {
       const resources = Array.from({ length: 60 }, (_, i) => ({
-        uri: `sunrise://resource_${i}`,
+        uri: `resparkable://resource_${i}`,
         name: `Resource ${i}`,
         description: `Desc ${i}`,
         mimeType: 'application/json',
@@ -647,7 +647,7 @@ describe('handleMcpRequest', () => {
 
     it('returns correct page when a valid cursor is provided', async () => {
       const resources = Array.from({ length: 60 }, (_, i) => ({
-        uri: `sunrise://resource_${i}`,
+        uri: `resparkable://resource_${i}`,
         name: `Resource ${i}`,
         description: `Desc ${i}`,
         mimeType: 'application/json',
@@ -664,7 +664,7 @@ describe('handleMcpRequest', () => {
 
     it('starts from the beginning when an invalid cursor is provided', async () => {
       const resources = Array.from({ length: 3 }, (_, i) => ({
-        uri: `sunrise://resource_${i}`,
+        uri: `resparkable://resource_${i}`,
         name: `Resource ${i}`,
         description: `Desc ${i}`,
         mimeType: 'application/json',
@@ -686,7 +686,7 @@ describe('handleMcpRequest', () => {
     it('returns resource templates', async () => {
       vi.mocked(listMcpResourceTemplates).mockResolvedValue([
         {
-          uriTemplate: 'sunrise://knowledge/patterns/{number}',
+          uriTemplate: 'resparkable://knowledge/patterns/{number}',
           name: 'Pattern Detail',
           description: 'Get a specific pattern',
           mimeType: 'application/json',
@@ -698,7 +698,7 @@ describe('handleMcpRequest', () => {
       const data = result?.result as { resourceTemplates: unknown[] };
       expect(data.resourceTemplates).toHaveLength(1);
       expect((data.resourceTemplates[0] as Record<string, unknown>).uriTemplate).toBe(
-        'sunrise://knowledge/patterns/{number}'
+        'resparkable://knowledge/patterns/{number}'
       );
     });
 
@@ -741,12 +741,15 @@ describe('handleMcpRequest', () => {
   describe('resources/read', () => {
     it('returns resource contents when URI is valid', async () => {
       vi.mocked(readMcpResource).mockResolvedValue({
-        uri: 'sunrise://agents',
+        uri: 'resparkable://agents',
         mimeType: 'application/json',
         text: '[]',
       });
 
-      const req = makeRequest({ method: 'resources/read', params: { uri: 'sunrise://agents' } });
+      const req = makeRequest({
+        method: 'resources/read',
+        params: { uri: 'resparkable://agents' },
+      });
       const result = await handleMcpRequest(req, { auth, session, serverState, rateLimiter });
       const data = result?.result as { contents: unknown[] };
       expect(data.contents).toHaveLength(1);
@@ -755,10 +758,13 @@ describe('handleMcpRequest', () => {
     it('returns INVALID_PARAMS when resource is not found', async () => {
       vi.mocked(readMcpResource).mockResolvedValue(null);
 
-      const req = makeRequest({ method: 'resources/read', params: { uri: 'sunrise://missing' } });
+      const req = makeRequest({
+        method: 'resources/read',
+        params: { uri: 'resparkable://missing' },
+      });
       const result = await handleMcpRequest(req, { auth, session, serverState, rateLimiter });
       expect(result?.error?.code).toBe(JsonRpcErrorCode.INVALID_PARAMS);
-      expect(result?.error?.message).toContain('sunrise://missing');
+      expect(result?.error?.message).toContain('resparkable://missing');
     });
 
     it('returns INVALID_PARAMS when uri param is missing', async () => {
@@ -886,19 +892,19 @@ describe('handleMcpRequest', () => {
 
       const req = makeRequest({
         method: 'resources/subscribe',
-        params: { uri: 'sunrise://agents' },
+        params: { uri: 'resparkable://agents' },
       });
       const result = await handleMcpRequest(req, { auth, session, serverState, rateLimiter });
 
       expect(result?.error).toBeUndefined();
       expect(result?.result).toEqual({});
-      expect(subscribeMock).toHaveBeenCalledWith(session.id, 'sunrise://agents');
+      expect(subscribeMock).toHaveBeenCalledWith(session.id, 'resparkable://agents');
     });
 
     it('rejects template URIs with INVALID_PARAMS', async () => {
       const req = makeRequest({
         method: 'resources/subscribe',
-        params: { uri: 'sunrise://patterns/{id}' },
+        params: { uri: 'resparkable://patterns/{id}' },
       });
       const result = await handleMcpRequest(req, { auth, session, serverState, rateLimiter });
       expect(result?.error?.code).toBe(JsonRpcErrorCode.INVALID_PARAMS);
@@ -912,7 +918,7 @@ describe('handleMcpRequest', () => {
       vi.mocked(isRegisteredMcpResourceUri).mockResolvedValue(false);
       const req = makeRequest({
         method: 'resources/subscribe',
-        params: { uri: 'sunrise://nobody/here' },
+        params: { uri: 'resparkable://nobody/here' },
       });
       const result = await handleMcpRequest(req, { auth, session, serverState, rateLimiter });
       expect(result?.error?.code).toBe(JsonRpcErrorCode.INVALID_PARAMS);
@@ -926,7 +932,7 @@ describe('handleMcpRequest', () => {
 
       const req = makeRequest({
         method: 'resources/subscribe',
-        params: { uri: 'sunrise://agents' },
+        params: { uri: 'resparkable://agents' },
       });
       const result = await handleMcpRequest(req, { auth, session, serverState, rateLimiter });
       expect(result?.error?.code).toBe(JsonRpcErrorCode.INVALID_REQUEST);
@@ -937,7 +943,7 @@ describe('handleMcpRequest', () => {
       const noScopeAuth = makeAuth({ scopes: [] });
       const req = makeRequest({
         method: 'resources/subscribe',
-        params: { uri: 'sunrise://agents' },
+        params: { uri: 'resparkable://agents' },
       });
       const result = await handleMcpRequest(req, {
         auth: noScopeAuth,
@@ -966,13 +972,13 @@ describe('handleMcpRequest', () => {
 
       const req = makeRequest({
         method: 'resources/unsubscribe',
-        params: { uri: 'sunrise://agents' },
+        params: { uri: 'resparkable://agents' },
       });
       const result = await handleMcpRequest(req, { auth, session, serverState, rateLimiter });
 
       expect(result?.error).toBeUndefined();
       expect(result?.result).toEqual({});
-      expect(unsubscribeMock).toHaveBeenCalledWith(session.id, 'sunrise://agents');
+      expect(unsubscribeMock).toHaveBeenCalledWith(session.id, 'resparkable://agents');
     });
   });
 
@@ -1049,7 +1055,7 @@ describe('handleMcpRequest', () => {
       const req = makeRequest({
         method: 'resources/read',
         params: {
-          uri: 'sunrise://x',
+          uri: 'resparkable://x',
           _meta: { progressToken: 'x'.repeat(257) },
         },
       });
@@ -1103,7 +1109,7 @@ describe('handleMcpRequest', () => {
       const req = makeRequest({
         method: 'completion/complete',
         params: {
-          ref: { type: 'ref/resource', uri: 'sunrise://x' },
+          ref: { type: 'ref/resource', uri: 'resparkable://x' },
           argument: { name: 'x', value: '' },
         },
       });

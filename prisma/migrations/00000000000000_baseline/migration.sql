@@ -101,7 +101,7 @@ CREATE TABLE "mcp_server_config" (
     "id" TEXT NOT NULL,
     "slug" TEXT NOT NULL DEFAULT 'global',
     "isEnabled" BOOLEAN NOT NULL DEFAULT false,
-    "serverName" TEXT NOT NULL DEFAULT 'Sunrise MCP Server',
+    "serverName" TEXT NOT NULL DEFAULT 'Resparkable MCP Server',
     "serverVersion" TEXT NOT NULL DEFAULT '1.0.0',
     "maxSessionsPerKey" INTEGER NOT NULL DEFAULT 5,
     "globalRateLimit" INTEGER NOT NULL DEFAULT 60,

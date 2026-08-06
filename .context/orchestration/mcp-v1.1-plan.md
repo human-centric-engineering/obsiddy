@@ -15,7 +15,7 @@ All four enhancements have been implemented and tested. This document is retaine
 
 ## Enhancement 1: Resource Templates (`resources/templates`)
 
-**What:** The MCP spec supports `resources/templates` for advertising URI templates (RFC 6570). Currently `sunrise://knowledge/patterns/{number}` works via pattern matching but clients have no way to discover it.
+**What:** The MCP spec supports `resources/templates` for advertising URI templates (RFC 6570). Currently `resparkable://knowledge/patterns/{number}` works via pattern matching but clients have no way to discover it.
 
 **Why:** Clients like Claude Desktop can auto-complete parameterized URIs if they know the template. Without this, clients must hardcode or guess URI patterns.
 

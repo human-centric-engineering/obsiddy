@@ -6,7 +6,7 @@ Six-step guided flow that walks a new admin from "fresh install" to "I have a wo
 **Launcher:** `components/admin/orchestration/setup-wizard-launcher.tsx`
 **Banner:** `components/admin/orchestration/setup-required-banner.tsx`
 **Setup probe:** `lib/orchestration/setup-state.ts` (`getSetupState()`)
-**Storage key:** `sunrise.orchestration.setup-wizard.v2`
+**Storage key:** `resparkable.orchestration.setup-wizard.v2`
 
 ## Steps
 
@@ -45,7 +45,7 @@ Both writes go through `PATCH /api/v1/admin/orchestration/settings` and invalida
 
 - **Probe on open.** The wizard fans out `GET /providers?limit=1` and `GET /agents?limit=1` on first open. If `agents.total >= 1`, it jumps to step 5 (test). If only `providers.total >= 1`, it jumps to step 3 (confirm default models). Step indexes match the 6-step layout: `0 intro · 1 provider · 2 default models · 3 agent · 4 test · 5 done`.
 - **Resume.** Step index + draft form values are persisted under the versioned localStorage key. Closing and reopening the dialog resumes at the same step. `Finish` clears the key.
-- **Versioned key.** `sunrise.orchestration.setup-wizard.v2`. The bump from `v1` was driven by the layout change (5 → 6 steps) and the removal of hardcoded `provider: 'anthropic'` / `model: 'claude-opus-4-6'` defaults from the agent draft.
+- **Versioned key.** `resparkable.orchestration.setup-wizard.v2`. The bump from `v1` was driven by the layout change (5 → 6 steps) and the removal of hardcoded `provider: 'anthropic'` / `model: 'claude-opus-4-6'` defaults from the agent draft.
 - **Friendly errors only.** Server errors are never forwarded verbatim — see `.context/orchestration/chat.md` for the matching server-side sanitization.
 - **Abort on unmount.** The SSE chat step holds an `AbortController` (in shared `<AgentTestChat>` component, `components/admin/orchestration/agent-test-chat.tsx`).
 

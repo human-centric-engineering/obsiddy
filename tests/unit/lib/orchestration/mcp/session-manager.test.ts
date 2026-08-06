@@ -128,59 +128,59 @@ describe('McpSessionManager', () => {
   describe('subscriptions', () => {
     it('subscribe is idempotent (duplicate calls return ok and do not double-count)', () => {
       const s = manager.createSession(KEY_ID, 5)!;
-      expect(manager.subscribe(s.id, 'sunrise://agents')).toBe('ok');
-      expect(manager.subscribe(s.id, 'sunrise://agents')).toBe('ok');
+      expect(manager.subscribe(s.id, 'resparkable://agents')).toBe('ok');
+      expect(manager.subscribe(s.id, 'resparkable://agents')).toBe('ok');
       expect(manager.getSubscriptionCount(s.id)).toBe(1);
     });
 
     it('rejects subscribe when session is unknown', () => {
-      expect(manager.subscribe('no-session', 'sunrise://agents')).toBe('session-not-found');
+      expect(manager.subscribe('no-session', 'resparkable://agents')).toBe('session-not-found');
     });
 
     it('rejects subscribe at the per-session cap', () => {
       // Build a manager with a non-default TTL so this is fast; uses real cap.
       const s = manager.createSession(KEY_ID, 5)!;
       for (let i = 0; i < 50; i++) {
-        expect(manager.subscribe(s.id, `sunrise://x/${String(i)}`)).toBe('ok');
+        expect(manager.subscribe(s.id, `resparkable://x/${String(i)}`)).toBe('ok');
       }
-      expect(manager.subscribe(s.id, 'sunrise://x/51')).toBe('limit-exceeded');
+      expect(manager.subscribe(s.id, 'resparkable://x/51')).toBe('limit-exceeded');
       expect(manager.getSubscriptionCount(s.id)).toBe(50);
     });
 
     it('unsubscribe is idempotent (no error when not subscribed)', () => {
       const s = manager.createSession(KEY_ID, 5)!;
-      expect(manager.unsubscribe(s.id, 'sunrise://nothing')).toBe('ok');
+      expect(manager.unsubscribe(s.id, 'resparkable://nothing')).toBe('ok');
     });
 
     it('unsubscribe removes a previously-subscribed URI', () => {
       const s = manager.createSession(KEY_ID, 5)!;
-      manager.subscribe(s.id, 'sunrise://agents');
-      manager.unsubscribe(s.id, 'sunrise://agents');
+      manager.subscribe(s.id, 'resparkable://agents');
+      manager.unsubscribe(s.id, 'resparkable://agents');
       expect(manager.getSubscriptionCount(s.id)).toBe(0);
     });
 
     it('getSubscribers returns sessions that have subscribed to the URI', () => {
       const a = manager.createSession(KEY_ID, 5)!;
       const b = manager.createSession(KEY_ID_2, 5)!;
-      manager.subscribe(a.id, 'sunrise://agents');
-      manager.subscribe(b.id, 'sunrise://agents');
-      const subscribers = manager.getSubscribers('sunrise://agents');
+      manager.subscribe(a.id, 'resparkable://agents');
+      manager.subscribe(b.id, 'resparkable://agents');
+      const subscribers = manager.getSubscribers('resparkable://agents');
       expect(subscribers.sort()).toEqual([a.id, b.id].sort());
     });
 
     it("destroySession clears the session's subscriptions", () => {
       const s = manager.createSession(KEY_ID, 5)!;
-      manager.subscribe(s.id, 'sunrise://agents');
+      manager.subscribe(s.id, 'resparkable://agents');
       manager.destroySession(s.id);
-      expect(manager.getSubscribers('sunrise://agents')).toEqual([]);
+      expect(manager.getSubscribers('resparkable://agents')).toEqual([]);
     });
 
     it('expired session no longer appears as a subscriber', async () => {
       const shortTtl = new McpSessionManager(50);
       const s = shortTtl.createSession(KEY_ID, 5)!;
-      shortTtl.subscribe(s.id, 'sunrise://agents');
+      shortTtl.subscribe(s.id, 'resparkable://agents');
       await new Promise((r) => setTimeout(r, 60));
-      expect(shortTtl.getSubscribers('sunrise://agents')).toEqual([]);
+      expect(shortTtl.getSubscribers('resparkable://agents')).toEqual([]);
       shortTtl.destroy();
     });
   });
@@ -198,7 +198,7 @@ describe('McpSessionManager', () => {
         {
           jsonrpc: '2.0',
           method: 'notifications/resources/updated',
-          params: { uri: 'sunrise://agents' },
+          params: { uri: 'resparkable://agents' },
         },
         [a.id]
       );

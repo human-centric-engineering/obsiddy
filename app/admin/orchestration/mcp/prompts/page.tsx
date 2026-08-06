@@ -81,8 +81,8 @@ export default async function McpPromptsPage() {
             <p className="text-foreground mt-2 font-medium">Template syntax</p>
             <p>
               Use <code className="text-xs">{'{{argument_name}}'}</code> to insert values declared
-              in the arguments list. Sunrise interpolates <em>only</em> declared argument names —
-              stray placeholders like <code>{'{{database_url}}'}</code> render literally. The MCP
+              in the arguments list. Resparkable interpolates <em>only</em> declared argument names
+              — stray placeholders like <code>{'{{database_url}}'}</code> render literally. The MCP
               spec does not mandate this; other servers may behave differently, so always declare
               every variable you reference.
             </p>
@@ -95,8 +95,8 @@ export default async function McpPromptsPage() {
               . Renaming the prompt, renaming an argument, or adding a required argument all break
               existing clients. To evolve behaviour, ship a new versioned name (e.g.{' '}
               <code className="text-xs">analyse-pattern-v2</code>) alongside the old one rather than
-              mutating in place. Sunrise enforces this — the admin UI cannot rename a prompt, only
-              delete + recreate. Removing an argument is <em>potentially</em> breaking: clients
+              mutating in place. Resparkable enforces this — the admin UI cannot rename a prompt,
+              only delete + recreate. Removing an argument is <em>potentially</em> breaking: clients
               tolerate the missing field, but any template still referencing the removed placeholder
               will leak the raw <code>{'{{name}}'}</code> to users until you update the template.
             </p>

@@ -18,7 +18,7 @@
  * Note: The SignupForm component itself has its own separate test file.
  * These tests focus on the server component wrapper and page-level concerns.
  *
- * @see /Users/simonholmes/Documents/Dev/studio/sunrise/app/(auth)/signup/page.tsx
+ * @see /Users/simonholmes/Documents/Dev/studio/resparkable/app/(auth)/signup/page.tsx
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -70,7 +70,7 @@ describe('SignupPage', () => {
     });
 
     it('should have correct description', () => {
-      expect(metadata.description).toBe('Create a new Sunrise account');
+      expect(metadata.description).toBe('Create a new Resparkable account');
     });
   });
 

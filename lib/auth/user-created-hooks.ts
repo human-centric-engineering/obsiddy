@@ -1,7 +1,7 @@
 /**
  * User-creation hook registry.
  *
- * Lets an app built on Sunrise react to a new account without editing
+ * Lets an app built on Resparkable react to a new account without editing
  * `lib/auth/config.ts` — provisioning a profile row, seeding a default
  * workspace, enrolling the user in an onboarding sequence, calling a CRM.
  *
@@ -14,7 +14,7 @@
  *
  * **Hooks must not assume they can block signup.** They run AFTER the user row
  * exists, in better-auth's `databaseHooks.user.create.after`, alongside
- * Sunrise's own non-blocking work (default preferences, invitation redemption).
+ * Resparkable's own non-blocking work (default preferences, invitation redemption).
  * A throw is logged and swallowed: the account has already been created, so
  * failing the request would leave the caller believing signup failed when it
  * did not. Rejecting a signup happens pre-creation, in `userCreateBeforeHook`
@@ -97,7 +97,7 @@ export function __resetUserCreatedHooksForTests(): void {
  *
  * Never throws. Hooks run in parallel and are independent: one rejecting does
  * not prevent the others, and none of them can fail the signup. An empty
- * registry short-circuits — no behaviour change for vanilla Sunrise.
+ * registry short-circuits — no behaviour change for vanilla Resparkable.
  */
 export async function dispatchUserCreated(ctx: UserCreatedContext): Promise<void> {
   ensureAppUserCreatedHooksInited();

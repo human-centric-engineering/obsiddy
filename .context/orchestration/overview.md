@@ -1,6 +1,6 @@
 # Agent Orchestration — Engineering Directory
 
-The orchestration layer lives in `lib/orchestration/` and powers the Sunrise admin dashboard's AI agent system. This page is the engineering-side directory map for `.context/orchestration/` — one row per topic doc.
+The orchestration layer lives in `lib/orchestration/` and powers the Resparkable admin dashboard's AI agent system. This page is the engineering-side directory map for `.context/orchestration/` — one row per topic doc.
 
 For the full module list, every step type, every capability, route counts, and the schema, see [`meta/functional-specification.md`](./meta/functional-specification.md). For the architectural rules code authors must follow, see [`.claude/docs/agent-orchestration.md`](../../.claude/docs/agent-orchestration.md). For the admin UI, see [`.context/admin/orchestration.md`](../admin/orchestration.md).
 

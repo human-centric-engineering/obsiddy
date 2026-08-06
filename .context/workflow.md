@@ -1,6 +1,6 @@
 # Git & Development Workflow
 
-Git conventions, branching strategy, and PR process for Sunrise.
+Git conventions, branching strategy, and PR process for Resparkable.
 
 ## Branching Strategy
 

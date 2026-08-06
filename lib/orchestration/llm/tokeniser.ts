@@ -20,7 +20,7 @@
  *      `count_tokens` endpoint and Google's `countTokens` SDK are
  *      therefore out — we use a local approximator for those.
  *   2. No WASM. `gpt-tokenizer` is pure JS so it works in any Node
- *      runtime Sunrise targets without bundler/CSP gymnastics.
+ *      runtime Resparkable targets without bundler/CSP gymnastics.
  *   3. Honest about precision. Only OpenAI gets exact counts; everyone
  *      else gets `o200k_base` (the most non-English-friendly OpenAI
  *      encoding) plus a small calibration multiplier, so the estimate

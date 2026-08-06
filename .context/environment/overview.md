@@ -2,7 +2,7 @@
 
 ## Overview
 
-Sunrise uses **Zod-validated environment variables** for type-safe configuration management. All environment variables are validated at application startup with fail-fast behavior, ensuring that configuration errors are caught immediately rather than at runtime.
+Resparkable uses **Zod-validated environment variables** for type-safe configuration management. All environment variables are validated at application startup with fail-fast behavior, ensuring that configuration errors are caught immediately rather than at runtime.
 
 **Key Benefits:**
 
@@ -29,7 +29,7 @@ cp .env.example .env.local
 #### Database (Required)
 
 ```bash
-DATABASE_URL="postgresql://user:password@localhost:5432/sunrise_db"
+DATABASE_URL="postgresql://user:password@localhost:5432/resparkable_db"
 ```
 
 For local development, use your local PostgreSQL instance. In Docker, use the service name `db` instead of `localhost`.
@@ -102,12 +102,12 @@ ALLOWED_ORIGINS="https://app.example.com,https://mobile.example.com"
 ```bash
 # OTEL_EXPORTER_OTLP_ENDPOINT=https://api.honeycomb.io
 # OTEL_EXPORTER_OTLP_HEADERS=x-honeycomb-team=YOUR_API_KEY
-# OTEL_SERVICE_NAME=sunrise-orchestration
+# OTEL_SERVICE_NAME=resparkable-orchestration
 # OTEL_TRACES_SAMPLER=parentbased_traceidratio
 # OTEL_TRACES_SAMPLER_ARG=0.1
 ```
 
-The orchestration layer ships a vendor-neutral tracer interface that defaults to a no-op — zero allocations and zero new dependencies when not used. To ingest spans into an OTLP-compatible backend (Datadog, Honeycomb, Grafana Tempo, Langfuse, MLflow ≥ 2.20), wire up OTEL via `instrumentation.ts` and call `registerOtelTracer()`. The `OTEL_*` env vars are consumed by `@opentelemetry/sdk-node` and the OTLP exporter directly — Sunrise itself does not read them through `lib/env.ts`.
+The orchestration layer ships a vendor-neutral tracer interface that defaults to a no-op — zero allocations and zero new dependencies when not used. To ingest spans into an OTLP-compatible backend (Datadog, Honeycomb, Grafana Tempo, Langfuse, MLflow ≥ 2.20), wire up OTEL via `instrumentation.ts` and call `registerOtelTracer()`. The `OTEL_*` env vars are consumed by `@opentelemetry/sdk-node` and the OTLP exporter directly — Resparkable itself does not read them through `lib/env.ts`.
 
 See [`.context/orchestration/tracing.md`](../orchestration/tracing.md) for full bootstrap recipes (Datadog, Honeycomb, Tempo, Langfuse), span tree, attribute reference, and sampling guidance.
 
@@ -334,13 +334,13 @@ openssl rand -base64 32
 **Local development:**
 
 ```bash
-DATABASE_URL="postgresql://postgres:password@localhost:5432/sunrise_db"
+DATABASE_URL="postgresql://postgres:password@localhost:5432/resparkable_db"
 ```
 
 **Docker Compose:**
 
 ```bash
-DATABASE_URL="postgresql://postgres:password@db:5432/sunrise_db"
+DATABASE_URL="postgresql://postgres:password@db:5432/resparkable_db"
 ```
 
 ### Authentication Not Working
@@ -447,7 +447,7 @@ Be extremely careful about `NEXT_PUBLIC_*` variables:
 
 The complete validation schema is in `lib/env.ts`. All variables are validated using Zod schemas with custom error messages.
 
-To add a new **platform** environment variable (contributing to Sunrise itself):
+To add a new **platform** environment variable (contributing to Resparkable itself):
 
 1. Add it to the schema in `lib/env.ts`
 2. Add it to `.env.example` with a description
@@ -469,7 +469,7 @@ const envSchema = z.object({
 
 ### App-defined variables (forks)
 
-If you're building an app **on top of** Sunrise, do NOT add your variables to the closed core schema in `lib/env.ts` — that's a platform file and editing it makes every upstream merge a conflict. Instead, declare them in the app-owned extension point, `lib/app/env.ts`, which exports `appEnvSchema`:
+If you're building an app **on top of** Resparkable, do NOT add your variables to the closed core schema in `lib/env.ts` — that's a platform file and editing it makes every upstream merge a conflict. Instead, declare them in the app-owned extension point, `lib/app/env.ts`, which exports `appEnvSchema`:
 
 ```typescript
 // lib/app/env.ts — yours to edit; the core validator merges this in

@@ -1,6 +1,6 @@
 # Docker Testing Guide
 
-This guide walks you through testing the Docker setup for Sunrise in your local development environment.
+This guide walks you through testing the Docker setup for Resparkable in your local development environment.
 
 ## Prerequisites
 
@@ -44,10 +44,10 @@ docker-compose up
 **Expected output (last few lines):**
 
 ```
-sunrise-db-dev   | ... ready to accept connections
-sunrise-dev      | ✓ Ready in 2.5s
-sunrise-dev      | ○ Compiling / ...
-sunrise-dev      | ✓ Compiled / in 1.2s
+resparkable-db-dev   | ... ready to accept connections
+resparkable-dev      | ✓ Ready in 2.5s
+resparkable-dev      | ○ Compiling / ...
+resparkable-dev      | ✓ Compiled / in 1.2s
 ```
 
 ### 1.3 Verify Services Are Running
@@ -62,8 +62,8 @@ docker-compose ps
 
 ```
 NAME                IMAGE                  STATUS
-sunrise-db-dev      postgres:15-alpine     Up (healthy)
-sunrise-dev         sunrise-dev            Up
+resparkable-db-dev      postgres:15-alpine     Up (healthy)
+resparkable-dev         resparkable-dev            Up
 ```
 
 Both containers should be "Up" and database should show "(healthy)".
@@ -73,7 +73,7 @@ Both containers should be "Up" and database should show "(healthy)".
 **In your browser, test these URLs:**
 
 1. **App homepage:** http://localhost:3000
-   - Should load the Sunrise landing page
+   - Should load the Resparkable landing page
    - No errors in browser console
 
 2. **Health check:** http://localhost:3000/api/health
@@ -124,7 +124,7 @@ docker-compose exec web npx prisma studio
 **Or access PostgreSQL directly:**
 
 ```bash
-docker-compose exec db psql -U postgres -d sunrise
+docker-compose exec db psql -U postgres -d resparkable
 ```
 
 Then run:
@@ -177,8 +177,8 @@ docker-compose down -v  # Remove volumes (deletes database data)
 The build needs four env vars passed as `--build-arg`. Next.js 16 evaluates server modules during page-data collection, which runs the Zod env validation in `lib/env.ts` — without these args the build fails with `Invalid environment variables`.
 
 ```bash
-docker build -t sunrise:latest \
-  --build-arg DATABASE_URL="postgresql://postgres:postgres@localhost:5432/sunrise" \
+docker build -t resparkable:latest \
+  --build-arg DATABASE_URL="postgresql://postgres:postgres@localhost:5432/resparkable" \
   --build-arg BETTER_AUTH_URL="http://localhost:3000" \
   --build-arg BETTER_AUTH_SECRET="$(openssl rand -base64 32)" \
   --build-arg NEXT_PUBLIC_APP_URL="http://localhost:3000" \
@@ -204,13 +204,13 @@ docker build -t sunrise:latest \
 ```
  => [runner 6/6] COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
  => exporting to image
- => => naming to docker.io/library/sunrise:latest
+ => => naming to docker.io/library/resparkable:latest
 ```
 
 ### 2.2 Check Image Size
 
 ```bash
-docker images sunrise:latest
+docker images resparkable:latest
 ```
 
 **Expected:**
@@ -224,7 +224,7 @@ docker images sunrise:latest
 
 ```bash
 cat > .env.test << 'EOF'
-DATABASE_URL="postgresql://postgres:postgres@db:5432/sunrise"
+DATABASE_URL="postgresql://postgres:postgres@db:5432/resparkable"
 BETTER_AUTH_URL="http://localhost:3001"
 BETTER_AUTH_SECRET="test-secret-min-32-characters-long-for-testing-only"
 NEXT_PUBLIC_APP_URL="http://localhost:3001"
@@ -235,7 +235,7 @@ EOF
 **Run production container on a different port:**
 
 ```bash
-docker run --rm -p 3001:3000 --env-file .env.test sunrise:latest
+docker run --rm -p 3001:3000 --env-file .env.test resparkable:latest
 ```
 
 **Note:** This will fail to connect to the database (because we're not running the db container), but it confirms the build is valid.
@@ -271,9 +271,9 @@ docker-compose -f docker-compose.prod.yml ps
 
 ```
 NAME            STATUS
-sunrise-web     Up (healthy)
-sunrise-db      Up (healthy)
-sunrise-nginx   Up
+resparkable-web     Up (healthy)
+resparkable-db      Up (healthy)
+resparkable-nginx   Up
 ```
 
 **Run migrations:**
@@ -430,8 +430,8 @@ docker-compose logs -f web     # View logs
 docker-compose restart web     # Restart app
 
 # Production (build args required — see Test 2.1)
-docker build -t sunrise:latest \
-  --build-arg DATABASE_URL="postgresql://postgres:postgres@localhost:5432/sunrise" \
+docker build -t resparkable:latest \
+  --build-arg DATABASE_URL="postgresql://postgres:postgres@localhost:5432/resparkable" \
   --build-arg BETTER_AUTH_URL="http://localhost:3000" \
   --build-arg BETTER_AUTH_SECRET="$(openssl rand -base64 32)" \
   --build-arg NEXT_PUBLIC_APP_URL="http://localhost:3000" \

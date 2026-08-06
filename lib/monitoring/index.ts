@@ -1,7 +1,7 @@
 /**
  * Monitoring Module
  *
- * Performance measurement and monitoring utilities for Sunrise.
+ * Performance measurement and monitoring utilities for Resparkable.
  *
  * Features:
  * - Async/sync operation timing

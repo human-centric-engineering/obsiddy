@@ -17,7 +17,7 @@ import { BRAND } from '@/lib/brand';
 /**
  * The three fonts, and the one rule that keeps them apart.
  *
- * Obsiddy's premise is that the *chrome is an instrument and the content is a
+ * Resparkable's premise is that the *chrome is an instrument and the content is a
  * page*: the shell around your notes should read like a terminal — dense,
  * aligned, monospaced — while the notes themselves should read like something a
  * person wrote. One family cannot do both jobs. A whole UI set in monospace is
@@ -41,21 +41,21 @@ import { BRAND } from '@/lib/brand';
 const fontDisplay = Martian_Mono({
   subsets: ['latin'],
   weight: ['400', '500', '600', '700'],
-  variable: '--font-obsiddy-display',
+  variable: '--font-resparkable-display',
   display: 'swap',
 });
 
 const fontMono = JetBrains_Mono({
   subsets: ['latin'],
   weight: ['400', '500', '600', '700'],
-  variable: '--font-obsiddy-mono',
+  variable: '--font-resparkable-mono',
   display: 'swap',
 });
 
 const fontSans = Archivo({
   subsets: ['latin'],
   weight: ['400', '500', '600', '700'],
-  variable: '--font-obsiddy-sans',
+  variable: '--font-resparkable-sans',
   display: 'swap',
 });
 
@@ -73,7 +73,7 @@ export default async function RootLayout({
   const headersList = await headers();
   const nonce = headersList.get('x-nonce') ?? undefined;
   // Rendering surface, classified per-request in proxy.ts. Drives the fork-owned
-  // app/brand-theme.css (empty in vanilla Sunrise). On <html> so body-portaled
+  // app/brand-theme.css (empty in vanilla Resparkable). On <html> so body-portaled
   // overlays inherit it; kept current across client nav by <SurfaceSync> below.
   const surface = headersList.get('x-surface') ?? DEFAULT_SURFACE;
 

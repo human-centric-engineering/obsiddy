@@ -61,7 +61,7 @@ RESEND_API_KEY="re_123456789_abcdefghijklmnopqrstuvwxyz"
 EMAIL_FROM="noreply@example.com"
 
 # With display name (recommended)
-EMAIL_FROM="Sunrise App <noreply@example.com>"
+EMAIL_FROM="Resparkable App <noreply@example.com>"
 ```
 
 **Domain Verification:**
@@ -77,13 +77,13 @@ For production, you must verify your domain with Resend:
 
 **Recommended Patterns by Email Type:**
 
-| Email Type     | Sender Address        | Display Name               |
-| -------------- | --------------------- | -------------------------- |
-| Verification   | `noreply@example.com` | `Sunrise - Verify Email`   |
-| Password Reset | `noreply@example.com` | `Sunrise - Password Reset` |
-| Invitation     | `noreply@example.com` | `Sunrise - You're Invited` |
-| Welcome        | `hello@example.com`   | `Sunrise Team`             |
-| Support        | `support@example.com` | `Sunrise Support`          |
+| Email Type     | Sender Address        | Display Name                   |
+| -------------- | --------------------- | ------------------------------ |
+| Verification   | `noreply@example.com` | `Resparkable - Verify Email`   |
+| Password Reset | `noreply@example.com` | `Resparkable - Password Reset` |
+| Invitation     | `noreply@example.com` | `Resparkable - You're Invited` |
+| Welcome        | `hello@example.com`   | `Resparkable Team`             |
+| Support        | `support@example.com` | `Resparkable Support`          |
 
 ## `EMAIL_FROM_NAME`
 
@@ -98,12 +98,12 @@ For production, you must verify your domain with Resend:
 
 ```bash
 # Simple name
-EMAIL_FROM_NAME="Sunrise"
-# Result: "Sunrise <noreply@example.com>"
+EMAIL_FROM_NAME="Resparkable"
+# Result: "Resparkable <noreply@example.com>"
 
 # App name with context
-EMAIL_FROM_NAME="Sunrise App"
-# Result: "Sunrise App <noreply@example.com>"
+EMAIL_FROM_NAME="Resparkable App"
+# Result: "Resparkable App <noreply@example.com>"
 ```
 
 **Best Practices:**

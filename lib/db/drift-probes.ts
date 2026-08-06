@@ -4,7 +4,7 @@
  * A "drift probe" checks the deployed Postgres for one object the Prisma schema
  * cannot model (a GIN/HNSW index, a partial-unique index, a CHECK constraint, a
  * GENERATED column, a hand-written FK constraint, …). `scripts/db/check-drift.ts`
- * runs Sunrise's own A-series probes; forks register their own here so CI checks
+ * runs Resparkable's own A-series probes; forks register their own here so CI checks
  * them alongside, without editing the platform script.
  *
  * Why this exists: `prisma migrate dev` computes desired state from the schema
@@ -170,7 +170,7 @@ export function resetAppDriftProbes(): void {
 /**
  * Concatenate the platform (A-series) probes with the app-registered ones,
  * throwing if an app probe reuses a platform probe `name` — a fork must not be
- * able to shadow a Sunrise probe and silently disable it.
+ * able to shadow a Resparkable probe and silently disable it.
  */
 export function mergeDriftProbes(
   platform: readonly DriftObject[],

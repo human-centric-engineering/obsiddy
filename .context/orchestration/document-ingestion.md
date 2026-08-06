@@ -197,7 +197,7 @@ The number of stripped lines and pattern count are written to
 `document.metadata.headersFootersStripped` / `document.metadata.headerFooterPatterns`
 so the admin can see the effect. No-op on documents fewer than 3 pages.
 
-For scanned PDFs Sunrise does not ship OCR — produce a searchable PDF
+For scanned PDFs Resparkable does not ship OCR — produce a searchable PDF
 externally first (macOS Preview, Adobe Acrobat, `ocrmypdf`) then re-upload.
 
 ### Opt-in table extraction

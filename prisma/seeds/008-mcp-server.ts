@@ -20,7 +20,7 @@ const unit: SeedUnit = {
       create: {
         slug: 'global',
         isEnabled: false,
-        serverName: 'Sunrise MCP Server',
+        serverName: 'Resparkable MCP Server',
         serverVersion: '1.0.0',
         maxSessionsPerKey: 5,
         globalRateLimit: 60,
@@ -69,21 +69,21 @@ const unit: SeedUnit = {
     // 3. Default resources (disabled by default)
     const defaultResources = [
       {
-        uri: 'sunrise://knowledge/search',
+        uri: 'resparkable://knowledge/search',
         name: 'Knowledge Base Search',
         description: 'Semantic search over the agentic patterns knowledge base.',
         mimeType: 'application/json',
         resourceType: 'knowledge_search',
       },
       {
-        uri: 'sunrise://agents',
+        uri: 'resparkable://agents',
         name: 'Agent List',
         description: 'List of active AI agents with name, slug, and description.',
         mimeType: 'application/json',
         resourceType: 'agent_list',
       },
       {
-        uri: 'sunrise://workflows',
+        uri: 'resparkable://workflows',
         name: 'Workflow List',
         description: 'List of active workflows with name, slug, and description.',
         mimeType: 'application/json',

@@ -60,7 +60,7 @@ export async function fetchDocumentFromUrl(url: string): Promise<FetchedDocument
   const response = await fetch(url, {
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     headers: {
-      'User-Agent': 'Sunrise-KnowledgeBase/1.0',
+      'User-Agent': 'Resparkable-KnowledgeBase/1.0',
       Accept:
         'text/html, application/xhtml+xml, text/plain, text/markdown, application/pdf, application/epub+zip, application/vnd.openxmlformats-officedocument.wordprocessingml.document, */*',
     },

@@ -170,12 +170,12 @@ describe('lib/email/client', () => {
       const { env } = await import('@/lib/env');
       const { logger } = await import('@/lib/logging');
 
-      env.EMAIL_FROM = 'noreply@sunrise.com';
+      env.EMAIL_FROM = 'noreply@resparkable.com';
       env.EMAIL_FROM_NAME = '';
 
       const result = getDefaultSender();
 
-      expect(result).toBe('noreply@sunrise.com');
+      expect(result).toBe('noreply@resparkable.com');
       expect(logger.warn).not.toHaveBeenCalled(); // test-review:accept no_arg_called — error-path guard: function must not be called;
     });
 
@@ -183,12 +183,12 @@ describe('lib/email/client', () => {
       const { env } = await import('@/lib/env');
       const { logger } = await import('@/lib/logging');
 
-      env.EMAIL_FROM = 'noreply@sunrise.com';
-      env.EMAIL_FROM_NAME = 'Sunrise Team';
+      env.EMAIL_FROM = 'noreply@resparkable.com';
+      env.EMAIL_FROM_NAME = 'Resparkable Team';
 
       const result = getDefaultSender();
 
-      expect(result).toBe('Sunrise Team <noreply@sunrise.com>');
+      expect(result).toBe('Resparkable Team <noreply@resparkable.com>');
       expect(logger.warn).not.toHaveBeenCalled(); // test-review:accept no_arg_called — error-path guard: function must not be called;
     });
 
@@ -197,11 +197,11 @@ describe('lib/email/client', () => {
       const { logger } = await import('@/lib/logging');
 
       env.EMAIL_FROM = '';
-      env.EMAIL_FROM_NAME = 'Sunrise Team';
+      env.EMAIL_FROM_NAME = 'Resparkable Team';
 
       const result = getDefaultSender();
 
-      expect(result).toBe('Sunrise Team <noreply@localhost>');
+      expect(result).toBe('Resparkable Team <noreply@localhost>');
       expect(logger.warn).toHaveBeenCalledWith(
         'EMAIL_FROM not configured - using fallback sender',
         {

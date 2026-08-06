@@ -26,9 +26,9 @@ git diff --exit-code -- prisma/schema
 
 A non-zero exit means the schema is not formatted per the pinned Prisma. Commit the reformat — do not hand-edit it back.
 
-Run this **whenever `package.json` changes**, not only when `prisma/` does. The drift is normally triggered by a Prisma version bump reformatting a schema file nobody touched: `@prisma/client` 7.8 → 7.9 changed field alignment and block-attribute ordering, which failed CI on `framework-obsiddy.prisma`, a file that branch never edited. Upstream hit the identical thing on `orchestration-agents.prisma` (#482).
+Run this **whenever `package.json` changes**, not only when `prisma/` does. The drift is normally triggered by a Prisma version bump reformatting a schema file nobody touched: `@prisma/client` 7.8 → 7.9 changed field alignment and block-attribute ordering, which failed CI on `framework-resparkable.prisma`, a file that branch never edited. Upstream hit the identical thing on `orchestration-agents.prisma` (#482).
 
-Filed upstream as [sunrise#510](https://github.com/human-centric-engineering/sunrise/issues/510) — the check belongs in `validate` so every fork gets it, rather than living only in CI where forks discover it the hard way.
+Filed upstream as [resparkable#510](https://github.com/human-centric-engineering/sunrise/issues/510) — the check belongs in `validate` so every fork gets it, rather than living only in CI where forks discover it the hard way.
 
 **Migration drift check (DB objects Prisma can't model).** Only if this branch touched `prisma/`:
 
@@ -145,7 +145,7 @@ If any `.context/` files were identified in Step 2, read them and flag:
 
 **5d. CHANGELOG hygiene — public-surface changes without a CHANGELOG entry**
 
-The Sunrise CHANGELOG is intentionally curated to the public surface defined in [`VERSIONING.md`](../../VERSIONING.md#public-surface-contract-tight-definition). PRs that change the public surface should add a bullet to `CHANGELOG.md`'s `[Unreleased]` section as part of the same PR. PRs that don't touch the public surface (internal refactors, tests, docs, chores) deliberately do NOT belong in the CHANGELOG and should NOT be flagged here.
+The Resparkable CHANGELOG is intentionally curated to the public surface defined in [`VERSIONING.md`](../../VERSIONING.md#public-surface-contract-tight-definition). PRs that change the public surface should add a bullet to `CHANGELOG.md`'s `[Unreleased]` section as part of the same PR. PRs that don't touch the public surface (internal refactors, tests, docs, chores) deliberately do NOT belong in the CHANGELOG and should NOT be flagged here.
 
 For each changed file from Step 2, decide whether it touches the public surface using these path heuristics (the "Covered" list in `VERSIONING.md`):
 

@@ -1,6 +1,6 @@
 # Testing Gotchas & Solutions
 
-Common pitfalls and their solutions for testing in Sunrise. These patterns have been validated across 559 tests.
+Common pitfalls and their solutions for testing in Resparkable. These patterns have been validated across 559 tests.
 
 ---
 
@@ -390,7 +390,7 @@ vi.mock('@/lib/utils/invitation-token', () => ({
 import { userCreateBeforeHook, userCreateAfterHook } from '@/lib/auth/config';
 ```
 
-**Why not just mock Resend directly**: some agents reach for `vi.mock('resend')` to silence the init error. That works but is tightly coupled to the current implementation and breaks when the email client changes. Mock `@/lib/email/client` (the Sunrise wrapper) instead — it's the stable boundary.
+**Why not just mock Resend directly**: some agents reach for `vi.mock('resend')` to silence the init error. That works but is tightly coupled to the current implementation and breaks when the email client changes. Mock `@/lib/email/client` (the Resparkable wrapper) instead — it's the stable boundary.
 
 **Status**: ✅ DOCUMENTED — Discovered during `/test-fix tests/unit/lib/auth/config-database-hook.test.ts` (2026-04-18) after extracting `userCreateBeforeHook` / `userCreateAfterHook` from the inline `betterAuth({...})` config. The previous test file never imported the config module because it used re-implementation helpers instead; the import-side-effect trap only surfaces once tests switch to calling real hook exports. Applies equally to the still-pending extractions for `sendResetPassword`, `afterEmailVerification`, and any other `@/lib/auth/config` hook.
 

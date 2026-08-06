@@ -49,7 +49,7 @@ export interface AdvisorPrompt {
  * get three.
  *
  * Editorial stance: every prompt should anchor on a real-world
- * problem someone might want Sunrise to solve — tenant repairs,
+ * problem someone might want Resparkable to solve — tenant repairs,
  * planning permission, mortgage case prep, energy bill disputes,
  * post-surgery rehab, garden advice, freelance admin, community
  * coordination — rather than abstract agentic theory. The goal is to

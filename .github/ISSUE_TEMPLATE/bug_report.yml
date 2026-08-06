@@ -107,7 +107,7 @@ body:
     id: deployment
     attributes:
       label: Deployment Method
-      description: How are you running Sunrise?
+      description: How are you running Resparkable?
       options:
         - Local development (npm run dev)
         - Docker

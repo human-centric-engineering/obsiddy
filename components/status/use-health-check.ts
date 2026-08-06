@@ -119,7 +119,7 @@ export function useHealthCheck(options: UseHealthCheckOptions = {}): UseHealthCh
       // Validate the response body against the documented shape rather than
       // a bare `as HealthCheckResponse` cast. A server returning a payload
       // that doesn't match the contract (e.g. an older deployment missing
-      // the `sunrise` field, or a stripping proxy) becomes a clear fetch
+      // the `resparkable` field, or a stripping proxy) becomes a clear fetch
       // error here instead of a silent `undefined` rendered in the UI.
       const parsed = healthCheckResponseSchema.safeParse(await response.json());
       if (!parsed.success) {

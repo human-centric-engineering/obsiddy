@@ -244,7 +244,7 @@ export const POST = withAdminAuth(async (request, session) => {
       clientIp: clientIP,
     });
 
-    // MCP subscribers to sunrise://agents need to know the list changed.
+    // MCP subscribers to resparkable://agents need to know the list changed.
     notifyMcpAgentsChanged();
 
     return successResponse(agent, undefined, { status: 201 });

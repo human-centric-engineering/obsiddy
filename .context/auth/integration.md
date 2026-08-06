@@ -1,6 +1,6 @@
 # Authentication Integration
 
-Better-auth integrates deeply with Next.js 16+ App Router through server components, proxy, and route handlers in Sunrise. This document covers route protection patterns.
+Better-auth integrates deeply with Next.js 16+ App Router through server components, proxy, and route handlers in Resparkable. This document covers route protection patterns.
 
 **Related Documents:**
 

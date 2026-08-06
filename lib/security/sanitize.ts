@@ -292,8 +292,8 @@ export function safeCallbackUrl(url: string | null, fallback: string = '/'): str
  * `//evil.com` in the browser. Verified: `new URL('/\t/evil.com', base).href`
  * is `https://evil.com/`. Same for LF and CR, and for `/<TAB>\evil.com`.
  *
- * FORK NOTE (Obsiddy): this strip is a local edit to a Sunrise-owned file —
- * filed upstream as sunrise#506 (ask #20). Revert it the moment that lands; the
+ * FORK NOTE (Resparkable): this strip is a local edit to a Sunrise-owned file —
+ * filed upstream as resparkable#506 (ask #20). Revert it the moment that lands; the
  * rest of the function is upstream's.
  */
 export function isRootRelativePath(path: string): boolean {

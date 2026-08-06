@@ -1,6 +1,6 @@
 # Testing Architectural Decisions
 
-Key architectural decisions and rationale for the Sunrise testing infrastructure.
+Key architectural decisions and rationale for the Resparkable testing infrastructure.
 
 ## Technology Choices
 

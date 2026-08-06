@@ -13,7 +13,7 @@
 
 import { prisma } from '@/lib/db/client';
 import type { McpServerState } from '@/lib/orchestration/mcp/types';
-import { SUNRISE_VERSION } from '@/lib/sunrise-version';
+import { RESPARKABLE_VERSION } from '@/lib/resparkable-version';
 
 /**
  * Five minutes, not the one minute this used to be. At 60s the TTL matched the
@@ -42,13 +42,13 @@ export async function getMcpServerConfig(): Promise<McpServerState> {
     create: {
       slug: 'global',
       isEnabled: false,
-      serverName: 'Sunrise MCP Server',
-      // Sunrise IS the MCP server implementation here, so serverVersion
-      // tracks SUNRISE_VERSION (the platform version), not the fork's app
-      // version. Operators bumping Sunrise releases get an automatic
+      serverName: 'Resparkable MCP Server',
+      // Resparkable IS the MCP server implementation here, so serverVersion
+      // tracks RESPARKABLE_VERSION (the platform version), not the fork's app
+      // version. Operators bumping Resparkable releases get an automatic
       // serverVersion bump on the next upsert; existing rows are preserved
       // by the `update: {}` clause so an admin's manual override is sticky.
-      serverVersion: SUNRISE_VERSION,
+      serverVersion: RESPARKABLE_VERSION,
       maxSessionsPerKey: 5,
       globalRateLimit: 60,
       auditRetentionDays: 90,

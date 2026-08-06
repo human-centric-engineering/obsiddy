@@ -720,7 +720,7 @@ Speech-to-text upload. Accepts a multipart/form-data body, returns the transcrib
 
 **Behaviour:** writes a `CostOperation = 'transcription'` row to `AiCostLog` tagged to the agent (per-minute pricing via `WHISPER_USD_PER_MINUTE * durationMs / 60_000`; `metadata.durationMs` set). Audio bytes are not persisted — the route handler is asserted by `tests/integration/api/v1/admin/orchestration/chat.transcribe.test.ts` to never call any AiMessage / AiConversation / AiKnowledge write.
 
-**Platform body-size caveat:** the 25 MB cap is Sunrise's server-side limit. Vercel deployments (Hobby and default Pro) reject bodies over **4.5 MB** at the edge before the route runs. Self-hosted Node / Docker get the full 25 MB. See `.context/orchestration/embed.md#platform-body-size-limits` for the platform comparison.
+**Platform body-size caveat:** the 25 MB cap is Resparkable's server-side limit. Vercel deployments (Hobby and default Pro) reject bodies over **4.5 MB** at the edge before the route runs. Self-hosted Node / Docker get the full 25 MB. See `.context/orchestration/embed.md#platform-body-size-limits` for the platform comparison.
 
 ```bash
 curl -X POST /api/v1/admin/orchestration/chat/transcribe \
@@ -1004,7 +1004,7 @@ Cross-user deletions emit an `AiAdminAuditLog` entry (`conversation.bulk_clear`)
 
 End-user mechanism for granting cross-user conversation access to admins. The owner controls the share / revoke lifecycle on their own conversations; without an active share, admins see only their own conversations.
 
-These endpoints exist on the consumer chat namespace (`/api/v1/chat/conversations/...`) — `withAuth` (not admin-only), rate-limited via `apiLimiter`. Downstream apps that consume Sunrise build the "Share with support" UI against these routes; Sunrise itself ships only the API.
+These endpoints exist on the consumer chat namespace (`/api/v1/chat/conversations/...`) — `withAuth` (not admin-only), rate-limited via `apiLimiter`. Downstream apps that consume Resparkable build the "Share with support" UI against these routes; Resparkable itself ships only the API.
 
 ### `POST /api/v1/chat/conversations/:id/share`
 

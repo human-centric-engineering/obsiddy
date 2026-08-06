@@ -130,8 +130,8 @@ export function WhatsAppWorkedExample() {
                 <strong className="text-foreground">
                   Inbound trigger fires (platform, not your workflow).
                 </strong>{' '}
-                Meta POSTs the webhook → Sunrise verifies the <code>X-Hub-Signature-256</code> HMAC
-                → the WhatsApp Cloud adapter normalises the nested Meta envelope into{' '}
+                Meta POSTs the webhook → Resparkable verifies the <code>X-Hub-Signature-256</code>{' '}
+                HMAC → the WhatsApp Cloud adapter normalises the nested Meta envelope into{' '}
                 <code>
                   &#123;text, from, channel:&apos;whatsapp&apos;, provider:&apos;meta&apos;,
                   attachment&#125;

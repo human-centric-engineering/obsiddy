@@ -11,7 +11,7 @@ vi.mock('@react-email/render', () => ({
 vi.mock('@/lib/email/client', () => ({
   getResendClient: vi.fn(),
   isEmailEnabled: vi.fn(),
-  getDefaultSender: vi.fn().mockReturnValue('noreply@sunrise.com'),
+  getDefaultSender: vi.fn().mockReturnValue('noreply@resparkable.com'),
 }));
 
 vi.mock('@/lib/env', () => ({
@@ -70,7 +70,7 @@ describe('lib/email/send', () => {
       expect(result.id).toBe('email-123');
       expect(render).toHaveBeenCalledWith(options.react);
       expect(mockSend).toHaveBeenCalledWith({
-        from: 'noreply@sunrise.com',
+        from: 'noreply@resparkable.com',
         to: ['user@example.com'],
         subject: 'Test Email',
         html: '<html>Mock email HTML</html>',
@@ -342,7 +342,7 @@ describe('lib/email/send', () => {
         expect.objectContaining({
           to: 'user1@example.com, user2@example.com',
           subject: 'Log Test',
-          from: 'noreply@sunrise.com',
+          from: 'noreply@resparkable.com',
           emailEnabled: true,
         })
       );

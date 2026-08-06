@@ -16,7 +16,7 @@ GET /api/health
 {
   "status": "ok",
   "version": "0.0.0",
-  "sunrise": "0.0.0",
+  "resparkable": "0.0.0",
   "uptime": 3600,
   "timestamp": "2025-01-16T10:00:00.000Z",
   "services": {
@@ -35,7 +35,7 @@ GET /api/health
 {
   "status": "ok",
   "version": "0.0.0",
-  "sunrise": "0.0.0",
+  "resparkable": "0.0.0",
   "uptime": 3600,
   "timestamp": "2025-01-16T10:00:00.000Z",
   "services": {
@@ -60,7 +60,7 @@ GET /api/health
 {
   "status": "error",
   "version": "0.0.0",
-  "sunrise": "0.0.0",
+  "resparkable": "0.0.0",
   "uptime": 3600,
   "timestamp": "2025-01-16T10:00:00.000Z",
   "services": {
@@ -75,17 +75,17 @@ GET /api/health
 
 ## Response Fields
 
-| Field               | Type   | Description                                                                                        |
-| ------------------- | ------ | -------------------------------------------------------------------------------------------------- |
-| `status`            | string | Overall status: `ok` or `error`                                                                    |
-| `version`           | string | Application version from `package.json` (in a fork, this is the fork's app version)                |
-| `sunrise`           | string | Sunrise platform version from `lib/sunrise-version.ts`. See [`VERSIONING.md`](../../VERSIONING.md) |
-| `uptime`            | number | Process uptime in seconds                                                                          |
-| `timestamp`         | string | ISO 8601 timestamp of the health check                                                             |
-| `services`          | object | Status of individual services                                                                      |
-| `services.database` | object | Database health information                                                                        |
-| `memory`            | object | Memory usage (optional, env-controlled)                                                            |
-| `error`             | string | Error message (only present on exceptions)                                                         |
+| Field               | Type   | Description                                                                                                |
+| ------------------- | ------ | ---------------------------------------------------------------------------------------------------------- |
+| `status`            | string | Overall status: `ok` or `error`                                                                            |
+| `version`           | string | Application version from `package.json` (in a fork, this is the fork's app version)                        |
+| `resparkable`       | string | Resparkable platform version from `lib/resparkable-version.ts`. See [`VERSIONING.md`](../../VERSIONING.md) |
+| `uptime`            | number | Process uptime in seconds                                                                                  |
+| `timestamp`         | string | ISO 8601 timestamp of the health check                                                                     |
+| `services`          | object | Status of individual services                                                                              |
+| `services.database` | object | Database health information                                                                                |
+| `memory`            | object | Memory usage (optional, env-controlled)                                                                    |
+| `error`             | string | Error message (only present on exceptions)                                                                 |
 
 ## Service Status Values
 
@@ -336,7 +336,7 @@ export async function GET() {
 1. **Check database connection**:
 
    ```bash
-   docker-compose exec db psql -U postgres -d sunrise -c "SELECT 1"
+   docker-compose exec db psql -U postgres -d resparkable -c "SELECT 1"
    ```
 
 2. **Check environment variables**:

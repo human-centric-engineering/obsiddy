@@ -867,7 +867,9 @@ describe('callMcpTool: rich content blocks', () => {
 
   it('rejects an embedded resource missing both text and blob', async () => {
     mockDispatch(
-      mkPayload([{ type: 'resource', resource: { uri: 'sunrise://x', mimeType: 'text/plain' } }])
+      mkPayload([
+        { type: 'resource', resource: { uri: 'resparkable://x', mimeType: 'text/plain' } },
+      ])
     );
 
     const result = await callMcpTool('search_knowledge', {}, { userId: 'user-1' });
@@ -882,7 +884,7 @@ describe('callMcpTool: rich content blocks', () => {
         {
           type: 'resource',
           resource: {
-            uri: 'sunrise://x',
+            uri: 'resparkable://x',
             mimeType: 'text/plain',
             text: 'hello',
             blob: Buffer.from('hi').toString('base64'),
@@ -901,7 +903,7 @@ describe('callMcpTool: rich content blocks', () => {
       mkPayload([
         {
           type: 'resource',
-          resource: { uri: 'sunrise://docs/x', mimeType: 'text/markdown', text: '# Title' },
+          resource: { uri: 'resparkable://docs/x', mimeType: 'text/markdown', text: '# Title' },
         },
       ])
     );

@@ -24,7 +24,7 @@
 
 import { z } from 'zod';
 
-const STORAGE_KEY = 'sunrise.orchestration.provider-test-cache.v1';
+const STORAGE_KEY = 'resparkable.orchestration.provider-test-cache.v1';
 const TTL_MS = 10 * 60 * 1000;
 
 // Schema is authoritative: localStorage is external data (user-controlled,

@@ -1,8 +1,8 @@
 # Continuous Integration
 
-How Sunrise's GitHub Actions pipeline works, how it adapts to public vs private
+How Resparkable's GitHub Actions pipeline works, how it adapts to public vs private
 repos, and the two knobs a fork may want to flip. The pipeline is designed to be
-**correct and fast on both** the public Sunrise repo (free Actions minutes,
+**correct and fast on both** the public Resparkable repo (free Actions minutes,
 4-core/16GB runners) and private forks (capped minutes, 2-core/7GB runners).
 
 ## Workflows
@@ -79,10 +79,10 @@ The choice that most differs by repo economics is **how much test work runs on a
 PR**. Controlled by the repository variable `CI_TEST_SCOPE`
 (Settings → Secrets and variables → Actions → Variables):
 
-| Value                    | PR branches                                      | push to `main`                | For                                     |
-| ------------------------ | ------------------------------------------------ | ----------------------------- | --------------------------------------- |
-| unset / `full` (default) | full suite, 4-way sharded                        | full suite, 4-way sharded     | Public Sunrise; any fork in production  |
-| `changed`                | only tests the diff affects (`vitest --changed`) | **full suite, 4-way sharded** | Private free-tier forks, pre-production |
+| Value                    | PR branches                                      | push to `main`                | For                                        |
+| ------------------------ | ------------------------------------------------ | ----------------------------- | ------------------------------------------ |
+| unset / `full` (default) | full suite, 4-way sharded                        | full suite, 4-way sharded     | Public Resparkable; any fork in production |
+| `changed`                | only tests the diff affects (`vitest --changed`) | **full suite, 4-way sharded** | Private free-tier forks, pre-production    |
 
 Any value other than exactly `changed` falls back to `full` — a typo fails safe
 to the strong gate.
@@ -114,7 +114,7 @@ Node's default caps near ~2GB):
 NODE_OPTIONS: '--max-old-space-size=${{ vars.CI_NODE_HEAP_MB || 5120 }}'
 ```
 
-**The symptom is the hard part.** 5120 is sized for base Sunrise. A fork with a
+**The symptom is the hard part.** 5120 is sized for base Resparkable. A fork with a
 meaningful amount of added code can push type-aware ESLint (or `tsc` /
 `next build`) past it, and the job dies with **exit 134** — SIGABRT, i.e. the
 allocator aborting. There is no "out of memory" message and no stack pointing at

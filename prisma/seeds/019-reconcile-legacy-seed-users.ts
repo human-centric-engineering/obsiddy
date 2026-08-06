@@ -4,9 +4,9 @@ import { AUTH_BOOTSTRAP_ID } from '@/lib/auth/constants';
 import type { SeedUnit } from '@/prisma/runner';
 
 /**
- * One-time reconciliation for databases seeded under Sunrise v0.0.1, which
+ * One-time reconciliation for databases seeded under Resparkable v0.0.1, which
  * created login-capable `admin@example.com` / `test@example.com` rows (issue
- * #278). This unit makes any existing database converge on "pure Sunrise
+ * #278). This unit makes any existing database converge on "pure Resparkable
  * reality":
  *
  *  1. Erase the two legacy seed-artifact users — but ONLY when they are clearly

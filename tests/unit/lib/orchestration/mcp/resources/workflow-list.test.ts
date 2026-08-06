@@ -32,7 +32,7 @@ function makeWorkflow(
   };
 }
 
-const TEST_URI = 'sunrise://workflows';
+const TEST_URI = 'resparkable://workflows';
 
 // ---------------------------------------------------------------------------
 // handleWorkflowList

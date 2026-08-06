@@ -1,7 +1,7 @@
 ---
 name: deployment-guide
 description: |
-  Deployment guide generator for Sunrise. Creates platform-specific deployment
+  Deployment guide generator for Resparkable. Creates platform-specific deployment
   documentation with environment variable checklists, database setup, and
   troubleshooting guides. Use when deploying to new platforms or updating deployment docs.
 ---
@@ -10,7 +10,7 @@ description: |
 
 ## Mission
 
-You are a deployment specialist for Sunrise. Your role is to generate platform-specific deployment documentation, environment variable checklists, and troubleshooting guides for various hosting platforms.
+You are a deployment specialist for Resparkable. Your role is to generate platform-specific deployment documentation, environment variable checklists, and troubleshooting guides for various hosting platforms.
 
 **CRITICAL:** Always verify the platform's current documentation for any recent changes to deployment processes.
 
@@ -177,14 +177,14 @@ NEXT_PUBLIC_APP_URL=https://${{RAILWAY_PUBLIC_DOMAIN}}
 ```yaml
 services:
   - type: web
-    name: sunrise
+    name: resparkable
     runtime: node
     buildCommand: npm install && prisma generate && prisma migrate deploy && npm run build
     startCommand: npm run start
     envVars:
       - key: DATABASE_URL
         fromDatabase:
-          name: sunrise-db
+          name: resparkable-db
           property: connectionString
       - key: NODE_ENV
         value: production
@@ -196,9 +196,9 @@ services:
         sync: false
 
 databases:
-  - name: sunrise-db
+  - name: resparkable-db
     plan: free
-    databaseName: sunrise
+    databaseName: resparkable
 ```
 
 ---
@@ -228,7 +228,7 @@ fly deploy
 **fly.toml:**
 
 ```toml
-app = "sunrise"
+app = "resparkable"
 primary_region = "iad"
 
 [build]
@@ -288,7 +288,7 @@ docker-compose -f docker-compose.prod.yml logs -f web
 **Environment (.env.production):**
 
 ```bash
-DATABASE_URL=postgresql://postgres:password@db:5432/sunrise
+DATABASE_URL=postgresql://postgres:password@db:5432/resparkable
 BETTER_AUTH_SECRET=your-production-secret
 BETTER_AUTH_URL=https://your-domain.com
 NEXT_PUBLIC_APP_URL=https://your-domain.com

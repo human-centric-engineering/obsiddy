@@ -2,7 +2,7 @@
 
 ## Database Design
 
-Sunrise uses **PostgreSQL 15+** as the relational database with **Prisma ORM** for type-safe database access. The schema follows normalization principles while balancing query performance and development velocity.
+Resparkable uses **PostgreSQL 15+** as the relational database with **Prisma ORM** for type-safe database access. The schema follows normalization principles while balancing query performance and development velocity.
 
 ## Entity Relationship Diagram
 
@@ -87,7 +87,7 @@ erDiagram
 
 ## PostgreSQL Extensions
 
-Sunrise uses Prisma's `postgresqlExtensions` preview feature to declare required PostgreSQL extensions directly in the schema:
+Resparkable uses Prisma's `postgresqlExtensions` preview feature to declare required PostgreSQL extensions directly in the schema:
 
 ```prisma
 generator client {
@@ -184,7 +184,7 @@ if (env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
 
 ## Prisma Schema
 
-The canonical schema lives in [`prisma/schema/`](../../prisma/schema/) — a multi-file folder (Prisma 7) split by domain (`base`, `auth`, `orchestration-*`, `mcp`, `platform`, `app`). Prisma concatenates every `.prisma` in the folder into one datamodel. Read it directly — this document covers design decisions, conventions, and rationale, not the schema definition itself. Apps built on Sunrise put their own models in `prisma/schema/app.prisma`, which ships **empty** and which core never adds models to (or in a sibling `prisma/schema/app-<name>.prisma`), so fork models merge cleanly on upstream sync. The platform's own app-domain models — `ContactSubmission`, `FeatureFlag`, `AuthBootstrap` — live in `platform.prisma`.
+The canonical schema lives in [`prisma/schema/`](../../prisma/schema/) — a multi-file folder (Prisma 7) split by domain (`base`, `auth`, `orchestration-*`, `mcp`, `platform`, `app`). Prisma concatenates every `.prisma` in the folder into one datamodel. Read it directly — this document covers design decisions, conventions, and rationale, not the schema definition itself. Apps built on Resparkable put their own models in `prisma/schema/app.prisma`, which ships **empty** and which core never adds models to (or in a sibling `prisma/schema/app-<name>.prisma`), so fork models merge cleanly on upstream sync. The platform's own app-domain models — `ContactSubmission`, `FeatureFlag`, `AuthBootstrap` — live in `platform.prisma`.
 
 ## Schema Design Decisions
 

@@ -36,7 +36,7 @@ function jsonRpcErrorResponse(code: JsonRpcErrorCode, message: string, status: n
   // you". 2025-spec MCP clients use this to detect that the server is
   // bearer-only and skip the OAuth discovery dance.
   if (status === 401) {
-    headers['WWW-Authenticate'] = `Bearer realm="sunrise-mcp", error="invalid_token"`;
+    headers['WWW-Authenticate'] = `Bearer realm="resparkable-mcp", error="invalid_token"`;
   }
   return Response.json({ jsonrpc: '2.0', id: null, error: { code, message } }, { status, headers });
 }

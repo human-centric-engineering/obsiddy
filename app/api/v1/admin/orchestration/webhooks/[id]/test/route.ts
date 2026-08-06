@@ -35,7 +35,7 @@ export const POST = withAdminAuth<{ id: string }>(async (request, session, { par
   });
   if (!webhook) throw new NotFoundError('Webhook not found');
 
-  const pingData = { message: 'Test event from Sunrise webhook configuration.' };
+  const pingData = { message: 'Test event from Resparkable webhook configuration.' };
   const pingTimestamp = new Date().toISOString();
 
   // ── Email channel ────────────────────────────────────────────────────────

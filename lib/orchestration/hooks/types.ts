@@ -63,20 +63,20 @@ export const HOOK_EVENT_TYPES = [
   'capability.refused_not_advertised',
 ] as const;
 
-/** The event types Sunrise itself emits. */
+/** The event types Resparkable itself emits. */
 export type CoreHookEventType = (typeof HOOK_EVENT_TYPES)[number];
 
 /**
- * Event types owned by a fork rather than by Sunrise.
+ * Event types owned by a fork rather than by Resparkable.
  *
  * `HOOK_EVENT_TYPES` is a closed list, so before this a fork could neither emit
  * its own domain event through the hook registry nor subscribe a webhook to one —
  * it had to add entries to a platform array, which conflicts on every upstream
- * sync and risks colliding with a name a future Sunrise release takes.
+ * sync and risks colliding with a name a future Resparkable release takes.
  *
  * The two prefixes mirror the reserved tiers documented in CUSTOMIZATION.md:
- * `app.` for a leaf fork, `framework.` for a fork that sits between Sunrise and
- * its own forks. Sunrise never emits either prefix, so the namespaces cannot
+ * `app.` for a leaf fork, `framework.` for a fork that sits between Resparkable and
+ * its own forks. Resparkable never emits either prefix, so the namespaces cannot
  * collide in future.
  *
  * A namespaced string union rather than a registration seam, deliberately: the

@@ -46,7 +46,7 @@ describe('rate-limit-policy', () => {
     });
 
     it("returns the 'auth' tier and 'ip' key for both auth path families", () => {
-      // Arrange — Sunrise app-layer auth lives under /api/v1/auth/;
+      // Arrange — Resparkable app-layer auth lives under /api/v1/auth/;
       // better-auth's own endpoints live under /api/auth/ — both must resolve to 'auth'
       const appAuthPath = '/api/v1/auth/login';
       const betterAuthPath = '/api/auth/sign-in';

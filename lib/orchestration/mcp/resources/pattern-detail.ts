@@ -1,7 +1,7 @@
 /**
  * MCP Resource Handler: Pattern Detail
  *
- * URI pattern: sunrise://knowledge/patterns/{number}
+ * URI pattern: resparkable://knowledge/patterns/{number}
  * Returns all chunks for a specific pattern number.
  *
  * Platform-agnostic: no Next.js imports.

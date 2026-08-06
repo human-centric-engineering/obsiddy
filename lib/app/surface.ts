@@ -4,7 +4,7 @@
  * A pure string predicate shared by the proxy (server-side, sets the `x-surface`
  * header for the first paint) and `SurfaceSync` (client-side, keeps
  * `<html data-surface>` correct across App Router navigations) so the two can
- * never drift. `/admin` is the only non-consumer URL segment in vanilla Sunrise
+ * never drift. `/admin` is the only non-consumer URL segment in vanilla Resparkable
  * — route groups like `(public)` / `(protected)` don't affect the URL — so this
  * single prefix classifies the whole app into two surfaces.
  *

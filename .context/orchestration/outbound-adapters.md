@@ -1,6 +1,6 @@
 # Outbound Channel Adapters
 
-Sister framework to [inbound-triggers](./inbound-triggers.md). Where inbound adapters parse vendor-specific webhooks into Sunrise's normalised shape, **outbound adapters** translate Sunrise's normalised "send this message" request into vendor-specific HTTP dispatches.
+Sister framework to [inbound-triggers](./inbound-triggers.md). Where inbound adapters parse vendor-specific webhooks into Resparkable's normalised shape, **outbound adapters** translate Resparkable's normalised "send this message" request into vendor-specific HTTP dispatches.
 
 The only caller is the [`send_message_to_channel`](./capabilities.md#send_message_to_channel) capability. The capability owns cross-vendor guards (STOP-flag, WhatsApp 24h window, length cap, throttle, idempotency, PII redaction, cost logging); each adapter owns one vendor's REST translation only.
 

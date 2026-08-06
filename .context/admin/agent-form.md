@@ -125,7 +125,7 @@ Recorded audio is streamed to the configured speech-to-text provider (e.g. OpenA
 
 The form sends `enableVoiceInput: boolean` on the standard PATCH update. The toggle is unconditional in the UI — there's no gating against "no audio provider configured" because the same agent can be moved between deployments and the right surface for that signal is the embed widget's `/widget-config` (which hides the mic button when no provider exists).
 
-The effective maximum recording length depends on the deployment platform — Sunrise caps at 25 MB (~50 minutes of Opus audio) but Vercel Hobby/Pro reject anything over 4.5 MB at the platform edge. See `.context/orchestration/embed.md#platform-body-size-limits` for the comparison table.
+The effective maximum recording length depends on the deployment platform — Resparkable caps at 25 MB (~50 minutes of Opus audio) but Vercel Hobby/Pro reject anything over 4.5 MB at the platform edge. See `.context/orchestration/embed.md#platform-body-size-limits` for the comparison table.
 
 ### Enable image input
 

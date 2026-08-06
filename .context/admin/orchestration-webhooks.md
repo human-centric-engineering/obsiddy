@@ -56,7 +56,7 @@ which destination fields are used.
 `components/admin/orchestration/webhook-form.tsx`
 
 - URL input (required) with safety hint (private IPs, localhost, metadata endpoints blocked)
-- Signing secret input with auto-generate, reveal/hide eye toggle, and clipboard-copy buttons. Generating a secret auto-reveals it so the user can capture it before saving. While the field has a value, an amber notice reminds the user to copy now — Sunrise never returns the secret again after save (the API's `SAFE_SELECT` strips it from every GET).
+- Signing secret input with auto-generate, reveal/hide eye toggle, and clipboard-copy buttons. Generating a secret auto-reveals it so the user can capture it before saving. While the field has a value, an amber notice reminds the user to copy now — Resparkable never returns the secret again after save (the API's `SAFE_SELECT` strips it from every GET).
 - 12 event checkboxes from `WEBHOOK_EVENT_TYPES` (including `execution_crashed` for engine-crash alerts — see [Hooks](../orchestration/hooks.md#event-types))
 - Description textarea
 - **Scope block** (between Events and Retry policy): two async-search `MultiSelect`s — "Limit to agents" and "Limit to workflows". Each multi-selects from the matching admin list endpoint (`?q=` server-side search, 50-row page, names rendered on chips via a pre-fetch). Both default to empty = "all agents / all workflows". Cap: 50 entries per dimension. Filters apply **dimension-specifically** (see [Entity-Scoped Subscriptions](../orchestration/hooks.md#entity-scoped-subscriptions)) — an agent filter does not restrict workflow-typed events and vice versa.
@@ -139,7 +139,7 @@ The two outbound webhook subsystems use **different** HMAC-SHA256 signing scheme
 
 | Aspect            | Webhook Subscriptions                      | Event Hooks                                                            |
 | ----------------- | ------------------------------------------ | ---------------------------------------------------------------------- |
-| Header            | `X-Webhook-Signature`                      | `X-Sunrise-Signature` + `X-Sunrise-Timestamp`                          |
+| Header            | `X-Webhook-Signature`                      | `X-Resparkable-Signature` + `X-Resparkable-Timestamp`                  |
 | Format            | Raw hex digest                             | `sha256=<hex>` prefixed                                                |
 | Signed content    | JSON body only                             | `<timestamp>.<body>` (timestamp-prefixed)                              |
 | Replay protection | None built-in                              | Timestamp in signed string; `verifyHookSignature` rejects >5 min drift |
