@@ -11,7 +11,7 @@ The 5 system-seeded agents (`pattern-advisor`, `quiz-master`, `mcp-system`, `pro
 
 The setup wizard writes `defaultModels.chat` and `.embeddings` based on the operator's chosen provider, so a fresh install picks up sensible defaults automatically once a provider is configured. Explicit `agent.provider`/`.model` always wins; the empty-string fallback is reserved for system seeds.
 
-This is the seam that makes Sunrise provider-agnostic on a fresh install. The 47-row matrix in `009-provider-models.ts` remains the **catalogue** that powers the recommender below.
+This is the seam that makes Resparkable provider-agnostic on a fresh install. The 47-row matrix in `009-provider-models.ts` remains the **catalogue** that powers the recommender below.
 
 ## Quick Start
 
@@ -197,7 +197,7 @@ The Provider Model Audit is an AI-powered workflow that evaluates model entries 
 
 "Audit Models" button on `/admin/orchestration/provider-models` opens a dialog with model selection checkboxes. On submit the dialog calls `POST /workflows/:id/execute`, captures the `executionId` from the SSE stream's `workflow_started` event, and **swaps its body for an inline live-progress panel** — the operator stays on the providers page while the audit runs. From there:
 
-- "Run in background" closes the dialog and writes the execution id to `localStorage` under `sunrise.orchestration.in-flight-execution.v1`. The peek banner mounted in `app/admin/layout.tsx` picks the handoff up; the banner returns `null` when the localStorage entry is empty, so in practice it surfaces only while an orchestration run is in flight.
+- "Run in background" closes the dialog and writes the execution id to `localStorage` under `resparkable.orchestration.in-flight-execution.v1`. The peek banner mounted in `app/admin/layout.tsx` picks the handoff up; the banner returns `null` when the localStorage entry is empty, so in practice it surfaces only while an orchestration run is in flight.
 - "View full details" navigates to `/admin/orchestration/executions/:id` for the canonical detail view.
 - When the run pauses for human approval, the inline panel renders the prompt as markdown with notes/reason inputs and approve/reject buttons that hit the standard execution endpoints.
 

@@ -142,20 +142,20 @@ item, not a work item.
 
 ### Repo boundaries — never edit these to pass a gate
 
-This is a **Sunrise-based fork carrying a `/framework` tier** (Obsiddy, under
-`lib/framework/obsiddy/`). Some files are owned upstream or hand-written, and
+This is a **Sunrise-based fork carrying a `/framework` tier** (Resparkable, under
+`lib/framework/resparkable/`). Some files are owned upstream or hand-written, and
 "make the gate green" is exactly how they get quietly broken. If a gate finding
 points at one of these, **surface it — do not edit it**:
 
-- **Sunrise-owned files.** The fork's contract (`CLAUDE.md`,
-  `.context/framework/obsiddy/install.md`) is that Obsiddy touches only `lib/app/*`
+- **Resparkable-owned files.** The fork's contract (`CLAUDE.md`,
+  `.context/framework/resparkable/install.md`) is that Resparkable touches only `lib/app/*`
   seams, the reserved `/app` and `/framework` namespaces, and one namespaced
   `package.json` script line. Editing anything else upstream-owned inflicts a
   merge conflict on every host project. The correct response is a row in
-  `.context/framework/obsiddy/sunrise-asks.md` plus an upstream issue — report it,
+  `.context/framework/resparkable/sunrise-asks.md` plus an upstream issue — report it,
   and let the user decide.
 - **Hand-edited migrations** under `prisma/migrations/` (`add_second_brain`,
-  `obsiddy_space_cascade`). They carry Postgres objects Prisma cannot model. Never
+  `resparkable_space_cascade`). They carry Postgres objects Prisma cannot model. Never
   regenerate one to resolve a drift failure — a red `db:drift-check` means a
   generated migration dropped a real object, and the fix is to edit the _offending_
   migration's spurious `DROP`, then re-author with

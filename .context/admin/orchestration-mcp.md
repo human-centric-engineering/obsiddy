@@ -112,13 +112,13 @@ Server-side pagination (50 entries per page) with Previous/Next controls. Total 
 
 Server configuration form using `react-hook-form` + Zod validation.
 
-| Field                | Type   | Range       | Default              |
-| -------------------- | ------ | ----------- | -------------------- |
-| Server Name          | string | 1-100 chars | "Sunrise MCP Server" |
-| Server Version       | string | 1-20 chars  | "1.0.0"              |
-| Global Rate Limit    | int    | 1-10,000    | 60                   |
-| Max Sessions Per Key | int    | 1-100       | 5                    |
-| Audit Retention Days | int    | 0-3,650     | 90                   |
+| Field                | Type   | Range       | Default                  |
+| -------------------- | ------ | ----------- | ------------------------ |
+| Server Name          | string | 1-100 chars | "Resparkable MCP Server" |
+| Server Version       | string | 1-20 chars  | "1.0.0"                  |
+| Global Rate Limit    | int    | 1-10,000    | 60                       |
+| Max Sessions Per Key | int    | 1-100       | 5                        |
+| Audit Retention Days | int    | 0-3,650     | 90                       |
 
 - **isDirty tracking** — Save button disabled when pristine
 - **Error display** — API errors shown inline; generic fallback for non-API errors

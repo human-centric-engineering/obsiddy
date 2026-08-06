@@ -78,7 +78,7 @@ vi.mock('@/lib/email/send', () => ({
 }));
 
 // Distinctive brand name so the welcome-subject assertion proves BRAND.name
-// interpolation rather than the "Sunrise" default (covered by lib/brand.test.tsx).
+// interpolation rather than the "Resparkable" default (covered by lib/brand.test.tsx).
 vi.mock('@/lib/brand', () => ({ BRAND: { name: 'Aurora Labs' } }));
 
 vi.mock('@/lib/email/client', () => ({

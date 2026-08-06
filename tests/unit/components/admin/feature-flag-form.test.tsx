@@ -9,7 +9,7 @@
  * - API integration (POST for create, PATCH for edit)
  * - Error handling
  *
- * @see /Users/simonholmes/Documents/Dev/studio/sunrise/components/admin/feature-flag-form.tsx
+ * @see /Users/simonholmes/Documents/Dev/studio/resparkable/components/admin/feature-flag-form.tsx
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';

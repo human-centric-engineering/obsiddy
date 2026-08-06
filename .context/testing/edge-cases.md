@@ -1,6 +1,6 @@
 # Edge Cases and Error Testing
 
-Patterns for testing error handling, parameterized tests, and edge case coverage in Sunrise.
+Patterns for testing error handling, parameterized tests, and edge case coverage in Resparkable.
 
 ---
 

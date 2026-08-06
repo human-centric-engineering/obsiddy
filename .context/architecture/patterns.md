@@ -5,7 +5,7 @@
 ### Directory Structure by Responsibility
 
 ```
-sunrise/
+resparkable/
 ├── app/                    # Next.js App Router (routes and API)
 │   ├── (auth)/            # Authentication pages (route group)
 │   │   ├── login/
@@ -418,7 +418,7 @@ export function SignupForm() {
 
 ### Repository Pattern (Optional)
 
-> **Note:** This is an optional pattern not currently used in Sunrise. Direct Prisma access (shown below) is the standard approach. Consider repositories only when you have complex queries with business logic that are repeated across multiple locations.
+> **Note:** This is an optional pattern not currently used in Resparkable. Direct Prisma access (shown below) is the standard approach. Consider repositories only when you have complex queries with business logic that are repeated across multiple locations.
 
 For complex queries, wrap Prisma in repository functions:
 

@@ -21,7 +21,7 @@ Configuration for PostgreSQL database connection via Prisma ORM.
 - **Default:** `10`
 - **Used By:** `lib/db/client.ts` — the `pg` `Pool` constructor
 
-The default of 10 is node-postgres's own, and it fits Sunrise's documented
+The default of 10 is node-postgres's own, and it fits Resparkable's documented
 deploy target: one long-running process that wants a warm pool.
 
 **Set it to `1` on serverless.** On a function-per-request platform each warm
@@ -49,7 +49,7 @@ until the platform kills the function.
 
 ```bash
 # Serverless, behind Neon's pooler
-DATABASE_URL="postgresql://user:pass@ep-xxx-pooler.eu-west-2.aws.neon.tech/sunrise?sslmode=require"
+DATABASE_URL="postgresql://user:pass@ep-xxx-pooler.eu-west-2.aws.neon.tech/resparkable?sslmode=require"
 DATABASE_POOL_MAX=1
 ```
 
@@ -58,7 +58,7 @@ DATABASE_POOL_MAX=1
 ### Local Development
 
 ```bash
-DATABASE_URL="postgresql://postgres:password@localhost:5432/sunrise_db"
+DATABASE_URL="postgresql://postgres:password@localhost:5432/resparkable_db"
 ```
 
 ### Docker Compose
@@ -66,13 +66,13 @@ DATABASE_URL="postgresql://postgres:password@localhost:5432/sunrise_db"
 Use the service name instead of localhost:
 
 ```bash
-DATABASE_URL="postgresql://postgres:password@db:5432/sunrise_db"
+DATABASE_URL="postgresql://postgres:password@db:5432/resparkable_db"
 ```
 
 ### Production (with SSL)
 
 ```bash
-DATABASE_URL="postgresql://user:pass@prod-db.example.com:5432/sunrise?sslmode=require"
+DATABASE_URL="postgresql://user:pass@prod-db.example.com:5432/resparkable?sslmode=require"
 ```
 
 ## Common Parameters
@@ -86,11 +86,11 @@ DATABASE_URL="postgresql://user:pass@prod-db.example.com:5432/sunrise?sslmode=re
 
 ## Environment-Specific Values
 
-| Environment | Host                | SSL | Example                                                              |
-| ----------- | ------------------- | --- | -------------------------------------------------------------------- |
-| Local       | `localhost`         | No  | `postgresql://postgres:pass@localhost:5432/sunrise`                  |
-| Docker      | `db` (service name) | No  | `postgresql://postgres:pass@db:5432/sunrise`                         |
-| Production  | Cloud hostname      | Yes | `postgresql://user:pass@db.example.com:5432/sunrise?sslmode=require` |
+| Environment | Host                | SSL | Example                                                                  |
+| ----------- | ------------------- | --- | ------------------------------------------------------------------------ |
+| Local       | `localhost`         | No  | `postgresql://postgres:pass@localhost:5432/resparkable`                  |
+| Docker      | `db` (service name) | No  | `postgresql://postgres:pass@db:5432/resparkable`                         |
+| Production  | Cloud hostname      | Yes | `postgresql://user:pass@db.example.com:5432/resparkable?sslmode=require` |
 
 ## Troubleshooting
 

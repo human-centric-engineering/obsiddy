@@ -50,7 +50,7 @@ export interface HeroProps extends VariantProps<typeof heroVariants> {
  * @example
  * <Hero
  *   badge="New Release"
- *   title="Build faster with Sunrise"
+ *   title="Build faster with Resparkable"
  *   description="Production-ready Next.js starter template"
  *   primaryAction={{ label: "Get Started", href: "/signup" }}
  *   secondaryAction={{ label: "Learn More", href: "/about", variant: "outline" }}

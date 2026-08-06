@@ -31,7 +31,7 @@ describe('ProtectedFooter', () => {
     const { ProtectedFooter } = await import('@/components/layouts/protected-footer');
     render(React.createElement(ProtectedFooter));
 
-    expect(screen.getByText(/©/)).toHaveTextContent('Sunrise');
+    expect(screen.getByText(/©/)).toHaveTextContent('Resparkable');
   });
 
   it('attributes the copyright to NEXT_PUBLIC_LEGAL_NAME, not the product name (#363)', async () => {

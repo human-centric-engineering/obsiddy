@@ -1,7 +1,7 @@
 /**
  * MCP Resource Handler: Workflow List
  *
- * URI: sunrise://workflows
+ * URI: resparkable://workflows
  * Returns active workflows (name, slug, description only).
  *
  * Platform-agnostic: no Next.js imports.

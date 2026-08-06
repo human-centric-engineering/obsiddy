@@ -1,7 +1,7 @@
 /**
  * App boot seam — one-time server startup work.
  *
- * **Fork-owned scaffold** — Sunrise ships this empty and does NOT change it
+ * **Fork-owned scaffold** — Resparkable ships this empty and does NOT change it
  * after release, so your edits here merge cleanly on upgrade (the stable
  * contract is this file's `initApp` export, not its body). Treat it like the
  * landing page: a starting point you're expected to modify.
@@ -15,7 +15,7 @@
  * Keep core out of it: `instrumentation.ts` imports only this file. If your
  * fork boots a framework tier, import its entry point **dynamically** from here
  * (`await import('@/lib/framework')`) — a *static* framework specifier is
- * resolved at `next build` time and breaks the build in vanilla Sunrise (and in
+ * resolved at `next build` time and breaks the build in vanilla Resparkable (and in
  * any fork without that folder). A framework-tier fork typically boots its own
  * tier here and then delegates to a fresh reserved leaf hook (e.g.
  * `lib/app/leaf-bootstrap.ts`) so a leaf-on-framework fork can still hook boot
@@ -24,11 +24,11 @@
  * Full guide: CUSTOMIZATION.md §4 · the reserved `/framework` fork tier.
  */
 export async function initApp(): Promise<void> {
-  // Obsiddy framework tier. The import MUST stay dynamic: a static
+  // Resparkable framework tier. The import MUST stay dynamic: a static
   // `@/lib/framework/...` specifier is resolved at `next build` and breaks the
-  // build of any project that hasn't installed the tier. Obsiddy's own boot
+  // build of any project that hasn't installed the tier. Resparkable's own boot
   // then delegates to `initLeafApp()` in `lib/app/leaf-bootstrap.ts`, which is
-  // where a project built on Obsiddy hooks startup.
-  const { initObsiddy } = await import('@/lib/framework/obsiddy');
-  await initObsiddy();
+  // where a project built on Resparkable hooks startup.
+  const { initResparkable } = await import('@/lib/framework/resparkable');
+  await initResparkable();
 }

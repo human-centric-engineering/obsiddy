@@ -152,6 +152,6 @@ describe('019-reconcile-legacy-seed-users', () => {
       expect.objectContaining({ where: { accountType: 'SERVICE' } })
     );
     // SYSTEM_USER_EMAIL is the seeded identity, never a reconcile target.
-    expect(SYSTEM_USER_EMAIL).toBe('system@sunrise.local');
+    expect(SYSTEM_USER_EMAIL).toBe('system@resparkable.local');
   });
 });

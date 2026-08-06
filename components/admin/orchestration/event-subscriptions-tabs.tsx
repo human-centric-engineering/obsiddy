@@ -106,9 +106,9 @@ export function EventSubscriptionsTabs({
           <FieldHelp title="Dead letter queue overview" contentClassName="w-96">
             <p>
               When a webhook delivery fails enough times to hit the subscription&apos;s{' '}
-              <code>maxAttempts</code> limit, Sunrise stops retrying and parks it here. Nothing is
-              dropped — the row stays until you retry it, discard it, or the retention sweep removes
-              it.
+              <code>maxAttempts</code> limit, Resparkable stops retrying and parks it here. Nothing
+              is dropped — the row stays until you retry it, discard it, or the retention sweep
+              removes it.
             </p>
             <p className="text-foreground mt-2 font-medium">Common actions</p>
             <ul className="mt-1 list-disc space-y-1 pl-4">

@@ -2,7 +2,7 @@
 
 ## Migration Strategy
 
-Sunrise uses **Prisma Migrate** for database schema evolution. Migrations are version-controlled SQL files that track all schema changes, ensuring consistent database state across environments.
+Resparkable uses **Prisma Migrate** for database schema evolution. Migrations are version-controlled SQL files that track all schema changes, ensuring consistent database state across environments.
 
 > **Two related docs you may want next:**
 >
@@ -134,7 +134,7 @@ npx prisma migrate dev --name add_user_role
 
 ```
 Prisma schema loaded from prisma/schema
-Datasource "db": PostgreSQL database "sunrise", schema "public" at "localhost:5432"
+Datasource "db": PostgreSQL database "resparkable", schema "public" at "localhost:5432"
 
 The following migration(s) have been created and applied from new schema changes:
 
@@ -177,19 +177,19 @@ git add prisma/migrations/20250105150000_add_user_role/
 git commit -m "feat: add user role enum to database"
 ```
 
-## Staying in Sync with Upstream Sunrise (Forks)
+## Staying in Sync with Upstream Resparkable (Forks)
 
-If you build your app on a fork of Sunrise, your migrations and Sunrise's share
-one history. This section is the reconciliation recipe for pulling a new Sunrise
+If you build your app on a fork of Resparkable, your migrations and Resparkable's share
+one history. This section is the reconciliation recipe for pulling a new Resparkable
 release into your fork. (For the higher-level fork model, see
 [`CUSTOMIZATION.md`](../../CUSTOMIZATION.md).)
 
 ### How the histories combine
 
-App and Sunrise migrations both live in `prisma/migrations/` and are applied in
+App and Resparkable migrations both live in `prisma/migrations/` and are applied in
 **timestamp order** (Prisma sorts by the folder name, which is
-`<timestamp>_<label>`). When you merge an upstream release, new Sunrise
-migration folders **interleave with yours by timestamp** — a Sunrise migration
+`<timestamp>_<label>`). When you merge an upstream release, new Resparkable
+migration folders **interleave with yours by timestamp** — a Resparkable migration
 authored before your latest one sorts _before_ it, even though you merged it
 later.
 
@@ -211,7 +211,7 @@ The prefix is purely for human triage during a merge — Prisma ignores the labe
 and orders by timestamp. A consistent prefix (e.g. `app_`) makes
 `git diff -- prisma/migrations/` instantly readable.
 
-### Recipe: merging a Sunrise release
+### Recipe: merging a Resparkable release
 
 ```bash
 # 1. Merge the upstream release into your branch (resolve any conflicts).
@@ -250,10 +250,10 @@ The migrations a release added are simply the new folders under
 git diff <last-sync-ref>..<release-ref> -- prisma/migrations/
 ```
 
-### Never edit Sunrise's migration SQL
+### Never edit Resparkable's migration SQL
 
 Editing an applied migration desyncs every environment that already ran it.
-If you need to change the result of a Sunrise migration, add your own
+If you need to change the result of a Resparkable migration, add your own
 **follow-up** migration (`app_*`) that alters the schema forward. See
 [Never Edit Applied Migrations](#5-never-edit-applied-migrations).
 
@@ -354,7 +354,7 @@ npx prisma migrate dev --name drop_old_table --create-only
 cat prisma/migrations/*/migration.sql
 
 # Backup data first
-pg_dump sunrise > backup.sql
+pg_dump resparkable > backup.sql
 
 # Then apply
 npx prisma migrate dev

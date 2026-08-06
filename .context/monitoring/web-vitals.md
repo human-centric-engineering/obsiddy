@@ -1,6 +1,6 @@
 # Web Vitals Monitoring
 
-Guide for implementing frontend performance monitoring with Web Vitals in Sunrise.
+Guide for implementing frontend performance monitoring with Web Vitals in Resparkable.
 
 ## Overview
 
@@ -302,7 +302,7 @@ Test production URLs at [PageSpeed Insights](https://pagespeed.web.dev/).
 
 ## Not Implemented by Default
 
-Web Vitals monitoring is documented but **not implemented** in Sunrise by default because:
+Web Vitals monitoring is documented but **not implemented** in Resparkable by default because:
 
 1. **Analytics choice varies**: Teams use different analytics platforms
 2. **Privacy considerations**: Sending user metrics requires consent

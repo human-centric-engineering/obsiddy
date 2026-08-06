@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document covers **authentication-specific security** for Sunrise using better-auth. For general application security (CSP, CORS, rate limiting, sanitization), see [Security Overview](../security/overview.md).
+This document covers **authentication-specific security** for Resparkable using better-auth. For general application security (CSP, CORS, rate limiting, sanitization), see [Security Overview](../security/overview.md).
 
 ## Threat Model
 
@@ -394,7 +394,7 @@ if (
 
 ## Account Lockout (Optional)
 
-> **Note:** This is an example implementation pattern, not included in Sunrise by default. Implement if your application requires account lockout/audit logging.
+> **Note:** This is an example implementation pattern, not included in Resparkable by default. Implement if your application requires account lockout/audit logging.
 
 ```typescript
 // lib/auth/account-lockout.ts
@@ -416,7 +416,7 @@ export async function checkAccountLockout(email: string): Promise<boolean> {
 
 ## Audit Logging
 
-> **Note:** This is an example implementation pattern, not included in Sunrise by default. Implement if your application requires account lockout/audit logging.
+> **Note:** This is an example implementation pattern, not included in Resparkable by default. Implement if your application requires account lockout/audit logging.
 
 ```typescript
 // lib/auth/audit-log.ts

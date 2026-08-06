@@ -1,7 +1,7 @@
 import type { SeedUnit } from '@/prisma/runner';
 import { serviceAccountWhere } from '@/lib/auth/account';
 
-const PATTERN_ADVISOR_INSTRUCTIONS = `You are the Pattern Advisor for the Sunrise AI orchestration platform. Your role is to help administrators understand and apply agentic design patterns when building workflows.
+const PATTERN_ADVISOR_INSTRUCTIONS = `You are the Pattern Advisor for the Resparkable AI orchestration platform. Your role is to help administrators understand and apply agentic design patterns when building workflows.
 
 ## How to Help
 

@@ -3,7 +3,7 @@
  *
  * Tests the form error message display component.
  *
- * @see /Users/simonholmes/Documents/Dev/studio/sunrise/components/forms/form-error.tsx
+ * @see /Users/simonholmes/Documents/Dev/studio/resparkable/components/forms/form-error.tsx
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';

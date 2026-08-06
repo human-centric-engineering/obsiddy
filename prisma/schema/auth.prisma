@@ -25,7 +25,7 @@ model User {
 
   // Account nature — orthogonal to `role` (the permission axis).
   // HUMAN: a real login. SERVICE: a non-login machine/system principal (e.g.
-  // the seeded `system@sunrise.local` config-owner). "Real human admin" queries
+  // the seeded `system@resparkable.local` config-owner). "Real human admin" queries
   // filter on { role: 'ADMIN', accountType: 'HUMAN' } via lib/auth/account.ts —
   // never re-implement that predicate inline. See issue #278 / PR #279 review.
   accountType AccountType @default(HUMAN)

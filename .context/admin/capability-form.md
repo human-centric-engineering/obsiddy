@@ -101,7 +101,7 @@ Fields: `executionType`, `executionHandler`, `executionConfig` (optional).
 Single text input. The FieldHelp copy **changes with the selected type**:
 
 - `internal` → "Class name registered in `lib/orchestration/capabilities/built-in/index.ts` (e.g. `SearchKnowledgeCapability`)."
-- `api` → "Full HTTPS URL the dispatcher will POST to. Must be reachable from the Sunrise server." Validated as a URL on both client and server.
+- `api` → "Full HTTPS URL the dispatcher will POST to. Must be reachable from the Resparkable server." Validated as a URL on both client and server.
 - `webhook` → "Full HTTPS URL that will receive the payload. The dispatcher never waits for a response body." Validated as a URL on both client and server.
 
 ### Execution config (optional JSON)

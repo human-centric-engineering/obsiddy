@@ -1,7 +1,7 @@
 ---
 name: component-builder
 description: |
-  Component builder for Sunrise. Creates reusable React components
+  Component builder for Resparkable. Creates reusable React components
   following shadcn/ui patterns: TypeScript interfaces, accessibility
   attributes, Tailwind CSS styling, Server Components by default
   (`'use client'` only when needed). Use when creating new components
@@ -10,7 +10,7 @@ description: |
 
 # Component Builder Skill
 
-Reusable React components in Sunrise follow shadcn/ui patterns over a Tailwind 4 base. Before creating anything new, check the existing primitive in `components/ui/` or a sibling capsule.
+Reusable React components in Resparkable follow shadcn/ui patterns over a Tailwind 4 base. Before creating anything new, check the existing primitive in `components/ui/` or a sibling capsule.
 
 **Critical rule:** always check if a shadcn/ui base component exists before writing from scratch. If it does, install or extend it rather than reimplementing.
 

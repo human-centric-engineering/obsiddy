@@ -12,7 +12,7 @@
  * - Loading states during upload/delete
  * - Error handling for all operations
  *
- * @see /Users/simonholmes/Documents/Dev/studio/sunrise/components/forms/avatar-upload.tsx
+ * @see /Users/simonholmes/Documents/Dev/studio/resparkable/components/forms/avatar-upload.tsx
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';

@@ -2,7 +2,7 @@
 
 ## Overview
 
-Sunrise uses a composable layout system built around the `AppHeader` component, with specialized navigation components for different route contexts. This architecture provides consistent branding and user actions while allowing navigation to vary by route group.
+Resparkable uses a composable layout system built around the `AppHeader` component, with specialized navigation components for different route contexts. This architecture provides consistent branding and user actions while allowing navigation to vary by route group.
 
 ## Architecture
 
@@ -42,11 +42,11 @@ Shared header component that provides consistent branding and user actions acros
 
 ### Props
 
-| Prop         | Type              | Default     | Description                     |
-| ------------ | ----------------- | ----------- | ------------------------------- |
-| `logoHref`   | `string`          | `"/"`       | URL for logo click              |
-| `logoText`   | `string`          | `"Sunrise"` | Text displayed as logo          |
-| `navigation` | `React.ReactNode` | `undefined` | Navigation component to display |
+| Prop         | Type              | Default         | Description                     |
+| ------------ | ----------------- | --------------- | ------------------------------- |
+| `logoHref`   | `string`          | `"/"`           | URL for logo click              |
+| `logoText`   | `string`          | `"Resparkable"` | Text displayed as logo          |
+| `navigation` | `React.ReactNode` | `undefined`     | Navigation component to display |
 
 ### Usage
 
@@ -184,7 +184,7 @@ import { ProtectedNav } from '@/components/layouts/protected-nav';
 
 ## Route Group Layout Patterns
 
-Sunrise uses Next.js route groups to organize pages with different layout needs. Each route group has its own layout file that composes the appropriate header, navigation, and footer.
+Resparkable uses Next.js route groups to organize pages with different layout needs. Each route group has its own layout file that composes the appropriate header, navigation, and footer.
 
 ### Route Group Overview
 

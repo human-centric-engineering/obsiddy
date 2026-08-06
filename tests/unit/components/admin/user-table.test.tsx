@@ -18,7 +18,7 @@
  * - emailVerified display without unnecessary checks
  * - Center-aligned columns (Avatar, Role, Verified, Actions)
  *
- * @see /Users/simonholmes/Documents/Dev/studio/sunrise/components/admin/user-table.tsx
+ * @see /Users/simonholmes/Documents/Dev/studio/resparkable/components/admin/user-table.tsx
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';

@@ -369,12 +369,12 @@ async function handleResourcesSubscribe(
   const uri = extractUri(params);
 
   // Subscriptions are for concrete URIs only — clients can't subscribe
-  // to a template (`sunrise://patterns/{id}`). Detect template syntax
+  // to a template (`resparkable://patterns/{id}`). Detect template syntax
   // before any registry lookup so we give a clear error.
   if (uri.includes('{') || uri.includes('}')) {
     throw new McpProtocolError(
       JsonRpcErrorCode.INVALID_PARAMS,
-      'Cannot subscribe to a template URI. Subscribe to concrete instances only (e.g. sunrise://patterns/5, not sunrise://patterns/{id}).'
+      'Cannot subscribe to a template URI. Subscribe to concrete instances only (e.g. resparkable://patterns/5, not resparkable://patterns/{id}).'
     );
   }
 

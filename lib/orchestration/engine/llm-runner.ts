@@ -37,9 +37,9 @@ import {
   GEN_AI_USAGE_OUTPUT_TOKENS,
   GEN_AI_USAGE_TOTAL_TOKENS,
   SPAN_LLM_CALL,
-  SUNRISE_COST_USD,
-  SUNRISE_EXECUTION_ID,
-  SUNRISE_STEP_ID,
+  RESPARKABLE_COST_USD,
+  RESPARKABLE_EXECUTION_ID,
+  RESPARKABLE_STEP_ID,
   setSpanAttributes,
   withSpan,
 } from '@/lib/orchestration/tracing';
@@ -93,8 +93,8 @@ export async function runLlmCall(
     SPAN_LLM_CALL,
     {
       [GEN_AI_OPERATION_NAME]: 'chat',
-      [SUNRISE_STEP_ID]: params.stepId,
-      [SUNRISE_EXECUTION_ID]: ctx.executionId,
+      [RESPARKABLE_STEP_ID]: params.stepId,
+      [RESPARKABLE_EXECUTION_ID]: ctx.executionId,
       [GEN_AI_REQUEST_TEMPERATURE]: params.temperature,
       [GEN_AI_REQUEST_MAX_TOKENS]: params.maxTokens,
     },
@@ -181,7 +181,7 @@ export async function runLlmCall(
         [GEN_AI_USAGE_INPUT_TOKENS]: response.usage.inputTokens,
         [GEN_AI_USAGE_OUTPUT_TOKENS]: response.usage.outputTokens,
         [GEN_AI_USAGE_TOTAL_TOKENS]: totalTokens,
-        [SUNRISE_COST_USD]: cost.totalCostUsd,
+        [RESPARKABLE_COST_USD]: cost.totalCostUsd,
       });
 
       // Fire-and-forget. Cost logging failure must never surface as a

@@ -16,7 +16,7 @@
  * side-effect, and feature code imports the schemas-barrel module
  * once at process start to populate the registry.
  *
- * **The registry ships empty.** Sunrise itself does not register any
+ * **The registry ships empty.** Resparkable itself does not register any
  * built-in schemas — that would couple the engine to specific
  * workflow domains. Workflow authors register their own schemas in
  * feature modules (`lib/orchestration/<feature>/schemas.ts`) and

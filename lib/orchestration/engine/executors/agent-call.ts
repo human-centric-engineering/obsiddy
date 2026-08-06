@@ -62,12 +62,12 @@ import {
   GEN_AI_USAGE_OUTPUT_TOKENS,
   GEN_AI_USAGE_TOTAL_TOKENS,
   SPAN_AGENT_CALL_TURN,
-  SUNRISE_AGENT_ID,
-  SUNRISE_AGENT_SLUG,
-  SUNRISE_COST_USD,
-  SUNRISE_EXECUTION_ID,
-  SUNRISE_STEP_ID,
-  SUNRISE_TOOL_ITERATION,
+  RESPARKABLE_AGENT_ID,
+  RESPARKABLE_AGENT_SLUG,
+  RESPARKABLE_COST_USD,
+  RESPARKABLE_EXECUTION_ID,
+  RESPARKABLE_STEP_ID,
+  RESPARKABLE_TOOL_ITERATION,
   setSpanAttributes,
   withSpan,
 } from '@/lib/orchestration/tracing';
@@ -163,11 +163,11 @@ async function runSingleTurn(
         [GEN_AI_OPERATION_NAME]: 'chat',
         [GEN_AI_REQUEST_MODEL]: model,
         [GEN_AI_SYSTEM]: usedSlug,
-        [SUNRISE_AGENT_ID]: agent!.id,
-        [SUNRISE_AGENT_SLUG]: agent!.slug,
-        [SUNRISE_STEP_ID]: step.id,
-        [SUNRISE_EXECUTION_ID]: ctx.executionId,
-        [SUNRISE_TOOL_ITERATION]: iteration,
+        [RESPARKABLE_AGENT_ID]: agent!.id,
+        [RESPARKABLE_AGENT_SLUG]: agent!.slug,
+        [RESPARKABLE_STEP_ID]: step.id,
+        [RESPARKABLE_EXECUTION_ID]: ctx.executionId,
+        [RESPARKABLE_TOOL_ITERATION]: iteration,
         ...(agent!.temperature !== null
           ? { [GEN_AI_REQUEST_TEMPERATURE]: agent!.temperature }
           : {}),
@@ -234,7 +234,7 @@ async function runSingleTurn(
           [GEN_AI_USAGE_INPUT_TOKENS]: response.usage.inputTokens,
           [GEN_AI_USAGE_OUTPUT_TOKENS]: response.usage.outputTokens,
           [GEN_AI_USAGE_TOTAL_TOKENS]: turnTokens,
-          [SUNRISE_COST_USD]: turnCost.totalCostUsd,
+          [RESPARKABLE_COST_USD]: turnCost.totalCostUsd,
         });
 
         void logCost({

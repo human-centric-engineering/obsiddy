@@ -13,7 +13,7 @@
  * - Suspense boundary for LoginForm
  * - Card structure and layout
  *
- * @see /Users/simonholmes/Documents/Dev/studio/sunrise/app/(auth)/login/page.tsx
+ * @see /Users/simonholmes/Documents/Dev/studio/resparkable/app/(auth)/login/page.tsx
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -67,7 +67,7 @@ describe('LoginPage', () => {
 
     it('should have correct description', () => {
       // Assert: Description is set correctly
-      expect(metadata.description).toBe('Sign in to your Sunrise account');
+      expect(metadata.description).toBe('Sign in to your Resparkable account');
     });
   });
 

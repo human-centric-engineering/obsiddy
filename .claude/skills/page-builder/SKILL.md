@@ -1,7 +1,7 @@
 ---
 name: page-builder
 description: |
-  Page builder for Sunrise. Creates new pages following Next.js 16
+  Page builder for Resparkable. Creates new pages following Next.js 16
   App Router patterns: route groups, layouts, metadata, async params,
   Server Components by default, and the project's auth conventions.
   Knows the four top-level URL segments — `(auth)`, `(protected)`,
@@ -11,7 +11,7 @@ description: |
 
 # Page Builder Skill
 
-Pages in Sunrise are organised by route group (no URL effect) and one regular folder (`admin/`, which **does** create URL segments). Always determine the correct location before creating the page.
+Pages in Resparkable are organised by route group (no URL effect) and one regular folder (`admin/`, which **does** create URL segments). Always determine the correct location before creating the page.
 
 ## URL-level layout of `app/`
 
@@ -91,7 +91,7 @@ import { getServerSession } from '@/lib/auth/utils';
 import { clearInvalidSession } from '@/lib/auth/clear-session';
 
 export const metadata: Metadata = {
-  title: 'Page Title - Sunrise',
+  title: 'Page Title - Resparkable',
   description: 'Page description',
 };
 
@@ -153,8 +153,8 @@ import type { Metadata, ReactNode } from 'next';
 
 export const metadata: Metadata = {
   title: {
-    template: '%s - Sunrise',
-    default: 'Section Name - Sunrise',
+    template: '%s - Resparkable',
+    default: 'Section Name - Resparkable',
   },
   description: 'Section description',
 };
@@ -232,7 +232,7 @@ import { clearInvalidSession } from '@/lib/auth/clear-session';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 
 export const metadata: Metadata = {
-  title: 'Settings - Sunrise',
+  title: 'Settings - Resparkable',
   description: 'Manage your account settings',
 };
 
@@ -315,7 +315,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Check } from 'lucide-react';
 
 export const metadata: Metadata = {
-  title: 'Pricing - Sunrise',
+  title: 'Pricing - Resparkable',
   description: 'Choose the plan that works for you',
 };
 

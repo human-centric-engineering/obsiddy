@@ -45,7 +45,7 @@ import { McpDashboard } from '@/components/admin/orchestration/mcp/mcp-dashboard
 
 const ENABLED_SETTINGS = {
   isEnabled: true,
-  serverName: 'Sunrise MCP Server',
+  serverName: 'Resparkable MCP Server',
   serverVersion: '1.0.0',
   maxSessionsPerKey: 5,
   globalRateLimit: 60,

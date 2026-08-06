@@ -33,7 +33,7 @@ const mockAuthContext = {
 const mockServerState = {
   id: 'config-1',
   isEnabled: true,
-  serverName: 'Sunrise MCP',
+  serverName: 'Resparkable MCP',
   serverVersion: '1.0.0',
   maxSessionsPerKey: 5,
   sessionTtlSeconds: 3600,
@@ -194,7 +194,7 @@ describe('POST /mcp', () => {
     expect(response.status).toBe(401);
     const challenge = response.headers.get('WWW-Authenticate');
     expect(challenge).toContain('Bearer');
-    expect(challenge).toContain('realm="sunrise-mcp"');
+    expect(challenge).toContain('realm="resparkable-mcp"');
     expect(challenge).toContain('error="invalid_token"');
   });
 

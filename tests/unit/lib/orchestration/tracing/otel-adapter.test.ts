@@ -2,7 +2,7 @@
  * Unit tests for the OtelTracer / OtelSpan adapter.
  *
  * Uses a real BasicTracerProvider + InMemorySpanExporter — no network, no mocking
- * of OTEL itself. The point is to verify the actual mapping from Sunrise's
+ * of OTEL itself. The point is to verify the actual mapping from Resparkable's
  * vendor-neutral Tracer interface onto the OTEL JS API.
  *
  * SDK notes:
@@ -60,7 +60,7 @@ beforeAll(() => {
 
 beforeEach(() => {
   exporter.reset();
-  resetTracer(); // Keep Sunrise registry at NOOP — testing OtelTracer directly
+  resetTracer(); // Keep Resparkable registry at NOOP — testing OtelTracer directly
 });
 
 afterEach(() => {
@@ -197,7 +197,7 @@ describe('OtelTracer', () => {
   });
 
   // Cases 6b–6d and 7: helper-integration tests that require OtelTracer in the
-  // Sunrise registry. Grouped into a nested describe so registerTracer / resetTracer
+  // Resparkable registry. Grouped into a nested describe so registerTracer / resetTracer
   // form a symmetric beforeEach/afterEach pair (per project pattern in
   // otel-engine-trace.test.ts:108-128 and otel-chat-trace.test.ts:311-325).
   describe('with-span.ts helper integration (real provider)', () => {
@@ -348,13 +348,13 @@ describe('OtelTracer', () => {
       ['CONSUMER', otelApi.SpanKind.CONSUMER],
     ];
 
-    for (const [sunriseKind, expectedOtelKind] of kindCases) {
-      it(`maps SpanKind '${sunriseKind}' to OTEL SpanKind ${expectedOtelKind} (${otelApi.SpanKind[expectedOtelKind]})`, () => {
+    for (const [resparkableKind, expectedOtelKind] of kindCases) {
+      it(`maps SpanKind '${resparkableKind}' to OTEL SpanKind ${expectedOtelKind} (${otelApi.SpanKind[expectedOtelKind]})`, () => {
         // Arrange
         const otelTracer = new OtelTracer(otelApi, 'test-tracer');
 
         // Act — use startSpan (not withSpan) to test kind mapping directly
-        const span = otelTracer.startSpan('test', { kind: sunriseKind });
+        const span = otelTracer.startSpan('test', { kind: resparkableKind });
         span.end();
 
         // Assert — the exported span's kind numeric value matches the OTEL enum
@@ -462,7 +462,7 @@ describe('OtelTracer', () => {
   // were uncovered because existing tests threw inside withSpan callbacks,
   // which the OTEL SDK records via its own internals rather than OtelSpan.recordException().
   // Calling recordException() directly on a startSpan-obtained span exercises the
-  // Sunrise wrapper's two branches at otel-adapter.ts:101-107.
+  // Resparkable wrapper's two branches at otel-adapter.ts:101-107.
   describe('OtelSpan.recordException', () => {
     it('records an Error instance as an OTEL exception event', () => {
       // Arrange

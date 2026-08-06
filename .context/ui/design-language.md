@@ -1,6 +1,6 @@
 # Design language — "amber phosphor on volcanic glass"
 
-Obsiddy's visual system: what it is, where each part lives, and the rules that
+Resparkable's visual system: what it is, where each part lives, and the rules that
 keep it coherent when someone adds a screen next month.
 
 Read this before styling anything. The one-line version: **almost nothing is
@@ -72,12 +72,12 @@ forgotten when a primary is re-pointed.
 Four files, and the split between them is not cosmetic — it follows what Tailwind
 can and cannot do at runtime.
 
-| File                         | Owns                                                         | Why there                                                                    |
-| ---------------------------- | ------------------------------------------------------------ | ---------------------------------------------------------------------------- |
-| `app/globals.css` → `@theme` | Token _declarations_: font keys, signal colours              | Tailwind reads `@theme` at **build** time to decide which utilities exist    |
-| `app/brand-theme.css`        | Token _values_: palette, radii, atmosphere, composed classes | Fork-owned seam; upstream never edits it, so a Sunrise upgrade can't collide |
-| `app/layout.tsx`             | `next/font` loading, `--font-obsiddy-*` on `<html>`          | Only place `next/font` can go                                                |
-| `lib/app/surface.ts`         | Which URLs are `admin` vs `consumer`                         | Shared by `proxy.ts` and `<SurfaceSync>` so the two can't drift              |
+| File                         | Owns                                                         | Why there                                                                        |
+| ---------------------------- | ------------------------------------------------------------ | -------------------------------------------------------------------------------- |
+| `app/globals.css` → `@theme` | Token _declarations_: font keys, signal colours              | Tailwind reads `@theme` at **build** time to decide which utilities exist        |
+| `app/brand-theme.css`        | Token _values_: palette, radii, atmosphere, composed classes | Fork-owned seam; upstream never edits it, so a Resparkable upgrade can't collide |
+| `app/layout.tsx`             | `next/font` loading, `--font-resparkable-*` on `<html>`      | Only place `next/font` can go                                                    |
+| `lib/app/surface.ts`         | Which URLs are `admin` vs `consumer`                         | Shared by `proxy.ts` and `<SurfaceSync>` so the two can't drift                  |
 
 The rule to remember: **a runtime variable can restyle a utility, but it cannot
 bring one into being.** `--color-primary` can be re-pointed in `brand-theme.css`
@@ -147,7 +147,7 @@ a style preference — it is load-bearing.**
 Chips, pills, swatches and toggles stay transparent; they sit _on_ something and
 are read as marks, not containers. The rule is about boxes with content inside.
 
-This was invisible debt for the whole life of the codebase. Sunrise's light
+This was invisible debt for the whole life of the codebase. Resparkable's light
 palette set `--color-background: #ffffff` **and** `--color-card: #ffffff` — the
 same value — so a bordered box that forgot `bg-card` rendered identically to one
 that had it. 158 containers across `components/` and `app/` had quietly omitted
@@ -191,7 +191,7 @@ the primary whenever the primary changes.
 ### The `/admin` shift
 
 `proxy.ts` classifies each request through `classifySurface()`; the root layout
-puts the answer on `<html data-surface>`. Obsiddy uses that for exactly one
+puts the answer on `<html data-surface>`. Resparkable uses that for exactly one
 distinction: **the back office runs on teal.**
 
 This is not decoration. `/admin` is where you change things for everybody, and
@@ -261,7 +261,7 @@ like one.
 Apply it at the **call site**, never inside `MarkdownView` — that component
 renders assistant replies _and_ notes you typed by hand. Same renderer, different
 voice, decided by who is speaking. See
-[`framework/obsiddy/ui.md` §12](../framework/obsiddy/ui.md) for the per-surface
+[`framework/resparkable/ui.md` §12](../framework/resparkable/ui.md) for the per-surface
 table.
 
 The class carries `line-height: 1.7` for a reason: identical glyph widths strip

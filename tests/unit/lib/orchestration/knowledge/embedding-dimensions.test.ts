@@ -31,7 +31,7 @@ function subject(
 ) {
   return {
     label: 'note',
-    remediation: 'Run `npm run obsiddy:reindex` to re-embed your brain.',
+    remediation: 'Run `npm run resparkable:reindex` to re-embed your brain.',
     groupByDimension: vi.fn().mockResolvedValue(groups),
     exemplarModel: vi.fn().mockResolvedValue(model),
   };
@@ -76,7 +76,7 @@ describe('assertStoredVectorDimensions — mismatch', () => {
     await expect(assertStoredVectorDimensions(s)).rejects.toThrow(
       /17 note\(s\) embedded by "text-embedding-3-small" at 1536 dims/
     );
-    await expect(assertStoredVectorDimensions(s)).rejects.toThrow(/obsiddy:reindex/);
+    await expect(assertStoredVectorDimensions(s)).rejects.toThrow(/resparkable:reindex/);
   });
 
   it('names the active model and its dimension so the cause is in the message', async () => {

@@ -31,7 +31,7 @@
  * - Non-blocking error handling (email failures don't break signup)
  * - Non-blocking error handling (invitation failures don't break signup)
  *
- * @see /Users/simonholmes/Documents/Dev/studio/sunrise/lib/auth/config.ts
+ * @see /Users/simonholmes/Documents/Dev/studio/resparkable/lib/auth/config.ts
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -67,7 +67,7 @@ vi.mock('@/lib/env', () => ({
 }));
 
 // Distinctive brand name so welcome-subject assertions prove BRAND.name
-// interpolation rather than the "Sunrise" default (covered by lib/brand.test.tsx).
+// interpolation rather than the "Resparkable" default (covered by lib/brand.test.tsx).
 vi.mock('@/lib/brand', () => ({ BRAND: { name: 'Aurora Labs' } }));
 
 vi.mock('better-auth', () => ({

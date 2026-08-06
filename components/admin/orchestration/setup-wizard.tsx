@@ -4,7 +4,7 @@
  * Setup Wizard
  *
  * Four-step config-oriented flow for developers setting up a fresh
- * Sunrise instance:
+ * Resparkable instance:
  *
  *   1. Configure a provider   — env-var detection cards (one-click) plus
  *                                a "Configure manually →" link out to
@@ -72,10 +72,10 @@ import { cn } from '@/lib/utils';
 
 // Bumped v2 → v3 because the layout changed shape: 6 steps → 4 steps,
 // agentDraft and createdAgentSlug removed from persisted state.
-const STORAGE_KEY = 'sunrise.orchestration.setup-wizard.v3';
+const STORAGE_KEY = 'resparkable.orchestration.setup-wizard.v3';
 const TOTAL_STEPS = 4;
 
-// Sunrise envelope shape for every wizard fetch. Every step validates
+// Resparkable envelope shape for every wizard fetch. Every step validates
 // the response through Zod before reading any field — the wizard runs
 // against a freshly-installed instance whose admin endpoints could be
 // proxied or version-skewed, and unvalidated `as` casts let bad shapes
@@ -692,7 +692,7 @@ function StepProvider({ draft, setDraft, onComplete }: StepProviderProps): React
             <p className="text-muted-foreground text-xs">
               {hasExisting
                 ? "You have a provider configured, but its API key isn't set in this environment — the provider can't authenticate. Restore the env var (or set one of the alternatives below) and restart the server."
-                : 'Sunrise reads provider API keys from environment variables at startup — it never stores them in the database. Add one of the following to your .env file and restart the server, then reopen this wizard.'}
+                : 'Resparkable reads provider API keys from environment variables at startup — it never stores them in the database. Add one of the following to your .env file and restart the server, then reopen this wizard.'}
             </p>
             {candidateEnvVars.length > 0 && (
               <ul className="text-muted-foreground space-y-0.5 text-xs">
@@ -736,8 +736,8 @@ function StepProvider({ draft, setDraft, onComplete }: StepProviderProps): React
       <div className="space-y-4">
         <p className="text-sm">
           We detected {detectedAvailable.length === 1 ? 'an API key' : 'API keys'} in your
-          environment. Pick a provider to configure it now — Sunrise will fill in the base URL and
-          recommend a chat model.
+          environment. Pick a provider to configure it now — Resparkable will fill in the base URL
+          and recommend a chat model.
         </p>
         <ul className="space-y-2">
           {detectedAvailable.map((row) => (
@@ -856,8 +856,8 @@ function StepProvider({ draft, setDraft, onComplete }: StepProviderProps): React
           <Label htmlFor="provider-base-url">
             Base URL{' '}
             <FieldHelp title="Provider base URL">
-              The HTTP endpoint Sunrise calls. <code>https://api.openai.com/v1</code> for OpenAI,{' '}
-              <code>http://localhost:11434/v1</code> for Ollama, etc.
+              The HTTP endpoint Resparkable calls. <code>https://api.openai.com/v1</code> for
+              OpenAI, <code>http://localhost:11434/v1</code> for Ollama, etc.
             </FieldHelp>
           </Label>
           <Input

@@ -1,7 +1,7 @@
 /**
  * MCP Resource Handler: Agent List
  *
- * URI: sunrise://agents
+ * URI: resparkable://agents
  * Returns active agents (name, slug, description only — no sensitive config).
  *
  * Platform-agnostic: no Next.js imports.

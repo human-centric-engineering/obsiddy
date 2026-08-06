@@ -1,7 +1,7 @@
 /**
  * Signup mode — whether accounts may be created freely or only by invitation.
  *
- * Sunrise ships a complete invitation system (hashed single-use tokens, an admin
+ * Resparkable ships a complete invitation system (hashed single-use tokens, an admin
  * invite page, `POST /api/auth/accept-invite`) whose premise is that access is
  * *granted*. This module is the switch that lets a fork actually close the other
  * door, so "invite-only" is a config line rather than a fork of a core auth file.

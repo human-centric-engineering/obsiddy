@@ -55,7 +55,7 @@ export async function parseEpub(buffer: Buffer, fileName: string): Promise<Parse
   // avoids the predictable-name / symlink races a shared os.tmpdir() path
   // would invite. The write lives inside the try so the finally cleans up
   // the directory even if writeFile fails.
-  const tempDir = await mkdtemp(join(tmpdir(), 'sunrise-epub-'));
+  const tempDir = await mkdtemp(join(tmpdir(), 'resparkable-epub-'));
 
   try {
     const tempPath = join(tempDir, 'book.epub');

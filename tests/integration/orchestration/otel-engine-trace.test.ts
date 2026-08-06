@@ -233,34 +233,34 @@ describe('OTEL engine span tree — integration', () => {
     expect(stepSpans).toHaveLength(3);
 
     // Assert: workflow.execute carries identity attributes
-    expect(execSpan.attributes['sunrise.execution_id']).toBe('exec_test');
-    expect(execSpan.attributes['sunrise.workflow_id']).toBe('wf_test');
-    expect(execSpan.attributes['sunrise.user_id']).toBe(USER_ID);
+    expect(execSpan.attributes['resparkable.execution_id']).toBe('exec_test');
+    expect(execSpan.attributes['resparkable.workflow_id']).toBe('wf_test');
+    expect(execSpan.attributes['resparkable.user_id']).toBe(USER_ID);
 
     // Assert: each workflow.step carries step identity attributes
     const stepA = findSpan(
       tracer.spans,
       'workflow.step',
-      (attrs) => attrs['sunrise.step_id'] === 'step_a'
+      (attrs) => attrs['resparkable.step_id'] === 'step_a'
     );
-    expect(stepA.attributes['sunrise.step_type']).toBe('llm_call');
-    expect(stepA.attributes['sunrise.execution_id']).toBe('exec_test');
+    expect(stepA.attributes['resparkable.step_type']).toBe('llm_call');
+    expect(stepA.attributes['resparkable.execution_id']).toBe('exec_test');
     expect(stepA.status?.code).toBe('ok');
 
     const stepB = findSpan(
       tracer.spans,
       'workflow.step',
-      (attrs) => attrs['sunrise.step_id'] === 'step_b'
+      (attrs) => attrs['resparkable.step_id'] === 'step_b'
     );
-    expect(stepB.attributes['sunrise.step_type']).toBe('tool_call');
+    expect(stepB.attributes['resparkable.step_type']).toBe('tool_call');
     expect(stepB.status?.code).toBe('ok');
 
     const stepC = findSpan(
       tracer.spans,
       'workflow.step',
-      (attrs) => attrs['sunrise.step_id'] === 'step_c'
+      (attrs) => attrs['resparkable.step_id'] === 'step_c'
     );
-    expect(stepC.attributes['sunrise.step_type']).toBe('llm_call');
+    expect(stepC.attributes['resparkable.step_type']).toBe('llm_call');
     expect(stepC.status?.code).toBe('ok');
 
     // Assert: every workflow.step nests under workflow.execute — one trace
@@ -311,7 +311,7 @@ describe('OTEL engine span tree — integration', () => {
     const stepSpan = findSpan(
       tracer.spans,
       'workflow.step',
-      (attrs) => attrs['sunrise.step_id'] === 'step_a'
+      (attrs) => attrs['resparkable.step_id'] === 'step_a'
     );
     expect(stepSpan.status?.code).toBe('error');
     expect(stepSpan.status?.message).toContain('LLM provider unreachable');
@@ -383,12 +383,12 @@ describe('OTEL engine span tree — integration', () => {
     const branchA = findSpan(
       tracer.spans,
       'workflow.step',
-      (attrs) => attrs['sunrise.step_id'] === 'branch_a'
+      (attrs) => attrs['resparkable.step_id'] === 'branch_a'
     );
     const branchB = findSpan(
       tracer.spans,
       'workflow.step',
-      (attrs) => attrs['sunrise.step_id'] === 'branch_b'
+      (attrs) => attrs['resparkable.step_id'] === 'branch_b'
     );
 
     expect(branchA.status?.code).toBe('ok');
@@ -455,7 +455,7 @@ describe('OTEL engine span tree — integration', () => {
     const stepSpan = findSpan(
       tracer.spans,
       'workflow.step',
-      (attrs) => attrs['sunrise.step_id'] === 'step_a'
+      (attrs) => attrs['resparkable.step_id'] === 'step_a'
     );
     expect(stepSpan.status?.code).toBe('error');
 
@@ -518,7 +518,7 @@ describe('OTEL engine span tree — integration', () => {
     const stepSpan = findSpan(
       tracer.spans,
       'workflow.step',
-      (attrs) => attrs['sunrise.step_id'] === 'approval_step'
+      (attrs) => attrs['resparkable.step_id'] === 'approval_step'
     );
     expect(stepSpan.status?.code).toBe('ok');
 

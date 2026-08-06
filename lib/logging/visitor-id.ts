@@ -34,7 +34,7 @@
 import { nanoid } from 'nanoid';
 
 /** Cookie name carrying the signed visitor id. */
-export const VISITOR_COOKIE_NAME = 'sunrise_vid';
+export const VISITOR_COOKIE_NAME = 'resparkable_vid';
 
 /**
  * Request header the proxy uses to forward the *verified* visitor id to
@@ -53,7 +53,7 @@ export const VISITOR_COOKIE_MAX_AGE = 60 * 60 * 24 * 180;
  * (e.g. `:v2`) rotates all cookies cleanly. Never reuse the raw auth
  * secret directly as a signing key.
  */
-const KDF_INFO = 'sunrise:visitor-id:v1';
+const KDF_INFO = 'resparkable:visitor-id:v1';
 
 /** Separator between the id and its base64url signature in the cookie value. */
 const SEP = '.';

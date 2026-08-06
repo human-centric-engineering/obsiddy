@@ -103,7 +103,7 @@ Default config values for every step type, as defined in `lib/orchestration/engi
 - On parse failure the output carries `passed: false`, `reason: 'Schema validation failed at <path>: <message>'`, and the full Zod `issues` array so a downstream retry can interpolate `{{guard_step.output.issues}}` into its retry prompt for precise feedback.
 - Schema mode never calls the LLM — zero cost, deterministic, no hallucination risk. `modelOverride` / `temperature` / `reasoningEffort` are ignored.
 
-**Registering a schema** — register feature-scoped schemas at module load in a file under `lib/orchestration/<feature>/schemas.ts`, then ensure that module is imported on app start (typically via re-export in the feature's barrel). The registry ships empty — Sunrise itself registers no built-in schemas, so domain coupling stays per-feature.
+**Registering a schema** — register feature-scoped schemas at module load in a file under `lib/orchestration/<feature>/schemas.ts`, then ensure that module is imported on app start (typically via re-export in the feature's barrel). The registry ships empty — Resparkable itself registers no built-in schemas, so domain coupling stays per-feature.
 
 ```ts
 // lib/orchestration/audit/schemas.ts
@@ -170,7 +170,7 @@ See `gotchas.md` → _"`guard` Steps in `mode: 'llm'` Cannot Validate Against An
 {
   "url": "https://api.example.com/resource",
   "method": "POST",
-  "headers": { "X-Source": "sunrise" },
+  "headers": { "X-Source": "resparkable" },
   "bodyTemplate": "{ \"query\": \"{{input.query}}\" }",
   "timeoutMs": 30000,
   "authType": "bearer",

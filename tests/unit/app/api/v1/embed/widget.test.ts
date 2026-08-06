@@ -468,7 +468,7 @@ describe('Embed widget voice input (Phase 4)', () => {
     // Shared key with the React MicButton so the field name stays
     // consistent across surfaces (different origins, different storage
     // namespaces — but same identifier helps when grepping or migrating).
-    expect(body).toContain("'sunrise.voice-input.hint-dismissed.v1'");
+    expect(body).toContain("'resparkable.voice-input.hint-dismissed.v1'");
     expect(body).toContain('voiceHintDismissed');
     expect(body).toContain('setVoiceHintDismissed');
     expect(body).toContain('localStorage.getItem');

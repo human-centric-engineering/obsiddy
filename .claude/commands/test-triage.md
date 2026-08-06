@@ -130,7 +130,7 @@ expect(result.isPending).toBe(true);
 
 ### Integration files and structural assertions — expected workflow
 
-Integration tests against the Sunrise API contract (`{ success, data|error }` envelope) will reliably hit `tobe_true` on every `expect(body.success).toBe(true)` and `no_arg_called` on "write was attempted" presence checks. These are structural assertions against a real contract, not degenerate smells — but the regex can't tell the difference, so the first scan of a typical integration file will almost always land in **Bad** on `sig_density` alone with `block_sum = 0`.
+Integration tests against the Resparkable API contract (`{ success, data|error }` envelope) will reliably hit `tobe_true` on every `expect(body.success).toBe(true)` and `no_arg_called` on "write was attempted" presence checks. These are structural assertions against a real contract, not degenerate smells — but the regex can't tell the difference, so the first scan of a typical integration file will almost always land in **Bad** on `sig_density` alone with `block_sum = 0`.
 
 This is expected. The escape hatch is the accept annotation — it's designed to be used heavily on integration files. The workflow is:
 
@@ -271,7 +271,7 @@ Two prompt variants — pick by the file's type.
 > - {sig_key}: {count} occurrences (raw regex count was {raw_count})
 >   ...
 >
-> Do NOT revisit accept annotations — the main agent has already subtracted them. Confirm the remaining counts against the source's actual contract. Integration tests often assert boolean status flags like `expect(response.ok).toBe(true)` or `expect(body.success).toBe(true)` against the Sunrise API envelope — these are structural, not degenerate, so score them as false positives and note it.
+> Do NOT revisit accept annotations — the main agent has already subtracted them. Confirm the remaining counts against the source's actual contract. Integration tests often assert boolean status flags like `expect(response.ok).toBe(true)` or `expect(body.success).toBe(true)` against the Resparkable API envelope — these are structural, not degenerate, so score them as false positives and note it.
 >
 > **If ALL sigs are structural/legitimate** (no real degenerate assertions), say so explicitly in NOTES using the phrase `all sigs structural — annotation-fixable` followed by the list of sig keys involved. This signals the `/test-triage fix` command to route the user to the annotation-only path (Path 0) rather than a full audit or rewrite.
 >
@@ -441,7 +441,7 @@ If triggered, print Path 0 as the recommended first step. Otherwise, print Paths
 // test-review:accept <sig-key> — <rationale>
 
 ```
-Use the sig-key named in NOTES (`tobe_true`, `no_arg_called`, etc.). The rationale should name the contract being asserted (e.g. "structural assertion on Sunrise API `{ success, data }` envelope, not a degenerate 'operation succeeded' check").
+Use the sig-key named in NOTES (`tobe_true`, `no_arg_called`, etc.). The rationale should name the contract being asserted (e.g. "structural assertion on Resparkable API `{ success, data }` envelope, not a degenerate 'operation succeeded' check").
 3. `/test-triage rescan {file}` — sig_hits drops to 0 on confirmed-structural hits; grade should land Clean (or drop to whatever block-tier findings remain).
 
 No test code changes. Typical for integration files on first scan against the API envelope. If rescan doesn't drop sig_hits to 0, an annotation is missing a flagged line or the rationale is malformed — check the em-dash separator and sig-key match.

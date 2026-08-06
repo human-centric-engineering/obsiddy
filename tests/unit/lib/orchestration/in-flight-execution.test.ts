@@ -11,7 +11,9 @@ describe('in-flight-execution storage contract', () => {
     // (reader) rely on this exact string. Renaming it without updating
     // both sides silently breaks the cross-page handoff — locking the
     // value here turns a subtle UX regression into a test failure.
-    expect(IN_FLIGHT_EXECUTION_STORAGE_KEY).toBe('sunrise.orchestration.in-flight-execution.v1');
+    expect(IN_FLIGHT_EXECUTION_STORAGE_KEY).toBe(
+      'resparkable.orchestration.in-flight-execution.v1'
+    );
   });
 
   it('accepts the documented ref shape', () => {

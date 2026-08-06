@@ -579,7 +579,7 @@ export async function chunkMarkdownDocument(
 //
 // Notes on the cap values:
 //   - `CSV_MAX_ROW_CHARS` is a generous safety margin (~8,000 tokens at
-//     4 chars/token) that suits every embedding provider Sunrise ships
+//     4 chars/token) that suits every embedding provider Resparkable ships
 //     with: Voyage voyage-3 ≈ 32k tokens, OpenAI text-embedding-3-small
 //     8,191 tokens.
 //   - Realistic CSV rows are well under this — a row that crosses it

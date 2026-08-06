@@ -72,7 +72,7 @@ export function initAppCapabilities(): void {
 }
 ```
 
-`registerBuiltInCapabilities()` (already on the lazy path the chat handler and agent-call executor hit) runs `initAppCapabilities()` once in the **server route-handler runtime**, then flushes — so your capability is in the dispatcher before any agent resolves its tools. Registration is idempotent by slug. `lib/app/capabilities.ts` is one of the `lib/app/` auto-wired bootstrap files; see [Building on Sunrise → §4](../../CUSTOMIZATION.md#4-configuration--environment--the-libapp-surface) for the full set and the per-runtime rationale.
+`registerBuiltInCapabilities()` (already on the lazy path the chat handler and agent-call executor hit) runs `initAppCapabilities()` once in the **server route-handler runtime**, then flushes — so your capability is in the dispatcher before any agent resolves its tools. Registration is idempotent by slug. `lib/app/capabilities.ts` is one of the `lib/app/` auto-wired bootstrap files; see [Building on Resparkable → §4](../../CUSTOMIZATION.md#4-configuration--environment--the-libapp-surface) for the full set and the per-runtime rationale.
 
 Like every built-in, an app capability still needs an active `AiCapability` row (and a per-agent `AiAgentCapability` binding) before an LLM will _see_ it — `getCapabilityDefinitions` cross-checks the DB against the in-memory dispatcher.
 
@@ -101,7 +101,7 @@ Re-registering the same key **replaces the handler and its guard together** — 
 
 ### Dispatch scope carrier (`CapabilityContext.scope`)
 
-`CapabilityContext.scope?: Record<string, string>` is a free-form, optional string map the dispatcher's caller can populate. It is **generic by design** — core names no keys and no built-in capability reads it; the dispatcher passes it verbatim into `execute()`. A fork uses it to let a capability refuse to run outside its intended scope (e.g. a `module` slug). In vanilla Sunrise the chat handler threads it from `ChatRequest.scope` into the dispatch context, so it stays `undefined` and inert unless a caller sets it.
+`CapabilityContext.scope?: Record<string, string>` is a free-form, optional string map the dispatcher's caller can populate. It is **generic by design** — core names no keys and no built-in capability reads it; the dispatcher passes it verbatim into `execute()`. A fork uses it to let a capability refuse to run outside its intended scope (e.g. a `module` slug). In vanilla Resparkable the chat handler threads it from `ChatRequest.scope` into the dispatch context, so it stays `undefined` and inert unless a caller sets it.
 
 ### Resolved-binding carrier (`CapabilityContext.customConfig` / `isEnabled`)
 
@@ -114,9 +114,9 @@ Both are populated **only by the dispatcher**, on a shallow copy of the caller's
 
 ## Outbound HTTP: `call_external_api`
 
-The `call_external_api` capability gives an agent the ability to make outbound HTTP requests to allowlisted hosts. It is the foundation Sunrise uses for vendor integrations (transactional email, payments, chat notifications, calendar events, document rendering) — see [`recipes/`](./recipes/index.md) for worked examples per pattern.
+The `call_external_api` capability gives an agent the ability to make outbound HTTP requests to allowlisted hosts. It is the foundation Resparkable uses for vendor integrations (transactional email, payments, chat notifications, calendar events, document rendering) — see [`recipes/`](./recipes/index.md) for worked examples per pattern.
 
-**Why one generic capability rather than per-vendor classes.** Bundling vendor SDKs (Stripe, Postmark, Slack, etc.) costs a lot in dependency footprint and version-pin burden, and ships a product opinion. Sunrise instead curates a single sharpened HTTP primitive plus pattern-named recipes that show developers how to wire any specific vendor.
+**Why one generic capability rather than per-vendor classes.** Bundling vendor SDKs (Stripe, Postmark, Slack, etc.) costs a lot in dependency footprint and version-pin burden, and ships a product opinion. Resparkable instead curates a single sharpened HTTP primitive plus pattern-named recipes that show developers how to wire any specific vendor.
 
 **Security posture:**
 
@@ -476,7 +476,7 @@ Workflow failure surfaces as a capability error (`code: 'workflow_failed'`) so t
 
 ### `upload_to_storage`
 
-Persists a binary artefact (PDF from a renderer, image from a generator, CSV from a report builder) to the configured Sunrise storage backend (S3, Vercel Blob, or local) and returns a URL the user can open. Closes the loop with `call_external_api` for endpoints that return bytes inline as `{ encoding: 'base64', contentType, data }` — the agent can chain render → upload without the LLM having to interpret base64.
+Persists a binary artefact (PDF from a renderer, image from a generator, CSV from a report builder) to the configured Resparkable storage backend (S3, Vercel Blob, or local) and returns a URL the user can open. Closes the loop with `call_external_api` for endpoints that return bytes inline as `{ encoding: 'base64', contentType, data }` — the agent can chain render → upload without the LLM having to interpret base64.
 
 ```json
 {

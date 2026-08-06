@@ -68,7 +68,7 @@ import {
 } from '@/tests/helpers/auth';
 import { GET, PATCH } from '@/app/api/v1/admin/orchestration/mcp/settings/route';
 import { computeChanges } from '@/lib/orchestration/audit/admin-audit-logger';
-import { SUNRISE_VERSION } from '@/lib/sunrise-version';
+import { RESPARKABLE_VERSION } from '@/lib/resparkable-version';
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -77,8 +77,8 @@ function makeMcpConfig(overrides: Record<string, unknown> = {}) {
     id: 'cmjbv4i3x00003wsloputgwu3',
     slug: 'global',
     isEnabled: true,
-    serverName: 'Sunrise MCP Server',
-    serverVersion: SUNRISE_VERSION,
+    serverName: 'Resparkable MCP Server',
+    serverVersion: RESPARKABLE_VERSION,
     maxSessionsPerKey: 5,
     globalRateLimit: 60,
     auditRetentionDays: 90,
@@ -141,7 +141,7 @@ describe('GET /mcp/settings', () => {
     }>(response);
     // test-review:accept tobe_true — structural boolean assertion on API response field
     expect(body.data.isEnabled).toBe(true);
-    expect(body.data.serverName).toBe('Sunrise MCP Server');
+    expect(body.data.serverName).toBe('Resparkable MCP Server');
     expect(body.data.auditRetentionDays).toBe(90);
   });
 
@@ -274,7 +274,7 @@ describe('PATCH /mcp/settings', () => {
       expect.objectContaining({
         create: expect.objectContaining({
           slug: 'global',
-          serverName: 'Sunrise MCP Server',
+          serverName: 'Resparkable MCP Server',
           isEnabled: true,
         }),
       })

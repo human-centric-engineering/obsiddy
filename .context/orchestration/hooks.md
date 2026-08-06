@@ -215,14 +215,14 @@ When `AiEventHook.secret` is set, the registry signs each outbound body with HMA
 
 **Outbound headers** (only when `secret` is set):
 
-| Header                | Value                                                                          |
-| --------------------- | ------------------------------------------------------------------------------ |
-| `X-Sunrise-Timestamp` | Unix epoch second (as a string) used to compute the signature                  |
-| `X-Sunrise-Signature` | `sha256=<hex>` where `<hex>` = `HMAC_SHA256(secret, "<timestamp>.<raw body>")` |
+| Header                    | Value                                                                          |
+| ------------------------- | ------------------------------------------------------------------------------ |
+| `X-Resparkable-Timestamp` | Unix epoch second (as a string) used to compute the signature                  |
+| `X-Resparkable-Signature` | `sha256=<hex>` where `<hex>` = `HMAC_SHA256(secret, "<timestamp>.<raw body>")` |
 
 The timestamp is refreshed on every attempt — retries do **not** re-send the original signature, so receivers that enforce a max-age tolerance still accept the retry. Unsigned hooks (no secret) carry the normal `Content-Type` / `X-Hook-Event` / user-custom headers and nothing else.
 
-`X-Sunrise-Signature` and `X-Sunrise-Timestamp` are reserved: the create/update routes reject `action.headers` whose keys collide (case-insensitive) with either name, and the dispatcher spreads custom headers before the computed signing headers so signing always wins as defense-in-depth.
+`X-Resparkable-Signature` and `X-Resparkable-Timestamp` are reserved: the create/update routes reject `action.headers` whose keys collide (case-insensitive) with either name, and the dispatcher spreads custom headers before the computed signing headers so signing always wins as defense-in-depth.
 
 ### Receiver verification
 
@@ -235,8 +235,8 @@ const rawBody = await request.text(); // MUST be the raw body — do not re-seri
 const result = verifyHookSignature(
   secret,
   rawBody,
-  request.headers.get('x-sunrise-timestamp'),
-  request.headers.get('x-sunrise-signature')
+  request.headers.get('x-resparkable-timestamp'),
+  request.headers.get('x-resparkable-signature')
 );
 if (!result.valid) return new Response('unauthorized', { status: 401 });
 ```

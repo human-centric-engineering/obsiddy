@@ -1,7 +1,7 @@
 ---
 name: form-builder
 description: |
-  Form builder for Sunrise. Creates validated forms using
+  Form builder for Resparkable. Creates validated forms using
   `react-hook-form` + Zod + shadcn/ui following the established
   pattern: `mode: 'onTouched'`, all fields default-valued, `apiClient`
   for non-auth submits / `authClient` for auth flows, `<FormError>` for
@@ -12,7 +12,7 @@ description: |
 
 # Form Builder Skill
 
-Production-ready forms in Sunrise use one composition: `react-hook-form` for state, `zodResolver` for validation, shadcn primitives for UI, and `<FieldHelp>` for inline guidance on non-trivial fields. Reference `components/forms/profile-form.tsx` and `preferences-form.tsx` for the canonical implementations — copy them instead of inventing.
+Production-ready forms in Resparkable use one composition: `react-hook-form` for state, `zodResolver` for validation, shadcn primitives for UI, and `<FieldHelp>` for inline guidance on non-trivial fields. Reference `components/forms/profile-form.tsx` and `preferences-form.tsx` for the canonical implementations — copy them instead of inventing.
 
 **Required by CLAUDE.md:** every non-trivial form field gets a `<FieldHelp>` ⓘ popover. See [`.context/ui/contextual-help.md`](../../../.context/ui/contextual-help.md) for the full spec.
 

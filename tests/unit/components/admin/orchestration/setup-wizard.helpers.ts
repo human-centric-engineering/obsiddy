@@ -19,7 +19,7 @@ import { vi } from 'vitest';
  * localStorage key used by SetupWizard for resume state. Bumped any
  * time the persisted shape changes (current: v3).
  */
-export const STORAGE_KEY = 'sunrise.orchestration.setup-wizard.v3';
+export const STORAGE_KEY = 'resparkable.orchestration.setup-wizard.v3';
 
 /**
  * Detection row shape — mirrors `DetectionRow` in

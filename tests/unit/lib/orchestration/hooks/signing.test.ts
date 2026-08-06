@@ -179,8 +179,8 @@ describe('verifyHookSignature (default clock fallback)', () => {
 
 describe('constants', () => {
   it('exports the expected header names', () => {
-    expect(SIGNATURE_HEADER).toBe('X-Sunrise-Signature');
-    expect(TIMESTAMP_HEADER).toBe('X-Sunrise-Timestamp');
+    expect(SIGNATURE_HEADER).toBe('X-Resparkable-Signature');
+    expect(TIMESTAMP_HEADER).toBe('X-Resparkable-Timestamp');
   });
 
   it('uses a 5-minute default max-age window', () => {

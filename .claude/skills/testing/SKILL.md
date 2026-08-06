@@ -1,7 +1,7 @@
 ---
 name: testing
 description: |
-  Testing lens and quick patterns reference for Sunrise. Apply this skill whenever
+  Testing lens and quick patterns reference for Resparkable. Apply this skill whenever
   you create, modify, or audit Vitest tests — unit, integration, or component.
   Its purpose is to enforce an anti-green-bar mindset (tests must verify what the
   code *does*, not what mocks return) and route work into the right tool:

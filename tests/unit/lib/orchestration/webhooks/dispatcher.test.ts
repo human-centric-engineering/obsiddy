@@ -38,7 +38,7 @@ vi.mock('@/lib/logging', () => ({
 const mockResendSend = vi.fn();
 vi.mock('@/lib/email/client', () => ({
   getResendClient: vi.fn(() => ({ emails: { send: mockResendSend } })),
-  getDefaultSender: vi.fn(() => 'Sunrise <noreply@example.com>'),
+  getDefaultSender: vi.fn(() => 'Resparkable <noreply@example.com>'),
   isEmailEnabled: vi.fn(() => true),
 }));
 vi.mock('@react-email/render', () => ({
@@ -718,7 +718,7 @@ describe('email-channel delivery', () => {
     expect(mockFetch).not.toHaveBeenCalled();
     expect(mockResendSend).toHaveBeenCalledWith(
       expect.objectContaining({
-        from: 'Sunrise <noreply@example.com>',
+        from: 'Resparkable <noreply@example.com>',
         to: 'alerts@example.com',
         // Subject is built from the friendly event title + an identifier
         // in the payload — "Support Bot" is the agentName here.
@@ -883,7 +883,7 @@ describe('email-channel delivery', () => {
     );
   });
 
-  it('subject line falls back to "Sunrise event: <type>" for unknown event types', async () => {
+  it('subject line falls back to "Resparkable event: <type>" for unknown event types', async () => {
     vi.mocked(prisma.aiWebhookSubscription.findMany).mockResolvedValue([
       makeEmailSub({ events: ['custom_unknown'] }),
     ] as never);
@@ -892,7 +892,7 @@ describe('email-channel delivery', () => {
 
     expect(mockResendSend).toHaveBeenCalledWith(
       expect.objectContaining({
-        subject: '[Sunrise] Sunrise event: custom_unknown',
+        subject: '[Resparkable] Resparkable event: custom_unknown',
       })
     );
   });

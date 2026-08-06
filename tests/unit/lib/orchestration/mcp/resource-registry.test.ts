@@ -61,7 +61,7 @@ function makeResourceRow(
 ) {
   return {
     id: 'res-1',
-    uri: 'sunrise://knowledge/search',
+    uri: 'resparkable://knowledge/search',
     name: 'Knowledge Search',
     description: 'Search knowledge base',
     mimeType: 'application/json',
@@ -116,7 +116,7 @@ describe('listMcpResources', () => {
 
     expect(result).toHaveLength(1);
     expect(result[0]).toEqual({
-      uri: 'sunrise://knowledge/search',
+      uri: 'resparkable://knowledge/search',
       name: 'Knowledge Search',
       description: 'Search knowledge base',
       mimeType: 'application/json',
@@ -144,10 +144,10 @@ describe('listMcpResources', () => {
 
   it('maps multiple rows correctly', async () => {
     vi.mocked(prisma.mcpExposedResource.findMany).mockResolvedValue([
-      makeResourceRow({ uri: 'sunrise://knowledge/search', name: 'Search' }),
+      makeResourceRow({ uri: 'resparkable://knowledge/search', name: 'Search' }),
       makeResourceRow({
         id: 'res-2',
-        uri: 'sunrise://agents',
+        uri: 'resparkable://agents',
         name: 'Agents',
         resourceType: 'agent_list',
       }),
@@ -155,7 +155,10 @@ describe('listMcpResources', () => {
 
     const result = await listMcpResources();
     expect(result).toHaveLength(2);
-    expect(result.map((r) => r.uri)).toEqual(['sunrise://knowledge/search', 'sunrise://agents']);
+    expect(result.map((r) => r.uri)).toEqual([
+      'resparkable://knowledge/search',
+      'resparkable://agents',
+    ]);
   });
 });
 
@@ -174,12 +177,12 @@ describe('readMcpResource', () => {
     vi.mocked(prisma.mcpExposedResource.findUnique).mockResolvedValue(row as never);
     vi.mocked(handleKnowledgeSearch).mockResolvedValue(makeResourceContent(row.uri));
 
-    const result = await readMcpResource('sunrise://knowledge/search', {
+    const result = await readMcpResource('resparkable://knowledge/search', {
       scopedAgentId: null,
       apiKeyId: 'key-1',
     });
 
-    expect(handleKnowledgeSearch).toHaveBeenCalledWith('sunrise://knowledge/search', null, {
+    expect(handleKnowledgeSearch).toHaveBeenCalledWith('resparkable://knowledge/search', null, {
       scopedAgentId: null,
       apiKeyId: 'key-1',
     });
@@ -187,13 +190,13 @@ describe('readMcpResource', () => {
   });
 
   it('dispatches to agent_list handler', async () => {
-    const row = makeResourceRow({ uri: 'sunrise://agents', resourceType: 'agent_list' });
+    const row = makeResourceRow({ uri: 'resparkable://agents', resourceType: 'agent_list' });
     vi.mocked(prisma.mcpExposedResource.findUnique).mockResolvedValue(row as never);
     vi.mocked(handleAgentList).mockResolvedValue(makeResourceContent(row.uri));
 
-    await readMcpResource('sunrise://agents', { scopedAgentId: null, apiKeyId: 'key-1' });
+    await readMcpResource('resparkable://agents', { scopedAgentId: null, apiKeyId: 'key-1' });
 
-    expect(handleAgentList).toHaveBeenCalledWith('sunrise://agents', null, {
+    expect(handleAgentList).toHaveBeenCalledWith('resparkable://agents', null, {
       scopedAgentId: null,
       apiKeyId: 'key-1',
     });
@@ -201,31 +204,31 @@ describe('readMcpResource', () => {
 
   it('dispatches to pattern_detail handler', async () => {
     const row = makeResourceRow({
-      uri: 'sunrise://knowledge/patterns/1',
+      uri: 'resparkable://knowledge/patterns/1',
       resourceType: 'pattern_detail',
     });
     vi.mocked(prisma.mcpExposedResource.findUnique).mockResolvedValue(row as never);
     vi.mocked(handlePatternDetail).mockResolvedValue(makeResourceContent(row.uri));
 
-    await readMcpResource('sunrise://knowledge/patterns/1', {
+    await readMcpResource('resparkable://knowledge/patterns/1', {
       scopedAgentId: null,
       apiKeyId: 'key-1',
     });
 
-    expect(handlePatternDetail).toHaveBeenCalledWith('sunrise://knowledge/patterns/1', null, {
+    expect(handlePatternDetail).toHaveBeenCalledWith('resparkable://knowledge/patterns/1', null, {
       scopedAgentId: null,
       apiKeyId: 'key-1',
     });
   });
 
   it('dispatches to workflow_list handler', async () => {
-    const row = makeResourceRow({ uri: 'sunrise://workflows', resourceType: 'workflow_list' });
+    const row = makeResourceRow({ uri: 'resparkable://workflows', resourceType: 'workflow_list' });
     vi.mocked(prisma.mcpExposedResource.findUnique).mockResolvedValue(row as never);
     vi.mocked(handleWorkflowList).mockResolvedValue(makeResourceContent(row.uri));
 
-    await readMcpResource('sunrise://workflows', { scopedAgentId: null, apiKeyId: 'key-1' });
+    await readMcpResource('resparkable://workflows', { scopedAgentId: null, apiKeyId: 'key-1' });
 
-    expect(handleWorkflowList).toHaveBeenCalledWith('sunrise://workflows', null, {
+    expect(handleWorkflowList).toHaveBeenCalledWith('resparkable://workflows', null, {
       scopedAgentId: null,
       apiKeyId: 'key-1',
     });
@@ -237,10 +240,13 @@ describe('readMcpResource', () => {
     vi.mocked(prisma.mcpExposedResource.findUnique).mockResolvedValue(row as never);
     vi.mocked(handleKnowledgeSearch).mockResolvedValue(makeResourceContent(row.uri));
 
-    await readMcpResource('sunrise://knowledge/search', { scopedAgentId: null, apiKeyId: 'key-1' });
+    await readMcpResource('resparkable://knowledge/search', {
+      scopedAgentId: null,
+      apiKeyId: 'key-1',
+    });
 
     expect(handleKnowledgeSearch).toHaveBeenCalledWith(
-      'sunrise://knowledge/search',
+      'resparkable://knowledge/search',
       { maxResults: 5 },
       { scopedAgentId: null, apiKeyId: 'key-1' }
     );
@@ -250,7 +256,7 @@ describe('readMcpResource', () => {
     const row = makeResourceRow({ resourceType: 'unknown_type' });
     vi.mocked(prisma.mcpExposedResource.findUnique).mockResolvedValue(row as never);
 
-    const result = await readMcpResource('sunrise://knowledge/search', {
+    const result = await readMcpResource('resparkable://knowledge/search', {
       scopedAgentId: null,
       apiKeyId: 'key-1',
     });
@@ -265,7 +271,7 @@ describe('readMcpResource', () => {
     // Pattern fallback also finds nothing
     vi.mocked(prisma.mcpExposedResource.findMany).mockResolvedValue([]);
 
-    const result = await readMcpResource('sunrise://knowledge/search', {
+    const result = await readMcpResource('resparkable://knowledge/search', {
       scopedAgentId: null,
       apiKeyId: 'key-1',
     });
@@ -277,7 +283,7 @@ describe('readMcpResource', () => {
     vi.mocked(prisma.mcpExposedResource.findUnique).mockResolvedValue(null);
     vi.mocked(prisma.mcpExposedResource.findMany).mockResolvedValue([]);
 
-    const result = await readMcpResource('sunrise://unknown/resource', {
+    const result = await readMcpResource('resparkable://unknown/resource', {
       scopedAgentId: null,
       apiKeyId: 'key-1',
     });
@@ -288,20 +294,20 @@ describe('readMcpResource', () => {
   it('falls back to pattern matching when exact match returns null', async () => {
     vi.mocked(prisma.mcpExposedResource.findUnique).mockResolvedValue(null);
     const patternRow = makeResourceRow({
-      uri: 'sunrise://knowledge/patterns/{number}',
+      uri: 'resparkable://knowledge/patterns/{number}',
       resourceType: 'pattern_detail',
     });
     vi.mocked(prisma.mcpExposedResource.findMany).mockResolvedValue([patternRow] as never);
     vi.mocked(handlePatternDetail).mockResolvedValue(
-      makeResourceContent('sunrise://knowledge/patterns/5')
+      makeResourceContent('resparkable://knowledge/patterns/5')
     );
 
-    const result = await readMcpResource('sunrise://knowledge/patterns/5', {
+    const result = await readMcpResource('resparkable://knowledge/patterns/5', {
       scopedAgentId: null,
       apiKeyId: 'key-1',
     });
 
-    expect(handlePatternDetail).toHaveBeenCalledWith('sunrise://knowledge/patterns/5', null, {
+    expect(handlePatternDetail).toHaveBeenCalledWith('resparkable://knowledge/patterns/5', null, {
       scopedAgentId: null,
       apiKeyId: 'key-1',
     });
@@ -311,10 +317,10 @@ describe('readMcpResource', () => {
   it('returns null from pattern matching when no patterns match', async () => {
     vi.mocked(prisma.mcpExposedResource.findUnique).mockResolvedValue(null);
     vi.mocked(prisma.mcpExposedResource.findMany).mockResolvedValue([
-      makeResourceRow({ uri: 'sunrise://agents', resourceType: 'agent_list' }),
+      makeResourceRow({ uri: 'resparkable://agents', resourceType: 'agent_list' }),
     ] as never);
 
-    const result = await readMcpResource('sunrise://completely/different/path', {
+    const result = await readMcpResource('resparkable://completely/different/path', {
       scopedAgentId: null,
       apiKeyId: 'key-1',
     });
@@ -327,13 +333,13 @@ describe('readMcpResource', () => {
     vi.mocked(prisma.mcpExposedResource.findUnique).mockResolvedValue(row as never);
     vi.mocked(handleKnowledgeSearch).mockRejectedValue(new Error('handler boom'));
 
-    const result = await readMcpResource('sunrise://knowledge/search', {
+    const result = await readMcpResource('resparkable://knowledge/search', {
       scopedAgentId: null,
       apiKeyId: 'key-1',
     });
 
     expect(result).toEqual({
-      uri: 'sunrise://knowledge/search',
+      uri: 'resparkable://knowledge/search',
       mimeType: 'application/json',
       text: 'Resource handler error',
     });
@@ -346,19 +352,19 @@ describe('readMcpResource', () => {
   it('returns error content when pattern-match handler throws', async () => {
     vi.mocked(prisma.mcpExposedResource.findUnique).mockResolvedValue(null);
     const patternRow = makeResourceRow({
-      uri: 'sunrise://knowledge/patterns/{number}',
+      uri: 'resparkable://knowledge/patterns/{number}',
       resourceType: 'pattern_detail',
     });
     vi.mocked(prisma.mcpExposedResource.findMany).mockResolvedValue([patternRow] as never);
     vi.mocked(handlePatternDetail).mockRejectedValue(new Error('pattern boom'));
 
-    const result = await readMcpResource('sunrise://knowledge/patterns/5', {
+    const result = await readMcpResource('resparkable://knowledge/patterns/5', {
       scopedAgentId: null,
       apiKeyId: 'key-1',
     });
 
     expect(result).toEqual({
-      uri: 'sunrise://knowledge/patterns/5',
+      uri: 'resparkable://knowledge/patterns/5',
       mimeType: 'application/json',
       text: 'Resource handler error',
     });
@@ -373,7 +379,10 @@ describe('readMcpResource', () => {
     vi.mocked(prisma.mcpExposedResource.findUnique).mockResolvedValue(row as never);
     vi.mocked(handleKnowledgeSearch).mockRejectedValue('string error');
 
-    await readMcpResource('sunrise://knowledge/search', { scopedAgentId: null, apiKeyId: 'key-1' });
+    await readMcpResource('resparkable://knowledge/search', {
+      scopedAgentId: null,
+      apiKeyId: 'key-1',
+    });
 
     expect(logger.error).toHaveBeenCalledWith(
       'MCP resource handler failed',
@@ -384,12 +393,12 @@ describe('readMcpResource', () => {
   it('skips pattern row when no handler exists for its resourceType', async () => {
     vi.mocked(prisma.mcpExposedResource.findUnique).mockResolvedValue(null);
     const noHandlerRow = makeResourceRow({
-      uri: 'sunrise://knowledge/',
+      uri: 'resparkable://knowledge/',
       resourceType: 'nonexistent_type',
     });
     vi.mocked(prisma.mcpExposedResource.findMany).mockResolvedValue([noHandlerRow] as never);
 
-    const result = await readMcpResource('sunrise://knowledge/search', {
+    const result = await readMcpResource('resparkable://knowledge/search', {
       scopedAgentId: null,
       apiKeyId: 'key-1',
     });
@@ -402,7 +411,7 @@ describe('readMcpResource', () => {
     vi.mocked(prisma.mcpExposedResource.findUnique).mockResolvedValue(row as never);
     vi.mocked(handleAgentList).mockResolvedValue(makeResourceContent(row.uri));
 
-    await readMcpResource('sunrise://agents', { scopedAgentId: null, apiKeyId: 'key-1' });
+    await readMcpResource('resparkable://agents', { scopedAgentId: null, apiKeyId: 'key-1' });
 
     expect(handleAgentList).toHaveBeenCalledWith(expect.any(String), null, {
       scopedAgentId: null,
@@ -443,8 +452,8 @@ describe('listMcpResourceTemplates', () => {
 
   it('returns empty array when no enabled resources have URI placeholders or query strings', async () => {
     vi.mocked(prisma.mcpExposedResource.findMany).mockResolvedValue([
-      makeResourceRow({ uri: 'sunrise://agents' }),
-      makeResourceRow({ id: 'res-2', uri: 'sunrise://workflows', name: 'Workflows' }),
+      makeResourceRow({ uri: 'resparkable://agents' }),
+      makeResourceRow({ id: 'res-2', uri: 'resparkable://workflows', name: 'Workflows' }),
     ] as never);
 
     const result = await listMcpResourceTemplates();
@@ -455,7 +464,7 @@ describe('listMcpResourceTemplates', () => {
   it('returns templates for resources whose URI contains {param} placeholders', async () => {
     vi.mocked(prisma.mcpExposedResource.findMany).mockResolvedValue([
       makeResourceRow({
-        uri: 'sunrise://knowledge/patterns/{number}',
+        uri: 'resparkable://knowledge/patterns/{number}',
         name: 'Pattern Detail',
         description: 'Get a specific pattern',
         mimeType: 'application/json',
@@ -466,7 +475,7 @@ describe('listMcpResourceTemplates', () => {
 
     expect(result).toHaveLength(1);
     expect(result[0]).toEqual({
-      uriTemplate: 'sunrise://knowledge/patterns/{number}',
+      uriTemplate: 'resparkable://knowledge/patterns/{number}',
       name: 'Pattern Detail',
       description: 'Get a specific pattern',
       mimeType: 'application/json',
@@ -476,7 +485,7 @@ describe('listMcpResourceTemplates', () => {
   it('returns templates for resources whose URI contains ? query params', async () => {
     vi.mocked(prisma.mcpExposedResource.findMany).mockResolvedValue([
       makeResourceRow({
-        uri: 'sunrise://knowledge/search?q=foo',
+        uri: 'resparkable://knowledge/search?q=foo',
         name: 'Knowledge Search',
         description: 'Search with query',
         mimeType: 'application/json',
@@ -486,15 +495,15 @@ describe('listMcpResourceTemplates', () => {
     const result = await listMcpResourceTemplates();
 
     expect(result).toHaveLength(1);
-    expect(result[0].uriTemplate).toBe('sunrise://knowledge/search?q=foo');
+    expect(result[0].uriTemplate).toBe('resparkable://knowledge/search?q=foo');
   });
 
   it('does not return resources without placeholders or query strings', async () => {
     vi.mocked(prisma.mcpExposedResource.findMany).mockResolvedValue([
-      makeResourceRow({ uri: 'sunrise://agents', name: 'Agents' }),
+      makeResourceRow({ uri: 'resparkable://agents', name: 'Agents' }),
       makeResourceRow({
         id: 'res-2',
-        uri: 'sunrise://knowledge/patterns/{id}',
+        uri: 'resparkable://knowledge/patterns/{id}',
         name: 'Pattern',
       }),
     ] as never);
@@ -502,13 +511,13 @@ describe('listMcpResourceTemplates', () => {
     const result = await listMcpResourceTemplates();
 
     expect(result).toHaveLength(1);
-    expect(result[0].uriTemplate).toBe('sunrise://knowledge/patterns/{id}');
+    expect(result[0].uriTemplate).toBe('resparkable://knowledge/patterns/{id}');
   });
 
   it('maps rows correctly to McpResourceTemplate shape', async () => {
     vi.mocked(prisma.mcpExposedResource.findMany).mockResolvedValue([
       makeResourceRow({
-        uri: 'sunrise://agents/{agentId}',
+        uri: 'resparkable://agents/{agentId}',
         name: 'Agent Detail',
         description: 'Get agent by ID',
         mimeType: 'application/json',
@@ -518,7 +527,7 @@ describe('listMcpResourceTemplates', () => {
     const result = await listMcpResourceTemplates();
 
     expect(result[0]).toEqual({
-      uriTemplate: 'sunrise://agents/{agentId}',
+      uriTemplate: 'resparkable://agents/{agentId}',
       name: 'Agent Detail',
       description: 'Get agent by ID',
       mimeType: 'application/json',
@@ -527,15 +536,15 @@ describe('listMcpResourceTemplates', () => {
 
   it('returns multiple templates when multiple resources match', async () => {
     vi.mocked(prisma.mcpExposedResource.findMany).mockResolvedValue([
-      makeResourceRow({ uri: 'sunrise://agents', name: 'Agents' }),
+      makeResourceRow({ uri: 'resparkable://agents', name: 'Agents' }),
       makeResourceRow({
         id: 'res-2',
-        uri: 'sunrise://agents/{agentId}',
+        uri: 'resparkable://agents/{agentId}',
         name: 'Agent Detail',
       }),
       makeResourceRow({
         id: 'res-3',
-        uri: 'sunrise://knowledge/patterns/{number}',
+        uri: 'resparkable://knowledge/patterns/{number}',
         name: 'Pattern Detail',
         resourceType: 'pattern_detail',
       }),
@@ -545,8 +554,8 @@ describe('listMcpResourceTemplates', () => {
 
     expect(result).toHaveLength(2);
     expect(result.map((r) => r.uriTemplate)).toEqual([
-      'sunrise://agents/{agentId}',
-      'sunrise://knowledge/patterns/{number}',
+      'resparkable://agents/{agentId}',
+      'resparkable://knowledge/patterns/{number}',
     ]);
   });
 });
@@ -563,52 +572,54 @@ describe('isRegisteredMcpResourceUri', () => {
 
   it('returns true for an exact match on a registered URI', async () => {
     vi.mocked(prisma.mcpExposedResource.findMany).mockResolvedValue([
-      makeResourceRow({ uri: 'sunrise://agents' }),
+      makeResourceRow({ uri: 'resparkable://agents' }),
     ] as never);
 
-    expect(await isRegisteredMcpResourceUri('sunrise://agents')).toBe(true);
+    expect(await isRegisteredMcpResourceUri('resparkable://agents')).toBe(true);
   });
 
   it('returns true for a concrete instance of a parameterised template', async () => {
-    // Template `sunrise://knowledge/patterns/{number}` should match
-    // `sunrise://knowledge/patterns/5`.
+    // Template `resparkable://knowledge/patterns/{number}` should match
+    // `resparkable://knowledge/patterns/5`.
     vi.mocked(prisma.mcpExposedResource.findMany).mockResolvedValue([
       makeResourceRow({
-        uri: 'sunrise://knowledge/patterns/{number}',
+        uri: 'resparkable://knowledge/patterns/{number}',
         resourceType: 'pattern_detail',
       }),
     ] as never);
 
-    expect(await isRegisteredMcpResourceUri('sunrise://knowledge/patterns/5')).toBe(true);
+    expect(await isRegisteredMcpResourceUri('resparkable://knowledge/patterns/5')).toBe(true);
   });
 
   it('returns true for a concrete instance with multiple path segments after the prefix', async () => {
     vi.mocked(prisma.mcpExposedResource.findMany).mockResolvedValue([
-      makeResourceRow({ uri: 'sunrise://knowledge/search?q={query}' }),
+      makeResourceRow({ uri: 'resparkable://knowledge/search?q={query}' }),
     ] as never);
 
-    expect(await isRegisteredMcpResourceUri('sunrise://knowledge/search?q=patterns')).toBe(true);
+    expect(await isRegisteredMcpResourceUri('resparkable://knowledge/search?q=patterns')).toBe(
+      true
+    );
   });
 
   it('returns false for a URI no registered resource covers', async () => {
     vi.mocked(prisma.mcpExposedResource.findMany).mockResolvedValue([
-      makeResourceRow({ uri: 'sunrise://agents' }),
+      makeResourceRow({ uri: 'resparkable://agents' }),
     ] as never);
 
-    expect(await isRegisteredMcpResourceUri('sunrise://unknown')).toBe(false);
+    expect(await isRegisteredMcpResourceUri('resparkable://unknown')).toBe(false);
   });
 
   it('returns false when no resources are registered', async () => {
     vi.mocked(prisma.mcpExposedResource.findMany).mockResolvedValue([]);
-    expect(await isRegisteredMcpResourceUri('sunrise://anything')).toBe(false);
+    expect(await isRegisteredMcpResourceUri('resparkable://anything')).toBe(false);
   });
 
   it('does not match a different template prefix', async () => {
-    // `sunrise://workflows/{id}` must not match `sunrise://agents/foo`.
+    // `resparkable://workflows/{id}` must not match `resparkable://agents/foo`.
     vi.mocked(prisma.mcpExposedResource.findMany).mockResolvedValue([
-      makeResourceRow({ uri: 'sunrise://workflows/{id}' }),
+      makeResourceRow({ uri: 'resparkable://workflows/{id}' }),
     ] as never);
 
-    expect(await isRegisteredMcpResourceUri('sunrise://agents/foo')).toBe(false);
+    expect(await isRegisteredMcpResourceUri('resparkable://agents/foo')).toBe(false);
   });
 });

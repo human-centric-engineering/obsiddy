@@ -1,6 +1,6 @@
 # Building Agentic Solutions — End-to-End Guide
 
-"I have a business problem — now what?" This guide walks you from problem description to running agentic solution using the Sunrise orchestration layer.
+"I have a business problem — now what?" This guide walks you from problem description to running agentic solution using the Resparkable orchestration layer.
 
 ## The Process
 
@@ -242,7 +242,7 @@ You can use Claude Code with the `/agent-architect` skill to build solutions dir
 1. Describe your problem: _"I need a customer support system that handles order queries, refunds, and escalations"_
 2. Claude Code loads the agent-architect skill and selects patterns
 3. It designs the architecture using composition recipes
-4. Say _"build it"_ and Claude Code reads `sunrise-implementation.md` to:
+4. Say _"build it"_ and Claude Code reads `resparkable-implementation.md` to:
    - Create agent configs via the API
    - Write custom capability handlers
    - Compose the workflow DAG

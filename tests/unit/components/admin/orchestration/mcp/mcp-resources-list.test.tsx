@@ -75,7 +75,7 @@ function makeResource(overrides: Partial<ResourceRow> = {}): ResourceRow {
   return {
     id: 'r-1',
     name: 'Knowledge Search',
-    uri: 'sunrise://knowledge/search',
+    uri: 'resparkable://knowledge/search',
     description: 'Search your KB',
     mimeType: 'application/json',
     resourceType: 'knowledge_search',
@@ -157,7 +157,7 @@ describe('table render — non-empty', () => {
     // Arrange
     const resource = makeResource({
       description: 'Search your KB',
-      uri: 'sunrise://knowledge/search',
+      uri: 'resparkable://knowledge/search',
       resourceType: 'knowledge_search',
       mimeType: 'application/json',
     });
@@ -167,7 +167,7 @@ describe('table render — non-empty', () => {
     const row = screen.getByRole('row', { name: /Knowledge Search/i });
     expect(within(row).getByText('Knowledge Search')).toBeInTheDocument();
     expect(within(row).getByText('Search your KB')).toBeInTheDocument();
-    expect(within(row).getByText('sunrise://knowledge/search')).toBeInTheDocument();
+    expect(within(row).getByText('resparkable://knowledge/search')).toBeInTheDocument();
     expect(within(row).getByText('knowledge_search')).toBeInTheDocument();
     expect(within(row).getByText('application/json')).toBeInTheDocument();
     expect(within(row).getByRole('switch')).toBeInTheDocument();
@@ -230,7 +230,7 @@ describe('resource type select', () => {
     expect(options).toContain('pattern_detail');
   });
 
-  it('selecting knowledge_search auto-fills URI with sunrise://knowledge/search when URI is empty', async () => {
+  it('selecting knowledge_search auto-fills URI with resparkable://knowledge/search when URI is empty', async () => {
     // Arrange
     const user = userEvent.setup();
     render(<McpResourcesList initialResources={[]} />);
@@ -240,7 +240,7 @@ describe('resource type select', () => {
     await user.selectOptions(screen.getByTestId('select-root'), 'knowledge_search');
 
     // Assert
-    expect(screen.getByLabelText(/^URI/i)).toHaveValue('sunrise://knowledge/search');
+    expect(screen.getByLabelText(/^URI/i)).toHaveValue('resparkable://knowledge/search');
   });
 
   it('selecting a type does NOT overwrite an already-populated URI', async () => {
@@ -250,13 +250,13 @@ describe('resource type select', () => {
     await openDialog(user);
 
     // Pre-fill URI
-    await user.type(screen.getByLabelText(/^URI/i), 'sunrise://custom/path');
+    await user.type(screen.getByLabelText(/^URI/i), 'resparkable://custom/path');
 
     // Act — pick a type
     await user.selectOptions(screen.getByTestId('select-root'), 'agent_list');
 
     // Assert — URI unchanged
-    expect(screen.getByLabelText(/^URI/i)).toHaveValue('sunrise://custom/path');
+    expect(screen.getByLabelText(/^URI/i)).toHaveValue('resparkable://custom/path');
   });
 
   it('after selecting a type, description hint text appears', async () => {
@@ -295,7 +295,7 @@ describe('form validation — submit button', () => {
     render(<McpResourcesList initialResources={[]} />);
     await openDialog(user);
 
-    await user.type(screen.getByLabelText(/^URI/i), 'sunrise://knowledge/search');
+    await user.type(screen.getByLabelText(/^URI/i), 'resparkable://knowledge/search');
     await user.selectOptions(screen.getByTestId('select-root'), 'knowledge_search');
 
     // Assert — name still empty
@@ -324,7 +324,7 @@ describe('form validation — submit button', () => {
     await openDialog(user);
 
     await user.type(screen.getByLabelText(/^Name/i), 'My Resource');
-    await user.type(screen.getByLabelText(/^URI/i), 'sunrise://foo');
+    await user.type(screen.getByLabelText(/^URI/i), 'resparkable://foo');
 
     // Assert — resourceType still empty
     expect(getSubmitButton()).toBeDisabled();

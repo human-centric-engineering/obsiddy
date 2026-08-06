@@ -36,8 +36,8 @@ export default function ContactPage() {
         <div className="mb-12 text-center">
           <h1 className="mb-4 text-4xl font-bold tracking-tight">Get in Touch</h1>
           <p className="text-muted-foreground mx-auto max-w-2xl text-lg">
-            Have a question about Sunrise? Want to discuss a custom implementation? Or just want to
-            say hello? We&apos;d love to hear from you.
+            Have a question about Resparkable? Want to discuss a custom implementation? Or just want
+            to say hello? We&apos;d love to hear from you.
           </p>
         </div>
 

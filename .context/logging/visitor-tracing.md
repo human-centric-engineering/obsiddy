@@ -8,15 +8,15 @@ form → chat — so an operator can reconstruct "who hit this error, doing what
 under what conditions" for a not-logged-in visitor. The two are complementary
 and both appear on every `getRouteLogger`-based log line.
 
-| Key         | Scope                                | Source                                              |
-| ----------- | ------------------------------------ | --------------------------------------------------- |
-| `requestId` | one request                          | `x-request-id` header (minted in `proxy.ts`)        |
-| `visitorId` | one browser, across requests (180 d) | signed `sunrise_vid` cookie, verified in `proxy.ts` |
+| Key         | Scope                                | Source                                                  |
+| ----------- | ------------------------------------ | ------------------------------------------------------- |
+| `requestId` | one request                          | `x-request-id` header (minted in `proxy.ts`)            |
+| `visitorId` | one browser, across requests (180 d) | signed `resparkable_vid` cookie, verified in `proxy.ts` |
 
 ## How it works
 
 1. **Issue + verify (proxy).** On every matched request, `proxy.ts` reads the
-   `sunrise_vid` cookie and verifies its HMAC signature. Valid → reuse the id.
+   `resparkable_vid` cookie and verifies its HMAC signature. Valid → reuse the id.
    Absent or tampered → mint a fresh `nanoid`, sign it, and `Set-Cookie`
    (`HttpOnly`, `SameSite=Lax`, `Secure` in production, `Path=/`, 180-day
    `Max-Age`). A returning visitor with a valid cookie gets **no** new
@@ -79,7 +79,7 @@ navigation — which otherwise emits no server logs — visible.
 
 ## Edge cases & gotchas
 
-- **Third-party embeds get no `visitorId`.** The `sunrise_vid` cookie is
+- **Third-party embeds get no `visitorId`.** The `resparkable_vid` cookie is
   `SameSite=Lax`, so it is **not** sent on a cross-site embed POST. A true
   third-party embed keeps its own `embed_<hash>` identity (see
   `lib/embed/auth.ts`); a **same-origin** embed _does_ receive the cookie and
@@ -88,7 +88,7 @@ navigation — which otherwise emits no server logs — visible.
   better-auth session, so `visitorId` persists across login — a visitor's
   anonymous and authenticated log lines share it.
 - **Secret rotation invalidates cookies.** The signing key is derived from
-  `BETTER_AUTH_SECRET`; rotating that secret makes existing `sunrise_vid`
+  `BETTER_AUTH_SECRET`; rotating that secret makes existing `resparkable_vid`
   cookies fail verification and re-mint. That is acceptable — the id is only a
   log correlator, never an auth or identity signal.
 
@@ -99,7 +99,7 @@ navigation — which otherwise emits no server logs — visible.
   implementation regardless of where a fork runs its proxy. Do **not** swap in
   `node:crypto` — it breaks the Edge runtime.
 - The HMAC key is derived from `BETTER_AUTH_SECRET` via **HKDF-SHA256** with a
-  versioned `info` label (`sunrise:visitor-id:v1`) for domain separation — the
+  versioned `info` label (`resparkable:visitor-id:v1`) for domain separation — the
   raw auth secret is never used directly as a signing key.
 - `verifyVisitorId()` uses `crypto.subtle.verify`, which compares the HMAC in
   constant time, and never throws on malformed input (returns `null`).

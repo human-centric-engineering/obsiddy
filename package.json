@@ -1,7 +1,7 @@
 {
-  "name": "obsiddy",
+  "name": "resparkable",
   "version": "0.1.0",
-  "description": "Obsiddy — an agentic second brain and planner: thought capture, projects, goals, background connection-finding. A framework-tier module built on Sunrise.",
+  "description": "Resparkable — an agentic second brain and planner: thought capture, projects, goals, background connection-finding. A framework-tier module built on Sunrise.",
   "private": true,
   "scripts": {
     "dev": "node scripts/dev-server.mjs next-dev",
@@ -41,14 +41,14 @@
     "smoke:export": "tsx --env-file=.env.local scripts/smoke/export.ts",
     "postinstall": "prisma generate",
     "prepare": "husky",
-    "framework:obsiddy:smoke-isolation": "tsx --env-file=.env.local scripts/framework/obsiddy/smoke-isolation.ts",
-    "framework:obsiddy:smoke-priority": "tsx --env-file=.env.local scripts/framework/obsiddy/smoke-priority.ts",
-    "framework:obsiddy:smoke-search": "tsx --env-file=.env.local scripts/framework/obsiddy/smoke-search.ts",
-    "framework:obsiddy:eval-triage": "tsx --env-file=.env.local scripts/framework/obsiddy/eval-triage.ts"
+    "framework:resparkable:smoke-isolation": "tsx --env-file=.env.local scripts/framework/resparkable/smoke-isolation.ts",
+    "framework:resparkable:smoke-priority": "tsx --env-file=.env.local scripts/framework/resparkable/smoke-priority.ts",
+    "framework:resparkable:smoke-search": "tsx --env-file=.env.local scripts/framework/resparkable/smoke-search.ts",
+    "framework:resparkable:eval-triage": "tsx --env-file=.env.local scripts/framework/resparkable/eval-triage.ts"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/human-centric-engineering/obsiddy.git"
+    "url": "git+https://github.com/human-centric-engineering/resparkable.git"
   },
   "keywords": [
     "nextjs",
@@ -64,9 +64,9 @@
   "author": "Human-Centric Engineering",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/human-centric-engineering/sunrise/issues"
+    "url": "https://github.com/human-centric-engineering/resparkable/issues"
   },
-  "homepage": "https://github.com/human-centric-engineering/sunrise#readme",
+  "homepage": "https://github.com/human-centric-engineering/resparkable#readme",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",
     "@aws-sdk/client-s3": "^3.1101.0",

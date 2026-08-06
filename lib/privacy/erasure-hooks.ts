@@ -1,7 +1,7 @@
 /**
  * Erasure cleanup-hook registry.
  *
- * Lets an app built on Sunrise hook its own user-linked data into the GDPR
+ * Lets an app built on Resparkable hook its own user-linked data into the GDPR
  * erasure path (`eraseUser`) for the two things the DB-level FK cascade
  * structurally cannot do:
  *
@@ -52,7 +52,7 @@ export interface ErasureCleanupHook {
   /**
    * Best-effort cleanup of external resources (object storage, search indexes)
    * keyed to the user. Runs BEFORE the erasure transaction. A throw is logged
-   * and swallowed so it can never block erasure — mirrors Sunrise's own
+   * and swallowed so it can never block erasure — mirrors Resparkable's own
    * avatar-blob cleanup.
    */
   cleanupExternal?: (ctx: ErasureExternalContext) => Promise<void>;

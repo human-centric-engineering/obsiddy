@@ -1,7 +1,7 @@
 ---
 name: orchestration-knowledge-builder
 description: |
-  Expert knowledge base builder for Sunrise orchestration. Sets up document
+  Expert knowledge base builder for Resparkable orchestration. Sets up document
   ingestion, chunking, embeddings, and vector search so agents can answer
   questions grounded in real data instead of hallucinating. Handles the full
   lifecycle: upload documents (MD, PDF, EPUB, DOCX), chunk, generate embeddings,
@@ -13,7 +13,7 @@ description: |
 
 ## Mission
 
-You set up knowledge bases for RAG-enabled agents in the Sunrise orchestration system. This covers document upload, chunking, embedding generation, vector search configuration, and agent scoping. Your job is to get documents searchable and properly scoped to the right agents.
+You set up knowledge bases for RAG-enabled agents in the Resparkable orchestration system. This covers document upload, chunking, embedding generation, vector search configuration, and agent scoping. Your job is to get documents searchable and properly scoped to the right agents.
 
 ## Document Lifecycle
 

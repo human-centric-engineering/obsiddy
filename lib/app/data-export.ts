@@ -1,7 +1,7 @@
 /**
  * App subject-data export seam (GDPR Art. 15).
  *
- * **Fork-owned scaffold** — Sunrise ships this returning nothing and does NOT
+ * **Fork-owned scaffold** — Resparkable ships this returning nothing and does NOT
  * change it after release, so your edits here merge cleanly on upgrade (the
  * stable contract is this file's `collectAppSubjectData` export, not its body).
  * Treat it like the other `lib/app/*` seams.
@@ -46,8 +46,8 @@
  * Full guide: .context/privacy/data-export.md · CUSTOMIZATION.md §4
  */
 
-import { ownerScope } from '@/lib/framework/obsiddy/repo/owner-scope';
-import { collectObsiddySubjectData } from '@/lib/framework/obsiddy/repo/subject-export';
+import { ownerScope } from '@/lib/framework/resparkable/repo/owner-scope';
+import { collectResparkableSubjectData } from '@/lib/framework/resparkable/repo/subject-export';
 
 /** Identity of the subject being exported. */
 export interface AppSubjectQuery {
@@ -66,17 +66,17 @@ export type AppSubjectData = Record<string, unknown>;
 /**
  * Collect this app's data about one subject.
  *
- * FORK NOTE (Obsiddy): returns the whole brain, nested under one `obsiddy` key
+ * FORK NOTE (Resparkable): returns the whole brain, nested under one `resparkable` key
  * rather than spread, so a host project's own app sections can never collide
- * with a section name the tier adds later. Obsiddy owns its manifest — a later
- * Obsiddy release can add a table without every host project editing this file,
+ * with a section name the tier adds later. Resparkable owns its manifest — a later
+ * Resparkable release can add a table without every host project editing this file,
  * which is the same reason `lib/app/capabilities.ts` makes one call rather than
  * pasting a list.
  *
  * Static import on purpose, like the other `lib/app/*` seams here: this runs
  * inside `exportUserData()` on a request a person is waiting on, and this repo
- * IS the Obsiddy tier so the path always resolves. A host project adds the same
- * two lines; see `.context/framework/obsiddy/install.md`.
+ * IS the Resparkable tier so the path always resolves. A host project adds the same
+ * two lines; see `.context/framework/resparkable/install.md`.
  *
  * `ownerScope()` is the tier's greppable trust boundary, and this is a
  * legitimate mint site: `userId` reaches here from `exportUserData()`, which
@@ -84,5 +84,5 @@ export type AppSubjectData = Record<string, unknown>;
  * param — never from a request body or a model.
  */
 export async function collectAppSubjectData(subject: AppSubjectQuery): Promise<AppSubjectData> {
-  return { obsiddy: await collectObsiddySubjectData(ownerScope(subject.userId)) };
+  return { resparkable: await collectResparkableSubjectData(ownerScope(subject.userId)) };
 }

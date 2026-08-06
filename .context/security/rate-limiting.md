@@ -1,6 +1,6 @@
 # Rate Limiting
 
-Rate-limit enforcement for every `/api/**` request in Sunrise. Section caps are applied centrally in `proxy.ts` via a policy table; per-flow tighter caps live in handlers as additive checks on expensive sub-flows.
+Rate-limit enforcement for every `/api/**` request in Resparkable. Section caps are applied centrally in `proxy.ts` via a policy table; per-flow tighter caps live in handlers as additive checks on expensive sub-flows.
 
 ## Quick Reference
 
@@ -275,7 +275,7 @@ Three edits, in order:
 
 ## App / Fork Extension
 
-The three edits above ("Adding a New Tier") are how **Sunrise itself** adds a built-in tier — they edit core files. Apps and forks should NOT edit `RATE_LIMIT_POLICY`, the `RateLimitTier` union, or the `RATE_LIMIT_TIERS` registry. Instead, fill in **`lib/app/rate-limit.ts`** — its `registerAppRateLimits()` is **auto-wired**: the rate-limit middleware imports and calls it once at module load (in the middleware runtime, the realm `proxy.ts` evaluates the policy in), so you never hunt for a startup hook:
+The three edits above ("Adding a New Tier") are how **Resparkable itself** adds a built-in tier — they edit core files. Apps and forks should NOT edit `RATE_LIMIT_POLICY`, the `RateLimitTier` union, or the `RATE_LIMIT_TIERS` registry. Instead, fill in **`lib/app/rate-limit.ts`** — its `registerAppRateLimits()` is **auto-wired**: the rate-limit middleware imports and calls it once at module load (in the middleware runtime, the realm `proxy.ts` evaluates the policy in), so you never hunt for a startup hook:
 
 ```typescript
 // lib/app/rate-limit.ts
@@ -299,14 +299,14 @@ export function registerAppRateLimits(): void {
 }
 ```
 
-`lib/app/rate-limit.ts` is one of the `lib/app/` auto-wired bootstrap files (alongside `lib/app/env.ts`, `lib/app/capabilities.ts`, `lib/app/admin-nav.ts`) — each imported by the core consumer in its runtime so a fork registers without wiring. **Why a per-file split rather than one shared bootstrap call:** Next.js bundles middleware, server route-handlers, and the client as three separate module realms, so a module-level registration only takes effect in the realm where it runs; rate-limit state lives in the middleware realm, so it's wired from the middleware. See [Building on Sunrise → §4](../../CUSTOMIZATION.md#4-configuration--environment--the-libapp-surface).
+`lib/app/rate-limit.ts` is one of the `lib/app/` auto-wired bootstrap files (alongside `lib/app/env.ts`, `lib/app/capabilities.ts`, `lib/app/admin-nav.ts`) — each imported by the core consumer in its runtime so a fork registers without wiring. **Why a per-file split rather than one shared bootstrap call:** Next.js bundles middleware, server route-handlers, and the client as three separate module realms, so a module-level registration only takes effect in the realm where it runs; rate-limit state lives in the middleware realm, so it's wired from the middleware. See [Building on Resparkable → §4](../../CUSTOMIZATION.md#4-configuration--environment--the-libapp-surface).
 
-**How app rules are merged.** `getEffectiveRateLimitPolicy()` (called by the dispatcher on every request) returns the base policy with app rules spliced in **after every built-in Sunrise rule and before the `/api/v1/` catch-all**. So an app rule governs the app's own namespace without restating — or being able to shadow — any Sunrise rule. `resolveRateLimitTier(name)` resolves built-in and app tiers from one registry.
+**How app rules are merged.** `getEffectiveRateLimitPolicy()` (called by the dispatcher on every request) returns the base policy with app rules spliced in **after every built-in Resparkable rule and before the `/api/v1/` catch-all**. So an app rule governs the app's own namespace without restating — or being able to shadow — any Resparkable rule. `resolveRateLimitTier(name)` resolves built-in and app tiers from one registry.
 
 **Security constraints (enforced at registration — these throw):**
 
 - **`registerRateLimitTier` cannot override a built-in tier.** Registering `'admin'`, `'auth'`, `'mcp'`, etc. (or a duplicate app name) throws. The collision check is case-insensitive — `'Admin'` is also rejected so a confusable can't ship alongside the real lowercase tier. A fork cannot silently swap the 30/min `admin` limiter for a looser one.
-- **`registerRateLimitRule` cannot match a Sunrise-protected namespace.** A rule whose matcher could fire for an arbitrary path under `/api/v1/admin/**`, `/api/auth/**`, `/api/v1/auth/**`, or `/api/v1/mcp/**` is rejected — so an overly-broad matcher like `/^\/api\/v1\//` throws at registration. Matchers nested _deeper_ than a Sunrise namespace (e.g. a regex targeting `/api/v1/admin/orchestration/...` specifically) slip past the guard but are still protected by **first-match ordering**: app rules are spliced after every Sunrise rule, so Sunrise's narrower rule for that sub-path always wins before the fork's rule is evaluated. The registration guard catches the broad-shadow case loudly; ordering catches everything else.
+- **`registerRateLimitRule` cannot match a Resparkable-protected namespace.** A rule whose matcher could fire for an arbitrary path under `/api/v1/admin/**`, `/api/auth/**`, `/api/v1/auth/**`, or `/api/v1/mcp/**` is rejected — so an overly-broad matcher like `/^\/api\/v1\//` throws at registration. Matchers nested _deeper_ than a Resparkable namespace (e.g. a regex targeting `/api/v1/admin/orchestration/...` specifically) slip past the guard but are still protected by **first-match ordering**: app rules are spliced after every Resparkable rule, so Resparkable's narrower rule for that sub-path always wins before the fork's rule is evaluated. The registration guard catches the broad-shadow case loudly; ordering catches everything else.
 - **Boot fails if any rule references an unresolved tier.** After `registerAppRateLimits()` runs, the middleware walks the effective policy and throws if any rule's `tier` doesn't resolve via `resolveRateLimitTier`. A typo like `tier: 'billling'` would otherwise type-check cleanly (the rule shape widens to `RateLimitTier | (string & {})` for fork ergonomics) and silently fail open at request time — no limiter found means no rate limit applied. The boot-time integrity check converts that runtime hole into a clear startup error naming the rule and the unresolved tier.
 
 App tiers/rules are developer config applied at startup — not attacker-reachable input. The guard exists so a fork author can't _accidentally_ weaken an auth/admin cap, not as a defense against a malicious operator (who owns the process anyway).

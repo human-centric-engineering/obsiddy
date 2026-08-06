@@ -448,7 +448,7 @@ export function WebhookForm({ mode, webhook }: WebhookFormProps) {
         <Label>
           Delivery channel{' '}
           <FieldHelp title="How notifications are delivered">
-            <p>Choose how Sunrise should send each matching event:</p>
+            <p>Choose how Resparkable should send each matching event:</p>
             <ul className="mt-2 list-disc space-y-1 pl-4">
               <li>
                 <span className="font-medium">Webhook</span> — POSTs a signed JSON payload to a URL
@@ -500,17 +500,17 @@ export function WebhookForm({ mode, webhook }: WebhookFormProps) {
               Endpoint URL{' '}
               <FieldHelp title="Where to send events">
                 The URL of your external system that should receive event notifications (e.g. a
-                Slack integration, your backend API, or a service like Zapier). Sunrise will send a
-                POST request to this address each time a selected event fires. Must be publicly
-                reachable over HTTP or HTTPS — private IPs, localhost, and cloud metadata endpoints
-                are blocked for security.
+                Slack integration, your backend API, or a service like Zapier). Resparkable will
+                send a POST request to this address each time a selected event fires. Must be
+                publicly reachable over HTTP or HTTPS — private IPs, localhost, and cloud metadata
+                endpoints are blocked for security.
               </FieldHelp>
             </Label>
             <Input
               id="url"
               type="url"
               {...register('url')}
-              placeholder="https://example.com/webhooks/sunrise"
+              placeholder="https://example.com/webhooks/resparkable"
               className="font-mono"
             />
             {errors.url && <p className="text-destructive text-xs">{errors.url.message}</p>}
@@ -523,12 +523,12 @@ export function WebhookForm({ mode, webhook }: WebhookFormProps) {
             <Label htmlFor="secret">
               Signing secret{' '}
               <FieldHelp title="How signing works">
-                A shared secret between Sunrise and your endpoint, used to prove each delivery is
-                genuine. Sunrise hashes every request body with this secret and includes the result
-                in the <code>X-Webhook-Signature</code> header. Your endpoint re-computes the same
-                hash — if it matches, the request definitely came from Sunrise and hasn&apos;t been
-                tampered with. Must be at least 16 characters. Click the key icon to generate one
-                automatically.
+                A shared secret between Resparkable and your endpoint, used to prove each delivery
+                is genuine. Resparkable hashes every request body with this secret and includes the
+                result in the <code>X-Webhook-Signature</code> header. Your endpoint re-computes the
+                same hash — if it matches, the request definitely came from Resparkable and
+                hasn&apos;t been tampered with. Must be at least 16 characters. Click the key icon
+                to generate one automatically.
               </FieldHelp>
             </Label>
             <div className="flex gap-2">
@@ -580,8 +580,8 @@ export function WebhookForm({ mode, webhook }: WebhookFormProps) {
             </div>
             {hasSecretValue && (
               <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-200">
-                Copy this secret now — Sunrise won&apos;t display it again after you save. Paste it
-                into your receiver so it can verify the <code>X-Webhook-Signature</code> header.
+                Copy this secret now — Resparkable won&apos;t display it again after you save. Paste
+                it into your receiver so it can verify the <code>X-Webhook-Signature</code> header.
               </p>
             )}
             {secretCopyError && <p className="text-destructive text-xs">{secretCopyError}</p>}
@@ -596,7 +596,7 @@ export function WebhookForm({ mode, webhook }: WebhookFormProps) {
           <Label htmlFor="emailAddress">
             Email address{' '}
             <FieldHelp title="Where to send the email">
-              The destination email address for event notifications. Sunrise renders a formatted
+              The destination email address for event notifications. Resparkable renders a formatted
               email with the same data a webhook receiver would get and sends it via the configured
               email provider. Best for human notifications — alerts to an on-call team, copies to a
               shared inbox, etc.
@@ -637,8 +637,8 @@ export function WebhookForm({ mode, webhook }: WebhookFormProps) {
           Events{' '}
           <FieldHelp title="Which events trigger this subscription" contentClassName="w-96">
             <p>
-              Pick the events you care about. Each time one fires, Sunrise sends a notification via
-              the selected channel.
+              Pick the events you care about. Each time one fires, Resparkable sends a notification
+              via the selected channel.
             </p>
             <p className="text-foreground mt-2 font-medium">Example use cases</p>
             <ul className="mt-1 list-disc space-y-1 pl-4">
@@ -749,12 +749,12 @@ export function WebhookForm({ mode, webhook }: WebhookFormProps) {
         <div className="space-y-0.5">
           <p className="text-sm font-medium">Retry policy</p>
           <p className="text-muted-foreground text-xs">
-            How Sunrise handles delivery failures before giving up and moving the delivery into the
-            Dead Letter Queue.
+            How Resparkable handles delivery failures before giving up and moving the delivery into
+            the Dead Letter Queue.
             {currentChannel === 'email' && (
               <>
                 {' '}
-                For email subscriptions this controls how often Sunrise retries against its own
+                For email subscriptions this controls how often Resparkable retries against its own
                 provider; the email provider also handles its own retry semantics out-of-band.
               </>
             )}
@@ -765,8 +765,8 @@ export function WebhookForm({ mode, webhook }: WebhookFormProps) {
           <Label htmlFor="maxAttempts">
             Maximum attempts{' '}
             <FieldHelp title="How many times to try">
-              The total number of delivery attempts (including the first try) before Sunrise marks
-              the delivery as <code>exhausted</code> and stops retrying. Allowed range:{' '}
+              The total number of delivery attempts (including the first try) before Resparkable
+              marks the delivery as <code>exhausted</code> and stops retrying. Allowed range:{' '}
               {WEBHOOK_MAX_ATTEMPTS_MIN}–{WEBHOOK_MAX_ATTEMPTS_MAX}. Default is 3.
             </FieldHelp>
           </Label>
@@ -789,7 +789,7 @@ export function WebhookForm({ mode, webhook }: WebhookFormProps) {
             <FieldHelp title="How long to wait between attempts">
               A comma-separated list of seconds — the wait before each retry. The first number is
               the wait after the first failure, the second after the second failure, and so on.
-              Sunrise needs at least <code>(maxAttempts − 1)</code> values. Example:{' '}
+              Resparkable needs at least <code>(maxAttempts − 1)</code> values. Example:{' '}
               <code>10, 60, 300</code> gives a 10-second pause, then a minute, then five minutes.
               Each value must be between 1 second and 86400 (24 hours).
             </FieldHelp>

@@ -4,13 +4,13 @@
  * Two namespaces:
  * - `gen_ai.*` — OpenTelemetry GenAI semantic conventions. These align with
  *   the OTEL spec so any OTLP-compatible backend (Datadog, Honeycomb,
- *   Grafana Tempo, Langfuse-via-OTLP) renders Sunrise spans correctly
+ *   Grafana Tempo, Langfuse-via-OTLP) renders Resparkable spans correctly
  *   without custom mapping.
- * - `sunrise.*` — Sunrise-specific extensions for cost, agent, workflow,
+ * - `resparkable.*` — Resparkable-specific extensions for cost, agent, workflow,
  *   capability, and conversation correlation. Always lower-case dot-namespaced.
  */
 
-// --- GenAI semantic conventions (subset Sunrise emits) ---
+// --- GenAI semantic conventions (subset Resparkable emits) ---
 
 export const GEN_AI_SYSTEM = 'gen_ai.system';
 export const GEN_AI_REQUEST_MODEL = 'gen_ai.request.model';
@@ -22,31 +22,31 @@ export const GEN_AI_USAGE_OUTPUT_TOKENS = 'gen_ai.usage.output_tokens';
 export const GEN_AI_USAGE_TOTAL_TOKENS = 'gen_ai.usage.total_tokens';
 /** One of: 'chat' | 'tool_call' | 'embedding' | 'summary' | 'evaluation'. */
 export const GEN_AI_OPERATION_NAME = 'gen_ai.operation.name';
-/** Opt-in only. Never set unless `SUNRISE_OTEL_RECORD_PROMPTS=true`. */
+/** Opt-in only. Never set unless `RESPARKABLE_OTEL_RECORD_PROMPTS=true`. */
 export const GEN_AI_PROMPT = 'gen_ai.prompt';
-/** Opt-in only. Never set unless `SUNRISE_OTEL_RECORD_PROMPTS=true`. */
+/** Opt-in only. Never set unless `RESPARKABLE_OTEL_RECORD_PROMPTS=true`. */
 export const GEN_AI_COMPLETION = 'gen_ai.completion';
 export const GEN_AI_TOOL_NAME = 'gen_ai.tool.name';
 export const GEN_AI_TOOL_CALL_ID = 'gen_ai.tool.call.id';
 
-// --- Sunrise-specific extensions ---
+// --- Resparkable-specific extensions ---
 
-export const SUNRISE_EXECUTION_ID = 'sunrise.execution_id';
-export const SUNRISE_WORKFLOW_ID = 'sunrise.workflow_id';
-export const SUNRISE_STEP_ID = 'sunrise.step_id';
-export const SUNRISE_STEP_TYPE = 'sunrise.step_type';
-export const SUNRISE_AGENT_ID = 'sunrise.agent_id';
-export const SUNRISE_AGENT_SLUG = 'sunrise.agent_slug';
-export const SUNRISE_CONVERSATION_ID = 'sunrise.conversation_id';
-export const SUNRISE_CAPABILITY_SLUG = 'sunrise.capability';
-export const SUNRISE_CAPABILITY_SUCCESS = 'sunrise.capability.success';
-export const SUNRISE_USER_ID = 'sunrise.user_id';
-export const SUNRISE_COST_USD = 'sunrise.cost_usd';
-export const SUNRISE_TOOL_ITERATION = 'sunrise.tool_iteration';
-export const SUNRISE_PROVIDER_FAILOVER_FROM = 'sunrise.provider.failover_from';
-export const SUNRISE_PROVIDER_FAILOVER_TO = 'sunrise.provider.failover_to';
-export const SUNRISE_STEP_LLM_DURATION_MS = 'sunrise.step.llm_duration_ms';
-export const SUNRISE_EVALUATION_PHASE = 'sunrise.evaluation.phase';
+export const RESPARKABLE_EXECUTION_ID = 'resparkable.execution_id';
+export const RESPARKABLE_WORKFLOW_ID = 'resparkable.workflow_id';
+export const RESPARKABLE_STEP_ID = 'resparkable.step_id';
+export const RESPARKABLE_STEP_TYPE = 'resparkable.step_type';
+export const RESPARKABLE_AGENT_ID = 'resparkable.agent_id';
+export const RESPARKABLE_AGENT_SLUG = 'resparkable.agent_slug';
+export const RESPARKABLE_CONVERSATION_ID = 'resparkable.conversation_id';
+export const RESPARKABLE_CAPABILITY_SLUG = 'resparkable.capability';
+export const RESPARKABLE_CAPABILITY_SUCCESS = 'resparkable.capability.success';
+export const RESPARKABLE_USER_ID = 'resparkable.user_id';
+export const RESPARKABLE_COST_USD = 'resparkable.cost_usd';
+export const RESPARKABLE_TOOL_ITERATION = 'resparkable.tool_iteration';
+export const RESPARKABLE_PROVIDER_FAILOVER_FROM = 'resparkable.provider.failover_from';
+export const RESPARKABLE_PROVIDER_FAILOVER_TO = 'resparkable.provider.failover_to';
+export const RESPARKABLE_STEP_LLM_DURATION_MS = 'resparkable.step.llm_duration_ms';
+export const RESPARKABLE_EVALUATION_PHASE = 'resparkable.evaluation.phase';
 
 // --- Span name constants ---
 

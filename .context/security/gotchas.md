@@ -95,7 +95,7 @@ import { getClientIP } from '@/lib/security/ip';
 const ip = getClientIP(request);
 ```
 
-**Why:** the leftmost value in `X-Forwarded-For` is the original client IP **when the deployment guarantees its reverse proxy (nginx, Cloudflare, etc.) strips any client-set header and appends its own value before forwarding.** Sunrise's `getClientIP` makes this trust contract explicit (see the header comment in `lib/security/ip.ts`) and centralises the parse + validate logic so it can't drift. Without that proxy-trust guarantee, the leftmost value IS attacker-controlled and rate limits keyed on it can be bypassed by sending a fresh `X-Forwarded-For` per request — verify your edge proxy's behaviour before shipping to production.
+**Why:** the leftmost value in `X-Forwarded-For` is the original client IP **when the deployment guarantees its reverse proxy (nginx, Cloudflare, etc.) strips any client-set header and appends its own value before forwarding.** Resparkable's `getClientIP` makes this trust contract explicit (see the header comment in `lib/security/ip.ts`) and centralises the parse + validate logic so it can't drift. Without that proxy-trust guarantee, the leftmost value IS attacker-controlled and rate limits keyed on it can be bypassed by sending a fresh `X-Forwarded-For` per request — verify your edge proxy's behaviour before shipping to production.
 
 ---
 

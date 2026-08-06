@@ -108,11 +108,11 @@ import { env } from '@/lib/env';
 import {
   SPAN_WORKFLOW_EXECUTE,
   SPAN_WORKFLOW_STEP,
-  SUNRISE_EXECUTION_ID,
-  SUNRISE_STEP_ID,
-  SUNRISE_STEP_TYPE,
-  SUNRISE_USER_ID,
-  SUNRISE_WORKFLOW_ID,
+  RESPARKABLE_EXECUTION_ID,
+  RESPARKABLE_STEP_ID,
+  RESPARKABLE_STEP_TYPE,
+  RESPARKABLE_USER_ID,
+  RESPARKABLE_WORKFLOW_ID,
   setSpanStatus,
   withSpan,
   withSpanGenerator,
@@ -249,9 +249,9 @@ export class OrchestrationEngine {
       yield* withSpanGenerator(
         SPAN_WORKFLOW_EXECUTE,
         {
-          [SUNRISE_EXECUTION_ID]: executionId,
-          [SUNRISE_WORKFLOW_ID]: workflow.id,
-          [SUNRISE_USER_ID]: options.userId ?? '',
+          [RESPARKABLE_EXECUTION_ID]: executionId,
+          [RESPARKABLE_WORKFLOW_ID]: workflow.id,
+          [RESPARKABLE_USER_ID]: options.userId ?? '',
         },
         (workflowSpan) =>
           this.executeInner(
@@ -988,9 +988,9 @@ export class OrchestrationEngine {
     return yield* withSpanGenerator(
       SPAN_WORKFLOW_STEP,
       {
-        [SUNRISE_STEP_ID]: step.id,
-        [SUNRISE_STEP_TYPE]: step.type,
-        [SUNRISE_EXECUTION_ID]: lease.executionId,
+        [RESPARKABLE_STEP_ID]: step.id,
+        [RESPARKABLE_STEP_TYPE]: step.type,
+        [RESPARKABLE_EXECUTION_ID]: lease.executionId,
       },
       (span) =>
         this.executeSingleStepWithStatus(span, step, ctx, trace, lease, budgetLimitUsd, baseLogger),
@@ -1404,9 +1404,9 @@ export class OrchestrationEngine {
       withSpan(
         SPAN_WORKFLOW_STEP,
         {
-          [SUNRISE_STEP_ID]: step.id,
-          [SUNRISE_STEP_TYPE]: step.type,
-          [SUNRISE_EXECUTION_ID]: executionId,
+          [RESPARKABLE_STEP_ID]: step.id,
+          [RESPARKABLE_STEP_TYPE]: step.type,
+          [RESPARKABLE_EXECUTION_ID]: executionId,
         },
         async (span) => {
           const started = Date.now();

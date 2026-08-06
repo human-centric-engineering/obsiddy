@@ -10,7 +10,7 @@ Not for: outbound-only notifications (use `call_external_api` with a Twilio reci
 
 ## 2. What you ship
 
-- Inbound webhook(s) on Twilio and/or Meta pointing at Sunrise's `/api/v1/inbound/<adapter>/<trigger-slug>` URL.
+- Inbound webhook(s) on Twilio and/or Meta pointing at Resparkable's `/api/v1/inbound/<adapter>/<trigger-slug>` URL.
 - An `AiWorkflowTrigger` row per inbound channel, with `metadata.conversationAgentId` set to the agent that owns the resulting conversations.
 - A `send_message_to_channel` capability binding on that agent, with `customConfig.providers` blocks for each provider you support.
 
@@ -93,8 +93,8 @@ Without `conversationAgentId` the workflow still runs but no `AiConversation` ro
 
 Then point the vendor at:
 
-- **Twilio:** `https://<your-sunrise>/api/v1/inbound/twilio/<trigger-slug>` (Twilio Console → phone number → Messaging Configuration → Webhook).
-- **Meta:** `https://<your-sunrise>/api/v1/inbound/whatsapp_cloud/<trigger-slug>` (Meta App Dashboard → WhatsApp → Configuration → Callback URL + Verify Token). Meta sends a `GET` first to verify URL ownership.
+- **Twilio:** `https://<your-resparkable>/api/v1/inbound/twilio/<trigger-slug>` (Twilio Console → phone number → Messaging Configuration → Webhook).
+- **Meta:** `https://<your-resparkable>/api/v1/inbound/whatsapp_cloud/<trigger-slug>` (Meta App Dashboard → WhatsApp → Configuration → Callback URL + Verify Token). Meta sends a `GET` first to verify URL ownership.
 
 ## 7. Agent prompt guidance
 

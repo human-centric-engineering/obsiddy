@@ -7,7 +7,7 @@
 // session-level `SET` leaks one tenant's context onto the next borrower.
 //
 // Run against a throwaway pgvector container (NOT the dev DB):
-//   docker run -d --name sunrise-rls-spike -e POSTGRES_PASSWORD=postgres -p 5433:5432 pgvector/pgvector:pg15
+//   docker run -d --name resparkable-rls-spike -e POSTGRES_PASSWORD=postgres -p 5433:5432 pgvector/pgvector:pg15
 //   node scripts/spikes/rls-isolation-spike.mjs
 //
 // Or point it at any throwaway database via env (the table + role are created

@@ -1,6 +1,6 @@
 # Patterns and steps
 
-This document is the cohesive reference for how Sunrise relates the **21 Agentic Design Patterns** to its **17 workflow step types**. Read it once before authoring a new template or extending the step registry — it makes a small but important distinction explicit so the codebase stays internally consistent.
+This document is the cohesive reference for how Resparkable relates the **21 Agentic Design Patterns** to its **17 workflow step types**. Read it once before authoring a new template or extending the step registry — it makes a small but important distinction explicit so the codebase stays internally consistent.
 
 ## The layered model
 
@@ -45,7 +45,7 @@ The platform's job is to provide step primitives **sufficient to implement every
 
 `KNOWN_PATTERNS` in `types/orchestration.ts` is the machine-readable form. Use the canonical name in new code and docs; aliases exist so legacy templates don't have to rewrite their badges.
 
-## Coverage matrix — pattern → Sunrise implementation
+## Coverage matrix — pattern → Resparkable implementation
 
 How each of the 21 is implemented using current step primitives. Templates listed are illustrative — most patterns appear in several templates beyond the example shown.
 

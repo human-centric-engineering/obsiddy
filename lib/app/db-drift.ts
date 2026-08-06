@@ -1,14 +1,14 @@
 /**
  * App database drift-probe registrations.
  *
- * **Fork-owned scaffold** — Sunrise ships this empty and does NOT change it
+ * **Fork-owned scaffold** — Resparkable ships this empty and does NOT change it
  * after release, so your edits here merge cleanly on upgrade (the stable
  * contract is this file's export, not its body). Treat it like the landing
  * page: a starting point you're expected to modify.
  *
  * Auto-wired: `scripts/db/check-drift.ts` (run by `npm run db:drift-check`, in
  * CI, and by `/pre-pr`) calls this once, then probes everything you register
- * here alongside Sunrise's own A-series objects.
+ * here alongside Resparkable's own A-series objects.
  *
  * Register the Prisma-*unmodelled* objects your app adds — most commonly the
  * hand-written FK constraint behind a satellite `User` table (see
@@ -41,11 +41,11 @@
  *
  * Full guide: CUSTOMIZATION.md §5 · .context/database/prisma-unmodelled-objects.md
  */
-import { registerObsiddyDriftProbes } from '@/lib/framework/obsiddy/db-drift';
+import { registerResparkableDriftProbes } from '@/lib/framework/resparkable/db-drift';
 
 export function registerAppDriftProbes(): void {
-  // Obsiddy's six unmodellable objects (the hand-written GDPR-cascade FK, the
+  // Resparkable's six unmodellable objects (the hand-written GDPR-cascade FK, the
   // HNSW index, two GENERATED tsvector columns and their GIN indexes). One line
   // per the install guide — the probes themselves live in the framework tier.
-  registerObsiddyDriftProbes();
+  registerResparkableDriftProbes();
 }

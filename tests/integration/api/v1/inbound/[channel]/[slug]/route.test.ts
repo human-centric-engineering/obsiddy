@@ -230,7 +230,7 @@ function makeSlackRequest(
  *
  * `eventId`, when provided, is added to the BODY (not a header) and therefore
  * covered by the HMAC signature. This blocks the replay-via-header-mutation
- * vector that an unsigned `X-Sunrise-Event-Id` would expose.
+ * vector that an unsigned `X-Resparkable-Event-Id` would expose.
  */
 function makeHmacRequest(
   channel: string,
@@ -249,8 +249,8 @@ function makeHmacRequest(
 
   const headers: Record<string, string> = {
     'content-type': 'application/json',
-    'x-sunrise-signature': signature,
-    'x-sunrise-timestamp': timestamp,
+    'x-resparkable-signature': signature,
+    'x-resparkable-timestamp': timestamp,
     'x-forwarded-for': ip,
   };
 
@@ -1045,7 +1045,7 @@ describe('HMAC channel', () => {
       );
     });
 
-    it('IGNORES an unsigned X-Sunrise-Event-Id header — adapter reads eventId from the signed body only', async () => {
+    it('IGNORES an unsigned X-Resparkable-Event-Id header — adapter reads eventId from the signed body only', async () => {
       // Arrange — request has a valid signature but ALSO carries an unsigned
       // event-id header. The adapter MUST NOT propagate the header value into
       // the dedup key — doing so would let any captured request be replayed
@@ -1069,11 +1069,11 @@ describe('HMAC channel', () => {
           method: 'POST',
           headers: {
             'content-type': 'application/json',
-            'x-sunrise-signature': signature,
-            'x-sunrise-timestamp': timestamp,
+            'x-resparkable-signature': signature,
+            'x-resparkable-timestamp': timestamp,
             'x-forwarded-for': '10.1.0.13',
             // Unsigned header — must be ignored by the adapter
-            'x-sunrise-event-id': 'evt_unsigned_attacker_value',
+            'x-resparkable-event-id': 'evt_unsigned_attacker_value',
           },
           body: rawBody,
         }

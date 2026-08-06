@@ -205,7 +205,7 @@ describe('WriteUserMemoryCapability', () => {
     upsert.mockResolvedValue({});
 
     const cap = new WriteUserMemoryCapability();
-    await cap.execute({ key: 'project', value: 'sunrise' }, context);
+    await cap.execute({ key: 'project', value: 'resparkable' }, context);
 
     expect(upsert).toHaveBeenCalledWith({
       where: {
@@ -219,10 +219,10 @@ describe('WriteUserMemoryCapability', () => {
         userId: 'user-1',
         agentId: 'agent-1',
         key: 'project',
-        value: 'sunrise',
+        value: 'resparkable',
       },
       update: {
-        value: 'sunrise',
+        value: 'resparkable',
       },
     });
   });

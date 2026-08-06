@@ -245,7 +245,7 @@ STORAGE_PROVIDER="local"
 
 # Option 2: MinIO (S3-compatible, local)
 STORAGE_PROVIDER="s3"
-S3_BUCKET="sunrise-uploads"
+S3_BUCKET="resparkable-uploads"
 S3_ACCESS_KEY_ID="minioadmin"
 S3_SECRET_ACCESS_KEY="minioadmin"
 S3_ENDPOINT="http://localhost:9000"
@@ -269,7 +269,7 @@ BLOB_READ_WRITE_TOKEN="[auto-set-by-vercel]"
 
 ```bash
 # MinIO in Docker
-S3_BUCKET="sunrise-uploads"
+S3_BUCKET="resparkable-uploads"
 S3_ACCESS_KEY_ID="minioadmin"
 S3_SECRET_ACCESS_KEY="minioadmin"
 S3_ENDPOINT="http://minio:9000"  # Docker service name

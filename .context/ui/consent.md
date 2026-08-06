@@ -2,7 +2,7 @@
 
 ## Overview
 
-Sunrise includes GDPR/PECR-compliant cookie consent components that give users control over optional cookies while ensuring essential functionality remains available. The system provides a configurable banner, preferences modal, and conditional script loading for analytics integration.
+Resparkable includes GDPR/PECR-compliant cookie consent components that give users control over optional cookies while ensuring essential functionality remains available. The system provides a configurable banner, preferences modal, and conditional script loading for analytics integration.
 
 **Related Documentation:**
 

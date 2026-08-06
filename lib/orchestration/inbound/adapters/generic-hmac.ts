@@ -1,8 +1,8 @@
 /**
  * Generic HMAC inbound adapter.
  *
- * Reuses the outbound webhook signature scheme (`X-Sunrise-Signature: sha256=…`
- * + `X-Sunrise-Timestamp`) so the same `verifyHookSignature` primitive validates
+ * Reuses the outbound webhook signature scheme (`X-Resparkable-Signature: sha256=…`
+ * + `X-Resparkable-Timestamp`) so the same `verifyHookSignature` primitive validates
  * both directions. Each trigger row carries its own `signingSecret`; rotation
  * is "create new trigger, retire old".
  *
@@ -17,7 +17,7 @@
  * the 5-minute timestamp window enforced by `verifyHookSignature`.
  *
  * Earlier versions of this adapter read `eventId` from an unsigned
- * `X-Sunrise-Event-Id` header — that header is intentionally NOT supported,
+ * `X-Resparkable-Event-Id` header — that header is intentionally NOT supported,
  * because reading dedup material from an unsigned header would let any captured
  * request be replayed by mutating the header on each call.
  */
@@ -31,8 +31,8 @@ import type {
   VerifyResult,
 } from '@/lib/orchestration/inbound/types';
 
-const SIGNATURE_HEADER = 'x-sunrise-signature';
-const TIMESTAMP_HEADER = 'x-sunrise-timestamp';
+const SIGNATURE_HEADER = 'x-resparkable-signature';
+const TIMESTAMP_HEADER = 'x-resparkable-timestamp';
 
 interface GenericHmacBody {
   eventId?: unknown;

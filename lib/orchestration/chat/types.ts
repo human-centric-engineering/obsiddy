@@ -49,7 +49,7 @@ export interface ChatRequest {
    * core names no keys and no core capability reads it. Downstream
    * consumers populate well-known keys (e.g. a module slug) so a
    * capability can refuse to run outside its intended scope. Absent
-   * (and inert) in vanilla Sunrise.
+   * (and inert) in vanilla Resparkable.
    */
   scope?: Record<string, string>;
   /** Request-scoped correlation ID for structured log tracing. */

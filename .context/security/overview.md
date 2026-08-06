@@ -2,7 +2,7 @@
 
 ## Security Model
 
-Sunrise implements **defense in depth** with multiple layers of protection from network to application code. This document covers general application security measures that apply across all features, not just authentication.
+Resparkable implements **defense in depth** with multiple layers of protection from network to application code. This document covers general application security measures that apply across all features, not just authentication.
 
 For authentication-specific security (password hashing, sessions, OAuth), see [Auth Security](../auth/security.md). For domain-specific privacy posture, see:
 
@@ -65,7 +65,7 @@ setSecurityHeaders(response, nonce);
 **Permissions-Policy notes**:
 
 - `microphone=(self)` lets the admin app call `getUserMedia({ audio: true })` for voice input on first-party origins; `geolocation=()` and `camera=()` remain fully denied.
-- The embed widget mounts on partner sites via `<script>` injection and inherits the **parent site's** `Permissions-Policy`. Sunrise cannot override it from the script payload — partner sites must allow microphone access in their own policy (and iframe embedders need `allow="microphone"` on the iframe element).
+- The embed widget mounts on partner sites via `<script>` injection and inherits the **parent site's** `Permissions-Policy`. Resparkable cannot override it from the script payload — partner sites must allow microphone access in their own policy (and iframe embedders need `allow="microphone"` on the iframe element).
 
 ## Content Security Policy (CSP)
 
@@ -148,7 +148,7 @@ the hosts in **`lib/app/csp.ts`** instead of editing this security-sensitive
 platform file:
 
 ```typescript
-// lib/app/csp.ts — fork-owned scaffold, empty in vanilla Sunrise
+// lib/app/csp.ts — fork-owned scaffold, empty in vanilla Resparkable
 export const appFrameSrc: string[] = [
   'https://www.youtube-nocookie.com',
   'https://player.vimeo.com',

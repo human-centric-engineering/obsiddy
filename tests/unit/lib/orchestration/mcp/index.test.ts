@@ -56,28 +56,28 @@ describe('broadcastMcpPromptsChanged', () => {
 describe('broadcastMcpResourceUpdated', () => {
   it('no-ops when no session is subscribed to the URI', () => {
     getSubscribersSpy.mockReturnValue([]);
-    broadcastMcpResourceUpdated('sunrise://agents');
+    broadcastMcpResourceUpdated('resparkable://agents');
     expect(broadcastSpy).not.toHaveBeenCalled();
   });
 
   it('targets only sessions subscribed to the URI', () => {
     getSubscribersSpy.mockReturnValue(['session-a', 'session-b']);
-    broadcastMcpResourceUpdated('sunrise://agents');
+    broadcastMcpResourceUpdated('resparkable://agents');
 
     expect(broadcastSpy).toHaveBeenCalledTimes(1);
     const [notification, targets] = broadcastSpy.mock.calls[0];
     expect(notification).toEqual({
       jsonrpc: '2.0',
       method: 'notifications/resources/updated',
-      params: { uri: 'sunrise://agents' },
+      params: { uri: 'resparkable://agents' },
     });
     expect(targets).toEqual(['session-a', 'session-b']);
   });
 
   it('round-trips the URI in the params', () => {
     getSubscribersSpy.mockReturnValue(['s-1']);
-    broadcastMcpResourceUpdated('sunrise://knowledge/search');
+    broadcastMcpResourceUpdated('resparkable://knowledge/search');
     const [notification] = broadcastSpy.mock.calls[0];
-    expect((notification.params as { uri: string }).uri).toBe('sunrise://knowledge/search');
+    expect((notification.params as { uri: string }).uri).toBe('resparkable://knowledge/search');
   });
 });

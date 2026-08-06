@@ -6,7 +6,7 @@
  *
  * Hooks send JSON HTTP POST requests with any admin-supplied custom
  * headers. When the hook has a `secret` set, the body is signed with
- * HMAC-SHA256 and `X-Sunrise-Signature` / `X-Sunrise-Timestamp` headers
+ * HMAC-SHA256 and `X-Resparkable-Signature` / `X-Resparkable-Timestamp` headers
  * are added (see `./signing.ts`). Each webhook dispatch creates an
  * `AiEventHookDelivery` record so admins can audit delivery history and
  * manually retry failures. Retries follow the same backoff strategy as
@@ -205,8 +205,8 @@ async function dispatchWebhook(
  * record with the outcome. On failure, schedules an in-process retry
  * via setTimeout (up to MAX_ATTEMPTS total).
  *
- * When `secret` is non-null, adds `X-Sunrise-Signature` +
- * `X-Sunrise-Timestamp` headers. The timestamp is fresh on each
+ * When `secret` is non-null, adds `X-Resparkable-Signature` +
+ * `X-Resparkable-Timestamp` headers. The timestamp is fresh on each
  * attempt so consumers that reject stale signatures still accept
  * retries.
  */

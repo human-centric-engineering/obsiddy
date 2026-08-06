@@ -52,8 +52,8 @@ describe('GenericHmacAdapter.verify — failure paths', () => {
     // Arrange
     const { timestamp, signature } = signHookPayload(SECRET, RAW_BODY, PINNED_TS);
     const req = makeRequest({
-      'x-sunrise-signature': signature,
-      'x-sunrise-timestamp': timestamp,
+      'x-resparkable-signature': signature,
+      'x-resparkable-timestamp': timestamp,
     });
     const ctx = baseCtx({ signingSecret: null });
 
@@ -67,10 +67,10 @@ describe('GenericHmacAdapter.verify — failure paths', () => {
     }
   });
 
-  it('returns {valid:false, reason:"missing_signature"} when X-Sunrise-Signature header is absent', async () => {
+  it('returns {valid:false, reason:"missing_signature"} when X-Resparkable-Signature header is absent', async () => {
     // Arrange — only timestamp present
     const { timestamp } = signHookPayload(SECRET, RAW_BODY, PINNED_TS);
-    const req = makeRequest({ 'x-sunrise-timestamp': timestamp });
+    const req = makeRequest({ 'x-resparkable-timestamp': timestamp });
     const ctx = baseCtx();
 
     // Act
@@ -83,10 +83,10 @@ describe('GenericHmacAdapter.verify — failure paths', () => {
     }
   });
 
-  it('returns {valid:false, reason:"missing_signature"} when X-Sunrise-Timestamp header is absent', async () => {
+  it('returns {valid:false, reason:"missing_signature"} when X-Resparkable-Timestamp header is absent', async () => {
     // Arrange — only signature present
     const { signature } = signHookPayload(SECRET, RAW_BODY, PINNED_TS);
-    const req = makeRequest({ 'x-sunrise-signature': signature });
+    const req = makeRequest({ 'x-resparkable-signature': signature });
     const ctx = baseCtx();
 
     // Act
@@ -104,8 +104,8 @@ describe('GenericHmacAdapter.verify — failure paths', () => {
     const { timestamp, signature } = signHookPayload(SECRET, RAW_BODY, PINNED_TS);
     const bareHex = signature.slice('sha256='.length);
     const req = makeRequest({
-      'x-sunrise-signature': bareHex,
-      'x-sunrise-timestamp': timestamp,
+      'x-resparkable-signature': bareHex,
+      'x-resparkable-timestamp': timestamp,
     });
     const ctx = baseCtx();
 
@@ -123,8 +123,8 @@ describe('GenericHmacAdapter.verify — failure paths', () => {
     // Arrange — non-hex content after the prefix
     const { timestamp } = signHookPayload(SECRET, RAW_BODY, PINNED_TS);
     const req = makeRequest({
-      'x-sunrise-signature': 'sha256=not-valid-hex!',
-      'x-sunrise-timestamp': timestamp,
+      'x-resparkable-signature': 'sha256=not-valid-hex!',
+      'x-resparkable-timestamp': timestamp,
     });
     const ctx = baseCtx();
 
@@ -142,8 +142,8 @@ describe('GenericHmacAdapter.verify — failure paths', () => {
     // Arrange — timestamp is a word, not a number
     const { signature } = signHookPayload(SECRET, RAW_BODY, PINNED_TS);
     const req = makeRequest({
-      'x-sunrise-signature': signature,
-      'x-sunrise-timestamp': 'not-a-number',
+      'x-resparkable-signature': signature,
+      'x-resparkable-timestamp': 'not-a-number',
     });
     const ctx = baseCtx();
 
@@ -167,8 +167,8 @@ describe('GenericHmacAdapter.verify — failure paths', () => {
       yearAgoTs
     );
     const req = makeRequest({
-      'x-sunrise-signature': staleSignature,
-      'x-sunrise-timestamp': staleTimestamp,
+      'x-resparkable-signature': staleSignature,
+      'x-resparkable-timestamp': staleTimestamp,
     });
     const ctx = baseCtx();
 
@@ -190,8 +190,8 @@ describe('GenericHmacAdapter.verify — failure paths', () => {
     const nowSec = Math.floor(Date.now() / 1000);
     const { timestamp, signature } = signHookPayload(SECRET, RAW_BODY, nowSec);
     const req = makeRequest({
-      'x-sunrise-signature': signature,
-      'x-sunrise-timestamp': timestamp,
+      'x-resparkable-signature': signature,
+      'x-resparkable-timestamp': timestamp,
     });
     // ctx.rawBody differs from what was signed — adapter passes this to verifyHookSignature
     const ctx = baseCtx({ rawBody: RAW_BODY + 'tampered' });
@@ -233,8 +233,8 @@ describe('GenericHmacAdapter.verify — success paths', () => {
     // Arrange — sign the exact rawBody that ctx will provide
     const { timestamp, signature } = signHookPayload(SECRET, RAW_BODY, FIXED_NOW_SEC);
     const req = makeRequest({
-      'x-sunrise-signature': signature,
-      'x-sunrise-timestamp': timestamp,
+      'x-resparkable-signature': signature,
+      'x-resparkable-timestamp': timestamp,
     });
     const ctx = baseCtx({ rawBody: RAW_BODY });
 
@@ -246,15 +246,15 @@ describe('GenericHmacAdapter.verify — success paths', () => {
   });
 
   it('verify never returns externalId — dedup material comes from the signed body via normalise', async () => {
-    // Arrange — valid signature WITH an unsigned x-sunrise-event-id header that
+    // Arrange — valid signature WITH an unsigned x-resparkable-event-id header that
     // earlier versions of this adapter consumed. Reading dedup material from an
     // unsigned header would let any captured request be replayed by mutating
     // the header — verify must ignore the header entirely.
     const { timestamp, signature } = signHookPayload(SECRET, RAW_BODY, FIXED_NOW_SEC);
     const req = makeRequest({
-      'x-sunrise-signature': signature,
-      'x-sunrise-timestamp': timestamp,
-      'x-sunrise-event-id': 'evt_unsigned_header_must_be_ignored',
+      'x-resparkable-signature': signature,
+      'x-resparkable-timestamp': timestamp,
+      'x-resparkable-event-id': 'evt_unsigned_header_must_be_ignored',
     });
     const ctx = baseCtx({ rawBody: RAW_BODY });
 
@@ -285,10 +285,10 @@ describe('GenericHmacAdapter.normalise', () => {
     expect(result.payload).toEqual({ body: parsedBody });
   });
 
-  it('reads externalId from body.eventId (signed); ignores any x-sunrise-event-id header', () => {
+  it('reads externalId from body.eventId (signed); ignores any x-resparkable-event-id header', () => {
     // Arrange — body carries eventId; an unsigned header tries to override it
     const parsedBody = { foo: 'bar', eventId: 'evt_from_body' };
-    const headers = new Headers({ 'x-sunrise-event-id': 'evt_from_unsigned_header' });
+    const headers = new Headers({ 'x-resparkable-event-id': 'evt_from_unsigned_header' });
 
     // Act
     const result = adapter.normalise(parsedBody, headers);
@@ -300,7 +300,9 @@ describe('GenericHmacAdapter.normalise', () => {
   it('OMITS externalId property when body.eventId is absent', () => {
     // Arrange — body has no eventId, even though an unsigned header is present
     const parsedBody = { foo: 'bar' };
-    const headers = new Headers({ 'x-sunrise-event-id': 'evt_unsigned_header_must_be_ignored' });
+    const headers = new Headers({
+      'x-resparkable-event-id': 'evt_unsigned_header_must_be_ignored',
+    });
 
     // Act
     const result = adapter.normalise(parsedBody, headers);

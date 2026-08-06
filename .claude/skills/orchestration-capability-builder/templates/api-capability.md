@@ -60,4 +60,4 @@ POST /api/v1/admin/orchestration/agents/{agentId}/capabilities
 
 - Calling third-party services (Stripe, Twilio, external CRMs)
 - Calling internal microservices with their own HTTP endpoints
-- When you don't want to add TypeScript code to the Sunrise app
+- When you don't want to add TypeScript code to the Resparkable app

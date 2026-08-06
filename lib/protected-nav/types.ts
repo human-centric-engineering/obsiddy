@@ -7,7 +7,7 @@
  * improving upstream. This module is the *data* half — a portable item shape
  * plus the default link set.
  *
- * Sunrise reserved a seam for the marketing nav a fork's *visitors* see long
+ * Resparkable reserved a seam for the marketing nav a fork's *visitors* see long
  * before it reserved one for the nav a fork's *users* see, which is how an app
  * could ship its whole product behind a header that never linked to it. The
  * seam is `lib/app/protected-nav.ts`, whose non-null export replaces this
@@ -48,7 +48,7 @@ export interface ProtectedNavItem {
  *     ];
  *
  * Note the trade-off that spread implies: the fork pins this list as it stood at
- * upgrade time, so a link Sunrise adds later will not appear until the fork
+ * upgrade time, so a link Resparkable adds later will not appear until the fork
  * re-spreads. Leaving the seam `null` is what tracks the platform default.
  */
 export const DEFAULT_PROTECTED_NAV: ProtectedNavItem[] = [

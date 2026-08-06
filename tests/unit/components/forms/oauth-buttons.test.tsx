@@ -17,8 +17,8 @@
  * - Loading state display
  * - Error handling
  *
- * @see /Users/simonholmes/Documents/Dev/studio/sunrise/components/forms/oauth-buttons.tsx
- * @see /Users/simonholmes/Documents/Dev/studio/sunrise/components/forms/oauth-button.tsx
+ * @see /Users/simonholmes/Documents/Dev/studio/resparkable/components/forms/oauth-buttons.tsx
+ * @see /Users/simonholmes/Documents/Dev/studio/resparkable/components/forms/oauth-button.tsx
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';

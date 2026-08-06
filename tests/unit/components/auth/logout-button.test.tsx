@@ -8,7 +8,7 @@
  * - Router navigation and refresh
  * - Error handling during logout
  *
- * @see /Users/simonholmes/Documents/Dev/studio/sunrise/components/auth/logout-button.tsx
+ * @see /Users/simonholmes/Documents/Dev/studio/resparkable/components/auth/logout-button.tsx
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';

@@ -1,29 +1,29 @@
-# Obsiddy — an agentic second brain
+# Resparkable — an agentic second brain
 
 Capture thoughts as they happen, keep track of projects and goals across week / month / year / life horizons, and let background agents surface the connections between them.
 
-Obsiddy is a **framework-tier module built on [Sunrise](https://github.com/human-centric-engineering/sunrise)** — designed to be installed into other Sunrise-based projects, not just this one. Everything Obsiddy owns lives under the reserved `/framework` tier (`lib/framework/obsiddy/`, `prisma/schema/framework-obsiddy.prisma`, `framework_obsiddy_*` tables, `.context/framework/obsiddy/`), so Sunrise upgrades merge cleanly underneath it.
+Resparkable is a **framework-tier module built on [Sunrise](https://github.com/human-centric-engineering/sunrise)** — designed to be installed into other Sunrise-based projects, not just this one. Everything Resparkable owns lives under the reserved `/framework` tier (`lib/framework/resparkable/`, `prisma/schema/framework-resparkable.prisma`, `framework_resparkable_*` tables, `.context/framework/resparkable/`), so Sunrise upgrades merge cleanly underneath it.
 
-**Status: planning.** No Obsiddy code has been written yet. The full implementation plan — data model, agents, workflows, sharing, boards, Obsidian sync, and a four-release delivery sequence — is at [`.context/framework/obsiddy/plan.md`](./.context/framework/obsiddy/plan.md).
+**Status: planning.** No Resparkable code has been written yet. The full implementation plan — data model, agents, workflows, sharing, boards, Obsidian sync, and a four-release delivery sequence — is at [`.context/framework/resparkable/plan.md`](./.context/framework/resparkable/plan.md).
 
-## Staying current with Sunrise
+## Staying current with Resparkable
 
-This repository is a clone of Sunrise with full history, not a GitHub fork — so its visibility can be changed at any time. Sunrise is wired as `upstream`:
+This repository is a clone of Resparkable with full history, not a GitHub fork — so its visibility can be changed at any time. Resparkable is wired as `upstream`:
 
 ```bash
 git fetch upstream
 git merge upstream/main
 ```
 
-Pushing to `upstream` is disabled locally. To contribute a change back to Sunrise, push a branch to the Sunrise repository directly and open a PR there.
+Pushing to `upstream` is disabled locally. To contribute a change back to Resparkable, push a branch to the Resparkable repository directly and open a PR there.
 
 ---
 
-# Sunrise — the platform underneath
+# Resparkable — the platform underneath
 
-Everything below documents the Sunrise template Obsiddy is built on.
+Everything below documents the Sunrise template Resparkable is built on.
 
-## Why Sunrise?
+## Why Resparkable?
 
 - **Production-ready from day one** — Auth, database, APIs, security headers, rate limiting all configured
 - **Agent-ready** — Production AI agent orchestration: agents, tools, workflows, knowledge bases (RAG), evaluations, observability
@@ -48,7 +48,7 @@ Everything below documents the Sunrise template Obsiddy is built on.
 
 ## Agent Orchestration
 
-Sunrise ships with a complete AI agent orchestration layer. Admins design, configure, execute, and monitor AI agent systems from `/admin/orchestration`; consumer-facing chat is exposed via `/api/v1/chat` and an embeddable widget.
+Resparkable ships with a complete AI agent orchestration layer. Admins design, configure, execute, and monitor AI agent systems from `/admin/orchestration`; consumer-facing chat is exposed via `/api/v1/chat` and an embeddable widget.
 
 What's included:
 
@@ -83,7 +83,7 @@ Docs:
 ```bash
 # Clone and install
 git clone https://github.com/human-centric-engineering/sunrise.git
-cd sunrise
+cd resparkable
 
 # Create environment file
 cp .env.example .env.local
@@ -105,13 +105,13 @@ npm run db:migrate:dev
 npm run dev
 ```
 
-Open <https://obsiddy.test> to see the app. The port is `PORT` in the committed
+Open <https://resparkable.test> to see the app. The port is `PORT` in the committed
 `.env.development` (**3016**), which `npm run dev` reads — see
 [`PORT`](./.context/environment/services-env.md#port).
 
 The `.test` hostname comes from the shared HCE dev proxy, which maps
-`obsiddy.test` → `127.0.0.1:3016` through Laravel Herd. It is how several
-Sunrise-derived apps run side by side without anyone remembering which owns
+`resparkable.test` → `127.0.0.1:3016` through Laravel Herd. It is how several
+Resparkable-derived apps run side by side without anyone remembering which owns
 which port, and it makes dev cookie behaviour match production instead of
 lumping every app onto one `localhost` origin:
 
@@ -132,7 +132,7 @@ nothing.
 > **Google sign-in does not work on `.test`.** The TLD is reserved and Google
 > rejects it as an OAuth redirect target, so dev logins on a `.test` hostname
 > have to be email/password. Sign up at
-> [`/signup`](https://obsiddy.test/signup) — on a fresh database that account is
+> [`/signup`](https://resparkable.test/signup) — on a fresh database that account is
 > promoted to `ADMIN` automatically (see below).
 
 ### Using Docker
@@ -144,12 +144,12 @@ docker-compose exec web npx prisma migrate dev       # Run migrations (first tim
 
 ### First admin account
 
-Sunrise ships **no default login credentials**. On a fresh database, the first
-account you create — sign up at [`/signup`](https://obsiddy.test/signup) — is
+Resparkable ships **no default login credentials**. On a fresh database, the first
+account you create — sign up at [`/signup`](https://resparkable.test/signup) — is
 automatically promoted to `ADMIN`. Every account created after that is a regular
 `USER`.
 
-> `npm run db:seed` provisions a non-login `system@sunrise.local` user that owns
+> `npm run db:seed` provisions a non-login `system@resparkable.local` user that owns
 > the seeded orchestration configuration. It has no password and cannot sign in;
 > it does not count as the "first account", so your first real signup still
 > becomes the admin.
@@ -175,14 +175,14 @@ These work without configuration in development and can be enabled for productio
 
 ## Documentation
 
-- [**CUSTOMIZATION.md**](./CUSTOMIZATION.md) — **Building on Sunrise**: the fork/app onboarding guide — extension model, package.json policy, staying in sync with upstream
-- [**CONTRIBUTING.md**](./CONTRIBUTING.md) — Contributing changes back to Sunrise itself
+- [**CUSTOMIZATION.md**](./CUSTOMIZATION.md) — **Building on Resparkable**: the fork/app onboarding guide — extension model, package.json policy, staying in sync with upstream
+- [**CONTRIBUTING.md**](./CONTRIBUTING.md) — Contributing changes back to Resparkable itself
 - [**.context/substrate.md**](./.context/substrate.md) — Full architecture and reference docs
 - [**.context/orchestration/meta/functional-specification.md**](./.context/orchestration/meta/functional-specification.md) — Agent orchestration: full system inventory and capability spec
 
 ## Just Ask Claude
 
-Sunrise includes comprehensive documentation in `.context/` written specifically as AI context. Instead of reading through docs, just ask Claude:
+Resparkable includes comprehensive documentation in `.context/` written specifically as AI context. Instead of reading through docs, just ask Claude:
 
 - _"How do I set up S3 for file uploads?"_
 - _"What are the password validation rules?"_
@@ -191,7 +191,7 @@ Sunrise includes comprehensive documentation in `.context/` written specifically
 - _"Build me an agent that searches my knowledge base"_
 - _"Add a capability so my agent can call the Stripe API"_
 
-Clone the repo, start Claude Code, and start building. Claude already knows how Sunrise works.
+Clone the repo, start Claude Code, and start building. Claude already knows how Resparkable works.
 
 ### Enhanced Capabilities
 

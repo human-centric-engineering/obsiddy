@@ -108,11 +108,11 @@ export default async function EventSubscriptionsPage() {
             </p>
             <p className="text-foreground mt-2 font-medium">How it works</p>
             <p>
-              When an event fires, Sunrise sends a signed POST request to your endpoint with the
+              When an event fires, Resparkable sends a signed POST request to your endpoint with the
               event type and payload. The signature (HMAC-SHA256 — a tamper-proof hash using your
-              secret key) lets you verify the request genuinely came from Sunrise. Failed deliveries
-              are retried with exponential backoff; deliveries that exhaust their configured
-              attempts land in the Dead Letter Queue tab.
+              secret key) lets you verify the request genuinely came from Resparkable. Failed
+              deliveries are retried with exponential backoff; deliveries that exhaust their
+              configured attempts land in the Dead Letter Queue tab.
             </p>
             <p className="text-foreground mt-2 font-medium">This page</p>
             <p>

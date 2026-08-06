@@ -3,7 +3,7 @@
  *
  * Lets an agent persist a binary artefact (PDF from a renderer, image
  * from a generator, CSV from a report builder) to the configured
- * Sunrise storage backend (S3, Vercel Blob, or local) and hand the
+ * Resparkable storage backend (S3, Vercel Blob, or local) and hand the
  * resulting URL back to the user. Closes the loop with `call_external_api`
  * for endpoints that return bytes inline as
  * `{ encoding: 'base64', contentType, data }`.

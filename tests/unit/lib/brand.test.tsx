@@ -17,7 +17,7 @@ async function loadBrandName(value: string): Promise<string> {
 }
 
 // legalName derives from NEXT_PUBLIC_LEGAL_NAME, then NEXT_PUBLIC_APP_NAME, then
-// "Sunrise" — so both vars matter. Empty string == unset-equivalent (the seam
+// "Resparkable" — so both vars matter. Empty string == unset-equivalent (the seam
 // uses `?.trim() ||`).
 async function loadLegalName(legal: string, appName: string): Promise<string> {
   vi.resetModules();
@@ -48,12 +48,12 @@ describe('BRAND.name', () => {
     vi.resetModules();
   });
 
-  it('falls back to "Sunrise" when the env var is empty (unset-equivalent)', async () => {
-    expect(await loadBrandName('')).toBe('Sunrise');
+  it('falls back to "Resparkable" when the env var is empty (unset-equivalent)', async () => {
+    expect(await loadBrandName('')).toBe('Resparkable');
   });
 
-  it('falls back to "Sunrise" when the env var is only whitespace', async () => {
-    expect(await loadBrandName('   ')).toBe('Sunrise');
+  it('falls back to "Resparkable" when the env var is only whitespace', async () => {
+    expect(await loadBrandName('   ')).toBe('Resparkable');
   });
 
   it('uses a custom NEXT_PUBLIC_APP_NAME verbatim', async () => {
@@ -87,8 +87,8 @@ describe('BRAND.legalName', () => {
     expect(await loadLegalName('   ', 'ConQuest')).toBe('ConQuest');
   });
 
-  it('falls back to "Sunrise" when both legal name and product name are unset', async () => {
-    expect(await loadLegalName('', '')).toBe('Sunrise');
+  it('falls back to "Resparkable" when both legal name and product name are unset', async () => {
+    expect(await loadLegalName('', '')).toBe('Resparkable');
   });
 });
 
@@ -100,13 +100,13 @@ describe('brand seam is wired into templates', () => {
 
   it('renders the default brand in the welcome email when unset', async () => {
     const html = await renderWelcomeWith('');
-    expect(html).toContain('Welcome to Sunrise!');
+    expect(html).toContain('Welcome to Resparkable!');
     expect(html).not.toContain('Welcome to Acme!');
   });
 
   it('renders the custom brand in the welcome email when set', async () => {
     const html = await renderWelcomeWith('Acme');
     expect(html).toContain('Welcome to Acme!');
-    expect(html).not.toContain('Welcome to Sunrise!');
+    expect(html).not.toContain('Welcome to Resparkable!');
   });
 });

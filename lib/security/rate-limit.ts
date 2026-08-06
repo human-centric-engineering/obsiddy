@@ -499,7 +499,7 @@ export const RATE_LIMIT_TIERS: Readonly<Record<RateLimitTier, RateLimiter>> = {
 // =============================================================================
 
 /**
- * Combined tier lookup: Sunrise's built-in tiers plus any tiers an app/fork
+ * Combined tier lookup: Resparkable's built-in tiers plus any tiers an app/fork
  * registers via {@link registerRateLimitTier}. Seeded from {@link RATE_LIMIT_TIERS}
  * so the built-ins are always resolvable; the Map holds the SAME limiter
  * instances, so resetting `RATE_LIMIT_TIERS.admin` (e.g. in tests) and
@@ -512,7 +512,7 @@ const tierRegistry = new Map<string, RateLimiter>(Object.entries(RATE_LIMIT_TIER
  * it for app-registered policy rules (see `registerRateLimitRule` in
  * `lib/security/rate-limit-policy.ts`).
  *
- * Apps own their tiers; Sunrise owns the built-ins. Registration therefore
+ * Apps own their tiers; Resparkable owns the built-ins. Registration therefore
  * REJECTS any name that collides with a built-in tier or a previously
  * registered app tier — silently shadowing `'admin'` (30/min) with a looser
  * app limiter would be a security regression, so we throw instead.
@@ -534,7 +534,7 @@ export function registerRateLimitTier(name: string, limiter: RateLimiter): void 
   const normalized = name.toLowerCase();
   if (Object.hasOwn(RATE_LIMIT_TIERS, normalized)) {
     throw new Error(
-      `registerRateLimitTier: "${name}" collides with built-in Sunrise tier "${normalized}" ` +
+      `registerRateLimitTier: "${name}" collides with built-in Resparkable tier "${normalized}" ` +
         '(comparison is case-insensitive to prevent confusable shadows). ' +
         'Choose an app-specific tier name.'
     );

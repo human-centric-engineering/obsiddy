@@ -2,7 +2,7 @@
 
 **Related**: [Privacy Overview](./overview.md) | [Account Deletion & Erasure](./data-erasure.md) | [Visitor Tracing (logging)](../logging/visitor-tracing.md)
 
-Sunrise issues a durable, signed anonymous `visitorId` (the `sunrise_vid`
+Resparkable issues a durable, signed anonymous `visitorId` (the `resparkable_vid`
 cookie) so server logs can correlate an anonymous visitor's journey across
 requests. This document states its privacy classification, retention, and
 erasure model. For how it works mechanically, see
@@ -12,7 +12,7 @@ erasure model. For how it works mechanically, see
 
 | Property        | Value                                                                  |
 | --------------- | ---------------------------------------------------------------------- |
-| Name            | `sunrise_vid`                                                          |
+| Name            | `resparkable_vid`                                                      |
 | Value           | Opaque random `nanoid`, HMAC-signed. **No PII, no IP, no UA encoded.** |
 | Flags           | `HttpOnly`, `SameSite=Lax`, `Secure` (production), `Path=/`            |
 | Lifetime        | 180 days                                                               |
@@ -65,10 +65,10 @@ the log-retention/pipeline layer.
 
 Set `LOG_VISITOR_ID=false`. The proxy then issues no cookie, logs no
 `visitorId`, and strips any client-supplied `x-visitor-id` header. Existing
-`sunrise_vid` cookies simply expire unused.
+`resparkable_vid` cookies simply expire unused.
 
 ## Documenting it to end users
 
-A fork that ships this enabled should list `sunrise_vid` in its cookie policy
+A fork that ships this enabled should list `resparkable_vid` in its cookie policy
 under strictly-necessary/essential cookies, with purpose "security and error
 diagnostics" and a 180-day duration.

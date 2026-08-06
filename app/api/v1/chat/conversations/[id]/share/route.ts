@@ -18,7 +18,7 @@
  * Admin-side reads of the shared conversation produce their own
  * `conversation.*` audit-log entries via `logConversationAccess`.
  *
- * The endpoints are designed for downstream-app consumption — Sunrise
+ * The endpoints are designed for downstream-app consumption — Resparkable
  * is the backend; the UI ("Share with support" button + revoke) lives
  * in the apps that consume this API.
  *

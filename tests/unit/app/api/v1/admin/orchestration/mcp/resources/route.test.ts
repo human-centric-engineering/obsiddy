@@ -71,7 +71,7 @@ const RESOURCE_ID = 'cmjbv4i3x00003wsloputgwu1';
 function makeResource(overrides: Record<string, unknown> = {}) {
   return {
     id: RESOURCE_ID,
-    uri: 'sunrise://knowledge/search',
+    uri: 'resparkable://knowledge/search',
     name: 'Knowledge Search',
     description: 'Search the knowledge base',
     mimeType: 'application/json',
@@ -105,7 +105,7 @@ async function parseJson<T>(response: Response): Promise<T> {
 }
 
 const VALID_RESOURCE_BODY = {
-  uri: 'sunrise://knowledge/search',
+  uri: 'resparkable://knowledge/search',
   name: 'Knowledge Search',
   description: 'Search the knowledge base',
   resourceType: 'knowledge_search',
@@ -213,7 +213,7 @@ describe('POST /mcp/resources', () => {
     expect(broadcastMcpResourcesChanged).toHaveBeenCalled();
   });
 
-  it('rejects URI without sunrise:// scheme', async () => {
+  it('rejects URI without resparkable:// scheme', async () => {
     vi.mocked(auth.api.getSession).mockResolvedValue(mockAdminUser());
 
     const response = await POST(

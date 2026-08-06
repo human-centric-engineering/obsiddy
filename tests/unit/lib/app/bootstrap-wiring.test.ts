@@ -81,11 +81,11 @@ describe('rate-limit auto-wire (lib/app/rate-limit.ts → middleware realm)', ()
     expect(resolveRateLimitTier('wiretest')).toBeDefined();
   });
 
-  it('the real lib/app/rate-limit auto-wires Obsiddy sub-caps without shadowing Sunrise surfaces', async () => {
-    // FORK NOTE (Obsiddy): vanilla Sunrise asserts the effective policy is the
-    // base policy *by identity*, proving the empty seam allocates nothing. Obsiddy
+  it('the real lib/app/rate-limit auto-wires Resparkable sub-caps without shadowing Sunrise surfaces', async () => {
+    // FORK NOTE (Resparkable): vanilla Sunrise asserts the effective policy is the
+    // base policy *by identity*, proving the empty seam allocates nothing. Resparkable
     // fills the seam, so identity no longer holds — but the property that actually
-    // protects the platform still does, and is what this now asserts: Obsiddy's
+    // protects the platform still does, and is what this now asserts: Resparkable's
     // rules reach only its own namespace, and none of them matches an admin, auth
     // or MCP path. (`registerRateLimitRule` throws on such a matcher at boot, so
     // this is belt-and-braces on a guard that already exists.)
@@ -104,17 +104,19 @@ describe('rate-limit auto-wire (lib/app/rate-limit.ts → middleware realm)', ()
     expect(appRules).toHaveLength(9);
     expect(
       appRules.every(
-        (rule) => rule.match instanceof RegExp && String(rule.match).includes('obsiddy')
+        (rule) => rule.match instanceof RegExp && String(rule.match).includes('resparkable')
       )
     ).toBe(true);
 
-    // The Obsiddy chat path resolves to an Obsiddy rule — the positive half of
+    // The Resparkable chat path resolves to an Resparkable rule — the positive half of
     // the same property, and the one worth stating explicitly now that the tier
     // has a route whose path could be confused with the platform's own
     // `/api/v1/chat/stream` (asserted NOT to match, two blocks down).
-    expect(appRules.includes(findRateLimitRule('/api/v1/obsiddy/chat/stream', eff)!)).toBe(true);
+    expect(appRules.includes(findRateLimitRule('/api/v1/resparkable/chat/stream', eff)!)).toBe(
+      true
+    );
 
-    // A protected Sunrise path still resolves to a Sunrise rule, not an app one.
+    // A protected Resparkable path still resolves to a Resparkable rule, not an app one.
     for (const path of [
       '/api/v1/admin/users',
       '/api/v1/auth/sign-in',
@@ -122,7 +124,7 @@ describe('rate-limit auto-wire (lib/app/rate-limit.ts → middleware realm)', ()
       '/api/v1/chat/stream',
     ]) {
       const rule = findRateLimitRule(path, eff);
-      expect(appRules.includes(rule!), `${path} must not match an Obsiddy rule`).toBe(false);
+      expect(appRules.includes(rule!), `${path} must not match an Resparkable rule`).toBe(false);
     }
 
     // And the catch-all is still last, so the splice landed in the right slot.

@@ -88,28 +88,28 @@ const RESOURCE_TYPES = [
     label: 'Knowledge Search',
     icon: BookOpen,
     description: 'Search your knowledge base documents and return relevant chunks',
-    exampleUri: 'sunrise://knowledge/search',
+    exampleUri: 'resparkable://knowledge/search',
   },
   {
     value: 'agent_list',
     label: 'Agent List',
     icon: Bot,
     description: 'List configured AI agents and their capabilities',
-    exampleUri: 'sunrise://agents',
+    exampleUri: 'resparkable://agents',
   },
   {
     value: 'workflow_list',
     label: 'Workflow List',
     icon: GitBranch,
     description: 'List available workflows and their step configurations',
-    exampleUri: 'sunrise://workflows',
+    exampleUri: 'resparkable://workflows',
   },
   {
     value: 'pattern_detail',
     label: 'Pattern Detail',
     icon: Puzzle,
     description: 'Retrieve details about a specific orchestration pattern',
-    exampleUri: 'sunrise://patterns/{id}',
+    exampleUri: 'resparkable://patterns/{id}',
   },
 ] as const;
 
@@ -404,15 +404,15 @@ export function McpResourcesList({ initialResources }: McpResourcesListProps) {
                 URI
                 <FieldHelp title="Resource URI">
                   The URI that MCP clients use to access this resource. Must use the{' '}
-                  <code className="text-xs">sunrise://</code> scheme (e.g.{' '}
-                  <code className="text-xs">sunrise://knowledge/search</code>).
+                  <code className="text-xs">resparkable://</code> scheme (e.g.{' '}
+                  <code className="text-xs">resparkable://knowledge/search</code>).
                 </FieldHelp>
               </Label>
               <Input
                 id="res-uri"
                 value={form.uri}
                 onChange={(e) => setForm((f) => ({ ...f, uri: e.target.value }))}
-                placeholder="sunrise://..."
+                placeholder="resparkable://..."
               />
             </div>
             <div>
@@ -499,7 +499,7 @@ export function McpResourcesList({ initialResources }: McpResourcesListProps) {
                   </Tip>
                 </TableHead>
                 <TableHead>
-                  <Tip label="The sunrise:// address clients use to read this resource">
+                  <Tip label="The resparkable:// address clients use to read this resource">
                     <span>URI</span>
                   </Tip>
                 </TableHead>

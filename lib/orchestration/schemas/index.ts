@@ -16,7 +16,7 @@
  *   3. Reference the slug from a workflow's `validate_*` guard
  *      step config (`mode: 'schema', schemaName: '<slug>'`).
  *
- * The registry ships empty by Sunrise itself — feature modules add
+ * The registry ships empty by Resparkable itself — feature modules add
  * their own. The bare `registry.ts` module is still importable for
  * tests that want to register ephemeral schemas without triggering
  * the feature-module side effects.

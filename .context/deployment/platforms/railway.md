@@ -7,7 +7,7 @@
 ## Prerequisites
 
 - Railway account ([railway.app](https://railway.app))
-- GitHub repository with your Sunrise project
+- GitHub repository with your Resparkable project
 
 ## Deployment Steps
 
@@ -15,7 +15,7 @@
 
 1. Go to [railway.app/new](https://railway.app/new)
 2. Click "Deploy from GitHub repo"
-3. Select your Sunrise repository
+3. Select your Resparkable repository
 4. Railway auto-detects Dockerfile and starts deployment
 
 ### 2. Add PostgreSQL Database
@@ -144,7 +144,7 @@ For multiple environments (staging, production):
 ### Build Fails
 
 - Check build logs in Railway dashboard
-- Verify Dockerfile builds locally: `docker build -t sunrise .`
+- Verify Dockerfile builds locally: `docker build -t resparkable .`
 - Ensure all dependencies are in `package.json`
 
 ### Environment Variables Not Available

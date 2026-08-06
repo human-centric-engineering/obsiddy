@@ -457,7 +457,7 @@ export function ManageTab({ documents: initialDocuments, onRefresh, scope }: Man
       {setupOpen && (
         <div className="border-primary/20 space-y-3 border-t border-dashed px-4 pt-3 pb-4">
           <p className="text-muted-foreground text-xs">
-            Sunrise ships with a pre-chunked guide covering 21 agentic design patterns.{' '}
+            Resparkable ships with a pre-chunked guide covering 21 agentic design patterns.{' '}
             <strong>Step 1:</strong> Load the patterns (no API key needed). <strong>Step 2:</strong>{' '}
             Generate embeddings to enable vector search (requires an embedding provider).
           </p>
@@ -846,11 +846,11 @@ export function ManageTab({ documents: initialDocuments, onRefresh, scope }: Man
                           </p>
                           <p className="text-foreground mt-2 font-medium">How it fits in here</p>
                           <p>
-                            Sunrise uses <strong>hybrid search</strong>: a vector-similarity score
-                            (semantic meaning) blended with a BM25 score (lexical match). BM25 is
-                            good at exact-term recall — product codes, error IDs, acronyms — where
-                            the vector model might miss because the words don&apos;t carry semantic
-                            weight on their own.
+                            Resparkable uses <strong>hybrid search</strong>: a vector-similarity
+                            score (semantic meaning) blended with a BM25 score (lexical match). BM25
+                            is good at exact-term recall — product codes, error IDs, acronyms —
+                            where the vector model might miss because the words don&apos;t carry
+                            semantic weight on their own.
                           </p>
                           <p className="text-foreground mt-2 font-medium">What this column shows</p>
                           <p>

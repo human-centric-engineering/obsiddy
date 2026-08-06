@@ -1,7 +1,7 @@
 /**
  * Per-execution + per-turn cost-cap resolvers.
  *
- * Sunrise enforces a monthly per-agent budget via `checkBudget()` in
+ * Resparkable enforces a monthly per-agent budget via `checkBudget()` in
  * `cost-tracker.ts`. These helpers resolve the additional **single-run** caps
  * introduced by improvement #39:
  *

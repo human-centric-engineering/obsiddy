@@ -5,7 +5,7 @@ delegates tasks, and adapts strategy based on intermediate results.
 
 ## Workflows vs Autonomous Orchestration
 
-Sunrise offers two orchestration paradigms within the same workflow engine.
+Resparkable offers two orchestration paradigms within the same workflow engine.
 Both use the same execution infrastructure, cost tracking, and admin UI —
 the difference is how control flow is determined.
 

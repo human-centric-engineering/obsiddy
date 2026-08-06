@@ -1,6 +1,6 @@
 # Testing Overview
 
-Comprehensive testing documentation for the Sunrise project. This guide provides the philosophy, tech stack rationale, and test types for AI developers contributing to the codebase.
+Comprehensive testing documentation for the Resparkable project. This guide provides the philosophy, tech stack rationale, and test types for AI developers contributing to the codebase.
 
 ## Testing Philosophy
 

@@ -1,0 +1,1468 @@
+/**
+ * Resparkable request schemas — the boundary where untrusted input stops.
+ *
+ * Every route validates through these before touching a repo (CLAUDE.md: no
+ * `as` on external data, validate at boundaries). Types are **inferred** from
+ * the schemas rather than declared alongside them, so there is one source of
+ * truth per shape (`.context/types/conventions.md`).
+ *
+ * Two rules specific to this file:
+ *
+ *   1. **No schema accepts `userId`.** Not on create, not on update, not as a
+ *      query filter. The scope comes from the session; a body field would make
+ *      `POST { userId: <someone else> }` a write into another user's brain.
+ *      `.strict()` means such a field is a 400, not a silently ignored key —
+ *      an attempt to set it should be visible, not tolerated.
+ *   2. **No schema accepts `manualBoost` on any agent-reachable path.** It is a
+ *      human veto over the machine's ranking, so the machine writing it defeats
+ *      the purpose. It is settable here (this is the HTTP path a person uses)
+ *      and deliberately absent from every capability (§10).
+ *
+ * Markdown bodies are trimmed but **never sanitised here**. Over-eager
+ * escaping mangles legitimate notes (`.context/security/gotchas.md` #7);
+ * escaping belongs at render, where the target format is known.
+ */
+
+import { z } from 'zod';
+
+import { cuidSchema, slugSchema } from '@/lib/validations/common';
+
+// ─── Shared vocabularies ─────────────────────────────────────────────────────
+// Kept as const arrays so the same list drives Zod, the DB comment and the UI
+// filter chips. They mirror the `@db.VarChar(16)` columns in the schema.
+
+export const TASK_STATUSES = ['todo', 'next', 'doing', 'waiting', 'done', 'dropped'] as const;
+export const PROJECT_STATUSES = ['idea', 'active', 'paused', 'done', 'abandoned'] as const;
+export const GOAL_HORIZONS = ['life', 'year', 'quarter', 'month', 'week'] as const;
+export const GOAL_STATUSES = ['active', 'achieved', 'dropped'] as const;
+export const THOUGHT_STATUSES = ['inbox', 'promoted', 'dropped'] as const;
+export const THOUGHT_SOURCES = [
+  'web',
+  'pwa',
+  'voice',
+  'image',
+  'shortcut',
+  'email',
+  'chat',
+  'agent',
+  'api',
+  /** A note that came in from an Obsidian vault import (§14). */
+  'vault',
+] as const;
+export const ENTITY_KINDS = ['person', 'company', 'segment'] as const;
+export const ENTITY_STATUSES = ['active', 'dormant', 'former'] as const;
+export const ENERGY_LEVELS = ['low', 'medium', 'high'] as const;
+export const TIME_BLOCK_SOURCES = ['plan', 'actual', 'calendar'] as const;
+export const WORK_STYLES = ['structured', 'balanced', 'exploratory'] as const;
+/**
+ * The types a stale-digest row can be answered "still live" for (§11, phase 8).
+ *
+ * `area` is absent because it has no `lastActivityAt` to stamp, and giving it
+ * one would be a column that exists only to record a dismissal. An area is kept
+ * alive by booking time against it — the same answer, written in the data the
+ * question was asked from.
+ */
+export const STILL_LIVE_TYPES = ['project', 'goal', 'entity'] as const;
+
+/**
+ * The notifications a background workflow may send the owner.
+ *
+ * **A closed set, and that is the security control.** `resparkable_notify` takes one
+ * of these and nothing else — no recipient, no subject, no body. A capability
+ * that accepted free text would be an agent-operable mail sender: prompt
+ * injection could address the user with attacker-chosen wording, and the brain's
+ * own contents could be exfiltrated a paragraph at a time. Each value maps to a
+ * server-rendered sentence and a link, so the model chooses *whether* to notify
+ * and never *what the notification says*.
+ */
+export const RESPARKABLE_NOTIFICATIONS = [
+  'briefing_ready',
+  'daily_review_ready',
+  'weekly_review_ready',
+  'horizon_check_ready',
+  'connections_found',
+] as const;
+
+/** Long-form prose. 100k characters is generous for a note and finite for a body parser. */
+const noteBodySchema = z.string().trim().max(100_000);
+const titleSchema = z.string().trim().min(1, 'Required').max(500);
+
+/**
+ * List/query params shared by every collection endpoint.
+ *
+ * `includeArchived` must be opted into explicitly — archived items are absent
+ * from every default list by design (§11).
+ */
+export const resparkableListQuerySchema = z.object({
+  limit: z.coerce.number().int().positive().max(200).default(50),
+  offset: z.coerce.number().int().min(0).default(0),
+  /**
+   * `false` hides the archive, `true` mixes it in, `only` shows it alone.
+   *
+   * The third value is what the archived-list views ask for. `true` would give
+   * them a longer list rather than an archive — the archived rows would be
+   * scattered among everything still live, which is not the view §11 describes.
+   */
+  includeArchived: z
+    .enum(['true', 'false', 'only'])
+    .default('false')
+    .transform((value) => (value === 'only' ? ('only' as const) : value === 'true')),
+});
+
+export type ResparkableListQuery = z.infer<typeof resparkableListQuerySchema>;
+
+/** Path param shape for every `[id]` route. */
+export const resparkableIdParamSchema = z.object({ id: cuidSchema });
+
+// ─── Tasks ───────────────────────────────────────────────────────────────────
+
+export const createTaskSchema = z
+  .object({
+    title: titleSchema,
+    notes: noteBodySchema.optional(),
+    projectId: cuidSchema.nullish(),
+    status: z.enum(TASK_STATUSES).default('todo'),
+    dueAt: z.coerce.date().nullish(),
+    deferUntil: z.coerce.date().nullish(),
+    estimateMinutes: z.number().int().positive().max(10_000).nullish(),
+    energy: z.enum(ENERGY_LEVELS).nullish(),
+    contextTag: z.string().trim().max(32).nullish(),
+    /** Clamped, not silently coerced — an out-of-range boost is a 400 (§16.1b). */
+    manualBoost: z.number().min(-1).max(1).optional(),
+    manualBoostExpiresAt: z.coerce.date().nullish(),
+    manualBoostReason: z.string().trim().max(280).nullish(),
+  })
+  .strict();
+
+export const updateTaskSchema = createTaskSchema.partial().strict();
+
+export const taskListQuerySchema = resparkableListQuerySchema.extend({
+  status: z.enum(TASK_STATUSES).optional(),
+  projectId: cuidSchema.optional(),
+  hideDeferred: z
+    .enum(['true', 'false'])
+    .optional()
+    .transform((value) => value === 'true'),
+});
+
+export type CreateTaskInput = z.infer<typeof createTaskSchema>;
+export type UpdateTaskInput = z.infer<typeof updateTaskSchema>;
+
+// ─── Projects ────────────────────────────────────────────────────────────────
+
+export const createProjectSchema = z
+  .object({
+    name: titleSchema,
+    slug: slugSchema.optional(),
+    description: noteBodySchema.optional(),
+    status: z.enum(PROJECT_STATUSES).default('active'),
+    areaId: cuidSchema.nullish(),
+    snoozedUntil: z.coerce.date().nullish(),
+  })
+  .strict();
+
+export const updateProjectSchema = createProjectSchema.partial().strict();
+
+export const projectListQuerySchema = resparkableListQuerySchema.extend({
+  status: z.enum(PROJECT_STATUSES).optional(),
+  areaId: cuidSchema.optional(),
+});
+
+export type CreateProjectInput = z.infer<typeof createProjectSchema>;
+export type UpdateProjectInput = z.infer<typeof updateProjectSchema>;
+
+// ─── Goals ───────────────────────────────────────────────────────────────────
+
+export const createGoalSchema = z
+  .object({
+    title: titleSchema,
+    description: noteBodySchema.optional(),
+    horizon: z.enum(GOAL_HORIZONS),
+    parentGoalId: cuidSchema.nullish(),
+    areaId: cuidSchema.nullish(),
+    targetDate: z.coerce.date().nullish(),
+    status: z.enum(GOAL_STATUSES).default('active'),
+  })
+  .strict();
+
+export const updateGoalSchema = createGoalSchema.partial().strict();
+
+export const goalListQuerySchema = resparkableListQuerySchema.extend({
+  horizon: z.enum(GOAL_HORIZONS).optional(),
+  status: z.enum(GOAL_STATUSES).optional(),
+  areaId: cuidSchema.optional(),
+});
+
+export type CreateGoalInput = z.infer<typeof createGoalSchema>;
+export type UpdateGoalInput = z.infer<typeof updateGoalSchema>;
+
+// ─── Areas ───────────────────────────────────────────────────────────────────
+
+export const createAreaSchema = z
+  .object({
+    name: titleSchema,
+    slug: slugSchema.optional(),
+    description: noteBodySchema.optional(),
+    colour: z.string().trim().max(16).nullish(),
+    sortOrder: z.number().int().min(0).max(1000).optional(),
+    /** The field that makes this a life organiser rather than a task list. */
+    targetWeeklyMinutes: z.number().int().positive().max(10_080).nullish(),
+  })
+  .strict();
+
+export const updateAreaSchema = createAreaSchema.partial().strict();
+
+export type CreateAreaInput = z.infer<typeof createAreaSchema>;
+export type UpdateAreaInput = z.infer<typeof updateAreaSchema>;
+
+// ─── Thoughts ────────────────────────────────────────────────────────────────
+
+export const createThoughtSchema = z
+  .object({
+    content: noteBodySchema.min(1, 'Required'),
+    source: z.enum(THOUGHT_SOURCES).default('web'),
+    /** Provider-side id for replay dedupe (Postmark MessageID, Shortcut run). */
+    externalId: z.string().trim().max(255).nullish(),
+    snoozedUntil: z.coerce.date().nullish(),
+  })
+  .strict();
+
+export const updateThoughtSchema = z
+  .object({
+    content: noteBodySchema.min(1).optional(),
+    status: z.enum(THOUGHT_STATUSES).optional(),
+    snoozedUntil: z.coerce.date().nullish(),
+  })
+  .strict();
+
+/**
+ * `POST /resparkable/thoughts/[id]/promote` — triage, as one gesture.
+ *
+ * `title` is optional because the thought's own first line is the default: the
+ * point of triage is not retyping what you already wrote.
+ *
+ * A **discriminated union** rather than one object with optional fields, because
+ * the per-target rules are real and the union enforces them in the type system
+ * instead of in a refinement the service then has to re-check:
+ *
+ *   - **A goal must carry a horizon.** A guessed one is worse than no goal:
+ *     `goalAlignment` weights near horizons far above distant ones (week 1.0 vs
+ *     life 0.35), so a silent default would quietly re-rank every task that ends
+ *     up linked to it.
+ *   - **Only a task can be filed under a project**, and only projects and goals
+ *     take an area. `.strict()` on each branch makes the wrong combination a 400
+ *     rather than a silently ignored field.
+ */
+const promoteTaskShape = {
+  target: z.literal('task'),
+  title: titleSchema.optional(),
+  /** "File this under the Q4 launch" — the most common triage action. */
+  projectId: cuidSchema.optional(),
+} as const;
+
+const promoteProjectShape = {
+  target: z.literal('project'),
+  title: titleSchema.optional(),
+  areaId: cuidSchema.optional(),
+} as const;
+
+const promoteGoalShape = {
+  target: z.literal('goal'),
+  title: titleSchema.optional(),
+  areaId: cuidSchema.optional(),
+  horizon: z.enum(GOAL_HORIZONS),
+} as const;
+
+export const promoteThoughtSchema = z.discriminatedUnion('target', [
+  z.object(promoteTaskShape).strict(),
+  z.object(promoteProjectShape).strict(),
+  z.object(promoteGoalShape).strict(),
+]);
+
+export type PromoteThoughtInput = z.infer<typeof promoteThoughtSchema>;
+
+/**
+ * `resparkable_promote_thought` — the same three branches, plus the id.
+ *
+ * Built from the same shapes as the route schema rather than retyped, because
+ * the per-target rules above are the whole reason this is a union and a second
+ * copy would drift on the branch nobody exercises. The HTTP path carries the id
+ * in the URL; a tool call has no URL, so it carries it in the arguments.
+ */
+export const agentPromoteThoughtSchema = z.discriminatedUnion('target', [
+  z.object({ thoughtId: cuidSchema, ...promoteTaskShape }).strict(),
+  z.object({ thoughtId: cuidSchema, ...promoteProjectShape }).strict(),
+  z.object({ thoughtId: cuidSchema, ...promoteGoalShape }).strict(),
+]);
+
+export type AgentPromoteThoughtInput = z.infer<typeof agentPromoteThoughtSchema>;
+
+export const thoughtListQuerySchema = resparkableListQuerySchema.extend({
+  status: z.enum(THOUGHT_STATUSES).optional(),
+  source: z.enum(THOUGHT_SOURCES).optional(),
+});
+
+export type CreateThoughtInput = z.infer<typeof createThoughtSchema>;
+export type UpdateThoughtInput = z.infer<typeof updateThoughtSchema>;
+
+// ─── Entities ────────────────────────────────────────────────────────────────
+
+export const createEntitySchema = z
+  .object({
+    name: titleSchema,
+    slug: slugSchema.optional(),
+    kind: z.enum(ENTITY_KINDS).default('person'),
+    description: noteBodySchema.optional(),
+    website: z.url('Invalid URL format').max(2000).nullish(),
+    status: z.enum(ENTITY_STATUSES).default('active'),
+  })
+  .strict();
+
+export const updateEntitySchema = createEntitySchema.partial().strict();
+
+export const entityListQuerySchema = resparkableListQuerySchema.extend({
+  kind: z.enum(ENTITY_KINDS).optional(),
+  status: z.enum(ENTITY_STATUSES).optional(),
+});
+
+export type CreateEntityInput = z.infer<typeof createEntitySchema>;
+export type UpdateEntityInput = z.infer<typeof updateEntitySchema>;
+
+// ─── Time blocks ─────────────────────────────────────────────────────────────
+
+export const createTimeBlockSchema = z
+  .object({
+    title: titleSchema.nullish(),
+    taskId: cuidSchema.nullish(),
+    projectId: cuidSchema.nullish(),
+    areaId: cuidSchema.nullish(),
+    startAt: z.coerce.date(),
+    endAt: z.coerce.date(),
+    source: z.enum(TIME_BLOCK_SOURCES).default('plan'),
+    notes: noteBodySchema.nullish(),
+  })
+  .strict()
+  // A zero- or negative-length block would silently contribute nothing to
+  // `areaBalance` while looking like logged time on the calendar.
+  .refine((block) => block.endAt > block.startAt, {
+    message: 'endAt must be after startAt',
+    path: ['endAt'],
+  });
+
+export const updateTimeBlockSchema = z
+  .object({
+    title: titleSchema.nullish(),
+    taskId: cuidSchema.nullish(),
+    projectId: cuidSchema.nullish(),
+    areaId: cuidSchema.nullish(),
+    startAt: z.coerce.date().optional(),
+    endAt: z.coerce.date().optional(),
+    source: z.enum(TIME_BLOCK_SOURCES).optional(),
+    notes: noteBodySchema.nullish(),
+  })
+  .strict();
+
+export const timeBlockListQuerySchema = z.object({
+  limit: z.coerce.number().int().positive().max(200).default(50),
+  offset: z.coerce.number().int().min(0).default(0),
+  from: z.coerce.date().optional(),
+  to: z.coerce.date().optional(),
+  source: z.enum(TIME_BLOCK_SOURCES).optional(),
+});
+
+export type CreateTimeBlockInput = z.infer<typeof createTimeBlockSchema>;
+export type UpdateTimeBlockInput = z.infer<typeof updateTimeBlockSchema>;
+
+// ─── Archive / restore ───────────────────────────────────────────────────────
+
+export const archiveSchema = z
+  .object({
+    reason: z.enum(['manual', 'aged_out', 'project_closed']).default('manual'),
+  })
+  .strict();
+
+// ─── Snooze ──────────────────────────────────────────────────────────────────
+
+/**
+ * Presets first, date picker second (§10).
+ *
+ * The preset is resolved server-side against `ResparkableSpace.timezone`, not by the
+ * client. A browser sending its own idea of "tomorrow 9am" would make the same
+ * gesture behave differently from the phone, the iOS Shortcut and the agent —
+ * and a task that unsnoozes at 2am because one caller was in UTC is exactly the
+ * small wrongness the plan calls out.
+ */
+export const SNOOZE_PRESETS = ['later_today', 'tomorrow', 'next_week', 'next_month'] as const;
+
+export const snoozeSchema = z
+  .object({
+    preset: z.enum(SNOOZE_PRESETS).optional(),
+    /** The "pick a date" escape hatch. Mutually exclusive with `preset`. */
+    until: z.coerce.date().optional(),
+  })
+  .strict()
+  .refine((input) => (input.preset === undefined) !== (input.until === undefined), {
+    message: 'Provide exactly one of preset or until',
+    path: ['preset'],
+  });
+
+export type SnoozeInput = z.infer<typeof snoozeSchema>;
+
+// ─── Search, indexing and connections (phase 4) ───────────────────────────────
+
+/**
+ * Everything search can return. `task` is included even though tasks are not
+ * embedded — they are searched through their generated tsvector (probe B4), and
+ * a caller asking for "tasks" should not have to know which mechanism serves it.
+ */
+export const SEARCHABLE_ENTITY_TYPES = [
+  'thought',
+  'project',
+  'goal',
+  'area',
+  'entity',
+  'document',
+  'task',
+] as const;
+
+/** The six embedded types — the ones with vectors. Excludes `task` (§1). */
+export const EMBEDDED_ENTITY_TYPES = [
+  'thought',
+  'project',
+  'goal',
+  'area',
+  'entity',
+  'document',
+] as const;
+
+/**
+ * `GET /resparkable/search`.
+ *
+ * `types` arrives as a comma-separated list because it is a query string, and a
+ * repeated `?types=a&types=b` reads worse in a URL a person might edit by hand.
+ * An unknown type is a 400 rather than being dropped: silently ignoring it would
+ * return "no results for documents" when the caller misspelled `documnet`.
+ */
+export const searchQuerySchema = z
+  .object({
+    q: z.string().trim().min(1, 'Required').max(500),
+    types: z
+      .string()
+      .optional()
+      .transform((value) =>
+        value
+          ? value
+              .split(',')
+              .map((part) => part.trim())
+              .filter((part) => part.length > 0)
+          : undefined
+      )
+      .pipe(z.array(z.enum(SEARCHABLE_ENTITY_TYPES)).min(1).optional()),
+    limit: z.coerce.number().int().positive().max(50).default(20),
+    /** Cosine-distance ceiling. Lower is stricter. */
+    maxDistance: z.coerce.number().min(0).max(1).optional(),
+    includeArchived: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((value) => value === 'true'),
+  })
+  .strict();
+
+export type SearchQuery = z.infer<typeof searchQuerySchema>;
+
+/**
+ * `POST /resparkable/reindex`.
+ *
+ * `force` re-examines every row rather than only the queued ones — the "the
+ * embedding model changed" path. It is not the default because on a large brain
+ * it is the single most expensive thing a user can trigger.
+ */
+export const reindexSchema = z
+  .object({
+    types: z.array(z.enum(EMBEDDED_ENTITY_TYPES)).min(1).optional(),
+    limitPerType: z.number().int().positive().max(500).optional(),
+    force: z.boolean().default(false),
+  })
+  .strict();
+
+export type ReindexInput = z.infer<typeof reindexSchema>;
+
+export const LINK_KINDS = ['relates_to', 'blocks', 'supports', 'mentions', 'duplicates'] as const;
+export const LINK_STATUSES = ['suggested', 'accepted', 'rejected', 'proposed'] as const;
+
+/**
+ * `POST /resparkable/links` — a link a person made.
+ *
+ * **`strength` and `origin` are deliberately absent.** `strength` is a measured
+ * cosine similarity; a hand-made link has no such number, and accepting one from
+ * the client would let a caller fabricate a similarity that sorts above real
+ * ones. `origin` is set server-side to `'user'` for the same reason — it is
+ * provenance, and provenance the caller can choose is not provenance.
+ */
+export const createLinkSchema = z
+  .object({
+    sourceType: z.enum(SEARCHABLE_ENTITY_TYPES),
+    sourceId: cuidSchema,
+    targetType: z.enum(SEARCHABLE_ENTITY_TYPES),
+    targetId: cuidSchema,
+    kind: z.enum(LINK_KINDS).default('relates_to'),
+    rationale: z.string().trim().max(2000).nullish(),
+  })
+  .strict()
+  .refine((link) => !(link.sourceType === link.targetType && link.sourceId === link.targetId), {
+    message: 'An item cannot be linked to itself',
+    path: ['targetId'],
+  });
+
+export type CreateLinkInput = z.infer<typeof createLinkSchema>;
+
+/**
+ * `PATCH /resparkable/links/[id]` — reviewing a suggestion.
+ *
+ * Only `status`, `kind` and `snoozedUntil`. Rejecting sets `status: 'rejected'`,
+ * which is a **tombstone, not a delete**: the sweep excludes any pair that
+ * already has a row, so this is the only thing stopping the same suggestion
+ * reappearing every run forever (§17 risk 5c).
+ */
+export const updateLinkSchema = z
+  .object({
+    status: z.enum(LINK_STATUSES).optional(),
+    kind: z.enum(LINK_KINDS).optional(),
+    snoozedUntil: z.coerce.date().nullish(),
+  })
+  .strict();
+
+export type UpdateLinkInput = z.infer<typeof updateLinkSchema>;
+
+export const linkListQuerySchema = resparkableListQuerySchema.extend({
+  status: z.enum(LINK_STATUSES).optional(),
+  kind: z.enum(LINK_KINDS).optional(),
+  sourceType: z.enum(SEARCHABLE_ENTITY_TYPES).optional(),
+  sourceId: cuidSchema.optional(),
+});
+
+// `POST /resparkable/connections/sweep` deliberately has no schema — it takes no
+// body and no arguments, so there is nothing to validate. An empty `.strict()`
+// object would only add a way to 400 on a request nobody sends.
+
+/**
+ * `GET /resparkable/connections` — the review queue.
+ *
+ * Same shape as `linkListQuerySchema` minus the source filters, because a review
+ * queue is asked about by status and kind, never by which end a link starts at.
+ * Omitting `status` means "things waiting on a decision" rather than "everything" —
+ * the service narrows it, and the count follows the same filter so the number and
+ * the list cannot disagree.
+ */
+export const connectionsQuerySchema = resparkableListQuerySchema.extend({
+  status: z.enum(LINK_STATUSES).optional(),
+  kind: z.enum(LINK_KINDS).optional(),
+});
+
+export type ConnectionsQueryInput = z.infer<typeof connectionsQuerySchema>;
+
+/**
+ * `GET /resparkable/graph` — a neighbourhood around one node.
+ *
+ * **`focus` and `focusType` are required**, and that is the design rather than an
+ * omission: an unfocused graph of a real brain is a hairball that looks impressive
+ * and tells you nothing (§9). There is deliberately no "show everything" mode to
+ * fall back to.
+ *
+ * `depth` is capped at 2 and `limit` at 150 by the service as well as here — a query
+ * string is external input, and the cost of an over-wide walk is paid in the
+ * database rather than in the response the client could have ignored.
+ */
+export const graphQuerySchema = z
+  .object({
+    focus: cuidSchema,
+    focusType: z.enum(SEARCHABLE_ENTITY_TYPES),
+    depth: z.coerce.number().int().min(1).max(2).default(1),
+    limit: z.coerce.number().int().min(1).max(150).default(150),
+    types: z
+      .string()
+      .optional()
+      .transform((value) =>
+        value
+          ? value
+              .split(',')
+              .map((part) => part.trim())
+              .filter((part) => part.length > 0)
+          : undefined
+      )
+      .pipe(z.array(z.enum(SEARCHABLE_ENTITY_TYPES)).min(1).optional()),
+  })
+  .strict();
+
+export type GraphQueryInput = z.infer<typeof graphQuerySchema>;
+
+// ─── Boards, tags and checklists (phase 5b) ──────────────────────────────────
+
+export const BOARD_MEMBERSHIP = ['filter', 'explicit'] as const;
+export const BOARD_SWIMLANES = ['project', 'area', 'entity', 'none'] as const;
+export const BOARD_EXPORT_FORMATS = ['csv', 'json'] as const;
+
+/**
+ * A board's columns.
+ *
+ * Each column IS a task status — `ResparkableTask.status` already carries the states a
+ * kanban board wants, so dragging between columns is a `PATCH` of one field rather
+ * than a new subsystem (§12).
+ *
+ * `wipLimit` is advisory. Exceeding it flags the column; it never blocks a drop,
+ * because a hard block just teaches people to lie to the tool.
+ */
+export const boardColumnsSchema = z
+  .array(
+    z.object({
+      status: z.enum(TASK_STATUSES),
+      label: z.string().trim().min(1).max(60),
+      wipLimit: z.number().int().positive().max(999).optional(),
+    })
+  )
+  .min(1, 'A board needs at least one column')
+  .max(12, 'More than a dozen columns is a spreadsheet');
+
+export type BoardColumns = z.infer<typeof boardColumnsSchema>;
+
+/**
+ * What a filter-backed board matches.
+ *
+ * Deliberately small. Every field here widens what a shared board would expose
+ * later (§17 risk 6b: a filter board keeps sharing tasks you create afterwards), so
+ * the set grows only when there is a reason — not because a filter builder looked
+ * like it wanted more inputs.
+ */
+export const boardFilterSchema = z
+  .object({
+    projectId: cuidSchema.optional(),
+    /**
+     * Show closed work.
+     *
+     * Set, it stops `done` *and* `dropped` being filtered out. Unset, `dropped` is
+     * always hidden, and `done` is hidden only when the board has no Done column to
+     * put it in — a board configured with one has asked for finished work by saying
+     * where it goes. See `loadFilteredCards`.
+     */
+    includeDone: z.boolean().optional(),
+  })
+  .strict();
+
+export type BoardFilter = z.infer<typeof boardFilterSchema>;
+
+export const createBoardSchema = z
+  .object({
+    name: titleSchema,
+    slug: slugSchema.optional(),
+    description: noteBodySchema.optional(),
+    columns: boardColumnsSchema,
+    membership: z.enum(BOARD_MEMBERSHIP).default('filter'),
+    filter: boardFilterSchema.nullish(),
+    swimlaneBy: z.enum(BOARD_SWIMLANES).nullish(),
+  })
+  .strict();
+
+export const updateBoardSchema = createBoardSchema.partial().strict();
+
+export const boardListQuerySchema = resparkableListQuerySchema;
+
+export type CreateBoardInput = z.infer<typeof createBoardSchema>;
+export type UpdateBoardInput = z.infer<typeof updateBoardSchema>;
+
+/**
+ * Placing a card on an explicit board.
+ *
+ * `targetIndex` rather than a raw position: the client knows where it dropped the
+ * card in the visual order, and the server owns the arithmetic that turns that into
+ * a fractional position — including the renormalisation pass when a gap has closed
+ * up. A client sending positions directly would have to reimplement that, and would
+ * get it wrong in the one case that matters.
+ */
+export const placeBoardCardSchema = z
+  .object({
+    taskId: cuidSchema,
+    targetIndex: z.number().int().min(0).max(10_000),
+    /**
+     * The column the card landed in.
+     *
+     * `targetIndex` is an index *within a column*, but a board's positions are one
+     * sequence spanning all of them — so the server cannot turn the index into a
+     * position without knowing which column's cards to measure against. Optional so
+     * an older client, or a caller placing a card without a visual column in mind,
+     * still gets the previous board-wide behaviour rather than a 400.
+     */
+    status: z.enum(TASK_STATUSES).optional(),
+  })
+  .strict();
+
+export type PlaceBoardCardInput = z.infer<typeof placeBoardCardSchema>;
+
+export const moveBoardCardSchema = z
+  .object({
+    targetIndex: z.number().int().min(0).max(10_000),
+    /** The column the card landed in — see `placeBoardCardSchema.status`. */
+    status: z.enum(TASK_STATUSES).optional(),
+  })
+  .strict();
+
+export const boardExportQuerySchema = z
+  .object({ format: z.enum(BOARD_EXPORT_FORMATS).default('csv') })
+  .strict();
+
+export const createTagSchema = z
+  .object({
+    name: z.string().trim().min(1, 'Required').max(60),
+    slug: slugSchema.optional(),
+    colour: z.string().trim().max(16).optional(),
+    sortOrder: z.number().int().min(0).max(1000).optional(),
+  })
+  .strict();
+
+export const updateTagSchema = createTagSchema.partial().strict();
+
+export type CreateTagInput = z.infer<typeof createTagSchema>;
+export type UpdateTagInput = z.infer<typeof updateTagSchema>;
+
+/**
+ * `PUT /resparkable/tasks/[id]/tags` — the whole set, not a delta.
+ *
+ * A board UI thinks in terms of "these are the labels now". Exposing add/remove
+ * would make the client compute the difference, and a half-applied difference — the
+ * add landed, the remove didn't — is a state nobody would notice.
+ */
+export const setTaskTagsSchema = z.object({ tagIds: z.array(cuidSchema).max(50) }).strict();
+
+export const createChecklistItemSchema = z
+  .object({ text: z.string().trim().min(1, 'Required').max(500) })
+  .strict();
+
+export const updateChecklistItemSchema = z
+  .object({
+    text: z.string().trim().min(1).max(500).optional(),
+    isDone: z.boolean().optional(),
+    /** Visual index; the server turns it into a fractional position. */
+    targetIndex: z.number().int().min(0).max(10_000).optional(),
+  })
+  .strict();
+
+export type CreateChecklistItemInput = z.infer<typeof createChecklistItemSchema>;
+export type UpdateChecklistItemInput = z.infer<typeof updateChecklistItemSchema>;
+
+// ─── Documents (phase 4) ─────────────────────────────────────────────────────
+
+/**
+ * Multipart metadata for `POST /resparkable/documents`.
+ *
+ * The file itself is validated by `documents/ingest.ts` (extension allowlist,
+ * byte cap, text shape) — a Zod schema cannot usefully describe a `File`, and
+ * splitting the checks would mean two places to keep in step.
+ */
+export const documentUploadSchema = z
+  .object({
+    title: titleSchema.optional(),
+    /**
+     * Where the file came from, if anywhere. **http/https only.**
+     *
+     * `z.url()` alone accepts any parseable scheme, `javascript:` included, and
+     * this value is stored and will eventually be rendered as a link. Nothing
+     * renders it today, which is exactly why the restriction belongs here now —
+     * the phase that adds the document UI will not think to check a field that
+     * was already in the database.
+     *
+     * **Uses Zod's own `protocol` option rather than a `.refine()`.** The obvious
+     * hand-rolled version — `.refine((v) => /^https?:$/.test(new URL(v).protocol))`
+     * — is broken in a way that is easy to miss: Zod does not short-circuit a
+     * failed `.url()` check, so the callback still runs on malformed input and
+     * `new URL('not-a-url')` throws a raw `TypeError`. That escapes even
+     * `safeParse`, sails past `handleAPIError`'s `instanceof z.ZodError` test, and
+     * turns a 400 into a 500. A boundary schema must never throw anything but a
+     * `ZodError`; the built-in check cannot.
+     */
+    sourceUrl: z
+      .url({ protocol: /^https?$/, error: 'Must be an http or https URL' })
+      .max(2000)
+      .optional(),
+  })
+  .strict();
+
+export type DocumentUploadInput = z.infer<typeof documentUploadSchema>;
+
+export const documentListQuerySchema = resparkableListQuerySchema.extend({
+  status: z.enum(['processing', 'ready', 'failed']).optional(),
+});
+
+// ─── Capture (phase 6) ───────────────────────────────────────────────────────
+
+/**
+ * `POST /resparkable/capture` — the front door.
+ *
+ * Deliberately narrower than `POST /resparkable/thoughts`. Capture is the path a
+ * phone, a share sheet, an email and an agent all take, and every field it does
+ * not accept is a field none of them can get wrong. Status, promotion targets
+ * and snooze state are triage decisions, not capture ones.
+ *
+ * `externalId` is what makes a replay idempotent (`@@unique([userId, externalId])`),
+ * so a double-tapped Shortcut or a redelivered webhook returns the original row
+ * rather than a duplicate or a 409.
+ */
+export const captureSchema = z
+  .object({
+    content: z.string().trim().min(1, 'Required').max(100_000),
+    source: z.enum(THOUGHT_SOURCES).default('web'),
+    externalId: z.string().trim().min(1).max(200).optional(),
+  })
+  .strict();
+
+export type CaptureInput = z.infer<typeof captureSchema>;
+
+// ─── Reviews (phase 6) ───────────────────────────────────────────────────────
+
+export const REVIEW_HORIZONS = [
+  'daily',
+  'weekly',
+  'month',
+  'quarter',
+  'briefing',
+  'connections',
+] as const;
+
+/**
+ * `POST /resparkable/reviews`.
+ *
+ * `payload` is the structured half the UI renders as cards next to the prose.
+ * It is `unknown` rather than a described shape because each horizon carries a
+ * different one and the renderer is per-horizon; the cap is on the serialised
+ * size, enforced in the service, not on the shape.
+ *
+ * `workflowExecutionId` is accepted so a phase-7 workflow step can point the
+ * artefact back at the run that produced it. It is not a cuid — orchestration
+ * execution ids are core's to shape, so this only bounds the length.
+ */
+export const createReviewSchema = z
+  .object({
+    horizon: z.enum(REVIEW_HORIZONS),
+    title: titleSchema,
+    body: noteBodySchema,
+    payload: z.unknown().optional(),
+    workflowExecutionId: z.string().trim().min(1).max(64).optional(),
+  })
+  .strict();
+
+export type CreateReviewInput = z.infer<typeof createReviewSchema>;
+
+export const reviewListQuerySchema = resparkableListQuerySchema.extend({
+  horizon: z.enum(REVIEW_HORIZONS).optional(),
+});
+
+export type ReviewListQuery = z.infer<typeof reviewListQuerySchema>;
+
+// ─── Ideate (phase 6) ────────────────────────────────────────────────────────
+
+/** The node types `resparkable_ideate` will accept as a seed — the embedded ones. */
+export const IDEATE_SEED_TYPES = EMBEDDED_ENTITY_TYPES;
+
+/**
+ * `POST /resparkable/ideate` — the active counterpart to the nightly sweep.
+ *
+ * The sweep *notices* connections on its own schedule; this is a person asking
+ * for them. It is read-only: it returns framings and writes nothing, which is
+ * why it has no `status`, no link creation and no side effect to undo.
+ *
+ * `count` is capped low on purpose. Ten framings is already more than anyone
+ * reads, and each one costs tokens.
+ */
+export const ideateSchema = z
+  .object({
+    seedType: z.enum(IDEATE_SEED_TYPES),
+    seedId: cuidSchema,
+    /** An optional lens — "podcast episodes", "objections a CFO would raise". */
+    angle: z.string().trim().max(280).optional(),
+    count: z.number().int().min(1).max(10).default(5),
+  })
+  .strict();
+
+export type IdeateInput = z.infer<typeof ideateSchema>;
+
+// ─── Agent capability arguments (phase 6b) ───────────────────────────────────
+//
+// The schemas an LLM's tool arguments are validated against. They are separate
+// from the route schemas above for three reasons, and the separation is load-
+// bearing rather than tidiness:
+//
+//   1. **A tool argument is JSON, not a query string.** The route schemas coerce
+//      `'true'` and `'20'` because a URL has no types. A model that emits
+//      `includeArchived: "true"` has made a mistake worth reporting, not one
+//      worth papering over.
+//   2. **Every field an LLM cannot set is a field it cannot get wrong.**
+//      `manualBoost` is absent by the rule at the top of this file; `source` on
+//      capture and `origin` on a link are pinned server-side, because provenance
+//      the caller chooses is not provenance.
+//   3. **Upsert is not a route verb.** HTTP has `POST` and `PATCH`; a model has
+//      one call and the id it either has or hasn't. Folding both into one tool
+//      halves the number of ways it can pick the wrong one.
+//
+// The create path re-parses through the matching `create*Schema`, so an
+// agent-created row lands with exactly the defaults an HTTP-created one does.
+
+/** Anything an agent may ask for a page of. Smaller cap than HTTP: this is context, not a table. */
+const agentLimitSchema = z.number().int().min(1).max(50);
+
+/**
+ * `resparkable_capture`.
+ *
+ * No `source`: the capability pins `'agent'`. A model that could claim its own
+ * capture came from a phone would make the one field that says "where did this
+ * come from" worthless — and `source` is what the briefing and the triage prompt
+ * both read to decide how much to trust a thought.
+ */
+export const agentCaptureSchema = z
+  .object({
+    content: z.string().trim().min(1, 'Required').max(100_000),
+    /** Supplied by an inbound adapter replaying a message; makes a retry safe. */
+    externalId: z.string().trim().min(1).max(200).optional(),
+  })
+  .strict();
+
+export type AgentCaptureInput = z.infer<typeof agentCaptureSchema>;
+
+/** `resparkable_search` — the same hybrid pass the `/search` endpoint runs. */
+export const agentSearchSchema = z
+  .object({
+    query: z.string().trim().min(1, 'Required').max(500),
+    entityTypes: z.array(z.enum(SEARCHABLE_ENTITY_TYPES)).min(1).optional(),
+    limit: agentLimitSchema.default(10),
+    /**
+     * Archived items are found by keyword only — the archive transaction deletes
+     * their vectors (§11) — so this widens recall in one pass and not the other.
+     */
+    includeArchived: z.boolean().default(false),
+  })
+  .strict();
+
+export type AgentSearchInput = z.infer<typeof agentSearchSchema>;
+
+/** `resparkable_list_tasks` — ranked by `priorityScore`, which the scorer already wrote. */
+export const agentListTasksSchema = z
+  .object({
+    status: z.enum(TASK_STATUSES).optional(),
+    projectId: cuidSchema.optional(),
+    /** Hide tasks whose `deferUntil` is still in the future. */
+    hideDeferred: z.boolean().optional(),
+    limit: agentLimitSchema.default(20),
+  })
+  .strict();
+
+export type AgentListTasksInput = z.infer<typeof agentListTasksSchema>;
+
+/**
+ * The upsert pair-builder.
+ *
+ * `id` present → update; absent → create. The `requiredOnCreate` keys are the
+ * ones the create schema has no default for, checked here so the model gets
+ * "provide `title` to create a task" rather than a shape error from a second
+ * parse it cannot see.
+ */
+function upsertSchema<Shape extends z.ZodRawShape>(
+  base: z.ZodObject<Shape>,
+  requiredOnCreate: readonly (keyof Shape & string)[]
+) {
+  return base
+    .partial()
+    .extend({ id: cuidSchema.optional() })
+    .strict()
+    .superRefine((value, ctx) => {
+      // Read through an index signature rather than the inferred shape: the
+      // generic parameter makes the narrowed type unreadable here, and the two
+      // keys we touch are both declared above.
+      const fields = value as Record<string, unknown>;
+      if (fields.id !== undefined) return;
+      for (const key of requiredOnCreate) {
+        if (fields[key] === undefined) {
+          ctx.addIssue({
+            code: 'custom',
+            path: [key],
+            message: `Provide \`id\` to update an existing record, or \`${key}\` to create one`,
+          });
+        }
+      }
+    });
+}
+
+/**
+ * `resparkable_upsert_task`.
+ *
+ * The three `manualBoost*` fields are stripped before the shape is built, not
+ * merely undocumented: a pin is a human veto over the machine's ranking, so a
+ * machine that could write one has defeated the point (§10, and rule 2 at the
+ * top of this file). `omit()` makes that a type error rather than a review note.
+ */
+export const agentUpsertTaskSchema = upsertSchema(
+  createTaskSchema.omit({
+    manualBoost: true,
+    manualBoostExpiresAt: true,
+    manualBoostReason: true,
+  }),
+  ['title']
+);
+
+export type AgentUpsertTaskInput = z.infer<typeof agentUpsertTaskSchema>;
+
+/** `resparkable_upsert_project`. `slug` is omitted — the service derives it from the name. */
+export const agentUpsertProjectSchema = upsertSchema(createProjectSchema.omit({ slug: true }), [
+  'name',
+]);
+
+export type AgentUpsertProjectInput = z.infer<typeof agentUpsertProjectSchema>;
+
+/** `resparkable_upsert_goal`. `horizon` has no default, so creating without one is an error. */
+export const agentUpsertGoalSchema = upsertSchema(createGoalSchema, ['title', 'horizon']);
+
+export type AgentUpsertGoalInput = z.infer<typeof agentUpsertGoalSchema>;
+
+/** `resparkable_upsert_entity` — people, companies and segments. */
+export const agentUpsertEntitySchema = upsertSchema(createEntitySchema.omit({ slug: true }), [
+  'name',
+]);
+
+export type AgentUpsertEntityInput = z.infer<typeof agentUpsertEntitySchema>;
+
+/**
+ * `resparkable_find_connections`.
+ *
+ * Embedded types only: a connection is a distance between two stored vectors and
+ * tasks have none (§1). Asking for one is a validation error rather than an
+ * empty result, because the two are indistinguishable to a model that then
+ * concludes the item has no neighbours.
+ */
+export const agentFindConnectionsSchema = z
+  .object({
+    entityType: z.enum(EMBEDDED_ENTITY_TYPES),
+    entityId: cuidSchema,
+    limit: z.number().int().min(1).max(20).default(10),
+  })
+  .strict();
+
+export type AgentFindConnectionsInput = z.infer<typeof agentFindConnectionsSchema>;
+
+/**
+ * `resparkable_reprioritise` — and it takes nothing at all.
+ *
+ * It *triggers* the deterministic ranker (D3); it does not steer it. The empty
+ * `.strict()` object is the point rather than an oversight: there is no argument
+ * through which a model could nudge the ordering, not even a filter that would
+ * let it rescore one favoured task and leave the rest stale. `{ scores: … }`
+ * from a hopeful model is a validation error, not a silently dropped key.
+ */
+export const agentReprioritiseSchema = z.object({}).strict();
+
+export type AgentReprioritiseInput = z.infer<typeof agentReprioritiseSchema>;
+
+// ─── Briefing and notification (phase 7) ─────────────────────────────────────
+
+/**
+ * `resparkable_get_briefing` — reads the one current briefing, so there is nothing
+ * to ask for. The caller is the scope; the horizon is fixed.
+ */
+export const agentGetBriefingSchema = z.object({}).strict();
+
+export type AgentGetBriefingInput = z.infer<typeof agentGetBriefingSchema>;
+
+/**
+ * `resparkable_get_briefing_inputs`.
+ *
+ * The override is an **enum**, and that is the whole substance of this schema.
+ * `plan.md` §6 originally had a `route` step ask an LLM to classify the user's
+ * work style — a model call to read a `VarChar(16)` already in the row, with a
+ * chance of returning the wrong one. Constraining the only way that value can be
+ * influenced to three known strings is what makes the deterministic replacement
+ * safe: an unrecognised style is a validation error, not a briefing quietly
+ * written in the wrong shape.
+ */
+export const agentBriefingInputsSchema = z
+  .object({ workStyleOverride: z.enum(WORK_STYLES).optional() })
+  .strict();
+
+export type AgentBriefingInputsInput = z.infer<typeof agentBriefingInputsSchema>;
+
+/**
+ * `resparkable_notify`.
+ *
+ * **No recipient, no subject, no body — and that is the security control**, not
+ * an ergonomic choice. This is the only capability that can send something out
+ * of the app, so free text here would be an exfiltration channel (a brain
+ * mailed out a paragraph at a time), an impersonation primitive (attacker
+ * wording from the product's own address), and a durable copy of personal
+ * content outside the erasure cascade. The model chooses one of a closed set and
+ * may supply a bare integer; every word a recipient reads is rendered
+ * server-side.
+ */
+export const agentNotifySchema = z
+  .object({
+    notification: z.enum(RESPARKABLE_NOTIFICATIONS),
+    count: z.number().int().min(0).max(9999).optional(),
+  })
+  .strict();
+
+export type AgentNotifyInput = z.infer<typeof agentNotifySchema>;
+
+// ─── Lifecycle (phase 8) ─────────────────────────────────────────────────────
+
+/**
+ * `resparkable_get_stale_digest` — the four dormancy questions, all of them, always.
+ *
+ * No window arguments, deliberately. §11's windows differ per type because the
+ * types go stale at different speeds, and letting a model pass its own would
+ * make "is this project dead?" mean something different on every run — so the
+ * monthly horizon check could not compare one month's digest with the last.
+ * There is nothing to ask for here either: the caller is the scope.
+ */
+export const agentStaleDigestSchema = z.object({}).strict();
+
+export type AgentStaleDigestInput = z.infer<typeof agentStaleDigestSchema>;
+
+/**
+ * `POST /resparkable/stale/still-live`.
+ *
+ * The answer to one digest row, and the only write the digest surface makes.
+ * `type` is an enum of the three that have a `lastActivityAt` to stamp — an area
+ * is kept alive by booking time against it, which is the same answer written in
+ * the data the question was asked from.
+ */
+export const staleStillLiveSchema = z
+  .object({
+    type: z.enum(STILL_LIVE_TYPES),
+    id: z.string().min(1).max(64),
+  })
+  .strict();
+
+export type StaleStillLiveInput = z.infer<typeof staleStillLiveSchema>;
+
+// ─── Chat (phase 6c) ─────────────────────────────────────────────────────────
+
+/**
+ * `POST /resparkable/chat/stream`.
+ *
+ * Four fields, and the absences are the design:
+ *
+ *   - **No `contextType` / `contextId`.** The route pins both server-side to the
+ *     signed-in user. A client-supplied `contextId` is the one field that would
+ *     let a browser ask for another person's goals to be rendered into its own
+ *     prompt — and `buildContext` would then cache the answer.
+ *   - **No `agentId`, no model, no temperature.** Those are operator settings on
+ *     the `AiAgent` row, and a chat box that could override them is a chat box
+ *     that can spend more than the operator agreed to.
+ *   - **No attachments.** Voice and image capture arrive in phase 9 with their
+ *     own magic-byte validation and their own rate-limit bucket; accepting a
+ *     base64 blob here before any of that exists would be a hole with a UI on it.
+ *
+ * `agentSlug` is validated against `RESPARKABLE_CHAT_AGENT_SLUGS` in the route rather
+ * than here, because that list is a security boundary that belongs next to the
+ * reasoning for it (`lib/framework/resparkable/agents.ts`), not in a schema file.
+ */
+export const resparkableChatRequestSchema = z
+  .object({
+    message: z.string().trim().min(1, 'Required').max(10_000),
+    agentSlug: z.string().trim().min(1).max(100),
+    /** Continues an existing conversation; omitted starts a new one. */
+    conversationId: cuidSchema.optional(),
+  })
+  .strict();
+
+export type ResparkableChatRequest = z.infer<typeof resparkableChatRequestSchema>;
+
+// ─── Instance settings (admin) ────────────────────────────────────────────────
+
+export const DOCUMENT_ORIGINALS_MODES = ['discard', 'retain'] as const;
+
+/**
+ * `PATCH /api/v1/admin/resparkable/settings`.
+ *
+ * Admin-guarded at the route. Note what is absent: nothing here is per-user, and
+ * there is no `userId` — these are deployment facts, and the settings row is the
+ * one Resparkable table outside the erasure cascade.
+ */
+export const resparkableSettingsSchema = z
+  .object({
+    documentOriginals: z.enum(DOCUMENT_ORIGINALS_MODES),
+    /** 1 MB floor: below it nothing useful uploads and it reads as a typo. */
+    maxDocumentBytes: z
+      .number()
+      .int()
+      .min(1024 * 1024)
+      .max(200 * 1024 * 1024)
+      .nullish(),
+  })
+  .partial()
+  .strict();
+
+export type ResparkableSettingsInput = z.infer<typeof resparkableSettingsSchema>;
+
+/**
+ * Response shape of `GET /api/v1/admin/resparkable/settings`.
+ *
+ * Parsed by the admin page, which fetches its own API — a fetch response is
+ * external data even when we wrote the endpoint, so it goes through Zod rather
+ * than an `as` (CLAUDE.md).
+ */
+export const resparkableAdminSettingsResponseSchema = z.object({
+  documentOriginals: z.enum(DOCUMENT_ORIGINALS_MODES),
+  maxDocumentBytes: z.number().int().positive(),
+  isDefault: z.boolean(),
+  storage: z.object({
+    capable: z.boolean(),
+    provider: z.string().nullable(),
+    reason: z.string().nullable(),
+  }),
+});
+
+export type ResparkableAdminSettingsResponse = z.infer<
+  typeof resparkableAdminSettingsResponseSchema
+>;
+
+// ─── Space settings ──────────────────────────────────────────────────────────
+
+/**
+ * The six scorer factors, in the order they appear in the plan's formula.
+ *
+ * One const array drives the Zod schema, the defaults table, the
+ * `priorityFactors` payload and (later) the settings UI — so adding a seventh
+ * factor is one edit here rather than four that drift.
+ */
+export const PRIORITY_FACTORS = [
+  'urgency',
+  'goalAlignment',
+  'projectMomentum',
+  'areaBalance',
+  'effortFit',
+  'staleness',
+] as const;
+
+export type PriorityFactor = (typeof PRIORITY_FACTORS)[number];
+
+const weightSchema = z.number().min(0).max(1);
+
+/**
+ * Scorer weights.
+ *
+ * **They must sum to 1.** `base` is a weighted average and the plan guarantees
+ * it lands in `[0, 1]`, which is the whole reason a `manualBoost` of `+1`
+ * provably outranks every unboosted task (§10). Weights summing to 1.4 would
+ * quietly break that guarantee — and the symptom would be a pin that doesn't
+ * pin, months later. A small epsilon absorbs float representation, nothing more.
+ *
+ * `resolvePriorityWeights()` normalises defensively on read as well, so a row
+ * hand-edited in the database can't break the invariant either.
+ */
+export const priorityWeightsSchema = z
+  .object({
+    urgency: weightSchema,
+    goalAlignment: weightSchema,
+    projectMomentum: weightSchema,
+    areaBalance: weightSchema,
+    effortFit: weightSchema,
+    staleness: weightSchema,
+  })
+  .strict()
+  .refine(
+    (weights) => Math.abs(PRIORITY_FACTORS.reduce((sum, key) => sum + weights[key], 0) - 1) < 1e-6,
+    { message: 'Weights must sum to 1' }
+  );
+
+export type PriorityWeights = z.infer<typeof priorityWeightsSchema>;
+
+/**
+ * The shape of a stored `priorityFactors` blob, for readers.
+ *
+ * The column is `Json?`, so anything a caller pulls out of it is external data
+ * even though this codebase wrote it — a row scored by an older build has an
+ * older shape, and `CLAUDE.md` forbids an `as` cast over that. The UI parses with
+ * this and falls back to "no explanation recorded" rather than rendering
+ * `undefined`.
+ *
+ * Deliberately **not** `.strict()`: a future build adding a seventh field must
+ * not blank the explanation on every task scored before this one. Unknown keys
+ * are dropped, known ones are trusted.
+ *
+ * The writer is `PriorityFactors` in `priority/score.ts`; keep the two in step.
+ */
+export const priorityFactorsSchema = z.object({
+  urgency: z.number(),
+  goalAlignment: z.number(),
+  projectMomentum: z.number(),
+  areaBalance: z.number(),
+  effortFit: z.number(),
+  staleness: z.number(),
+  base: z.number(),
+  manualBoost: z.number(),
+  boostActive: z.boolean(),
+  boostReason: z.string().nullable(),
+  deferred: z.boolean(),
+  returnedFromSnooze: z.boolean(),
+  dominantFactor: z.string(),
+  scoredAt: z.string(),
+});
+
+export type StoredPriorityFactors = z.infer<typeof priorityFactorsSchema>;
+
+/**
+ * Which energy level you have when. Feeds `effortFit`: a `high`-energy task
+ * scheduled into your `low`-energy evening fits worse than it looks on paper.
+ *
+ * Three coarse bands rather than 24 hourly values — the extra precision would be
+ * invented, since nobody can honestly fill in an hourly profile.
+ */
+export const energyProfileSchema = z
+  .object({
+    morning: z.enum(ENERGY_LEVELS),
+    afternoon: z.enum(ENERGY_LEVELS),
+    evening: z.enum(ENERGY_LEVELS),
+  })
+  .strict();
+
+export type EnergyProfile = z.infer<typeof energyProfileSchema>;
+
+/** Days, always. A window measured in anything else invites a unit bug. */
+const retentionDaysSchema = z.number().int().positive().max(36_500);
+
+/**
+ * Retention windows (§11). Enforced in phase 8; validated and settable now
+ * because the column exists from the first migration and an unvalidated `Json`
+ * column is a boundary nobody is guarding.
+ */
+export const retentionPolicySchema = z
+  .object({
+    inboxThoughtDays: retentionDaysSchema,
+    completedTaskDays: retentionDaysSchema,
+    closedProjectDays: retentionDaysSchema,
+    reviewDays: retentionDaysSchema,
+    staleEntityDays: retentionDaysSchema,
+    suggestedLinkDays: retentionDaysSchema,
+    eventDays: retentionDaysSchema,
+    planTimeBlockDays: retentionDaysSchema,
+  })
+  .strict();
+
+export type RetentionPolicy = z.infer<typeof retentionPolicySchema>;
+
+/**
+ * IANA zone names, checked against the runtime's own database rather than a
+ * curated list — `lib/utils/timezones.ts` is a UI picker, not an allowlist, and
+ * rejecting a zone it happens not to list would be wrong.
+ */
+const timezoneSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(64)
+  .refine(isValidTimezone, { message: 'Unknown IANA time zone' });
+
+/**
+ * Fixed-offset forms `Intl` accepts but we do not: `+13:00`, `-05:00`,
+ * `UTC+13`, `GMT-5`.
+ *
+ * ECMA-402 treats these as valid time zones, and they would work — every preset
+ * would resolve to a real instant. What they cannot do is answer "when does
+ * daylight saving end here", so a user who stored one would silently drift an
+ * hour twice a year on every snooze, every retention window and every weekly
+ * capacity boundary. That is precisely the class of small wrongness this whole
+ * area of the code exists to avoid, and it is invisible for six months.
+ *
+ * Bare `UTC` and `GMT` are fine: they are real zones that genuinely never shift.
+ */
+const OFFSET_TIMEZONE = /^[+-]|^(?:UTC|GMT)[+-]/i;
+
+function isValidTimezone(value: string): boolean {
+  if (OFFSET_TIMEZONE.test(value)) return false;
+
+  try {
+    new Intl.DateTimeFormat('en-GB', { timeZone: value });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * `PATCH /resparkable/space`.
+ *
+ * `inboxToken` is deliberately absent: it is a bearer credential that routes
+ * email into this brain (§17 risk 8), so it rotates through its own endpoint
+ * with its own confirmation, never as a field in a settings save.
+ */
+export const updateSpaceSchema = z
+  .object({
+    timezone: timezoneSchema,
+    weeklyCapacityMinutes: z.number().int().min(0).max(10_080),
+    workStyle: z.enum(WORK_STYLES),
+    priorityWeights: priorityWeightsSchema.nullish(),
+    energyProfile: energyProfileSchema.nullish(),
+    retentionPolicy: retentionPolicySchema.nullish(),
+    /**
+     * Similarity floor for proposing connections. `null` restores the measured
+     * default rather than meaning "propose nothing".
+     *
+     * Bounded well inside `[0, 1]`: a floor of 0 proposes every pair in the brain
+     * and a floor of 1 proposes none, and both read as the feature being broken
+     * rather than as a setting being wrong.
+     */
+    connectionStrengthFloor: z.number().min(0.2).max(0.95).nullish(),
+  })
+  .partial()
+  .strict();
+
+export type UpdateSpaceInput = z.infer<typeof updateSpaceSchema>;
+
+// ─── Obsidian vault (§14, Release 3) ─────────────────────────────────────────
+
+/**
+ * `GET /resparkable/vault/export`.
+ *
+ * `includeArchived` defaults to `false` for the same reason every other list
+ * here does: a vault is a working surface, and an archive is the set of things
+ * you decided to stop thinking about (§11). Asking for them is a legitimate and
+ * different request — "everything I have" — so it is one query parameter, not a
+ * policy.
+ */
+export const vaultExportQuerySchema = z
+  .object({
+    includeArchived: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((value) => value === 'true'),
+  })
+  .strict();
+
+export type VaultExportQuery = z.infer<typeof vaultExportQuerySchema>;
+
+/**
+ * `POST /resparkable/vault/import` — the two flags, both defaulting to the safe side.
+ *
+ * **`apply` defaults to `false`.** A plan is computed either way, so a dry run
+ * costs nothing and is what the user sees first (§14 blast radius). Writing has
+ * to be asked for.
+ *
+ * **`allowBlanking` defaults to `false`.** Nothing in import deletes a row, so
+ * the only shape data loss can take here is a file whose body has gone missing
+ * — a bad merge, a truncated sync, a half-written file — silently wiping the
+ * prose on a note. Refusing by default costs one checkbox on the rare occasion
+ * somebody meant it.
+ *
+ * Both arrive as multipart form strings, so `z.coerce.boolean()` is wrong:
+ * `Boolean("false")` is `true`, which would turn the safe default into a write.
+ * That is precisely the trap `booleanQueryParam` in `lib/validations/common.ts`
+ * documents.
+ */
+export const vaultImportSchema = z
+  .object({
+    apply: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((value) => value === 'true'),
+    allowBlanking: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((value) => value === 'true'),
+  })
+  .strict();
+
+export type VaultImportInput = z.infer<typeof vaultImportSchema>;

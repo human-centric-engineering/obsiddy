@@ -2,7 +2,7 @@
 
 **Related**: [Request Context](./request-context.md) | [Best Practices](./best-practices.md) | [Error Handling](../errors/overview.md)
 
-Sunrise uses structured logging via `@/lib/logging` for all production code. Never use `console.log` directly.
+Resparkable uses structured logging via `@/lib/logging` for all production code. Never use `console.log` directly.
 
 ## Quick Reference
 

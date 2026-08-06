@@ -1,8 +1,8 @@
-# Contributing to Sunrise
+# Contributing to Resparkable
 
-Thank you for your interest in contributing to Sunrise! This guide will help you get started.
+Thank you for your interest in contributing to Resparkable! This guide will help you get started.
 
-> **Building an app _on_ Sunrise rather than contributing _to_ it?** See
+> **Building an app _on_ Resparkable rather than contributing _to_ it?** See
 > [`CUSTOMIZATION.md`](./CUSTOMIZATION.md) — the fork/app onboarding guide. It
 > covers the extension model, the `package.json` dependency/script policy for
 > forks, and how to stay in sync with upstream releases.
@@ -24,7 +24,7 @@ Be respectful and constructive. We're all here to build something useful togethe
 ```bash
 # Clone the repository
 git clone https://github.com/human-centric-engineering/sunrise
-cd sunrise
+cd resparkable
 
 # Install dependencies
 npm install
@@ -141,9 +141,9 @@ If one fails, the Checks tab or PR comment explains why. See [Supply-Chain Secur
 
 ## Cutting a release
 
-Sunrise releases are cut **deliberately** — release-on-demand, not on every
+Resparkable releases are cut **deliberately** — release-on-demand, not on every
 merge. A release means _"this batch is worth depending on"_: a dated
-`CHANGELOG.md` entry plus a `vX.Y.Z` git tag. Either of the Sunrise
+`CHANGELOG.md` entry plus a `vX.Y.Z` git tag. Either of the Resparkable
 maintainers may cut a release after the standard PR gates. The full
 public-surface contract behind the bump decision lives in
 [`VERSIONING.md`](./VERSIONING.md).
@@ -159,8 +159,8 @@ public-surface contract behind the bump decision lives in
    `0.x`, MINOR for new public surface, PATCH for fixes — we don't bump MAJOR
    in `0.x` (see the `0.x` semantics section).
 2. **Bump the platform version.** Edit
-   [`lib/sunrise-version.ts`](./lib/sunrise-version.ts) — change
-   `SUNRISE_VERSION` to the new value.
+   [`lib/resparkable-version.ts`](./lib/resparkable-version.ts) — change
+   `RESPARKABLE_VERSION` to the new value.
 3. **Match the version in `package.json` _and_ the lockfile.** Set
    `package.json.version` to the same value (lint-staged formats the file on
    commit). Then hand-edit the two top-of-file `"version"` keys in

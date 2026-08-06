@@ -115,7 +115,7 @@ describe('completeMcpReference: prompts', () => {
 describe('completeMcpReference: resources', () => {
   it('enumerates pattern numbers 1-21 dynamically for patterns/{number}', async () => {
     const result = await completeMcpReference(
-      { type: 'ref/resource', uri: 'sunrise://knowledge/patterns/{number}' },
+      { type: 'ref/resource', uri: 'resparkable://knowledge/patterns/{number}' },
       'number',
       '1'
     );
@@ -133,7 +133,7 @@ describe('completeMcpReference: resources', () => {
     } as never);
 
     const result = await completeMcpReference(
-      { type: 'ref/resource', uri: 'sunrise://reports' },
+      { type: 'ref/resource', uri: 'resparkable://reports' },
       'region',
       'e'
     );
@@ -147,7 +147,7 @@ describe('completeMcpReference: resources', () => {
     } as never);
 
     const result = await completeMcpReference(
-      { type: 'ref/resource', uri: 'sunrise://reports' },
+      { type: 'ref/resource', uri: 'resparkable://reports' },
       'region',
       ''
     );
@@ -160,7 +160,7 @@ describe('completeMcpReference: resources', () => {
     } as never);
 
     const result = await completeMcpReference(
-      { type: 'ref/resource', uri: 'sunrise://reports' },
+      { type: 'ref/resource', uri: 'resparkable://reports' },
       'region',
       ''
     );

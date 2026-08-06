@@ -43,7 +43,7 @@ Start or continue a streaming chat conversation with a public agent.
 }
 ```
 
-**`scope` carrier.** An optional opaque `Record<string, string>` threaded verbatim into every capability dispatch this turn as [`CapabilityContext.scope`](../orchestration/capabilities.md#dispatch-scope-carrier-capabilitycontextscope). Core names no keys and no built-in reads it — **inert in vanilla Sunrise**. A fork uses it to surface-scope a conversation (e.g. `{ module, role }`) without shadowing this route. Because the value arrives on an untrusted end-user request it is bounded here (unlike the admin/persisted carrier). **Security:** a fork that reads `scope` to make an _access_ decision must re-validate it against the user's real entitlements server-side — a consumer-supplied scope is a routing/context hint, never proof of authorization.
+**`scope` carrier.** An optional opaque `Record<string, string>` threaded verbatim into every capability dispatch this turn as [`CapabilityContext.scope`](../orchestration/capabilities.md#dispatch-scope-carrier-capabilitycontextscope). Core names no keys and no built-in reads it — **inert in vanilla Resparkable**. A fork uses it to surface-scope a conversation (e.g. `{ module, role }`) without shadowing this route. Because the value arrives on an untrusted end-user request it is bounded here (unlike the admin/persisted carrier). **Security:** a fork that reads `scope` to make an _access_ decision must re-validate it against the user's real entitlements server-side — a consumer-supplied scope is a routing/context hint, never proof of authorization.
 
 **Response:** `text/event-stream` (SSE). Events follow the same shape as the admin chat stream:
 
@@ -257,7 +257,7 @@ The widget does not send `agentId` — the embed token is the authority on agent
 
 **Behaviour:** identical to the admin path — provider resolved via `getAudioProvider()`, audio discarded after transcription, `CostOperation = 'transcription'` row written tagged to the agent. The transcript is returned to the widget for the user to review and send via the standard chat-stream path; the endpoint does not start a chat turn itself.
 
-**Platform body-size caveat:** the 25 MB cap is Sunrise's server-side limit. Vercel deployments (Hobby and default Pro) reject bodies over **4.5 MB** at the edge before the route runs, so widget integrations that loosen the recorder cap should plan around that lower bound. Self-hosted Node / Docker deployments get the full 25 MB. See `.context/orchestration/embed.md#platform-body-size-limits` for the platform comparison table.
+**Platform body-size caveat:** the 25 MB cap is Resparkable's server-side limit. Vercel deployments (Hobby and default Pro) reject bodies over **4.5 MB** at the edge before the route runs, so widget integrations that loosen the recorder cap should plan around that lower bound. Self-hosted Node / Docker deployments get the full 25 MB. See `.context/orchestration/embed.md#platform-body-size-limits` for the platform comparison table.
 
 **Browser-side prerequisites** (enforced by the widget, not the endpoint): HTTPS or localhost (Web Audio refuses otherwise), `MediaRecorder` + `getUserMedia` support, parent site's `Permissions-Policy` allowing `microphone` (cannot be overridden from the embed). See `.context/orchestration/embed.md#voice-input` for the full client-side story and the iframe `allow="microphone"` requirement.
 

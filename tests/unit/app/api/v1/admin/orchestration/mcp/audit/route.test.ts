@@ -87,7 +87,7 @@ function makeMcpConfig(overrides: Record<string, unknown> = {}) {
     id: 'cmjbv4i3x00003wsloputgwu3',
     slug: 'global',
     isEnabled: true,
-    serverName: 'Sunrise MCP Server',
+    serverName: 'Resparkable MCP Server',
     serverVersion: '1.0.0',
     maxSessionsPerKey: 5,
     globalRateLimit: 60,

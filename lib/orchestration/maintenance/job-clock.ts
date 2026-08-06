@@ -23,7 +23,7 @@
  * "missed work".
  *
  * @see lib/orchestration/maintenance/app-jobs.ts — fork-owned jobs
- * @see lib/orchestration/maintenance/platform-jobs.ts — Sunrise's own tasks
+ * @see lib/orchestration/maintenance/platform-jobs.ts — Resparkable's own tasks
  */
 
 /** A per-name start-to-start clock with an in-flight latch. */

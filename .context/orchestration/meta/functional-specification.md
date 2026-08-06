@@ -1,6 +1,6 @@
 # Orchestration Layer — Functional Specification
 
-A comprehensive specification of the AI agent orchestration system built into the Sunrise platform.
+A comprehensive specification of the AI agent orchestration system built into the Resparkable platform.
 
 **Last updated:** 2026-05-20 (PRs #196–#204 sweep — conversation provenance, agent profile inheritance, LLM param profile + per-agent / per-step `reasoningEffort`, step descriptions, guard schema mode, execution rerun, running-step side table)
 
@@ -8,7 +8,7 @@ A comprehensive specification of the AI agent orchestration system built into th
 
 ## Executive Summary
 
-Sunrise ships a **full-stack AI agent orchestration platform** embedded within a production-grade Next.js 16 / TypeScript application. Unlike standalone orchestration libraries (LangGraph, CrewAI) or managed cloud services (AWS Bedrock, Azure Foundry), Sunrise delivers the orchestration engine, admin interface, consumer API, security layer, and deployment infrastructure as a single typed codebase.
+Resparkable ships a **full-stack AI agent orchestration platform** embedded within a production-grade Next.js 16 / TypeScript application. Unlike standalone orchestration libraries (LangGraph, CrewAI) or managed cloud services (AWS Bedrock, Azure Foundry), Resparkable delivers the orchestration engine, admin interface, consumer API, security layer, and deployment infrastructure as a single typed codebase.
 
 The orchestration layer comprises **116 TypeScript source files** across 19 modules, backed by **29 Prisma models**, exposed through **133 API route files** (120 admin + 2 public approval + 8 consumer chat + 2 embed + 1 MCP), and managed via a **20+ page admin dashboard**.
 
@@ -16,9 +16,9 @@ This is not a wrapper around a third-party AI library. It is a purpose-built orc
 
 ---
 
-## Foundation: The Sunrise Platform
+## Foundation: The Resparkable Platform
 
-The orchestration layer builds on Sunrise's production-grade application foundation:
+The orchestration layer builds on Resparkable's production-grade application foundation:
 
 | Layer              | Technology            | Role                                            |
 | ------------------ | --------------------- | ----------------------------------------------- |
@@ -473,7 +473,7 @@ Multi-format document processing pipeline:
 - **Supported formats**: Markdown (`.md`), plain text (`.txt`), CSV (`.csv` — RFC 4180 with delimiter sniffing, row-level chunking), EPUB (`.epub`), DOCX (`.docx`), PDF (`.pdf` — preview/confirm flow). Parser architecture extensible to additional formats.
 - **Size limit**: 50 MB per document
 - **Lifecycle**: `pending` → `processing` → `ready` (or `failed`); PDFs use `pending_review` between parse and confirm
-- **PDF preview flow**: Upload → parse preview → confirm → ingest (unique to Sunrise)
+- **PDF preview flow**: Upload → parse preview → confirm → ingest (unique to Resparkable)
 - **PDF preview re-upload dedup**: Re-uploading the same PDF (matched by SHA-256) refreshes the existing `pending_review` row in place rather than creating a duplicate; scoped to the uploading user so parallel triage doesn't clobber
 - **PDF diagnostics**: Per-page text-density check groups consecutive scanned pages into a single warning per range; opt-in vector-grid table extraction renders detected tables as fenced markdown pipe tables in the preview
 - **CSV row-level chunking**: One chunk per data row keeps row-atomic retrieval (a 50k-row CSV lets queries surface a single matching row); above 5,000 rows the chunker batches 10 rows per chunk to cap embedding cost. Re-chunking a CSV document re-routes through the row-level chunker (not the markdown chunker) so the row-atomic shape survives
@@ -503,7 +503,7 @@ Document CRUD, search testing, seeding, embedding management, retry for failed d
 
 ## 8. MCP Server (Model Context Protocol)
 
-Sunrise implements a **full MCP server** — exposing its capabilities to external MCP clients (Claude Desktop, IDE extensions, other agents):
+Resparkable implements a **full MCP server** — exposing its capabilities to external MCP clients (Claude Desktop, IDE extensions, other agents):
 
 ### 8.1 Transport
 
@@ -536,7 +536,7 @@ Settings, tools browser, resources browser, sessions, audit log, API key managem
 - DB-backed schedule definitions (`AiWorkflowSchedule`) with cron expressions
 - Unified maintenance tick endpoint processes due schedules
 - Schedule ↔ workflow binding
-- **Dev in-process ticker** (PR #259, May 2026): `instrumentation.ts` arms a 60 s `setInterval` calling `runMaintenanceTick()` directly when `NODE_ENV === 'development'`. First fire ~3 s after server startup. Opt-out via `SUNRISE_DISABLE_DEV_TICK=1`. Production deploys still drive the tick via an external cron — unaffected.
+- **Dev in-process ticker** (PR #259, May 2026): `instrumentation.ts` arms a 60 s `setInterval` calling `runMaintenanceTick()` directly when `NODE_ENV === 'development'`. First fire ~3 s after server startup. Opt-out via `RESPARKABLE_DISABLE_DEV_TICK=1`. Production deploys still drive the tick via an external cron — unaffected.
 
 ### 9.1a Retention Purge (data lifecycle)
 
@@ -667,7 +667,7 @@ A second evaluation surface alongside conversation-time scoring: queue an `AiEva
 - **Trajectory diagnostics** (PR #259): per-case dialog shows `Tool calls (N)` (slug + args + success/error + latency) and `Citations (N)` sourced from `subjectMetadata`, closing the "`tool_was_called` scored 0/N — why?" loop.
 - **Pairwise verdicts** (PR #260 — Phase 3.5a): the experiment compare page surfaces side-by-side verdict badges via a new `/experiments/[id]/verdicts` endpoint and `PairwiseVerdictCard`.
 - **CI gate** (PR #260 — Phase 4): `lib/orchestration/evaluations/gate.ts` decides pass/fail from run results; eval-run endpoints accept API-key auth.
-- **In-process dev ticker** (PR #259): `instrumentation.ts` fires the maintenance tick every 60 s in `NODE_ENV=development` so queued runs drain without an external cron; opt-out via `SUNRISE_DISABLE_DEV_TICK=1`.
+- **In-process dev ticker** (PR #259): `instrumentation.ts` fires the maintenance tick every 60 s in `NODE_ENV=development` so queued runs drain without an external cron; opt-out via `RESPARKABLE_DISABLE_DEV_TICK=1`.
 - **Three new Ragas-style judge agents** seeded (PR #250): `eval-judge-context-precision`, `eval-judge-context-recall`, `eval-judge-answer-similarity`.
 - **Cost-log tagging**: every per-step `AiCostLog` row carries `{ evaluationRunId, role: 'subject' | 'judge', judgeWorkflowSlug? }` so per-run cost decomposes cleanly.
 

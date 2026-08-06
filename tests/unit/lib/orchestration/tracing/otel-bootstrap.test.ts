@@ -80,7 +80,7 @@ describe('registerOtelTracer', () => {
     // Assert — message matches the documented constant in the source
     expect(infoSpy).toHaveBeenCalledTimes(1);
     expect(infoSpy).toHaveBeenCalledWith('OTEL tracer registered for orchestration', {
-      tracerName: 'sunrise-orchestration',
+      tracerName: 'resparkable-orchestration',
     });
   });
 });

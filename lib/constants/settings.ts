@@ -28,7 +28,7 @@ export const DEFAULT_SETTINGS_TAB: SettingsTab = SETTINGS_TABS.PROFILE;
  *
  * Used by useUrlTabs to update document.title on tab change — which OVERWRITES
  * the layout's `%s - ${BRAND.name}` metadata template, so these must route
- * through the same seam or a fork sees "Sunrise" in the browser tab.
+ * through the same seam or a fork sees "Resparkable" in the browser tab.
  */
 export const SETTINGS_TAB_TITLES: Record<SettingsTab, string> = {
   [SETTINGS_TABS.PROFILE]: `Profile - Settings - ${BRAND.name}`,

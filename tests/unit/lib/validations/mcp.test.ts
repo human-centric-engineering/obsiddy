@@ -446,7 +446,8 @@ describe('mcpToolCallParamsSchema', () => {
 describe('mcpResourceReadParamsSchema', () => {
   it('accepts a valid URI', () => {
     expect(
-      mcpResourceReadParamsSchema.safeParse({ uri: 'sunrise://knowledge/search?q=test' }).success
+      mcpResourceReadParamsSchema.safeParse({ uri: 'resparkable://knowledge/search?q=test' })
+        .success
     ).toBe(true);
   });
 
@@ -460,7 +461,7 @@ describe('mcpResourceReadParamsSchema', () => {
 
   it('rejects uri exceeding 500 chars', () => {
     expect(
-      mcpResourceReadParamsSchema.safeParse({ uri: 'sunrise://' + 'a'.repeat(491) }).success
+      mcpResourceReadParamsSchema.safeParse({ uri: 'resparkable://' + 'a'.repeat(491) }).success
     ).toBe(false);
   });
 });
@@ -615,7 +616,7 @@ describe('listApiKeysQuerySchema', () => {
 
 describe('createExposedResourceSchema', () => {
   const validInput = {
-    uri: 'sunrise://knowledge/search',
+    uri: 'resparkable://knowledge/search',
     name: 'Knowledge Search',
     description: 'Searches the knowledge base',
     resourceType: 'knowledge_search',
@@ -635,7 +636,7 @@ describe('createExposedResourceSchema', () => {
     expect(result.success && result.data.isEnabled).toBe(false);
   });
 
-  it('rejects URI not starting with sunrise://', () => {
+  it('rejects URI not starting with resparkable://', () => {
     expect(
       createExposedResourceSchema.safeParse({ ...validInput, uri: 'https://example.com' }).success
     ).toBe(false);

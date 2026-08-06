@@ -7,7 +7,7 @@
  * - Password confirmation matching
  * - Success state display with auto-reset
  *
- * @see /Users/simonholmes/Documents/Dev/studio/sunrise/components/forms/password-form.tsx
+ * @see /Users/simonholmes/Documents/Dev/studio/resparkable/components/forms/password-form.tsx
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';

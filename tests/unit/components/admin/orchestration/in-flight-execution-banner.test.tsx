@@ -183,7 +183,7 @@ describe('InFlightExecutionBanner', () => {
       });
       window.localStorage.setItem(IN_FLIGHT_EXECUTION_STORAGE_KEY, payload);
       window.dispatchEvent(
-        new CustomEvent('sunrise:local-storage-write', {
+        new CustomEvent('resparkable:local-storage-write', {
           detail: { key: IN_FLIGHT_EXECUTION_STORAGE_KEY, newValue: payload },
         })
       );

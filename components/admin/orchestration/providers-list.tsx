@@ -96,7 +96,7 @@ export interface ProviderRow extends AiProviderConfig {
   };
 }
 
-// Sunrise envelope shape for the post-create refetch. The inner row
+// Resparkable envelope shape for the post-create refetch. The inner row
 // schema validates every field this component reads — id/slug/etc. for
 // state, providerType/baseUrl/apiKeyEnvVar for status logic, and the
 // optional circuitBreaker block for the dot colour. Unknown extras pass

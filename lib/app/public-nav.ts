@@ -1,7 +1,7 @@
 /**
  * App public marketing nav overrides.
  *
- * **Fork-owned scaffold** — Sunrise ships every list `null` (= use the platform
+ * **Fork-owned scaffold** — Resparkable ships every list `null` (= use the platform
  * default) and does NOT change this file after release, so your edits here merge
  * cleanly on upgrade (the stable contract is this file's exports, not their
  * values). Treat it like the landing page: a starting point you're expected to

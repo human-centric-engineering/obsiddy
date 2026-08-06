@@ -3,7 +3,7 @@
  *
  * Test Coverage:
  * - SETTINGS_TAB_TITLES has a title for every tab value
- * - Titles carry the brand seam rather than a hardcoded "Sunrise" (#432)
+ * - Titles carry the brand seam rather than a hardcoded "Resparkable" (#432)
  *
  * @see lib/constants/settings.ts
  */
@@ -34,8 +34,8 @@ describe('SETTINGS_TAB_TITLES', () => {
   });
 
   // #432: these are written straight to document.title, overriding the layout's
-  // `%s - ${BRAND.name}` template, so a hardcoded name shows the fork "Sunrise"
-  it('carries the fork brand name, not a hardcoded "Sunrise"', async () => {
+  // `%s - ${BRAND.name}` template, so a hardcoded name shows the fork "Resparkable"
+  it('carries the fork brand name, not a hardcoded "Resparkable"', async () => {
     const original = process.env.NEXT_PUBLIC_APP_NAME;
     process.env.NEXT_PUBLIC_APP_NAME = 'Acme';
     vi.resetModules();
@@ -45,7 +45,7 @@ describe('SETTINGS_TAB_TITLES', () => {
 
     for (const tab of values) {
       expect(forked[tab]).toContain('Acme');
-      expect(forked[tab]).not.toContain('Sunrise');
+      expect(forked[tab]).not.toContain('Resparkable');
     }
 
     process.env.NEXT_PUBLIC_APP_NAME = original;

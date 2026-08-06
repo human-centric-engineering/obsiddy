@@ -175,7 +175,7 @@ Capability truth lives on `AiProviderModel.capabilities`. The 009-provider-model
 
 #### Per-provider wire format for attachments
 
-| Provider                                                                                   | Image input     | PDF input       | Mechanism (image / PDF)                                                        | Sunrise impl                             |
+| Provider                                                                                   | Image input     | PDF input       | Mechanism (image / PDF)                                                        | Resparkable impl                         |
 | ------------------------------------------------------------------------------------------ | --------------- | --------------- | ------------------------------------------------------------------------------ | ---------------------------------------- |
 | **Anthropic** Claude 4.x family (incl. Bedrock)                                            | yes             | yes             | `image` block (base64) / `document` block (base64)                             | `AnthropicProvider.toAnthropicBlocks`    |
 | **OpenAI** GPT-4o family + GPT-4.1 + GPT-5                                                 | yes             | yes             | `image_url` part (data URI) / `file` part (`file_data` data URI)               | `OpenAiCompatibleProvider.toOpenAiParts` |
@@ -268,7 +268,7 @@ if (!budget.withinBudget) {
 
 LLMs split text into tokens, not characters. The mapping is dense for English prose (~4 chars/token), much denser for code, and much sparser for non-English / CJK text (~1–2 chars/token). Each provider family ships its own tokeniser; the same string yields different counts on OpenAI vs. Anthropic vs. Google.
 
-Sunrise resolves the right tokeniser per model **before** an LLM call, so context-window truncation drops the right amount of history (no silent provider-side rejections, no over-aggressive trimming). Cost accounting is unaffected — providers report exact `usage.inputTokens` after the call.
+Resparkable resolves the right tokeniser per model **before** an LLM call, so context-window truncation drops the right amount of history (no silent provider-side rejections, no over-aggressive trimming). Cost accounting is unaffected — providers report exact `usage.inputTokens` after the call.
 
 ### Public surface
 
@@ -307,7 +307,7 @@ The heuristic tokeniser is only returned when the caller passes a missing / empt
 
 ### Why local-only
 
-Anthropic exposes a network `count_tokens` endpoint and Google's SDK has `countTokens()`. Both add 200–500 ms per chat turn — unacceptable on a streaming hot path. Sunrise's tokeniser layer is **synchronous and local** by contract; if a future feature wants exact pre-flight counts (e.g. budget enforcement before a long generation), it can opt in to the network path independently.
+Anthropic exposes a network `count_tokens` endpoint and Google's SDK has `countTokens()`. Both add 200–500 ms per chat turn — unacceptable on a streaming hot path. Resparkable's tokeniser layer is **synchronous and local** by contract; if a future feature wants exact pre-flight counts (e.g. budget enforcement before a long generation), it can opt in to the network path independently.
 
 ### Where it's used
 

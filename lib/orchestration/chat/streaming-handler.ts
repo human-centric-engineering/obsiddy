@@ -98,13 +98,13 @@ import {
   GEN_AI_USAGE_TOTAL_TOKENS,
   SPAN_CHAT_TURN,
   SPAN_LLM_CALL,
-  SUNRISE_AGENT_ID,
-  SUNRISE_AGENT_SLUG,
-  SUNRISE_CONVERSATION_ID,
-  SUNRISE_PROVIDER_FAILOVER_FROM,
-  SUNRISE_PROVIDER_FAILOVER_TO,
-  SUNRISE_TOOL_ITERATION,
-  SUNRISE_USER_ID,
+  RESPARKABLE_AGENT_ID,
+  RESPARKABLE_AGENT_SLUG,
+  RESPARKABLE_CONVERSATION_ID,
+  RESPARKABLE_PROVIDER_FAILOVER_FROM,
+  RESPARKABLE_PROVIDER_FAILOVER_TO,
+  RESPARKABLE_TOOL_ITERATION,
+  RESPARKABLE_USER_ID,
   recordSpanException,
   setSpanAttributes,
   setSpanStatus,
@@ -358,8 +358,8 @@ export class StreamingChatHandler {
       SPAN_CHAT_TURN,
       {
         [GEN_AI_OPERATION_NAME]: 'chat',
-        [SUNRISE_USER_ID]: request.userId,
-        [SUNRISE_AGENT_SLUG]: request.agentSlug,
+        [RESPARKABLE_USER_ID]: request.userId,
+        [RESPARKABLE_AGENT_SLUG]: request.agentSlug,
       },
       (chatSpan) => this.runInner(chatSpan, request),
       { manualStatus: true }
@@ -397,7 +397,7 @@ export class StreamingChatHandler {
       const resolvedModel = resolvedBinding.model;
       const resolvedFallbackProviders = resolvedBinding.fallbacks;
       setSpanAttributes(chatSpan, {
-        [SUNRISE_AGENT_ID]: agent.id,
+        [RESPARKABLE_AGENT_ID]: agent.id,
         [GEN_AI_REQUEST_MODEL]: resolvedModel,
         ...(agent.temperature !== null ? { [GEN_AI_REQUEST_TEMPERATURE]: agent.temperature } : {}),
       });
@@ -632,7 +632,7 @@ export class StreamingChatHandler {
         capSettings?.maxConversationsPerUser ?? null
       );
       conversationId = conversation.id;
-      setSpanAttributes(chatSpan, { [SUNRISE_CONVERSATION_ID]: conversation.id });
+      setSpanAttributes(chatSpan, { [RESPARKABLE_CONVERSATION_ID]: conversation.id });
       const history = await this.loadHistory(conversation.id);
 
       // Enforce message-per-conversation cap using actual DB count
@@ -730,7 +730,7 @@ export class StreamingChatHandler {
       // (input / output / citation) to a minimum mode for this turn, keyed on
       // the turn's (contextType, contextId, agentId). Collected once here and
       // applied at each guard below. Empty registry → `{}` → guard modes
-      // resolve exactly as before (inert in vanilla Sunrise).
+      // resolve exactly as before (inert in vanilla Resparkable).
       const guardFloors: GuardFloors = await collectGuardFloors({
         contextType: request.contextType,
         contextId: request.contextId,
@@ -740,7 +740,7 @@ export class StreamingChatHandler {
       // Guard-events seam: when an inline guard flags below, the handler emits
       // a fire-and-forget event so a fork can OBSERVE the firing and react
       // (notify / log / escalate). Built once here and reused at each guard.
-      // Empty registry → no-op (inert in vanilla Sunrise).
+      // Empty registry → no-op (inert in vanilla Resparkable).
       const guardEventContext: GuardEventContext = {
         contextType: request.contextType,
         contextId: request.contextId,
@@ -1155,10 +1155,10 @@ export class StreamingChatHandler {
               [GEN_AI_OPERATION_NAME]: 'chat',
               [GEN_AI_REQUEST_MODEL]: resolvedModel,
               [GEN_AI_SYSTEM]: currentProviderSlug,
-              [SUNRISE_AGENT_ID]: agent.id,
-              [SUNRISE_AGENT_SLUG]: agent.slug,
-              [SUNRISE_CONVERSATION_ID]: conversation.id,
-              [SUNRISE_TOOL_ITERATION]: iteration,
+              [RESPARKABLE_AGENT_ID]: agent.id,
+              [RESPARKABLE_AGENT_SLUG]: agent.slug,
+              [RESPARKABLE_CONVERSATION_ID]: conversation.id,
+              [RESPARKABLE_TOOL_ITERATION]: iteration,
               ...(agent.temperature !== null
                 ? { [GEN_AI_REQUEST_TEMPERATURE]: agent.temperature }
                 : {}),
@@ -1243,8 +1243,8 @@ export class StreamingChatHandler {
                 // OTLP backends still see the failure on the failed-attempt
                 // span.
                 setSpanAttributes(llmSpan, {
-                  [SUNRISE_PROVIDER_FAILOVER_FROM]: currentProviderSlug,
-                  [SUNRISE_PROVIDER_FAILOVER_TO]: nextSlug,
+                  [RESPARKABLE_PROVIDER_FAILOVER_FROM]: currentProviderSlug,
+                  [RESPARKABLE_PROVIDER_FAILOVER_TO]: nextSlug,
                 });
                 setSpanStatus(llmSpan, {
                   code: 'error',

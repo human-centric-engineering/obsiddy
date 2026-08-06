@@ -88,7 +88,7 @@ new PostHogProvider({ enableSessionRecording: true });
 
 ## Consent Integration
 
-The analytics system integrates with Sunrise's cookie consent system. Analytics only track when the user has consented to optional cookies.
+The analytics system integrates with Resparkable's cookie consent system. Analytics only track when the user has consented to optional cookies.
 
 ```typescript
 // Analytics context automatically checks consent

@@ -1,6 +1,6 @@
 # Authentication Forms
 
-This document covers form implementation patterns for authentication flows in Sunrise, including signup, login, and client-side session usage.
+This document covers form implementation patterns for authentication flows in Resparkable, including signup, login, and client-side session usage.
 
 ## Session Types and Hooks
 
@@ -348,7 +348,7 @@ export const emailSchema = z
 
 ## Auth Components
 
-Sunrise provides ready-to-use authentication components for common UI patterns:
+Resparkable provides ready-to-use authentication components for common UI patterns:
 
 | Component           | Location                                   | Purpose                                           |
 | ------------------- | ------------------------------------------ | ------------------------------------------------- |

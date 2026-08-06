@@ -223,7 +223,7 @@ Rejected: `vm2` has known sandbox escapes; `quickjs` is a real
 maintenance + bundle-size + security-review cost. The fixed set of
 heuristic primitives covers >90% of real use cases. When users need
 bespoke logic they should write a `custom_rubric` (model-graded) or
-later a Sunrise capability that a `capability_grader` invokes — both
+later a Resparkable capability that a `capability_grader` invokes — both
 delegate trust to existing execution boundaries.
 
 ## Datasets
@@ -626,7 +626,7 @@ surface a real failure than silently treat absence as a pass).
 
 ```bash
 KEY=sk_...
-BASE=https://your.sunrise.example.com
+BASE=https://your.resparkable.example.com
 
 RUN_ID=$(curl -sS -H "Authorization: Bearer $KEY" \
   -H "Content-Type: application/json" \

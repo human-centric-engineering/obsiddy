@@ -13,7 +13,7 @@
  * warning. The runtime catch surfaces a clear error if the helper is
  * called without the dep installed.
  *
- * Sunrise does NOT bundle a TracerProvider. Forks own that wiring:
+ * Resparkable does NOT bundle a TracerProvider. Forks own that wiring:
  *
  *   import { NodeSDK } from '@opentelemetry/sdk-node';
  *   import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
@@ -24,7 +24,7 @@
  *   await registerOtelTracer();
  *
  * Standard `OTEL_EXPORTER_OTLP_*` and `OTEL_TRACES_SAMPLER` env vars
- * are honoured by the NodeSDK / OTLPTraceExporter directly — Sunrise
+ * are honoured by the NodeSDK / OTLPTraceExporter directly — Resparkable
  * does not read them.
  */
 
@@ -36,7 +36,7 @@ import { registerTracer } from '@/lib/orchestration/tracing/registry';
  * Register the OTEL adapter as the active tracer.
  *
  * @param tracerName - Name passed to `trace.getTracer()`. Defaults to
- *   `'sunrise-orchestration'`. Forks running multiple Sunrise instances
+ *   `'resparkable-orchestration'`. Forks running multiple Resparkable instances
  *   in one process can override to disambiguate.
  *
  * @throws Error if `@opentelemetry/api` is not installed. The error is
@@ -44,7 +44,7 @@ import { registerTracer } from '@/lib/orchestration/tracing/registry';
  *   bootstrap is a deployment-time bug worth catching loudly.
  */
 export async function registerOtelTracer(
-  tracerName: string = 'sunrise-orchestration'
+  tracerName: string = 'resparkable-orchestration'
 ): Promise<void> {
   let otel: typeof import('@opentelemetry/api');
   try {

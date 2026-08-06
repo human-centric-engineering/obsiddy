@@ -4,7 +4,7 @@ import { getRouteLogger } from '@/lib/api/context';
 import { getMemoryUsage } from '@/lib/monitoring';
 import type { HealthCheckResponse, ServiceStatus } from '@/lib/monitoring';
 import { APP_VERSION } from '@/lib/app-version';
-import { SUNRISE_VERSION } from '@/lib/sunrise-version';
+import { RESPARKABLE_VERSION } from '@/lib/resparkable-version';
 
 /**
  * Check if memory should be included in health response
@@ -34,7 +34,7 @@ function determineServiceStatus(connected: boolean, latency?: number): ServiceSt
  * Build the health response payload.
  *
  * Centralises the response-shape construction so the version fields (`version`,
- * `sunrise`), uptime, timestamp, and memory toggle live in ONE place — the
+ * `resparkable`), uptime, timestamp, and memory toggle live in ONE place — the
  * success and error branches both call through here. Adding a new top-level
  * field to the contract means one edit, not two.
  */
@@ -46,7 +46,7 @@ function buildHealthPayload(params: {
   const payload: HealthCheckResponse = {
     status: params.status,
     version: APP_VERSION,
-    sunrise: SUNRISE_VERSION,
+    resparkable: RESPARKABLE_VERSION,
     uptime: Math.floor(process.uptime()),
     timestamp: new Date().toISOString(),
     services: {
@@ -74,7 +74,7 @@ function buildHealthPayload(params: {
  * {
  *   status: 'ok' | 'error',
  *   version: string,        // fork's app version (package.json)
- *   sunrise: string,        // Sunrise platform version (lib/sunrise-version.ts)
+ *   resparkable: string,        // Resparkable platform version (lib/resparkable-version.ts)
  *   uptime: number,
  *   timestamp: string,
  *   services: {

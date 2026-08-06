@@ -6,7 +6,7 @@
  * `proxy.ts` at the project root on every API request (Next.js 16 renamed the
  * `middleware.ts` file convention to `proxy.ts`).
  *
- * **This is the canonical rate-limit configuration for Sunrise.** Reviewing
+ * **This is the canonical rate-limit configuration for Resparkable.** Reviewing
  * rate-limit policy = reviewing this one file. Adding a new section to the
  * admin surface, splitting a tier, raising a cap — all happen here, never in
  * route handlers.
@@ -61,7 +61,7 @@ export interface RateLimitRule {
    * Which tier (limiter + cap) to apply. Resolved at request time via
    * `resolveRateLimitTier` (built-in tiers + app-registered tiers).
    *
-   * Built-in Sunrise rules use a {@link RateLimitTier} literal. App-registered
+   * Built-in Resparkable rules use a {@link RateLimitTier} literal. App-registered
    * rules (see {@link registerRateLimitRule}) may name a tier created via
    * `registerRateLimitTier`, hence the widening to `string` — the literal union
    * is kept in the type for editor autocomplete on the built-in names.
@@ -168,7 +168,7 @@ export const RATE_LIMIT_POLICY: readonly RateLimitRule[] = [
   // ── Authentication surface ───────────────────────────────────────────────
   // Login, signup, password reset, verification. Keyed on IP (no session
   // yet) and capped tight (5/min) per OWASP brute-force guidance.
-  // better-auth's own endpoints live under /api/auth/** — Sunrise's
+  // better-auth's own endpoints live under /api/auth/** — Resparkable's
   // application-layer auth lives under /api/v1/auth/**.
   //
   // The /api/auth/** rule matches every better-auth endpoint but ALSO
@@ -276,7 +276,7 @@ export const RATE_LIMIT_POLICY: readonly RateLimitRule[] = [
  * the base policy spliced with any app-registered rules — so a caller that
  * doesn't pass `policy` still sees app rules. Defaulting to the bare
  * `RATE_LIMIT_POLICY` would silently bypass the fork-readiness extension and
- * leave any future caller routing on Sunrise rules only. The optional
+ * leave any future caller routing on Resparkable rules only. The optional
  * argument exists so unit tests can exercise the matcher against a synthetic
  * policy without needing module-level mocks.
  */
@@ -307,12 +307,12 @@ export function pathMatchesRule(match: RegExp | string, pathname: string): boole
 // =============================================================================
 
 /**
- * Canonical namespace prefixes representing every Sunrise-owned protected
+ * Canonical namespace prefixes representing every Resparkable-owned protected
  * surface. An app-registered rule is REJECTED if its matcher fires for any
  * path under these prefixes — see {@link registerRateLimitRule}.
  *
  * Namespace prefixes (rather than specific endpoint paths) so this list stays
- * stable as Sunrise adds new admin / auth / MCP endpoints under these roots —
+ * stable as Resparkable adds new admin / auth / MCP endpoints under these roots —
  * a new endpoint like `/api/v1/admin/billing/` is automatically covered
  * because the prefix probe `/api/v1/admin/anything-goes-here` matches it
  * against any app matcher broad enough to fire on the namespace. Previously
@@ -330,7 +330,7 @@ export function pathMatchesRule(match: RegExp | string, pathname: string): boole
 const PROTECTED_PATH_PROBES: readonly string[] = [
   '/api/v1/admin/-probe-', // any path under /api/v1/admin/
   '/api/auth/-probe-', // any path under /api/auth/
-  '/api/v1/auth/-probe-', // any path under /api/v1/auth/ (Sunrise app-layer auth)
+  '/api/v1/auth/-probe-', // any path under /api/v1/auth/ (Resparkable app-layer auth)
   '/api/v1/mcp', // MCP transport (bare)
   '/api/v1/mcp/-probe-', // any path under /api/v1/mcp/
 ];
@@ -351,14 +351,14 @@ let effectivePolicyCache: readonly RateLimitRule[] | null = null;
 /**
  * Register an app/fork rate-limit rule.
  *
- * The rule is inserted into the effective policy AFTER every built-in Sunrise
+ * The rule is inserted into the effective policy AFTER every built-in Resparkable
  * rule (the admin/auth/mcp protected rules and the consumer-surface rules) and
  * BEFORE the `/^\/api\/v1\//` catch-all — so an app can give its own namespace
  * a distinct tier/keying without having to restate, or accidentally shadow, any
- * Sunrise rule.
+ * Resparkable rule.
  *
  * **Security constraint.** App rules may only govern the app's own paths. A
- * rule whose matcher could fire for a Sunrise-protected surface
+ * rule whose matcher could fire for a Resparkable-protected surface
  * (`/api/v1/admin/**`, `/api/auth/**`, `/api/v1/auth/**`, `/api/v1/mcp/**`) is
  * REJECTED at registration — otherwise a fork could loosen the 30/min admin cap
  * or re-key the brute-force auth cap to IP, a privilege-escalation / DoS vector.
@@ -367,13 +367,13 @@ let effectivePolicyCache: readonly RateLimitRule[] | null = null;
  *
  * Intended to run once at startup (before the first request).
  *
- * @throws if the rule's matcher could fire for a Sunrise-protected path.
+ * @throws if the rule's matcher could fire for a Resparkable-protected path.
  */
 export function registerRateLimitRule(rule: RateLimitRule): void {
   for (const probe of PROTECTED_PATH_PROBES) {
     if (pathMatchesRule(rule.match, probe)) {
       throw new Error(
-        `registerRateLimitRule: matcher ${String(rule.match)} would shadow the Sunrise-protected ` +
+        `registerRateLimitRule: matcher ${String(rule.match)} would shadow the Resparkable-protected ` +
           `path "${probe}". App rules must be scoped to the app's own /api/v1 namespace and may ` +
           'not match admin, auth, or MCP surfaces.'
       );
@@ -397,7 +397,7 @@ export function registerRateLimitRule(rule: RateLimitRule): void {
  * with any app-registered rules spliced in just ahead of the catch-all.
  *
  * Returns the base policy unchanged when no app rules are registered (the
- * common case — Sunrise itself registers none), avoiding a per-request array
+ * common case — Resparkable itself registers none), avoiding a per-request array
  * allocation. When app rules ARE registered, the composed array is memoised
  * in `effectivePolicyCache` so repeated calls (the middleware default now
  * invokes this on every request) don't reallocate; the cache invalidates on
@@ -421,7 +421,7 @@ export function getEffectiveRateLimitPolicy(): readonly RateLimitRule[] {
   }
   if (appRules.length === 0) return RATE_LIMIT_POLICY;
   if (effectivePolicyCache !== null) return effectivePolicyCache;
-  // App rules go immediately before the catch-all: after all specific Sunrise
+  // App rules go immediately before the catch-all: after all specific Resparkable
   // rules, ahead of the fallback.
   const head = RATE_LIMIT_POLICY.slice(0, -1);
   effectivePolicyCache = [...head, ...appRules, CATCH_ALL_RULE];

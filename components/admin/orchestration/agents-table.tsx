@@ -778,7 +778,7 @@ export function AgentsTable({ initialAgents, initialMeta }: AgentsTableProps) {
             variant="outline"
             size="sm"
             onClick={() => setImportOpen(true)}
-            title="Upload a JSON bundle to create agents from another Sunrise instance"
+            title="Upload a JSON bundle to create agents from another Resparkable instance"
           >
             <FileUp className="mr-2 h-4 w-4" />
             Import

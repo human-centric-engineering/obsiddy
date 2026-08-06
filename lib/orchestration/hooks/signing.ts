@@ -11,8 +11,8 @@
  *   2. Build a signed string: `${timestamp}.${rawJsonBody}`.
  *   3. HMAC-SHA256 the signed string with the hex-encoded secret, hex-encode.
  *   4. Send headers:
- *        X-Sunrise-Timestamp: <timestamp>
- *        X-Sunrise-Signature: sha256=<hex>
+ *        X-Resparkable-Timestamp: <timestamp>
+ *        X-Resparkable-Signature: sha256=<hex>
  *
  * Receivers reconstruct the signed string from the raw body + timestamp
  * header, recompute the signature, and constant-time-compare. The
@@ -31,8 +31,8 @@ const SECRET_BYTES = 32;
 /** Accept signatures at most this many seconds old. */
 export const DEFAULT_MAX_AGE_SEC = 300;
 
-export const SIGNATURE_HEADER = 'X-Sunrise-Signature';
-export const TIMESTAMP_HEADER = 'X-Sunrise-Timestamp';
+export const SIGNATURE_HEADER = 'X-Resparkable-Signature';
+export const TIMESTAMP_HEADER = 'X-Resparkable-Timestamp';
 
 /** Generate a fresh 256-bit secret as a 64-character hex string. */
 export function generateHookSecret(): string {

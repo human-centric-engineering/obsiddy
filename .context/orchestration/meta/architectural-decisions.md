@@ -1,6 +1,6 @@
 # Orchestration Architectural Decisions
 
-A plain-language record of the major technical and architectural choices behind Sunrise's agent orchestration layer. Each decision first explains the concept in everyday terms, then states what was chosen, lists the alternatives that were rejected, gives the rationale, and points to where the decision lives in the codebase.
+A plain-language record of the major technical and architectural choices behind Resparkable's agent orchestration layer. Each decision first explains the concept in everyday terms, then states what was chosen, lists the alternatives that were rejected, gives the rationale, and points to where the decision lives in the codebase.
 
 **Last updated:** 2026-05-20 (PRs #196–#204 sweep — added §3.12 Conversation provenance + PII redaction (PR #196), §3.13 Agent profile inheritance (PR #204), §3.14 LLM parameter profile + reasoningEffort (PR #197), §3.15 Step description on every trace entry (PR #198), §3.16 Guard schema mode (PR #198), §3.17 Execution rerun with lineage (PR #198); reframed §10.3 around lease + dispatch cache + running-step side table after PR #202 closed the broader checkpoint gap)
 
@@ -8,7 +8,7 @@ A plain-language record of the major technical and architectural choices behind 
 
 ## How to read this document
 
-**Audience.** This document is written for a mixed audience: engineers onboarding to the platform, product leads scoping new agentic features, business stakeholders evaluating the platform commercially, and partners trying to understand whether Sunrise fits their problem. Every decision is therefore explained twice: once in plain language for the concept itself, and once in concrete terms for the choice made.
+**Audience.** This document is written for a mixed audience: engineers onboarding to the platform, product leads scoping new agentic features, business stakeholders evaluating the platform commercially, and partners trying to understand whether Resparkable fits their problem. Every decision is therefore explained twice: once in plain language for the concept itself, and once in concrete terms for the choice made.
 
 **Companion docs.** This document focuses on **why**. For **what** the system does, see `functional-specification.md`. For **how it compares** to alternatives in the market, see `maturity-analysis.md`. For **commercial use cases**, see `business-applications.md`.
 
@@ -32,13 +32,13 @@ A plain-language record of the major technical and architectural choices behind 
 
 ## 1. Foundations
 
-These are the outermost decisions: what kind of system Sunrise is, what runtime it sits on, and how the orchestration layer relates to the rest of the application.
+These are the outermost decisions: what kind of system Resparkable is, what runtime it sits on, and how the orchestration layer relates to the rest of the application.
 
 ### 1.1 Custom orchestration engine vs an external framework
 
 **What is it?** An "agent orchestration engine" is the component that decides what an AI agent does next: which model to call, which tool to invoke, what to do when something fails, when to stop. Frameworks such as LangGraph, CrewAI, AutoGen, and OpenAI Agents SDK each ship one. Managed cloud services such as AWS Bedrock Agents and Azure AI Foundry ship another, hosted for you.
 
-**What we chose:** A purpose-built TypeScript orchestration engine, embedded inside Sunrise, sharing types and validation with the rest of the application.
+**What we chose:** A purpose-built TypeScript orchestration engine, embedded inside Resparkable, sharing types and validation with the rest of the application.
 
 **Alternatives**
 
@@ -120,7 +120,7 @@ These are the outermost decisions: what kind of system Sunrise is, what runtime 
 
 - Server Components ship far less JavaScript to the browser, which matters for a chat widget and for admin pages that render large tables.
 - Streaming SSR pairs naturally with the SSE chat handler — both push tokens to the browser as soon as they are ready.
-- Sunrise is offered as a starter template; downstream forks benefit from the largest current React ecosystem.
+- Resparkable is offered as a starter template; downstream forks benefit from the largest current React ecosystem.
 
 **Where it lives:** `app/` (route tree), `next.config.ts` (Cache Components configuration), `package.json` (Next.js 16, React 19).
 
@@ -140,7 +140,7 @@ These are the outermost decisions: what kind of system Sunrise is, what runtime 
 
 **Why this approach**
 
-- A small team can deploy Sunrise on a single VM with `docker-compose up` and have everything working — including the agent runtime, knowledge base, and admin UI.
+- A small team can deploy Resparkable on a single VM with `docker-compose up` and have everything working — including the agent runtime, knowledge base, and admin UI.
 - Larger deployments can horizontally scale the same artifact behind a load balancer; the open question (covered in Section 10) is shared state for circuit breakers and budget mutexes.
 - One artifact means one set of versions to keep in lockstep — no "the engine is on v2 but the admin UI is on v1.7" failure mode.
 
@@ -244,7 +244,7 @@ A short primer first: HTTP is request/response — the client asks, the server a
 
 **Why this approach**
 
-- Any MCP client — Claude Desktop, an IDE, another agent platform — can connect to Sunrise without bespoke client code.
+- Any MCP client — Claude Desktop, an IDE, another agent platform — can connect to Resparkable without bespoke client code.
 - HTTP transport works through corporate proxies and is debuggable with `curl`.
 - Sessions are bounded per-key (`maxSessionsPerKey`), so a noisy client cannot exhaust the server.
 
@@ -268,7 +268,7 @@ A short primer first: HTTP is request/response — the client asks, the server a
 **Why this approach**
 
 - An HTTPS endpoint is the lowest-common-denominator integration point — every framework, every language, and every iPaaS tool supports it.
-- HMAC signing means receivers can verify the payload came from Sunrise without TLS client certs or API keys.
+- HMAC signing means receivers can verify the payload came from Resparkable without TLS client certs or API keys.
 - The delivery log (`AiWebhookDelivery`) records every attempt; failed deliveries can be retried manually from the admin UI.
 
 **Where it lives:** `lib/orchestration/webhooks/`, `app/api/v1/orchestration/webhooks/` (admin), `.context/orchestration/hooks.md`.
@@ -297,7 +297,7 @@ A short primer first: HTTP is request/response — the client asks, the server a
 
 ### 2.5 HMAC-SHA256 signed tokens for stateless external approvals
 
-**What is it?** When a workflow pauses for human approval, somebody needs to approve or reject it from outside the admin UI — typically by clicking a link in a Slack message or an email. A "signed token" carries everything needed to identify the approval and proves it came from Sunrise, without requiring the clicker to log in. HMAC-SHA256 is a common message authentication algorithm that produces a tag verifiable with a shared secret.
+**What is it?** When a workflow pauses for human approval, somebody needs to approve or reject it from outside the admin UI — typically by clicking a link in a Slack message or an email. A "signed token" carries everything needed to identify the approval and proves it came from Resparkable, without requiring the clicker to log in. HMAC-SHA256 is a common message authentication algorithm that produces a tag verifiable with a shared secret.
 
 **What we chose:** Stateless HMAC-SHA256 signed tokens embedded in approve/reject URLs. The token itself is the auth — no session cookie required. The public approval endpoints (`/api/v1/orchestration/approvals/:id/{approve,reject}`) verify the token, check expiry, then delegate to the same `executeApproval()` / `executeRejection()` functions the admin UI uses.
 
@@ -312,7 +312,7 @@ A short primer first: HTTP is request/response — the client asks, the server a
 
 **Why this approach**
 
-- The Slack bot, email service, or webhook receiver can build the approval UI from the payload — Sunrise pre-signs the URLs and includes them in the `workflow.paused_for_approval` hook event.
+- The Slack bot, email service, or webhook receiver can build the approval UI from the payload — Resparkable pre-signs the URLs and includes them in the `workflow.paused_for_approval` hook event.
 - No session cookies cross domain boundaries; the approval flow works from any channel.
 - Both admin (session-authenticated) and external (token-authenticated) endpoints share the same approval logic, so behaviour cannot drift between channels.
 
@@ -342,7 +342,7 @@ A short primer first: HTTP is request/response — the client asks, the server a
 
 ### 2.7 MCP session lifecycle and eviction
 
-**What is it?** When an MCP client connects to Sunrise, the server tracks a session in memory for that client — notification queue, active subscriptions, last-seen timestamp. Letting sessions accumulate forever leaks memory; expiring them too aggressively breaks long-running clients that are simply idle between tool calls.
+**What is it?** When an MCP client connects to Resparkable, the server tracks a session in memory for that client — notification queue, active subscriptions, last-seen timestamp. Letting sessions accumulate forever leaks memory; expiring them too aggressively breaks long-running clients that are simply idle between tool calls.
 
 **What we chose:** A 1-hour idle TTL on every session, plus a `maxSessionsPerKey` cap that rejects new sessions for an API key already at the limit. Sessions are reaped on creation attempts (the manager prunes expired entries before counting toward the cap).
 
@@ -370,7 +370,7 @@ This section covers how an agent actually executes — the structure of a workfl
 
 ### 3.1 DAG workflows + the autonomous orchestrator step
 
-**What is it?** A "DAG" (Directed Acyclic Graph) is a flowchart of steps where each step has explicit inputs and outputs and the graph cannot loop back on itself. It is the structured end of the agent spectrum — predictable, auditable, easy to test. The opposite end is "agentic autonomy," where the LLM decides what to do next at each turn. Sunrise supports both modes: DAG workflows for repeatable processes, and an `orchestrator` step inside a workflow for cases where the next step really should be decided by an LLM at runtime.
+**What is it?** A "DAG" (Directed Acyclic Graph) is a flowchart of steps where each step has explicit inputs and outputs and the graph cannot loop back on itself. It is the structured end of the agent spectrum — predictable, auditable, easy to test. The opposite end is "agentic autonomy," where the LLM decides what to do next at each turn. Resparkable supports both modes: DAG workflows for repeatable processes, and an `orchestrator` step inside a workflow for cases where the next step really should be decided by an LLM at runtime.
 
 **What we chose:** Workflows are DAGs with 15 step types, validated for cycles and connectivity at save time. One of those step types — `orchestrator` — invokes a planner LLM that picks the next step from a configured set. This puts autonomous reasoning under a budget cap and a step-type allowlist instead of letting it run unbounded.
 
@@ -755,7 +755,7 @@ This section covers how an agent actually executes — the structure of a workfl
 | Keep `mode: 'llm'` and write tighter prompts | We tried. Closed-set hallucination is the failure mode the LLM cannot prompt its way out of                                                                           |
 | Add a separate `validate` step type          | More schema surface, more docs, more admin UI. Reusing `guard`'s existing UX is cheaper and the mental model ("validate before continuing") is identical              |
 | Inline Zod schemas in the step config        | Stringified Zod can't be edited safely in JSON; the registry indirection lets schemas be feature-scoped TypeScript modules (`lib/orchestration/<feature>/schemas.ts`) |
-| Ship a built-in schema catalogue             | Couples Sunrise to specific domain shapes; the registry starts empty so forks add only the schemas they need                                                          |
+| Ship a built-in schema catalogue             | Couples Resparkable to specific domain shapes; the registry starts empty so forks add only the schemas they need                                                      |
 
 **Why this approach**
 
@@ -866,7 +866,7 @@ These four decisions are the operational backbone: keeping a working system work
 
 ### 4.2 Per-agent ordered fallback chains
 
-**What is it?** A "fallback chain" is an ordered list of LLM providers an agent will try in sequence if the primary fails. Most platforms support automatic retry against the same provider; far fewer support routing to a _different_ provider. Sunrise allows up to 5 fallbacks per agent.
+**What is it?** A "fallback chain" is an ordered list of LLM providers an agent will try in sequence if the primary fails. Most platforms support automatic retry against the same provider; far fewer support routing to a _different_ provider. Resparkable allows up to 5 fallbacks per agent.
 
 **What we chose:** Each agent stores a `fallbackProviders` ordered array. On failure, providers are attempted sequentially. The fallback decision is sensitive to the circuit breaker state, so a known-failing provider is skipped without a wasted call.
 
@@ -888,7 +888,7 @@ These four decisions are the operational backbone: keeping a working system work
 
 ### 4.3 Budget enforcement inside the execution loop
 
-**What is it?** "Budget enforcement" means stopping LLM spending when a configured cap is reached. Most platforms enforce this asynchronously — they tally usage in a separate report, and overage is detected after the fact. Sunrise enforces it synchronously, inside the tool loop, so a chat that would exceed the cap is stopped _before_ the cap is exceeded.
+**What is it?** "Budget enforcement" means stopping LLM spending when a configured cap is reached. Most platforms enforce this asynchronously — they tally usage in a separate report, and overage is detected after the fact. Resparkable enforces it synchronously, inside the tool loop, so a chat that would exceed the cap is stopped _before_ the cap is exceeded.
 
 **What we chose:** Per-agent monthly budget in USD with an 80% warning threshold and a hard 100% block. Global monthly budget across all agents. Budget is verified inside the chat tool loop and inside the workflow engine before each LLM call.
 
@@ -1023,7 +1023,7 @@ A short primer first: **RAG** (Retrieval-Augmented Generation) means giving the 
 
 - Backups, migrations, and access control all reuse the existing PostgreSQL toolchain.
 - A document, its chunks, and its embeddings are joined in one query without crossing a network boundary.
-- The performance ceiling of `pgvector` is well above the scale most Sunrise deployments need; teams that hit it can add a dedicated index without rearchitecting the application.
+- The performance ceiling of `pgvector` is well above the scale most Resparkable deployments need; teams that hit it can add a dedicated index without rearchitecting the application.
 
 **Where it lives:** `lib/orchestration/knowledge/` (ingestion, embedding, search), `prisma/schema/` (`AiKnowledgeChunk`), `.context/orchestration/knowledge.md`.
 
@@ -1141,7 +1141,7 @@ A short primer first: **RAG** (Retrieval-Augmented Generation) means giving the 
 
 **What is it?** A common platform design has one global knowledge corpus shared by every agent. That works until a multi-tenant deployment has agents that should see legal docs but not HR docs, or until a customer-facing agent shouldn't see internal-only documents. The platform needs an access boundary between agents and documents that admins can manage without rewriting indexes or building a permission tree.
 
-**What we chose:** A managed `KnowledgeTag` taxonomy with two join tables (`AiKnowledgeDocumentTag`, `AiAgentKnowledgeTag`) plus a per-document grant table (`AiAgentKnowledgeDocument`). Agents carry a `knowledgeAccessMode` of `full` (no filter — the default) or `restricted` (the effective doc set is the union of explicitly granted docs ∪ docs carrying any granted tag ∪ system-scoped seed docs). A resolver (`lib/orchestration/knowledge/resolveAgentDocumentAccess.ts`) maps `agentId → AgentDocumentAccess` at query time with a 60-second LRU cache; admin mutations that change grants invalidate the per-agent cache entry. The same resolved set is applied at three call sites — the chat capability, the MCP `sunrise://knowledge/search` resource, and the admin "preview as agent" search.
+**What we chose:** A managed `KnowledgeTag` taxonomy with two join tables (`AiKnowledgeDocumentTag`, `AiAgentKnowledgeTag`) plus a per-document grant table (`AiAgentKnowledgeDocument`). Agents carry a `knowledgeAccessMode` of `full` (no filter — the default) or `restricted` (the effective doc set is the union of explicitly granted docs ∪ docs carrying any granted tag ∪ system-scoped seed docs). A resolver (`lib/orchestration/knowledge/resolveAgentDocumentAccess.ts`) maps `agentId → AgentDocumentAccess` at query time with a 60-second LRU cache; admin mutations that change grants invalidate the per-agent cache entry. The same resolved set is applied at three call sites — the chat capability, the MCP `resparkable://knowledge/search` resource, and the admin "preview as agent" search.
 
 **Alternatives**
 
@@ -1190,7 +1190,7 @@ A short primer first: **RAG** (Retrieval-Augmented Generation) means giving the 
 
 **What is it?** Tag-based access control (Section 5.7) scopes what a single agent can retrieve. Multi-tenant deployments raise a different question: whether teams or organisations have their own knowledge namespaces, isolated from each other. Some platforms (LlamaIndex, Pinecone) ship per-namespace isolation as a first-class feature.
 
-**What we chose:** Knowledge is shared across the deployment, scoped per-agent via tags and document grants — not partitioned by team. Multi-tenant isolation is achieved by running separate Sunrise deployments, not by partitioning a single one.
+**What we chose:** Knowledge is shared across the deployment, scoped per-agent via tags and document grants — not partitioned by team. Multi-tenant isolation is achieved by running separate Resparkable deployments, not by partitioning a single one.
 
 **Alternatives**
 
@@ -1559,7 +1559,7 @@ How long-lived state is stored, versioned, and audited.
 
 ### 7.3 Versioning for agent configuration (two layers)
 
-**What is it?** An "agent" in Sunrise is a configured AI persona — its system instructions are the prompt that shapes its behaviour, and the rest of its configuration (model, temperature, attached capabilities, knowledge access mode and tag/document grants, fallback chain) shapes how it runs. Iterating on these is one of the most common admin activities, and "the version that worked yesterday" is often the right answer when today's version regresses.
+**What is it?** An "agent" in Resparkable is a configured AI persona — its system instructions are the prompt that shapes its behaviour, and the rest of its configuration (model, temperature, attached capabilities, knowledge access mode and tag/document grants, fallback chain) shapes how it runs. Iterating on these is one of the most common admin activities, and "the version that worked yesterday" is often the right answer when today's version regresses.
 
 **What we chose:** Two complementary versioning layers, each tuned to a different use case.
 
@@ -1631,17 +1631,17 @@ How long-lived state is stored, versioned, and audited.
 
 ### 7.6 Backup schema versioning + structured `ImportResult`
 
-**What is it?** "Backup and restore" lets admins export a Sunrise configuration as JSON and import it elsewhere — for migration, environment promotion, or sharing between deployments. The format will evolve; old exports must remain importable into newer Sunrise versions. A "schema version" on the backup payload makes this explicit.
+**What is it?** "Backup and restore" lets admins export a Resparkable configuration as JSON and import it elsewhere — for migration, environment promotion, or sharing between deployments. The format will evolve; old exports must remain importable into newer Resparkable versions. A "schema version" on the backup payload makes this explicit.
 
 **What we chose:** Every backup carries a `schemaVersion` field (currently `1`). Imports check the version against the importer's supported range and adapt or reject as needed. The result of an import is a structured `ImportResult` listing per-entity created/updated counts and a `warnings` array.
 
 **Alternatives**
 
-| Option                             | Why not                                                                    |
-| ---------------------------------- | -------------------------------------------------------------------------- |
-| No version field                   | Older exports break silently as the format changes                         |
-| Just a Sunrise application version | Couples the backup format to the whole app version; complicates downgrades |
-| Boolean success/failure            | Doesn't surface partial successes (5 of 6 agents imported, 1 conflict)     |
+| Option                                 | Why not                                                                    |
+| -------------------------------------- | -------------------------------------------------------------------------- |
+| No version field                       | Older exports break silently as the format changes                         |
+| Just a Resparkable application version | Couples the backup format to the whole app version; complicates downgrades |
+| Boolean success/failure                | Doesn't surface partial successes (5 of 6 agents imported, 1 conflict)     |
 
 **Why this approach**
 
@@ -1655,11 +1655,11 @@ How long-lived state is stored, versioned, and audited.
 
 ## 8. Deployment and Embedding
 
-How Sunrise reaches the user — directly, embedded into other sites, and across forks of the starter template.
+How Resparkable reaches the user — directly, embedded into other sites, and across forks of the starter template.
 
 ### 8.1 Shadow DOM for the embed widget
 
-**What is it?** The embed widget is a chat interface that runs on a _third-party_ website — a customer's marketing site, a partner's app — connected to a Sunrise agent. There are two common ways to inject UI into a host page: an iframe (a separate browser context, isolated by origin) or direct DOM injection (runs inside the host page, no isolation by default). "Shadow DOM" is a third option: a browser-native encapsulation primitive that creates a sub-tree with its own scoped CSS and DOM, inside the host page but not visible to it.
+**What is it?** The embed widget is a chat interface that runs on a _third-party_ website — a customer's marketing site, a partner's app — connected to a Resparkable agent. There are two common ways to inject UI into a host page: an iframe (a separate browser context, isolated by origin) or direct DOM injection (runs inside the host page, no isolation by default). "Shadow DOM" is a third option: a browser-native encapsulation primitive that creates a sub-tree with its own scoped CSS and DOM, inside the host page but not visible to it.
 
 **What we chose:** A `<script>` tag loads `/api/v1/embed/widget.js`, which mounts a Shadow DOM root on the host page. The widget's CSS, components, and JavaScript run inside the Shadow DOM root, isolated from the host's styles.
 
@@ -1681,7 +1681,7 @@ How Sunrise reaches the user — directly, embedded into other sites, and across
 
 ### 8.2 Embed token + CORS origin allowlist
 
-**What is it?** The embed widget makes API calls back to Sunrise from the host page. Two questions: (a) how does Sunrise know the request is from a legitimate widget, and (b) how does the browser's same-origin policy allow the cross-origin request? "CORS" (Cross-Origin Resource Sharing) is the browser mechanism for letting a server explicitly approve cross-origin requests from specific domains.
+**What is it?** The embed widget makes API calls back to Resparkable from the host page. Two questions: (a) how does Resparkable know the request is from a legitimate widget, and (b) how does the browser's same-origin policy allow the cross-origin request? "CORS" (Cross-Origin Resource Sharing) is the browser mechanism for letting a server explicitly approve cross-origin requests from specific domains.
 
 **What we chose:** Per-agent embed tokens (`AiAgentEmbedToken`) that carry a CORS origin allowlist. The token authenticates the request; the allowlist restricts which host domains can use it.
 
@@ -1713,11 +1713,11 @@ How Sunrise reaches the user — directly, embedded into other sites, and across
 | ------------------------------------------------ | -------------------------------------------------------------------------------------- |
 | Relative imports for siblings, alias for distant | Mixed convention; reviewers and tooling have to ask "is this local?" each time         |
 | Relative imports everywhere                      | Renames and folder moves break imports silently; unfriendly to AI-assisted refactoring |
-| Per-package aliases (`@/components`, `@/lib`)    | Makes Sunrise feel like a monorepo it isn't; harder for downstream forks               |
+| Per-package aliases (`@/components`, `@/lib`)    | Makes Resparkable feel like a monorepo it isn't; harder for downstream forks           |
 
 **Why this approach**
 
-- Sunrise is shipped as a starter template; downstream forks copy folders, rename modules, and split capsules. `@/` survives those moves; `./` breaks silently.
+- Resparkable is shipped as a starter template; downstream forks copy folders, rename modules, and split capsules. `@/` survives those moves; `./` breaks silently.
 - A single mechanical rule is grep-checkable by `/pre-pr` and `/code-review`.
 - Removes the "is this local or cross-module?" judgment call from every import line.
 
@@ -1751,7 +1751,7 @@ How Sunrise reaches the user — directly, embedded into other sites, and across
 
 ### 8.5 React Flow for the workflow visual builder
 
-**What is it?** Workflows in Sunrise are DAGs of typed steps (§3.1). The admin UI exposes them through a visual editor — drag a node onto a canvas, connect nodes with edges, configure each step's properties in a side panel. Building that canvas from scratch is significant work (pan/zoom, edge routing, node selection, undo/redo, auto-layout, accessible drag-and-drop). Several libraries solve it: React Flow (now `@xyflow/react`), Mermaid (read-only diagrams), d3-dag, yFiles (commercial), tldraw.
+**What is it?** Workflows in Resparkable are DAGs of typed steps (§3.1). The admin UI exposes them through a visual editor — drag a node onto a canvas, connect nodes with edges, configure each step's properties in a side panel. Building that canvas from scratch is significant work (pan/zoom, edge routing, node selection, undo/redo, auto-layout, accessible drag-and-drop). Several libraries solve it: React Flow (now `@xyflow/react`), Mermaid (read-only diagrams), d3-dag, yFiles (commercial), tldraw.
 
 **What we chose:** `@xyflow/react` (React Flow v12) as the canvas library. We supply the node types, the edge types, the palette, the property inspector, and the step registry; React Flow handles pan, zoom, drag, edge mechanics, selection, serialisation, and accessibility.
 
@@ -1776,7 +1776,7 @@ How Sunrise reaches the user — directly, embedded into other sites, and across
 
 ### 8.6 Per-agent widget customisation: scope and locale strategy
 
-**What is it?** Every Sunrise widget that ships into a partner site (housing-association tenant portal, broker microsite, council planning page, B&B concierge, tattoo-studio enquiry form) needs to look like it belongs there. Branding requires colours, fonts, header/footer copy, conversation starters, and — for non-English deployments — a way to localise the chrome. The implementation question is _where_ that configuration lives (per-agent vs per-token), and _how_ localisation works (full i18n framework vs admin-typed copy overrides).
+**What is it?** Every Resparkable widget that ships into a partner site (housing-association tenant portal, broker microsite, council planning page, B&B concierge, tattoo-studio enquiry form) needs to look like it belongs there. Branding requires colours, fonts, header/footer copy, conversation starters, and — for non-English deployments — a way to localise the chrome. The implementation question is _where_ that configuration lives (per-agent vs per-token), and _how_ localisation works (full i18n framework vs admin-typed copy overrides).
 
 **What we chose:** A single nullable `widgetConfig` JSON column on `AiAgent`. Every embed token for that agent inherits the same skin. Localisation is handled by admin-typed copy overrides — header, subtitle, placeholder, send-button label, conversation starters, footer caption — plus the agent's system instructions for response language. No `locale` field, no translation tables, no i18n framework.
 
@@ -1927,7 +1927,7 @@ These three entries describe places where the current implementation deliberatel
 
 ### 10.1 Optimistic locking + ticket-based overlap guard for the maintenance tick
 
-**What is it?** Sunrise has a single periodic "maintenance tick" endpoint that processes due cron schedules, retries failed deliveries, and runs other background work. In a multi-instance deployment behind a load balancer, the same scheduled job could be picked up by two instances at once, doing the work twice. "Optimistic locking" reserves a row by atomically updating it with a check-and-set; "ticket-based overlap" ensures a late-finishing tick from instance A cannot release a guard that instance B has since claimed.
+**What is it?** Resparkable has a single periodic "maintenance tick" endpoint that processes due cron schedules, retries failed deliveries, and runs other background work. In a multi-instance deployment behind a load balancer, the same scheduled job could be picked up by two instances at once, doing the work twice. "Optimistic locking" reserves a row by atomically updating it with a check-and-set; "ticket-based overlap" ensures a late-finishing tick from instance A cannot release a guard that instance B has since claimed.
 
 **What we chose:** Schedules are claimed with optimistic-lock updates so only one instance processes a given run. The maintenance tick uses monotonic ticket tokens so a slow tick on instance A does not interfere with a newer tick on instance B.
 
@@ -1963,7 +1963,7 @@ These three entries describe places where the current implementation deliberatel
 
 **Why this approach**
 
-- For single-instance deployments (the most common Sunrise topology today), the in-memory state is fine.
+- For single-instance deployments (the most common Resparkable topology today), the in-memory state is fine.
 - For multi-instance deployments, the worst case is bounded: each instance independently rate-limits a failing provider; budget can be exceeded by approximately one concurrent request per instance.
 - When customers reach the scale where this matters, swapping to Redis is a small, contained change — both are accessed through narrow interfaces.
 
@@ -1999,7 +1999,7 @@ These three entries describe places where the current implementation deliberatel
 
 ### 10.4 Maintenance tick: 202 + background-chain with watchdog
 
-**What is it?** The "maintenance tick" is a periodic endpoint that an external scheduler (cron, GitHub Action, an external pinger) calls to drive Sunrise's background work — processing due cron schedules, retrying failed webhook and hook deliveries, reaping stale executions, generating embeddings, applying retention policies, and resuming pending executions. The naïve design runs everything synchronously and returns when done — but a single tick can take minutes, well past most schedulers' HTTP timeout.
+**What is it?** The "maintenance tick" is a periodic endpoint that an external scheduler (cron, GitHub Action, an external pinger) calls to drive Resparkable's background work — processing due cron schedules, retrying failed webhook and hook deliveries, reaping stale executions, generating embeddings, applying retention policies, and resuming pending executions. The naïve design runs everything synchronously and returns when done — but a single tick can take minutes, well past most schedulers' HTTP timeout.
 
 **What we chose:** The endpoint runs the time-critical step (`processDueSchedules`) synchronously, then fires the rest as a `Promise.allSettled()` background chain with a 5-minute watchdog, and returns HTTP 202 immediately. Long-running tasks finish after the response is already on the wire.
 

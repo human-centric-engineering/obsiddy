@@ -1,6 +1,6 @@
 # Command Reference
 
-Complete list of commands for the Sunrise project.
+Complete list of commands for the Resparkable project.
 
 ## Development
 
@@ -65,7 +65,7 @@ docker-compose logs -f db            # View database logs
 # Database operations in container
 docker-compose exec web npx prisma migrate dev  # Run migrations
 docker-compose exec web npx prisma studio       # Open Prisma Studio
-docker-compose exec db psql -U postgres -d sunrise  # Access database CLI
+docker-compose exec db psql -U postgres -d resparkable  # Access database CLI
 
 # Maintenance
 docker-compose restart web           # Restart app without rebuilding
@@ -75,8 +75,8 @@ docker-compose restart web           # Restart app without rebuilding
 
 ```bash
 # Build
-docker build -t sunrise:latest .     # Build production image
-docker images sunrise:latest         # Check image size (should be ~150-200MB)
+docker build -t resparkable:latest .     # Build production image
+docker images resparkable:latest         # Check image size (should be ~150-200MB)
 
 # Lifecycle
 docker-compose -f docker-compose.prod.yml up -d --build  # Build and start

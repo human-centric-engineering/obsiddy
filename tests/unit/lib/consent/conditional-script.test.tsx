@@ -8,7 +8,7 @@
  * - onConsentChange callback
  * - Integration with consent context
  *
- * @see /Users/simonholmes/Documents/Dev/studio/sunrise/lib/consent/conditional-script.tsx
+ * @see /Users/simonholmes/Documents/Dev/studio/resparkable/lib/consent/conditional-script.tsx
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';

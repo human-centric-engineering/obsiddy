@@ -34,7 +34,7 @@ function makeAgent(
   };
 }
 
-const TEST_URI = 'sunrise://agents';
+const TEST_URI = 'resparkable://agents';
 
 // ---------------------------------------------------------------------------
 // handleAgentList

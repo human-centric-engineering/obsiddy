@@ -1,5 +1,5 @@
 /**
- * Sunrise's own recurring maintenance tasks, with a minimum interval each.
+ * Resparkable's own recurring maintenance tasks, with a minimum interval each.
  *
  * Before #442 all eight ran on **every** tick. At the documented 60s cadence
  * that meant the retention sweep (whose windows are measured in days) ran 1,440
@@ -15,7 +15,7 @@
  * ## Why not `registerAppJob`?
  *
  * The fork seam is keyed by name and documented as replace-on-re-register, so a
- * fork registering `retention` would silently disable Sunrise's own sweep. It
+ * fork registering `retention` would silently disable Resparkable's own sweep. It
  * would also change what the already-shipped `getAppJobs()` returns. Platform
  * tasks therefore get their own table and their own clock.
  *

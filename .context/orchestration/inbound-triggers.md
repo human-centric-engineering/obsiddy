@@ -52,15 +52,15 @@ Attachments pass through with their Postmark-supplied base64 `Content` intact in
 
 Twilio webhooks deliver SMS and Twilio-WhatsApp messages on the same URL with the same HMAC scheme. The adapter discriminates via the `From` form field: SMS arrives as `+E.164`, WhatsApp arrives as `whatsapp:+E.164`.
 
-1. **Sunrise** — set the env var:
+1. **Resparkable** — set the env var:
    ```bash
    TWILIO_AUTH_TOKEN=<your-twilio-auth-token>
    ```
-   Behind a proxy (Vercel, Cloudflare) Sunrise reconstructs the public URL via `X-Forwarded-Proto`/`X-Forwarded-Host`. Set `TWILIO_EXTERNAL_BASE_URL` explicitly if your proxy doesn't set those, or to override.
-2. **Sunrise** — create a workflow trigger row with `channel = 'twilio'` and `metadata.conversationAgentId = '<agent-id>'` (the agent that owns conversations from this trigger; without it, conversations are not enriched and outbound replies will fail with `no_inbound_channel`).
+   Behind a proxy (Vercel, Cloudflare) Resparkable reconstructs the public URL via `X-Forwarded-Proto`/`X-Forwarded-Host`. Set `TWILIO_EXTERNAL_BASE_URL` explicitly if your proxy doesn't set those, or to override.
+2. **Resparkable** — create a workflow trigger row with `channel = 'twilio'` and `metadata.conversationAgentId = '<agent-id>'` (the agent that owns conversations from this trigger; without it, conversations are not enriched and outbound replies will fail with `no_inbound_channel`).
 3. **Twilio Console** → your phone number → Messaging Configuration → Webhook URL:
    ```
-   POST https://<your-sunrise>/api/v1/inbound/twilio/<trigger-slug>
+   POST https://<your-resparkable>/api/v1/inbound/twilio/<trigger-slug>
    ```
    Twilio WhatsApp messages route through the same URL (configured under Messaging → Senders → WhatsApp).
 
@@ -68,19 +68,19 @@ Twilio webhooks deliver SMS and Twilio-WhatsApp messages on the same URL with th
 
 Meta WhatsApp Business Cloud is the direct API for partners not going through a BSP. Same semantic channel (`whatsapp`) as Twilio-WhatsApp; distinct provider slug (`meta`) so both can run side-by-side without conversation collisions.
 
-1. **Sunrise** — set both env vars:
+1. **Resparkable** — set both env vars:
    ```bash
    WHATSAPP_VERIFY_TOKEN=<random-string-you-choose>
    WHATSAPP_APP_SECRET=<from-meta-app-dashboard-basic-settings>
    ```
    Both required; setting only one logs a warn and skips registration.
-2. **Sunrise** — create a workflow trigger row with `channel = 'whatsapp_cloud'` and `metadata.conversationAgentId = '<agent-id>'`.
+2. **Resparkable** — create a workflow trigger row with `channel = 'whatsapp_cloud'` and `metadata.conversationAgentId = '<agent-id>'`.
 3. **Meta App Dashboard** → WhatsApp → Configuration → Webhook:
-   - **Callback URL:** `https://<your-sunrise>/api/v1/inbound/whatsapp_cloud/<trigger-slug>`
+   - **Callback URL:** `https://<your-resparkable>/api/v1/inbound/whatsapp_cloud/<trigger-slug>`
    - **Verify Token:** the same value you set in `WHATSAPP_VERIFY_TOKEN`.
    - **Subscribe** to the `messages` field at minimum.
 
-   Meta sends a `GET` request to verify URL ownership; Sunrise's GET handler validates the token (constant-time) and echoes `hub.challenge`. Subsequent inbound deliveries arrive as `POST` and verify via `X-Hub-Signature-256`.
+   Meta sends a `GET` request to verify URL ownership; Resparkable's GET handler validates the token (constant-time) and echoes `hub.challenge`. Subsequent inbound deliveries arrive as `POST` and verify via `X-Hub-Signature-256`.
 
 ### Channel slug vs semantic channel — read this once
 
@@ -92,7 +92,7 @@ A partner who later swaps Twilio for Vonage SMS keeps their conversation history
 
 ### Generic HMAC
 
-For any sender that can produce a SHA-256 HMAC over `${timestamp}.${rawBody}` with a per-trigger secret. Reuses Sunrise's outbound webhook signing scheme (`X-Sunrise-Signature: sha256=…` + `X-Sunrise-Timestamp`).
+For any sender that can produce a SHA-256 HMAC over `${timestamp}.${rawBody}` with a per-trigger secret. Reuses Resparkable's outbound webhook signing scheme (`X-Resparkable-Signature: sha256=…` + `X-Resparkable-Timestamp`).
 
 1. Generate a per-trigger secret:
    ```ts
@@ -107,8 +107,8 @@ For any sender that can produce a SHA-256 HMAC over `${timestamp}.${rawBody}` wi
    const sig =
      'sha256=' + crypto.createHmac('sha256', secret).update(`${ts}.${body}`).digest('hex');
    // POST with headers:
-   //   X-Sunrise-Signature: <sig>
-   //   X-Sunrise-Timestamp: <ts>
+   //   X-Resparkable-Signature: <sig>
+   //   X-Resparkable-Timestamp: <ts>
    ```
 4. Senders that want **replay dedup** include `eventId` (string) at the top level of the JSON body. The body is HMAC-signed, so the eventId is bound to the signature — an attacker who captures one valid request cannot mutate the eventId to bypass dedup. Senders that omit `eventId` get no event-level dedup; the only protection is the 5-minute timestamp window.
 
@@ -426,7 +426,7 @@ See [Data erasure — system-owned runs](../privacy/data-erasure.md#system-owned
   reads like helpful provenance and is in fact a cascade-delete of someone
   else's correspondence plus a disclosure in the export. If a new inbound row
   type needs an owner, the answer is `null` plus a `triggerSource`.
-- **Don't read dedup material from unsigned headers.** The earlier draft of `GenericHmacAdapter` read `X-Sunrise-Event-Id` directly from headers; an attacker could trivially mutate the header to bypass dedup on a captured request. The current adapter reads `eventId` from the signed body only. The same caution applies if you write a new adapter — anything you key dedup on must be inside the signed envelope.
+- **Don't read dedup material from unsigned headers.** The earlier draft of `GenericHmacAdapter` read `X-Resparkable-Event-Id` directly from headers; an attacker could trivially mutate the header to bypass dedup on a captured request. The current adapter reads `eventId` from the signed body only. The same caution applies if you write a new adapter — anything you key dedup on must be inside the signed envelope.
 - **Don't bypass the registry.** The adapter registry is the single source of truth for which channels are active. Writing a one-off `if (channel === 'foo')` branch in the route would skip rate-limiting hooks, audit logs, and `lastFiredAt` updates that all converge in one place today.
 - **Don't include the request body in error responses.** `verify` failures log the structured `reason` (`bad_signature`, `stale_timestamp`, …) but the route returns a uniform 401 with no body content beyond the standard error envelope. Surfacing the reason would let attackers probe which check failed.
 - **Don't extend `verify` to perform I/O.** `verify` runs synchronously after a fast rate-limit + parse step; database / network calls inside it would balloon p99 latency and create new failure modes. Per-trigger config comes through `VerifyContext` which is pre-resolved by the route.

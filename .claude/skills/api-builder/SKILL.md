@@ -1,7 +1,7 @@
 ---
 name: api-builder
 description: |
-  Canonical recipe for building API endpoints in Sunrise. Produces routes
+  Canonical recipe for building API endpoints in Resparkable. Produces routes
   that match the codebase pattern: Zod validation, `withAuth` / `withAdminAuth`
   wrappers from `lib/auth/guards.ts`, rate limiting on mutating endpoints,
   standardised responses, structured route logging, and the standard error

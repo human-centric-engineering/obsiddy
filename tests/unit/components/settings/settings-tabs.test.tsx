@@ -8,7 +8,7 @@
  * - Conditional rendering (password form vs OAuth message)
  * - User data display
  *
- * @see /Users/simonholmes/Documents/Dev/studio/sunrise/components/settings/settings-tabs.tsx
+ * @see /Users/simonholmes/Documents/Dev/studio/resparkable/components/settings/settings-tabs.tsx
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';

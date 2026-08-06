@@ -1,7 +1,7 @@
 /**
  * Account-type predicates — the single source of truth for distinguishing real
  * human users from non-login SERVICE principals (e.g. the seeded
- * `system@sunrise.local` config-owner).
+ * `system@resparkable.local` config-owner).
  *
  * `User.accountType` (HUMAN | SERVICE) is orthogonal to `User.role` (the
  * permission axis). Every query that counts, lists, or gates on "real admins"

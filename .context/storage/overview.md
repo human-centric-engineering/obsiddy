@@ -1,6 +1,6 @@
 # Storage System
 
-The storage system provides multi-provider file storage for Sunrise, following the same patterns as the email system (singleton client with graceful degradation).
+The storage system provides multi-provider file storage for Resparkable, following the same patterns as the email system (singleton client with graceful degradation).
 
 ## Architecture
 

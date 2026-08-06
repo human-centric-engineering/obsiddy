@@ -12,7 +12,7 @@
  * - request() method with different HTTP verbs
  * - apiClient convenience methods (get, post, put, patch, delete)
  *
- * @see /Users/simonholmes/Documents/Dev/studio/sunrise/lib/api/client.ts
+ * @see /Users/simonholmes/Documents/Dev/studio/resparkable/lib/api/client.ts
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';

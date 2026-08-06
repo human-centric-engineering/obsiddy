@@ -76,7 +76,7 @@ Source: `prisma/runner.ts`
 
 ### Filename
 
-`prisma/seeds/NNN-slug.ts` where `NNN` is a three-digit numeric prefix (fixes order within a directory) and `slug` is lowercase-kebab. Apps built on Sunrise can nest their own seeds in a subdirectory (e.g. `prisma/seeds/app-<name>/001-init.ts`); discovery is recursive and the `SeedHistory` key includes the subdirectory path.
+`prisma/seeds/NNN-slug.ts` where `NNN` is a three-digit numeric prefix (fixes order within a directory) and `slug` is lowercase-kebab. Apps built on Resparkable can nest their own seeds in a subdirectory (e.g. `prisma/seeds/app-<name>/001-init.ts`); discovery is recursive and the `SeedHistory` key includes the subdirectory path.
 
 ### Shape
 
@@ -104,7 +104,7 @@ export default unit;
 
 **Idempotent.** Every write is an `upsert` (or equivalent). `update: {}` is the common idiom — re-seeding never overwrites admin edits. `createMany` is not safe unless you pair it with `skipDuplicates: true` and a unique constraint.
 
-**Self-contained.** Look up dependencies from the DB, don't pass them between units. For config ownership — `001-system-owner` seeds a non-login `system@sunrise.local` user (`role: ADMIN`, `accountType: SERVICE`, no credential) precisely so config-owning seeds always have a deterministic owner. Resolve it via the SERVICE predicate (not "first ADMIN", which is non-deterministic once humans exist):
+**Self-contained.** Look up dependencies from the DB, don't pass them between units. For config ownership — `001-system-owner` seeds a non-login `system@resparkable.local` user (`role: ADMIN`, `accountType: SERVICE`, no credential) precisely so config-owning seeds always have a deterministic owner. Resolve it via the SERVICE predicate (not "first ADMIN", which is non-deterministic once humans exist):
 
 ```typescript
 import { serviceAccountWhere } from '@/lib/auth/account';

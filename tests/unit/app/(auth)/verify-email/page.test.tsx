@@ -18,7 +18,7 @@
  * - Login link visibility
  * - Suspense boundary fallback
  *
- * @see /Users/simonholmes/Documents/Dev/studio/sunrise/app/(auth)/verify-email/verify-email-content.tsx
+ * @see /Users/simonholmes/Documents/Dev/studio/resparkable/app/(auth)/verify-email/verify-email-content.tsx
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';

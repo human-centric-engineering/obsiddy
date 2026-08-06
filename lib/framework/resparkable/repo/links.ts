@@ -1,0 +1,321 @@
+/**
+ * Link repo — owner-scoped reads over the polymorphic edge table.
+ *
+ * Phase 3 needed exactly one thing here — the accepted project → goal edges the
+ * scorer's `goalAlignment` walk follows. Phase 4 added the write side: the
+ * connection sweep suggests pairs, and a human accepts, rejects or snoozes them.
+ *
+ * `ResparkableLink` has **no foreign keys to its endpoints** (D2) — it is
+ * polymorphic, so `sourceId` and `targetId` are bare strings the database will
+ * not validate. Two consequences the callers here have to live with:
+ *
+ *   1. A link can outlive the row it points at. Every read is a candidate for
+ *      dangling ids, so callers resolve them against rows they fetched
+ *      themselves rather than trusting the edge.
+ *   2. Direction is not meaningful for `relates_to`. A project → goal edge may
+ *      have been written either way round, so the query below matches both and
+ *      normalises.
+ */
+
+import { prisma } from '@/lib/db/client';
+import { ownerWhere, type OwnerScope } from '@/lib/framework/resparkable/repo/owner-scope';
+import {
+  nullOnMiss,
+  pageArgs,
+  type ListOptions,
+  type WithoutOwner,
+} from '@/lib/framework/resparkable/repo/shared';
+import type { ResparkableLink, Prisma } from '@prisma/client';
+
+/** A project → goal edge, normalised so the caller never inspects direction. */
+export interface ProjectGoalEdge {
+  projectId: string;
+  goalId: string;
+}
+
+/**
+ * Accepted project ↔ goal edges for a batch of projects.
+ *
+ * **Accepted only.** A `suggested` link is the connection sweep's opinion, not
+ * the user's, and letting one silently pull a task up the ranking would mean the
+ * machine editing the ranking through a side door — the same principle that
+ * keeps `manualBoost` out of every capability (§10).
+ */
+export async function findAcceptedGoalLinks(
+  scope: OwnerScope,
+  projectIds: string[]
+): Promise<ProjectGoalEdge[]> {
+  if (projectIds.length === 0) return [];
+
+  const links = await prisma.resparkableLink.findMany({
+    where: {
+      ...ownerWhere(scope),
+      status: 'accepted',
+      OR: [
+        { sourceType: 'project', sourceId: { in: projectIds }, targetType: 'goal' },
+        { targetType: 'project', targetId: { in: projectIds }, sourceType: 'goal' },
+      ],
+    },
+    select: { sourceType: true, sourceId: true, targetType: true, targetId: true },
+  });
+
+  return links.map(normaliseProjectGoalEdge);
+}
+
+/**
+ * A link is "unreviewed" when it is still `suggested`, has never been actioned,
+ * and is not snoozed.
+ *
+ * All three conditions matter. `reviewedAt` alone would keep showing a link the
+ * user already accepted; the snooze check is what makes "not this pair, not now"
+ * stick, and without it the connections view re-nags every time it loads.
+ */
+function unreviewedWhere(scope: OwnerScope, now: Date): Prisma.ResparkableLinkWhereInput {
+  return {
+    ...ownerWhere(scope),
+    status: 'suggested',
+    reviewedAt: null,
+    OR: [{ snoozedUntil: null }, { snoozedUntil: { lte: now } }],
+  };
+}
+
+/** Strongest-first, because a weak suggestion is not worth the first look. */
+export async function listUnreviewedLinks(
+  scope: OwnerScope,
+  limit: number,
+  now = new Date()
+): Promise<ResparkableLink[]> {
+  return prisma.resparkableLink.findMany({
+    where: unreviewedWhere(scope, now),
+    orderBy: [{ strength: 'desc' }, { createdAt: 'desc' }],
+    take: limit,
+  });
+}
+
+export async function countUnreviewedLinks(scope: OwnerScope, now = new Date()): Promise<number> {
+  return prisma.resparkableLink.count({ where: unreviewedWhere(scope, now) });
+}
+
+/**
+ * Suggested links hanging off a batch of source rows — the inbox's
+ * "what might this thought connect to?" read.
+ *
+ * One query for the whole page of thoughts rather than one per row, which is
+ * what makes `GET /resparkable/inbox` a single call (CLAUDE.md: no N+1).
+ */
+export async function listSuggestedLinksForSources(
+  scope: OwnerScope,
+  sourceType: string,
+  sourceIds: string[],
+  now = new Date()
+): Promise<ResparkableLink[]> {
+  if (sourceIds.length === 0) return [];
+
+  return prisma.resparkableLink.findMany({
+    where: {
+      ...unreviewedWhere(scope, now),
+      sourceType,
+      sourceId: { in: sourceIds },
+    },
+    orderBy: { strength: 'desc' },
+  });
+}
+
+/**
+ * Every link touching one entity, on **either** end.
+ *
+ * `listLinks` filters by source only, which is right for the sweep (it writes
+ * source-first) and wrong for a detail page. Several link kinds are directional —
+ * `blocks`, `supports` — so a project is legitimately the target of some of its
+ * own connections. Asking only for `sourceId` silently returns half the list, and
+ * the half it returns looks complete.
+ *
+ * Ordered strongest-first so a page can cap the list without dropping its best
+ * rows.
+ */
+export async function listLinksForEntity(
+  scope: OwnerScope,
+  entityType: string,
+  entityId: string,
+  options: { statuses?: string[]; take?: number } = {}
+): Promise<ResparkableLink[]> {
+  const { statuses, take } = options;
+
+  return prisma.resparkableLink.findMany({
+    where: {
+      ...ownerWhere(scope),
+      ...(statuses && statuses.length > 0 ? { status: { in: statuses } } : {}),
+      OR: [
+        { sourceType: entityType, sourceId: entityId },
+        { targetType: entityType, targetId: entityId },
+      ],
+    },
+    orderBy: [{ strength: 'desc' }, { createdAt: 'desc' }],
+    ...(take !== undefined ? { take } : {}),
+  });
+}
+
+/** One end of a link, as the graph walker refers to nodes. */
+export interface EntityRef {
+  type: string;
+  id: string;
+}
+
+/**
+ * Every link touching **any** of a set of entities, in one query.
+ *
+ * The graph expands breadth-first: the focus node's neighbours, then theirs. Done
+ * with `listLinksForEntity` per node that is one query per node — at a 150-node cap
+ * with a depth of two, 150 round trips to draw one picture. This is one, with an
+ * `OR` clause per end.
+ *
+ * `refs` is expected to be bounded by the caller's node cap; there is no point
+ * defending against an unbounded set here, because the cap is the thing that keeps
+ * the query sane and it belongs where the traversal decides to stop.
+ */
+export async function listLinksForEntities(
+  scope: OwnerScope,
+  refs: EntityRef[],
+  options: { statuses?: string[]; take?: number } = {}
+): Promise<ResparkableLink[]> {
+  if (refs.length === 0) return [];
+
+  const { statuses, take } = options;
+
+  return prisma.resparkableLink.findMany({
+    where: {
+      ...ownerWhere(scope),
+      ...(statuses && statuses.length > 0 ? { status: { in: statuses } } : {}),
+      OR: refs.flatMap((ref) => [
+        { sourceType: ref.type, sourceId: ref.id },
+        { targetType: ref.type, targetId: ref.id },
+      ]),
+    },
+    orderBy: [{ strength: 'desc' }, { createdAt: 'desc' }],
+    ...(take !== undefined ? { take } : {}),
+  });
+}
+
+// ─── Writes (phase 4: the connection engine) ─────────────────────────────────
+
+export interface LinkFilters {
+  status?: string;
+  /**
+   * Several statuses at once — the review queue's "suggested or proposed" read.
+   *
+   * Separate from `status` rather than replacing it because the two are asked for
+   * differently: a caller filtering to one status wants exactly that one, and a
+   * caller wanting a set should not have to express it as a single-element array.
+   * When both are given, `status` wins, so a caller narrowing an existing query
+   * cannot accidentally widen it.
+   */
+  statuses?: string[];
+  kind?: string;
+  sourceType?: string;
+  sourceId?: string;
+}
+
+export type LinkCreateData = WithoutOwner<Prisma.ResparkableLinkUncheckedCreateInput>;
+
+function linkWhere(scope: OwnerScope, filters: LinkFilters = {}): Prisma.ResparkableLinkWhereInput {
+  return {
+    ...ownerWhere(scope),
+    ...(filters.status
+      ? { status: filters.status }
+      : filters.statuses && filters.statuses.length > 0
+        ? { status: { in: filters.statuses } }
+        : {}),
+    ...(filters.kind ? { kind: filters.kind } : {}),
+    ...(filters.sourceType ? { sourceType: filters.sourceType } : {}),
+    ...(filters.sourceId ? { sourceId: filters.sourceId } : {}),
+  };
+}
+
+export async function listLinks(
+  scope: OwnerScope,
+  filters: LinkFilters = {},
+  options: ListOptions = {}
+): Promise<ResparkableLink[]> {
+  return prisma.resparkableLink.findMany({
+    where: linkWhere(scope, filters),
+    orderBy: [{ strength: 'desc' }, { createdAt: 'desc' }],
+    ...pageArgs(options),
+  });
+}
+
+export async function countLinks(scope: OwnerScope, filters: LinkFilters = {}): Promise<number> {
+  return prisma.resparkableLink.count({ where: linkWhere(scope, filters) });
+}
+
+export async function findLink(scope: OwnerScope, id: string): Promise<ResparkableLink | null> {
+  return prisma.resparkableLink.findFirst({ where: { ...ownerWhere(scope), id } });
+}
+
+/**
+ * A hand-made link. `origin: 'user'` and no `strength` — a person's assertion
+ * isn't a similarity score, and giving it a fake number would let it sort
+ * against swept suggestions as though it were one.
+ */
+export async function createLink(
+  scope: OwnerScope,
+  data: LinkCreateData
+): Promise<ResparkableLink> {
+  return prisma.resparkableLink.create({ data: { ...data, ...ownerWhere(scope) } });
+}
+
+/**
+ * Bulk-insert swept suggestions, skipping pairs that already exist.
+ *
+ * `skipDuplicates` leans on `@@unique([userId, sourceType, sourceId, targetType,
+ * targetId, kind])` and is the second line of defence behind the sweep's SQL
+ * exclusion: the query filters pairs that already have a row, but two sweeps
+ * running concurrently (a nightly tick overlapping a manual run) would otherwise
+ * race between the SELECT and the INSERT.
+ *
+ * Note this cannot skip a pair stored in the **opposite** direction — the unique
+ * index is directional. The sweep's `NOT EXISTS` handles that case, which is why
+ * both exist.
+ */
+export async function createSuggestedLinks(
+  scope: OwnerScope,
+  rows: LinkCreateData[]
+): Promise<number> {
+  if (rows.length === 0) return 0;
+
+  const { count } = await prisma.resparkableLink.createMany({
+    data: rows.map((row) => ({ ...row, ...ownerWhere(scope) })),
+    skipDuplicates: true,
+  });
+
+  return count;
+}
+
+/**
+ * Review a suggestion: accept it, reject it, or snooze it.
+ *
+ * **Rejecting does not delete.** A `rejected` row is the tombstone that stops
+ * the sweep re-proposing the same pair every run, forever — it is the one status
+ * retention must never prune (§17 risk 5c, and the schema comment on
+ * `ResparkableLink.status` says so at the column).
+ *
+ * `strength` is deliberately not updatable: it is the measured cosine similarity
+ * that produced the suggestion, and letting a review edit it would make the
+ * number mean two different things.
+ */
+export async function reviewLink(
+  scope: OwnerScope,
+  id: string,
+  data: { status?: string; kind?: string; snoozedUntil?: Date | null; reviewedAt?: Date | null }
+): Promise<ResparkableLink | null> {
+  return nullOnMiss(() =>
+    prisma.resparkableLink.update({ where: { id, ...ownerWhere(scope) }, data })
+  );
+}
+
+function normaliseProjectGoalEdge(
+  link: Pick<ResparkableLink, 'sourceType' | 'sourceId' | 'targetType' | 'targetId'>
+): ProjectGoalEdge {
+  return link.sourceType === 'project'
+    ? { projectId: link.sourceId, goalId: link.targetId }
+    : { projectId: link.targetId, goalId: link.sourceId };
+}

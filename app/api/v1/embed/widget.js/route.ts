@@ -34,7 +34,7 @@ export function GET(request: NextRequest): Response {
   var originBase = '${origin}';
 
   if (!token) {
-    console.error('[SunriseWidget] data-token attribute is required');
+    console.error('[ResparkableWidget] data-token attribute is required');
     return;
   }
 
@@ -84,7 +84,7 @@ export function GET(request: NextRequest): Response {
 
     // Create host element with Shadow DOM
     var host = document.createElement('div');
-    host.id = 'sunrise-chat-widget';
+    host.id = 'resparkable-chat-widget';
     // Apply CSS custom properties so the Shadow DOM inherits them. Stored
     // on the host (not the panel) so the bubble — which sits outside the
     // panel — also picks them up.
@@ -515,10 +515,10 @@ export function GET(request: NextRequest): Response {
     var voiceRafId = 0;
     var voiceElapsedTick = null;
     // One-time hint: "Speak now — tap to stop". Mirrors the React MicButton's
-    // key (sunrise.voice-input.hint-dismissed.v1). Stored on the parent
+    // key (resparkable.voice-input.hint-dismissed.v1). Stored on the parent
     // origin (widget runs in the embedding page's window) so each site that
     // embeds the widget remembers dismissal independently.
-    var VOICE_HINT_KEY = 'sunrise.voice-input.hint-dismissed.v1';
+    var VOICE_HINT_KEY = 'resparkable.voice-input.hint-dismissed.v1';
     function voiceHintDismissed() {
       try { return window.localStorage.getItem(VOICE_HINT_KEY) === 'true'; }
       catch (e) { return true; /* private mode / disabled storage → skip hint */ }

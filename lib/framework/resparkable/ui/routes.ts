@@ -1,0 +1,71 @@
+/**
+ * Resparkable's page paths — the UI counterpart to `api/endpoints.ts`.
+ *
+ * Same reasoning as that file: a `'use client'` component that hard-codes
+ * `/resparkable/projects/${id}` is a rename waiting to break silently, and the whole
+ * tier is meant to be relocatable by a host project. Nothing here imports
+ * anything, so it is safe from any runtime including the proxy.
+ *
+ * `BASE` is the one string a fork would change to mount the brain somewhere else.
+ * It must stay in step with `appProtectedRoutes` in `lib/app/protected-routes.ts`
+ * — a mounted path that isn't listed there is a page that renders to signed-out
+ * visitors before any handler gets a say.
+ */
+
+const BASE = '/resparkable';
+
+export const RESPARKABLE_ROUTES = {
+  BASE,
+
+  TODAY: BASE,
+  INBOX: `${BASE}/inbox`,
+  SEARCH: `${BASE}/search`,
+  CHAT: `${BASE}/chat`,
+  SETTINGS: `${BASE}/settings`,
+  PLAN: `${BASE}/plan`,
+
+  PROJECTS: `${BASE}/projects`,
+  project: (id: string): string => `${BASE}/projects/${id}`,
+
+  GOALS: `${BASE}/goals`,
+  AREAS: `${BASE}/areas`,
+
+  ENTITIES: `${BASE}/entities`,
+  entity: (id: string): string => `${BASE}/entities/${id}`,
+
+  DOCUMENTS: `${BASE}/documents`,
+  CONNECTIONS: `${BASE}/connections`,
+
+  GRAPH: `${BASE}/graph`,
+  /** The graph opens focused on one node — never on the whole corpus (§9). */
+  graphFocus: (type: string, id: string): string =>
+    `${BASE}/graph?focusType=${encodeURIComponent(type)}&focus=${encodeURIComponent(id)}`,
+
+  BOARDS: `${BASE}/boards`,
+  board: (slug: string): string => `${BASE}/boards/${slug}`,
+
+  /**
+   * Archived items, and what has gone quiet (§11, phase 8).
+   *
+   * **Deliberately not in the main nav.** §11 is explicit that the archived list
+   * views and `?includeArchived=true` are the only two ways to reach archived
+   * items — a permanent nav link to your own archive puts the things you decided
+   * to stop thinking about back in front of you every day, which is the opposite
+   * of what archiving is for. It is linked from Settings and from the monthly
+   * review, both of which are places you go on purpose.
+   */
+  ARCHIVE: `${BASE}/archive`,
+
+  /**
+   * Obsidian import and export (§14, Release 3).
+   *
+   * In the nav rather than tucked behind Settings, unlike {@link ARCHIVE}. The
+   * reasoning is the opposite one: "how do I get my data out" is a question
+   * people ask *before* they commit to a tool, and an answer they have to go
+   * looking for reads as an answer somebody would rather they did not find.
+   */
+  VAULT: `${BASE}/vault`,
+
+  /** Search prefilled from the layout's box. */
+  searchFor: (query: string): string => `${BASE}/search?q=${encodeURIComponent(query)}`,
+} as const;

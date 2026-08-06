@@ -248,7 +248,7 @@ export function getCSPConfig(nonce?: string): CSPConfig {
     base['script-src'] = [...base['script-src'], `'nonce-${nonce}'`];
   }
 
-  // Add the fork's own iframe hosts (lib/app/csp.ts — empty in vanilla Sunrise)
+  // Add the fork's own iframe hosts (lib/app/csp.ts — empty in vanilla Resparkable)
   if (APP_FRAME_SRC.length > 0) {
     base['frame-src'] = [...new Set([...base['frame-src'], ...APP_FRAME_SRC])];
   }

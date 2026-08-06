@@ -112,7 +112,7 @@ export class TwilioOutboundAdapter implements OutboundAdapter {
     formBody.set('To', isWhatsApp ? `${WHATSAPP_PREFIX}${req.to}` : req.to);
     formBody.set('Body', req.body);
 
-    // Twilio's REST API uses HTTP Basic with SID:token. The Sunrise HTTP
+    // Twilio's REST API uses HTTP Basic with SID:token. The Resparkable HTTP
     // fetcher's `basic` auth mode reads a single env var; we have two
     // (`accountSidEnv` + `authTokenEnv`). Build the Authorization header
     // manually instead of contorting the schema — env-var safety still

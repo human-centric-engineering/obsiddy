@@ -12,7 +12,7 @@
  * - Fixed table layout with column widths
  * - Text truncation for long names/emails
  *
- * @see /Users/simonholmes/Documents/Dev/studio/sunrise/components/admin/invitation-table.tsx
+ * @see /Users/simonholmes/Documents/Dev/studio/resparkable/components/admin/invitation-table.tsx
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';

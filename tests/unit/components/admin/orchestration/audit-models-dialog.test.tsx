@@ -705,7 +705,9 @@ describe('AuditModelsDialog', () => {
       // so the peek banner can pick it up.
       expect(onOpenChange).toHaveBeenCalledWith(false);
       expect(mockPush).not.toHaveBeenCalled();
-      const stored = window.localStorage.getItem('sunrise.orchestration.in-flight-execution.v1');
+      const stored = window.localStorage.getItem(
+        'resparkable.orchestration.in-flight-execution.v1'
+      );
       expect(stored).not.toBeNull();
       const parsed = JSON.parse(stored as string) as {
         executionId: string;
@@ -798,7 +800,9 @@ describe('AuditModelsDialog', () => {
       expect(onOpenChange).toHaveBeenCalledWith(false);
       expect(mockPush).toHaveBeenCalledWith('/admin/orchestration/executions/exec-vfd');
       // Banner should still pick the run up after the navigation.
-      const stored = window.localStorage.getItem('sunrise.orchestration.in-flight-execution.v1');
+      const stored = window.localStorage.getItem(
+        'resparkable.orchestration.in-flight-execution.v1'
+      );
       expect(stored).not.toBeNull();
     });
 

@@ -1,6 +1,6 @@
 # Multi-Tenancy Playbook
 
-> **TL;DR — MT-possible, not MT-baked.** Sunrise ships **single-tenant by
+> **TL;DR — MT-possible, not MT-baked.** Resparkable ships **single-tenant by
 > default** and contains **zero** tenancy machinery: no `Org` table, no `orgId`
 > columns, no row-level security, no dormant fields. The one concession to
 > multi-tenancy is an inert seam (`TENANCY_MODE`, default `single`) and this
@@ -14,7 +14,7 @@
 
 ## Who this is for
 
-A fork author who wants several customers (tenants/orgs) to share one Sunrise
+A fork author who wants several customers (tenants/orgs) to share one Resparkable
 deployment and one database, with hard data isolation between them. If instead
 you want one deployment **per** customer, you do not need any of this — deploy
 the template as-is, once per customer.
@@ -189,7 +189,7 @@ demonstrates all of the above against real Postgres. Run it:
 
 ```bash
 # against a throwaway container
-docker run -d --name sunrise-rls-spike -e POSTGRES_PASSWORD=postgres -p 5433:5432 pgvector/pgvector:pg15
+docker run -d --name resparkable-rls-spike -e POSTGRES_PASSWORD=postgres -p 5433:5432 pgvector/pgvector:pg15
 node scripts/spikes/rls-isolation-spike.mjs
 
 # or against any throwaway database via env override
@@ -246,7 +246,7 @@ LEVEL SECURITY`, so do not let the app role own the tenant tables.
 
 ```typescript
 if (env.TENANCY_MODE === 'multi') {
-  throw new Error('TENANCY_MODE=multi is not implemented by the Sunrise template. …');
+  throw new Error('TENANCY_MODE=multi is not implemented by the Resparkable template. …');
 }
 ```
 

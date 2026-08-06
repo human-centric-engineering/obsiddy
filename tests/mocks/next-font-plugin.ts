@@ -13,7 +13,7 @@
  * the throw happens at import time. Any test importing a page or layout that
  * uses a custom font then fails before a single assertion runs — including
  * tests with nothing to do with fonts — and the error points nowhere near the
- * cause. Base Sunrise loads no custom font, so this is pre-emptive: a root
+ * cause. Base Resparkable loads no custom font, so this is pre-emptive: a root
  * layout with brand typography is one of the first things a fork adds.
  *
  * ## Why a plugin rather than `vi.mock` in tests/setup.ts
@@ -77,12 +77,12 @@ function googleFontNames(root: string): string[] {
  * named export per font; local gets a default export (`localFont(...)`).
  */
 export function nextFontStub(): Plugin {
-  const GOOGLE = '\0sunrise:next-font-google';
-  const LOCAL = '\0sunrise:next-font-local';
+  const GOOGLE = '\0resparkable:next-font-google';
+  const LOCAL = '\0resparkable:next-font-local';
   let root = process.cwd();
 
   return {
-    name: 'sunrise:next-font-stub',
+    name: 'resparkable:next-font-stub',
     // Must beat Vite's own node resolution, which would otherwise hand back
     // Next's empty `index.js` and leave every loader import bound to undefined.
     enforce: 'pre',

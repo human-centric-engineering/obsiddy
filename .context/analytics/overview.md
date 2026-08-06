@@ -4,7 +4,7 @@
 
 ## Overview
 
-Sunrise includes a pluggable analytics system that supports multiple analytics providers through a unified interface. The system follows the same pattern as the storage system, with provider auto-detection and graceful degradation.
+Resparkable includes a pluggable analytics system that supports multiple analytics providers through a unified interface. The system follows the same pattern as the storage system, with provider auto-detection and graceful degradation.
 
 ### Documentation
 

@@ -1,8 +1,8 @@
 /**
  * Generic event log (fork-readiness seam).
  *
- * A non-admin, app-facing event log. Sunrise's `logAdminAction` records admin
- * *configuration* changes; an app built on Sunrise often needs to record its
+ * A non-admin, app-facing event log. Resparkable's `logAdminAction` records admin
+ * *configuration* changes; an app built on Resparkable often needs to record its
  * own domain events (a questionnaire submitted, an export requested, a webhook
  * received) without pretending they are admin actions.
  *
@@ -27,7 +27,7 @@ import { logAdminAction } from '@/lib/orchestration/audit/admin-audit-logger';
 export interface AppEventEntry {
   /**
    * Free-form event name. Namespace it to your app so it is greppable and
-   * never collides with Sunrise's `entity.verb` admin actions — e.g.
+   * never collides with Resparkable's `entity.verb` admin actions — e.g.
    * `"questionnaire.submitted"`, `"export.requested"`.
    */
   action: string;

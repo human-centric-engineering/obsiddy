@@ -145,7 +145,7 @@ describe('app env-var extension (seam 11)', () => {
     // Act & Assert — startup throws with both "redeclares" and the key name in
     // the message so the operator knows what to rename and why.
     await expect(import('@/lib/env')).rejects.toThrow(
-      /redeclares core Sunrise env key.*DATABASE_URL/s
+      /redeclares core Resparkable env key.*DATABASE_URL/s
     );
   });
 

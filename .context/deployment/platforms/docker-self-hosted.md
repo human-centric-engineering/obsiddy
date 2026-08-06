@@ -46,8 +46,8 @@ docker compose version
 
 ```bash
 # Clone your repository
-git clone https://github.com/your-org/sunrise.git
-cd sunrise
+git clone https://github.com/your-org/resparkable.git
+cd resparkable
 ```
 
 ### 3. Configure Environment
@@ -64,7 +64,7 @@ nano .env
 
 ```bash
 # Database (Docker internal network)
-DATABASE_URL="postgresql://postgres:your-secure-password@db:5432/sunrise"
+DATABASE_URL="postgresql://postgres:your-secure-password@db:5432/resparkable"
 
 # Authentication
 BETTER_AUTH_SECRET="<generate with: openssl rand -base64 32>"
@@ -77,7 +77,7 @@ NODE_ENV="production"
 # Docker database settings
 DB_USER="postgres"
 DB_PASSWORD="your-secure-password"
-DB_NAME="sunrise"
+DB_NAME="resparkable"
 ```
 
 **Optional (for email):**
@@ -137,7 +137,7 @@ sudo apt install nginx certbot python3-certbot-nginx -y
 
 ### Configure Nginx
 
-Create `/etc/nginx/sites-available/sunrise`:
+Create `/etc/nginx/sites-available/resparkable`:
 
 ```nginx
 server {
@@ -161,7 +161,7 @@ server {
 Enable the site:
 
 ```bash
-sudo ln -s /etc/nginx/sites-available/sunrise /etc/nginx/sites-enabled/
+sudo ln -s /etc/nginx/sites-available/resparkable /etc/nginx/sites-enabled/
 sudo nginx -t
 sudo systemctl reload nginx
 ```
@@ -189,20 +189,20 @@ curl https://yourdomain.com/api/health
 ### Manual Backup
 
 ```bash
-docker compose -f docker-compose.prod.yml exec db pg_dump -U postgres sunrise > backup_$(date +%Y%m%d_%H%M%S).sql
+docker compose -f docker-compose.prod.yml exec db pg_dump -U postgres resparkable > backup_$(date +%Y%m%d_%H%M%S).sql
 ```
 
 ### Automated Daily Backups
 
-Create `/opt/scripts/backup-sunrise.sh`:
+Create `/opt/scripts/backup-resparkable.sh`:
 
 ```bash
 #!/bin/bash
-BACKUP_DIR="/opt/backups/sunrise"
+BACKUP_DIR="/opt/backups/resparkable"
 mkdir -p $BACKUP_DIR
 
 # Create backup
-docker compose -f /path/to/sunrise/docker-compose.prod.yml exec -T db pg_dump -U postgres sunrise > $BACKUP_DIR/backup_$(date +%Y%m%d).sql
+docker compose -f /path/to/resparkable/docker-compose.prod.yml exec -T db pg_dump -U postgres resparkable > $BACKUP_DIR/backup_$(date +%Y%m%d).sql
 
 # Keep only last 7 days
 find $BACKUP_DIR -name "backup_*.sql" -mtime +7 -delete
@@ -213,13 +213,13 @@ Add to crontab:
 ```bash
 sudo crontab -e
 # Add line:
-0 2 * * * /opt/scripts/backup-sunrise.sh
+0 2 * * * /opt/scripts/backup-resparkable.sh
 ```
 
 ### Restore from Backup
 
 ```bash
-cat backup_20250119.sql | docker compose -f docker-compose.prod.yml exec -T db psql -U postgres sunrise
+cat backup_20250119.sql | docker compose -f docker-compose.prod.yml exec -T db psql -U postgres resparkable
 ```
 
 ## Updating Deployments
@@ -227,7 +227,7 @@ cat backup_20250119.sql | docker compose -f docker-compose.prod.yml exec -T db p
 ### Standard Update
 
 ```bash
-cd sunrise
+cd resparkable
 
 # Pull latest changes
 git pull origin main
@@ -448,7 +448,7 @@ Ensures UTF-8 encoding for proper character support.
 
 ```yaml
 networks:
-  sunrise-network:
+  resparkable-network:
     driver: bridge
 ```
 

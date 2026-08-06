@@ -68,48 +68,48 @@ const HANDLED_OUTSIDE_MANIFEST = new Map([
     'DataErasureReceipt',
     'Fetched directly by exportUserData() and returned as the bundle’s `erasureReceipts` section, so it is exported — just not through a manifest source.',
   ],
-  // ── FORK (Obsiddy) ────────────────────────────────────────────────────────
+  // ── FORK (Resparkable) ────────────────────────────────────────────────────────
   //
   // This scan reads every file in `prisma/schema/`, which includes the
-  // framework tier's own `framework-obsiddy.prisma`. Those tables ARE exported
-  // — through `lib/app/data-export.ts`, the seam sunrise#467 added for exactly
+  // framework tier's own `framework-resparkable.prisma`. Those tables ARE exported
+  // — through `lib/app/data-export.ts`, the seam resparkable#467 added for exactly
   // this — but `declared` is built from `SUBJECT_DATA_SOURCES` alone, so the
   // guard cannot see the app seam and demands that a fork's tables be listed in
-  // a Sunrise-owned file instead.
+  // a Resparkable-owned file instead.
   //
   // That makes this the one core test a fork cannot satisfy from fork-owned
   // code: doing the right thing (filling the seam, writing its own completeness
-  // guard — `tests/unit/lib/framework/obsiddy/privacy/subject-export.test.ts`)
-  // still leaves it red. Local patch to a Sunrise-owned test, same family as
-  // sunrise#480 and sunrise#525. Filed as sunrise#533; ask #30 in
-  // `.context/framework/obsiddy/sunrise-asks.md`. Remove this block when it
+  // guard — `tests/unit/lib/framework/resparkable/privacy/subject-export.test.ts`)
+  // still leaves it red. Local patch to a Resparkable-owned test, same family as
+  // resparkable#480 and resparkable#525. Filed as resparkable#533; ask #30 in
+  // `.context/framework/resparkable/sunrise-asks.md`. Remove this block when it
   // lands.
   ...(
     [
-      'ObsiddySpace',
-      'ObsiddyArea',
-      'ObsiddyGoal',
-      'ObsiddyProject',
-      'ObsiddyTask',
-      'ObsiddyThought',
-      'ObsiddyLink',
-      'ObsiddyEmbedding',
-      'ObsiddyBoard',
-      'ObsiddyBoardCard',
-      'ObsiddyTag',
-      'ObsiddyTaskTag',
-      'ObsiddyChecklistItem',
-      'ObsiddyEntity',
-      'ObsiddyDocument',
-      'ObsiddyTimeBlock',
-      'ObsiddyReview',
-      'ObsiddyEvent',
+      'ResparkableSpace',
+      'ResparkableArea',
+      'ResparkableGoal',
+      'ResparkableProject',
+      'ResparkableTask',
+      'ResparkableThought',
+      'ResparkableLink',
+      'ResparkableEmbedding',
+      'ResparkableBoard',
+      'ResparkableBoardCard',
+      'ResparkableTag',
+      'ResparkableTaskTag',
+      'ResparkableChecklistItem',
+      'ResparkableEntity',
+      'ResparkableDocument',
+      'ResparkableTimeBlock',
+      'ResparkableReview',
+      'ResparkableEvent',
     ] as const
   ).map(
     (model) =>
       [
         model,
-        'Framework-tier (Obsiddy) table, exported through the lib/app/data-export.ts seam and covered by the tier’s own completeness guard. Invisible to this scan because `declared` reads only SUBJECT_DATA_SOURCES — see sunrise#533.',
+        'Framework-tier (Resparkable) table, exported through the lib/app/data-export.ts seam and covered by the tier’s own completeness guard. Invisible to this scan because `declared` reads only SUBJECT_DATA_SOURCES — see sunrise#533.',
       ] as const
   ),
 ]);

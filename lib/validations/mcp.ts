@@ -142,7 +142,7 @@ export const createExposedResourceSchema = z.object({
     .string()
     .min(1)
     .max(500)
-    .regex(/^sunrise:\/\//, 'URI must use the sunrise:// scheme'),
+    .regex(/^resparkable:\/\//, 'URI must use the resparkable:// scheme'),
   name: z.string().min(1).max(100).trim(),
   description: z.string().min(1).max(5000).trim(),
   mimeType: z.string().min(1).max(100).default('application/json'),

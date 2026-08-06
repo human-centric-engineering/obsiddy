@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document covers reusable UI patterns in Sunrise. These patterns establish conventions for common UI challenges, ensuring consistency and reducing duplication across the codebase.
+This document covers reusable UI patterns in Resparkable. These patterns establish conventions for common UI challenges, ensuring consistency and reducing duplication across the codebase.
 
 ## URL-Persistent Tabs
 
@@ -147,9 +147,9 @@ The hook can automatically update `document.title` when tabs change:
 ```typescript
 // lib/constants/feature.ts
 export const FEATURE_TAB_TITLES: Record<FeatureTab, string> = {
-  overview: 'Overview - Feature - Sunrise',
-  details: 'Details - Feature - Sunrise',
-  history: 'History - Feature - Sunrise',
+  overview: 'Overview - Feature - Resparkable',
+  details: 'Details - Feature - Resparkable',
+  history: 'History - Feature - Resparkable',
 };
 
 // In component
@@ -160,7 +160,7 @@ const { activeTab, setActiveTab } = useUrlTabs({
 });
 ```
 
-When a user switches to the Details tab, the browser title updates to "Details - Feature - Sunrise".
+When a user switches to the Details tab, the browser title updates to "Details - Feature - Resparkable".
 
 ### Custom Parameter Name
 

@@ -6,7 +6,7 @@
  * - useHasOptionalConsent() - Boolean check for optional consent
  * - useShouldShowConsentBanner() - Banner visibility logic
  *
- * @see /Users/simonholmes/Documents/Dev/studio/sunrise/lib/consent/use-consent.ts
+ * @see /Users/simonholmes/Documents/Dev/studio/resparkable/lib/consent/use-consent.ts
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';

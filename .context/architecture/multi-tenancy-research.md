@@ -1,8 +1,8 @@
 # Multi-Tenancy: Research and Gap Analysis
 
 > **Status: research, not a plan.** This document maps the full surface a
-> multi-tenant Sunrise would have to cover. It is not a commitment to build any
-> of it, and nothing here is implemented. Sunrise ships **single-tenant** and
+> multi-tenant Resparkable would have to cover. It is not a commitment to build any
+> of it, and nothing here is implemented. Resparkable ships **single-tenant** and
 > that remains the default.
 >
 > **Verified against `b7e30f06` (main) on 2026-08-01.** Every claim below was
@@ -16,7 +16,7 @@
 | Deciding whether to build MT into a fork      | [§2 The two questions](#2-the-two-questions) → [§9 Deployment topologies](#9-deployment-topologies)                       |
 | Already committed and want the work breakdown | [§5 Gap register](#5-gap-register) → [§10 Sequencing](#10-sequencing-shape)                                               |
 | A fork author worried about upstream merges   | [§7 Ownership matrix](#7-ownership-platform-tier-vs-fork-tier) → [§8 Downstream forks](#8-downstream-fork-considerations) |
-| A Sunrise maintainer triaging #366 / #367     | [§6 The decision gate](#6-the-decision-gate) → [§7](#7-ownership-platform-tier-vs-fork-tier)                              |
+| A Resparkable maintainer triaging #366 / #367 | [§6 The decision gate](#6-the-decision-gate) → [§7](#7-ownership-platform-tier-vs-fork-tier)                              |
 
 ### Companion documents
 
@@ -35,14 +35,14 @@
 
 ## 1. Executive summary
 
-Sunrise today has an inert tenancy seam, a proven RLS pattern documented but
+Resparkable today has an inert tenancy seam, a proven RLS pattern documented but
 not built, and two blocked issues covering authorization. Against the two
 questions people actually ask:
 
 | Question                                                       | Coverage today |
 | -------------------------------------------------------------- | -------------- |
 | "Can a fork retrofit multi-tenancy without fighting upstream?" | **~50–60%**    |
-| "Is Sunrise a multi-tenant platform?"                          | **~15%**       |
+| "Is Resparkable a multi-tenant platform?"                      | **~15%**       |
 
 The gap is not mostly in the database. The playbook solves row isolation
 properly — Postgres RLS below the query API, which covers ORM and raw SQL
@@ -68,11 +68,11 @@ become a merge conflict on every upstream sync — which is precisely the trap
 These get conflated constantly and they have different answers.
 
 **Question A — fork enablement.** _Can a downstream fork build multi-tenancy on
-Sunrise without permanently forking platform files?_ This is the question
-Sunrise-as-a-template exists to answer. It is mostly about seam placement, and
+Resparkable without permanently forking platform files?_ This is the question
+Resparkable-as-a-template exists to answer. It is mostly about seam placement, and
 it is cheap: seams cost single-tenant installs nothing.
 
-**Question B — product.** _Should Sunrise itself ship multi-tenancy?_ This is a
+**Question B — product.** _Should Resparkable itself ship multi-tenancy?_ This is a
 product and commercial decision with a large maintenance tail: every future
 feature acquires a tenancy dimension, every cache acquires a key, every
 background job acquires a fairness policy, and the test matrix doubles.
@@ -244,7 +244,7 @@ the namespace is per-tenant or genuinely global (`AiCapability` and
 `AiProviderModel` are plausibly global; `AiAgent` and `AiWorkflow` are not).
 
 **Owner.** The constraint change is fork-owned (it rides the `orgId` migration).
-**The route-resolution redesign is platform-tier** — those routes are Sunrise
+**The route-resolution redesign is platform-tier** — those routes are Resparkable
 code and a fork cannot change how they resolve without forking them.
 
 **Risk if skipped.** High and _silent in development_: a single-tenant test
@@ -285,7 +285,7 @@ Then a lint rule or review checklist so new caches declare their tenancy
 posture. Breakers and counters additionally need a _policy_ decision: per-tenant
 breakers protect neighbours but lose the shared-signal benefit of a global one.
 
-**Owner.** **Platform-tier, entirely.** Every file listed is Sunrise code. A
+**Owner.** **Platform-tier, entirely.** Every file listed is Resparkable code. A
 fork cannot key these without editing them.
 
 **Risk if skipped.** High, and the settings-cache case is a genuine data leak
@@ -336,7 +336,7 @@ sweeps, per-tenant retention configuration, and observability that attributes
 tick work to tenants.
 
 **Owner.** **Platform-tier.** `platform-jobs.ts`, `scheduler.ts` and
-`retention.ts` are Sunrise-owned. The `lib/app/jobs.ts` seam lets a fork _add_
+`retention.ts` are Resparkable-owned. The `lib/app/jobs.ts` seam lets a fork _add_
 jobs; it does nothing to make the existing eight tenant-aware.
 
 **Risk if skipped.** High. The bypass-role option in particular converts every
@@ -570,11 +570,11 @@ Recorded on #366 and blocking both issues:
 
 - **Yes** → adopt better-auth's `organization` plugin. You need its membership
   table and org switching, and the cost is real: adopting its table names and
-  role vocabulary, and reconciling with Sunrise's existing hand-rolled
+  role vocabulary, and reconciling with Resparkable's existing hand-rolled
   invitation system — a collision, not a merge. `OrgMembership` becomes
   **platform-owned**.
 - **No** → hand-roll. `orgId` on tenant-owned models plus a
-  `resolveAdminScope(session)` predicate. Sunrise already ships working
+  `resolveAdminScope(session)` predicate. Resparkable already ships working
   invitations; the plugin would replace working code to gain nothing.
   `OrgMembership` stays **fork-owned**.
 
@@ -617,7 +617,7 @@ every upstream sync.
 | Admin API-key scope org dimension                  | Platform | `guards.ts:193-200`                                |
 | Slug-route resolution redesign                     | Platform | `app/api/v1/{chat,inbound,webhooks}/**`            |
 | Unique-constraint composites                       | Fork     | Rides the `orgId` migration                        |
-| Process-cache keying (plane 3)                     | Platform | 20+ Sunrise-owned modules                          |
+| Process-cache keying (plane 3)                     | Platform | 20+ Resparkable-owned modules                      |
 | Background-job tenancy + fairness (plane 4)        | Platform | `platform-jobs.ts`, `scheduler.ts`, `retention.ts` |
 | Rate-limit `org` key                               | Platform | `RateLimitKey` is a closed union — see below       |
 | Storage key scoping + token org claim              | Platform | `lib/storage/**`                                   |
@@ -636,10 +636,10 @@ are tracked. The other twelve are not.
 
 ## 8. Downstream fork considerations
 
-Sunrise has a three-level fork topology and two reserved namespace tiers:
+Resparkable has a three-level fork topology and two reserved namespace tiers:
 
 ```
-Sunrise (platform)
+Resparkable (platform)
   └── framework fork          e.g. Daybreak     → lib/framework/, .context/framework/, prisma/schema/framework-*.prisma, framework_ table prefix
         └── leaf fork          e.g. ConQuest     → lib/app/, .context/app/, prisma/schema/app.prisma
 ```
@@ -652,7 +652,7 @@ files.
 ### The merge-conflict surface, concretely
 
 If a fork implements MT today without upstream changes, it must edit these
-Sunrise-owned files. Each becomes a conflict on every sync:
+Resparkable-owned files. Each becomes a conflict on every sync:
 
 | File                                             | Why the fork must edit it                                                                    |
 | ------------------------------------------------ | -------------------------------------------------------------------------------------------- |
@@ -784,7 +784,7 @@ transfers.
 
 ## 9. Deployment topologies
 
-Worth stating plainly, because "make Sunrise multi-tenant" often means "avoid
+Worth stating plainly, because "make Resparkable multi-tenant" often means "avoid
 running many instances" and that trade is not obviously in MT's favour.
 
 | Topology                            | Isolation planes needed   | Cost                                                         | Good fit                                          |
@@ -803,7 +803,7 @@ Two observations:
   documented work while leaving the undocumented work intact. Forks choosing it
   on the strength of the playbook alone will be surprised.
 - **Instance-per-tenant remains the right answer for a lot of forks**, and is
-  Sunrise's current recommendation. The retrofit is justified by tenant count and
+  Resparkable's current recommendation. The retrofit is justified by tenant count and
   self-serve signup, not by preference.
 
 ---

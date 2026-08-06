@@ -64,7 +64,7 @@ describe('FORK_EVENT_TYPE_PATTERN', () => {
   });
 
   it('does not collide with any core event type', () => {
-    // Sunrise must never emit into the fork namespaces, or the guarantee that a
+    // Resparkable must never emit into the fork namespaces, or the guarantee that a
     // fork's names cannot clash with a future release is void.
     for (const type of HOOK_EVENT_TYPES) {
       expect(FORK_EVENT_TYPE_PATTERN.test(type)).toBe(false);

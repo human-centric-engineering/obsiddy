@@ -3,14 +3,14 @@ import packageJson from '@/package.json';
 /**
  * The **fork's app version** — derived from `package.json`.
  *
- * This is the FORK-OWNED counterpart to `SUNRISE_VERSION` in
- * `lib/sunrise-version.ts`. The two are deliberately separate:
+ * This is the FORK-OWNED counterpart to `RESPARKABLE_VERSION` in
+ * `lib/resparkable-version.ts`. The two are deliberately separate:
  *
  *   - `APP_VERSION` (this file) tracks the **fork's** app version. A fork
  *     edits `package.json.version` on every release; this constant follows.
- *   - `SUNRISE_VERSION` tracks the **Sunrise platform** version. Sunrise
- *     edits it on Sunrise releases; forks merge it through but do NOT edit
- *     `lib/sunrise-version.ts` directly.
+ *   - `RESPARKABLE_VERSION` tracks the **Resparkable platform** version. Resparkable
+ *     edits it on Resparkable releases; forks merge it through but do NOT edit
+ *     `lib/resparkable-version.ts` directly.
  *
  * See `VERSIONING.md` for the public-surface contract and
  * `CUSTOMIZATION.md` §8 for the fork-author perspective.
@@ -32,7 +32,7 @@ import packageJson from '@/package.json';
  *
  * # Conventions
  *
- * - **Server-side use only.** Symmetric with `lib/sunrise-version.ts` — we
+ * - **Server-side use only.** Symmetric with `lib/resparkable-version.ts` — we
  *   do not mark this file `server-only` so it can be imported from
  *   platform-agnostic tiers (e.g. the orchestration MCP code). Render the
  *   fork's version in client components by fetching `/api/health` (where

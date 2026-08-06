@@ -21,7 +21,7 @@ import {
   setCachedTestResult,
 } from '@/lib/orchestration/provider-test-cache';
 
-const STORAGE_KEY = 'sunrise.orchestration.provider-test-cache.v1';
+const STORAGE_KEY = 'resparkable.orchestration.provider-test-cache.v1';
 
 describe('provider-test cache', () => {
   beforeEach(() => {

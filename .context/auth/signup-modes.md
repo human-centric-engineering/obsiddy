@@ -9,7 +9,7 @@ How to close public signup, and what "closed" actually covers.
 
 ## The problem this solves
 
-Sunrise ships a complete invitation system — hashed single-use tokens
+Resparkable ships a complete invitation system — hashed single-use tokens
 (`lib/utils/invitation-token.ts`), an admin invite page, an invitation email,
 and `POST /api/auth/accept-invite` — whose entire premise is that access is
 _granted_ rather than taken. Beside it, public email/password signup used to be

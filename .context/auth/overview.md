@@ -2,7 +2,7 @@
 
 ## Authentication System
 
-Sunrise uses **better-auth** for authentication, a modern TypeScript-first framework that provides flexible authentication strategies: email/password, OAuth providers (Google, GitHub, etc.), and magic links. better-auth is the official successor to NextAuth.js, recommended by the NextAuth team for all new projects.
+Resparkable uses **better-auth** for authentication, a modern TypeScript-first framework that provides flexible authentication strategies: email/password, OAuth providers (Google, GitHub, etc.), and magic links. better-auth is the official successor to NextAuth.js, recommended by the NextAuth team for all new projects.
 
 The system implements session-based authentication with user data persisted in PostgreSQL via Prisma. This approach balances security, performance, and developer experience while eliminating common complexity like provider wrappers.
 
@@ -132,7 +132,7 @@ export type Auth = typeof auth;
 
 ### Database Hooks
 
-better-auth provides lifecycle hooks that run during database operations. Sunrise uses these hooks for invitation processing and welcome email automation.
+better-auth provides lifecycle hooks that run during database operations. Resparkable uses these hooks for invitation processing and welcome email automation.
 
 #### User Creation Hooks
 
@@ -234,7 +234,7 @@ databaseHooks: {
         if (shouldSendWelcomeNow) {
           await sendEmail({
             to: user.email,
-            subject: 'Welcome to Sunrise',
+            subject: 'Welcome to Resparkable',
             react: WelcomeEmail({ userName: user.name, userEmail: user.email })
           });
         }

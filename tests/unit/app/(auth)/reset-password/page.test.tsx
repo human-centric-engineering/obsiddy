@@ -16,7 +16,7 @@
  * - Card header elements (title, description)
  * - Back to login link
  *
- * @see /Users/simonholmes/Documents/Dev/studio/sunrise/app/(auth)/reset-password/page.tsx
+ * @see /Users/simonholmes/Documents/Dev/studio/resparkable/app/(auth)/reset-password/page.tsx
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -63,7 +63,7 @@ describe('ResetPasswordPage', () => {
     });
 
     it('should have correct page description', () => {
-      expect(metadata.description).toBe('Reset your Sunrise account password');
+      expect(metadata.description).toBe('Reset your Resparkable account password');
     });
   });
 

@@ -20,7 +20,7 @@
  * - Props spreading
  * - Wrapper className
  *
- * @see /Users/simonholmes/Documents/Dev/studio/sunrise/components/ui/password-input.tsx
+ * @see /Users/simonholmes/Documents/Dev/studio/resparkable/components/ui/password-input.tsx
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';

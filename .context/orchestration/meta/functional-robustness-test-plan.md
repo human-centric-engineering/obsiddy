@@ -318,7 +318,7 @@ A regression in any Tier 1 area breaks every deployment of the platform. These a
 
 ## Phase 1.3 — LLM Provider Resilience
 
-**What this covers:** The provider layer's resilience features — circuit breaker, ordered fallback chains, mid-stream failover — are Sunrise's strongest competitive differentiator per `maturity-analysis.md`. They must hold under partial-failure, slow, and totally-down conditions.
+**What this covers:** The provider layer's resilience features — circuit breaker, ordered fallback chains, mid-stream failover — are Resparkable's strongest competitive differentiator per `maturity-analysis.md`. They must hold under partial-failure, slow, and totally-down conditions.
 
 **Reference docs:** `.context/orchestration/llm-providers.md`, `.context/admin/orchestration-providers.md`, `functional-specification.md` §2.
 
@@ -339,7 +339,7 @@ A regression in any Tier 1 area breaks every deployment of the platform. These a
 - C[ ] L[ ] M[ ] A[ ] — Inspect the LLM context (via debug logs or trace viewer) — verify API keys never leak into the prompt.
 - C[ ] L[ ] M[ ] A[ ] — Configure a provider whose `customConfig` references an env var that doesn't exist → verify start-up or first-call error is clear.
 - C[ ] L[ ] M[ ] A[ ] — Upstream provider deprecates a model and starts returning 404 on first call → verify the fallback chain triggers (or surfaces a clear error if no fallback is configured), not a permanently-broken agent that needs admin intervention to recover.
-- C[ ] L[ ] M[ ] A[ ] — Provider returns a `Retry-After` header alongside a 429 → verify Sunrise honours the header rather than re-issuing immediately and tripping the breaker faster than necessary.
+- C[ ] L[ ] M[ ] A[ ] — Provider returns a `Retry-After` header alongside a 429 → verify Resparkable honours the header rather than re-issuing immediately and tripping the breaker faster than necessary.
 
 ### Edge cases
 
@@ -357,7 +357,7 @@ A regression in any Tier 1 area breaks every deployment of the platform. These a
 
 ## Phase 1.4 — Cost & Budget Enforcement
 
-**What this covers:** Per-agent monthly budgets, global monthly cap, 80% warning, 100% hard block — and uniquely, the in-execution-loop check that stops a multi-turn conversation mid-flight when the budget is exceeded. This is Sunrise's flagship differentiator per `maturity-analysis.md`.
+**What this covers:** Per-agent monthly budgets, global monthly cap, 80% warning, 100% hard block — and uniquely, the in-execution-loop check that stops a multi-turn conversation mid-flight when the budget is exceeded. This is Resparkable's flagship differentiator per `maturity-analysis.md`.
 
 **Reference docs:** `.context/admin/orchestration-costs.md`, `functional-specification.md` §3.
 
@@ -709,7 +709,7 @@ Frequent enough that any regression matters. Walk these after Tier 1 is clean.
 - C[ ] L[ ] M[ ] A[ ] — Forge an embed token → verify rejection.
 - C[ ] L[ ] M[ ] A[ ] — Load the widget from a non-allowlisted origin → verify CORS rejection on the first request.
 - C[ ] L[ ] M[ ] A[ ] — Manually corrupt the stored `widgetConfig` JSON in the database → verify the loader falls back to defaults rather than crashing.
-- C[ ] L[ ] M[ ] A[ ] — Partner site declares a strict CSP (`default-src 'self'`, no `frame-ancestors` for Sunrise) → verify the documented integration steps surface the CSP requirements clearly, and the widget either works or fails with a developer-readable error in the console.
+- C[ ] L[ ] M[ ] A[ ] — Partner site declares a strict CSP (`default-src 'self'`, no `frame-ancestors` for Resparkable) → verify the documented integration steps surface the CSP requirements clearly, and the widget either works or fails with a developer-readable error in the console.
 - C[ ] L[ ] M[ ] A[ ] — Partner site has a service worker that intercepts cross-origin fetches → verify the widget's SSE stream is not buffered or rewritten by the SW (or that the documented bypass header is honoured).
 - C[ ] L[ ] M[ ] A[ ] — Partner site caches an older `widget.js` loader from a prior deploy → verify the cache-busting strategy (versioned URL, immutable content hash, or `Cache-Control` headers) so partners aren't pinned to stale UI.
 
@@ -761,7 +761,7 @@ Frequent enough that any regression matters. Walk these after Tier 1 is clean.
 
 ## Phase 2.5 — MCP Server
 
-**What this covers:** Sunrise's full Model Context Protocol server — JSON-RPC 2.0 over Streamable HTTP, batch requests (up to 20), 1MB body limit, dynamic tool exposure scoped to agent config, in-memory sessions with audit logging on every request.
+**What this covers:** Resparkable's full Model Context Protocol server — JSON-RPC 2.0 over Streamable HTTP, batch requests (up to 20), 1MB body limit, dynamic tool exposure scoped to agent config, in-memory sessions with audit logging on every request.
 
 **Reference docs:** `.context/orchestration/mcp.md`, `.context/api/orchestration-endpoints.md`, `functional-specification.md` §8.
 
@@ -889,7 +889,7 @@ Frequent enough that any regression matters. Walk these after Tier 1 is clean.
 - C[ ] L[ ] M[ ] A[ ] — List webhook deliveries with status filter → verify pending / delivered / failed / exhausted states.
 - C[ ] L[ ] M[ ] A[ ] — Manually retry a failed delivery → verify retry attempt.
 - C[ ] L[ ] M[ ] A[ ] — Verify `workflow.paused_for_approval` event payload includes pre-signed approve/reject URLs.
-- C[ ] L[ ] M[ ] A[ ] — Webhook receiver "challenge" handshake at subscription time (Slack-style URL verification): verify whether Sunrise supports this for new subscriptions, or always trusts the configured URL (and document either choice).
+- C[ ] L[ ] M[ ] A[ ] — Webhook receiver "challenge" handshake at subscription time (Slack-style URL verification): verify whether Resparkable supports this for new subscriptions, or always trusts the configured URL (and document either choice).
 
 ### Abuse / robustness scenarios
 
@@ -1657,7 +1657,7 @@ These are concerns that don't belong to any single feature but cut across all of
 
 - C[ ] L[ ] M[ ] A[ ] — Browser back / forward mid-stream → verify the SSE is cancelled, not leaked as a zombie. (Cross-ref Phase 1.1.)
 - C[ ] L[ ] M[ ] A[ ] — Hard reload mid-stream in admin chat → verify history fetch reconciles with the partial assistant message that was being streamed (cross-ref Phase 2.3 for embed).
-- C[ ] L[ ] M[ ] A[ ] — Service worker caches the embed widget loader; partner site deploys a new version of Sunrise → verify the SW eviction strategy (versioned URL, cache-busting query, stale-while-revalidate) is honoured.
+- C[ ] L[ ] M[ ] A[ ] — Service worker caches the embed widget loader; partner site deploys a new version of Resparkable → verify the SW eviction strategy (versioned URL, cache-busting query, stale-while-revalidate) is honoured.
 - C[ ] L[ ] M[ ] A[ ] — Browser tab suspended by OS power management mid-stream → on resume, verify the client either reconnects or shows an honest "disconnected" state.
 - C[ ] L[ ] M[ ] A[ ] — Two browser tabs sharing one conversation send messages within the same second → verify backend ordering and front-end optimistic-UI reconciliation.
 - C[ ] L[ ] M[ ] A[ ] — Embed widget loaded into a partner site with a strict CSP (`default-src 'self'`) — verify the loader, the widget, and the SSE stream all work via the documented domain allowlist (cross-ref Phase 2.3).
@@ -1693,7 +1693,7 @@ The pattern: configuration / state mutates while a request is mid-flight. Verify
 
 ### External-party contract evolution
 
-The pattern: webhook receivers, MCP clients, and embed-widget partners evolve on their own schedule. Sunrise must not break them on a no-op deploy.
+The pattern: webhook receivers, MCP clients, and embed-widget partners evolve on their own schedule. Resparkable must not break them on a no-op deploy.
 
 - C[ ] L[ ] M[ ] A[ ] — Webhook payload schema evolution: add a field; verify strict-schema receivers and a documented `version` / content-type strategy (cross-ref Phase 2.8).
 - C[ ] L[ ] M[ ] A[ ] — Webhook delivery ordering when N events fire within milliseconds — FIFO, parallel, or undefined per documented contract (cross-ref Phase 2.8).

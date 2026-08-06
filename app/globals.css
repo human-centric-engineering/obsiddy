@@ -26,7 +26,7 @@
 
   /**
    * Typography. The three families are loaded by `next/font` in app/layout.tsx,
-   * which puts `--font-obsiddy-*` on <html>; these keys are what turn them into
+   * which puts `--font-resparkable-*` on <html>; these keys are what turn them into
    * `font-display` / `font-sans` / `font-mono` utilities. They have to live in
    * `@theme` (not brand-theme.css) because Tailwind reads this block at BUILD
    * time to decide which utility classes exist at all — a variable set at
@@ -36,10 +36,11 @@
    * aligned to a grid of some kind, so if a webfont fails the replacement must
    * still be monospaced.
    */
-  --font-display: var(--font-obsiddy-display), ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  --font-display: var(--font-resparkable-display), ui-monospace, 'SFMono-Regular', Menlo, monospace;
   --font-sans:
-    var(--font-obsiddy-sans), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-mono: var(--font-obsiddy-mono), ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+    var(--font-resparkable-sans), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono:
+    var(--font-resparkable-mono), ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
 
   /**
    * Signal colours — the four things the app needs to say that aren't "primary".

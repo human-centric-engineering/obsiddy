@@ -2,7 +2,7 @@
 
 ## Overview
 
-Sunrise includes specialized form components for common UI patterns like error display, password strength indication, and avatar uploads. These components integrate with react-hook-form, Zod validation, and the shadcn/ui design system.
+Resparkable includes specialized form components for common UI patterns like error display, password strength indication, and avatar uploads. These components integrate with react-hook-form, Zod validation, and the shadcn/ui design system.
 
 ## Component Library
 

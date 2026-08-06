@@ -355,7 +355,7 @@ describe('POST /api/v1/admin/orchestration/webhooks/:id/test', () => {
       expect(parsedBody.event).toBe('ping');
       expect(typeof parsedBody.timestamp).toBe('string');
       expect(parsedBody.data).toEqual({
-        message: 'Test event from Sunrise webhook configuration.',
+        message: 'Test event from Resparkable webhook configuration.',
       });
 
       // Recompute HMAC over the exact serialised payload that was sent

@@ -10,7 +10,7 @@ We release security updates for the following versions:
 
 ## Reporting a Vulnerability
 
-We take security vulnerabilities seriously. If you discover a security issue in Sunrise, please report it responsibly.
+We take security vulnerabilities seriously. If you discover a security issue in Resparkable, please report it responsibly.
 
 ### How to Report
 
@@ -39,9 +39,9 @@ Please provide as much information as possible:
 - **Status update**: Within 7 days
 - **Fix timeline**: Varies by severity (critical issues prioritized)
 
-### Security Best Practices for Sunrise Users
+### Security Best Practices for Resparkable Users
 
-When deploying Sunrise in production:
+When deploying Resparkable in production:
 
 1. **Environment Variables**:
    - Never commit `.env.local` or `.env.production` to version control
@@ -73,7 +73,7 @@ When deploying Sunrise in production:
 
 ### Known Security Features
 
-Sunrise includes these security features out of the box:
+Resparkable includes these security features out of the box:
 
 - Rate limiting on authentication endpoints
 - CSRF protection via better-auth

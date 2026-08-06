@@ -44,7 +44,7 @@ describe('PublicFooter', () => {
       'href',
       '/terms'
     );
-    expect(screen.getByText(/All rights reserved/)).toHaveTextContent('Sunrise');
+    expect(screen.getByText(/All rights reserved/)).toHaveTextContent('Resparkable');
     // Cookie Preferences control is present out of the box.
     expect(screen.getByRole('button', { name: 'Cookie Preferences' })).toBeInTheDocument();
   });

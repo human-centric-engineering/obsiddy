@@ -24,7 +24,7 @@ describe('InvitationEmail', () => {
   it('should include preview text', async () => {
     const html = await render(<InvitationEmail {...defaultProps} />);
 
-    expect(html).toContain('You&#x27;ve been invited to join Sunrise');
+    expect(html).toContain('You&#x27;ve been invited to join Resparkable');
   });
 
   it('should have proper HTML structure', async () => {
@@ -119,7 +119,7 @@ describe('InvitationEmail', () => {
   it('should mention app name', async () => {
     const html = await render(<InvitationEmail {...defaultProps} />);
 
-    expect(html).toContain('Sunrise');
+    expect(html).toContain('Resparkable');
   });
 
   it('should include contact information in footer', async () => {

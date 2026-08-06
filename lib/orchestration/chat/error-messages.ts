@@ -151,7 +151,7 @@ const ERROR_MAP: Record<string, UserFacingError> = {
   },
   no_provider_configured: {
     title: 'Setup Required',
-    message: 'No LLM provider is configured for this Sunrise instance yet.',
+    message: 'No LLM provider is configured for this Resparkable instance yet.',
     action: 'Run the setup wizard at Admin → AI Orchestration to add a provider.',
   },
   no_default_model_configured: {

@@ -79,7 +79,7 @@ vi.mock('@/lib/orchestration/evaluations/run-worker', () => ({
 // change.
 vi.mock('@/lib/orchestration/maintenance/app-jobs', () => ({
   runDueAppJobs: vi.fn(),
-  // Vanilla Sunrise registers none, so nothing bounds the idle gate's horizon.
+  // Vanilla Resparkable registers none, so nothing bounds the idle gate's horizon.
   getAppJobsMinIntervalMs: vi.fn(() => null),
 }));
 
@@ -414,7 +414,7 @@ describe('POST /api/v1/admin/orchestration/maintenance/tick', () => {
   });
 
   it('omits appJobs from the summary when no fork job is registered', async () => {
-    // Vanilla Sunrise: the seam must not add a key to the tick's log line.
+    // Vanilla Resparkable: the seam must not add a key to the tick's log line.
     await POST(makeRequest());
     await new Promise((resolve) => setImmediate(resolve));
 

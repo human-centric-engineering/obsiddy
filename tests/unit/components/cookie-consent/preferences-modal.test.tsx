@@ -8,7 +8,7 @@
  * - Save/cancel functionality
  * - Dialog accessibility
  *
- * @see /Users/simonholmes/Documents/Dev/studio/sunrise/components/cookie-consent/preferences-modal.tsx
+ * @see /Users/simonholmes/Documents/Dev/studio/resparkable/components/cookie-consent/preferences-modal.tsx
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';

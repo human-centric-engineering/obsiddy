@@ -6,7 +6,7 @@
 
 ## Architecture
 
-Sunrise uses Resend for production email delivery and React Email for template rendering. The system gracefully degrades in development/test environments (logs instead of sends) and fails explicitly in production if not configured.
+Resparkable uses Resend for production email delivery and React Email for template rendering. The system gracefully degrades in development/test environments (logs instead of sends) and fails explicitly in production if not configured.
 
 ## Email Types
 
@@ -56,7 +56,7 @@ Sunrise uses Resend for production email delivery and React Email for template r
 
 - `RESEND_API_KEY` - API key from resend.com for sending emails
 - `EMAIL_FROM` - Default sender email address (e.g., "noreply@yourdomain.com")
-- `EMAIL_FROM_NAME` - (Optional) Display name for sender (e.g., "Sunrise" produces "Sunrise <noreply@yourdomain.com>")
+- `EMAIL_FROM_NAME` - (Optional) Display name for sender (e.g., "Resparkable" produces "Resparkable <noreply@yourdomain.com>")
 
 ### Behavior by Environment
 
@@ -138,7 +138,7 @@ All templates use React Email components (`Html`, `Head`, `Preview`, `Body`, etc
 
 ## User Creation Integration
 
-Sunrise supports two user creation patterns with different email behaviors:
+Resparkable supports two user creation patterns with different email behaviors:
 
 **Self-Signup (User-Initiated):**
 

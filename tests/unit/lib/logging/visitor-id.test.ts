@@ -22,7 +22,7 @@ import {
 
 describe('visitor-id constants', () => {
   it('uses a stable cookie + header name and a 180-day TTL', () => {
-    expect(VISITOR_COOKIE_NAME).toBe('sunrise_vid');
+    expect(VISITOR_COOKIE_NAME).toBe('resparkable_vid');
     expect(VISITOR_HEADER_NAME).toBe('x-visitor-id');
     expect(VISITOR_COOKIE_MAX_AGE).toBe(60 * 60 * 24 * 180);
   });

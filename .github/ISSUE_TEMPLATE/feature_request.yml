@@ -22,7 +22,7 @@ body:
     attributes:
       label: Proposed Solution
       description: Describe the solution you'd like to see
-      placeholder: I would like Sunrise to...
+      placeholder: I would like Resparkable to...
     validations:
       required: true
 

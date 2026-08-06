@@ -1,11 +1,11 @@
 import { z } from 'zod';
 
-import { obsiddyEnvSchema } from '@/lib/framework/obsiddy/env';
+import { resparkableEnvSchema } from '@/lib/framework/resparkable/env';
 
 /**
  * App-defined server environment variables.
  *
- * **Fork-owned scaffold** — Sunrise ships this empty and does NOT change it
+ * **Fork-owned scaffold** — Resparkable ships this empty and does NOT change it
  * after release, so your edits here merge cleanly when you pull an upstream
  * version (the stable contract is this file's export, not its body). Treat it
  * like the landing page: a starting point you're expected to modify.
@@ -14,12 +14,12 @@ import { obsiddyEnvSchema } from '@/lib/framework/obsiddy/env';
  * vars; server-side only. Extend, e.g.:
  *   `export const appEnvSchema = z.object({ STRIPE_SECRET_KEY: z.string().min(1) });`
  *
- * Obsiddy declares its own variables in `lib/framework/obsiddy/env.ts` and this
+ * Resparkable declares its own variables in `lib/framework/resparkable/env.ts` and this
  * file merges them — the one-line host wiring from
- * `.context/framework/obsiddy/install.md`. Unlike the boot seam, this import is
+ * `.context/framework/resparkable/install.md`. Unlike the boot seam, this import is
  * necessarily static (the schema is read during a synchronous module-load
- * parse), so removing the Obsiddy tier means removing this line too.
+ * parse), so removing the Resparkable tier means removing this line too.
  *
  * Full guide: CUSTOMIZATION.md §4 · .context/environment/overview.md
  */
-export const appEnvSchema = z.object({}).merge(obsiddyEnvSchema);
+export const appEnvSchema = z.object({}).merge(resparkableEnvSchema);

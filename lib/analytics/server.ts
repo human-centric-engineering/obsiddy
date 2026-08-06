@@ -206,7 +206,7 @@ async function trackPostHog(
     distinct_id: distinctId,
     properties: {
       ...options.properties,
-      $lib: 'sunrise-server',
+      $lib: 'resparkable-server',
       $lib_version: APP_VERSION,
       ...(context.ip && { $ip: context.ip }),
       ...(context.userAgent && { $user_agent: context.userAgent }),

@@ -104,31 +104,31 @@ When Prisma releases a new version, re-run the squash audit to see whether any o
 
 ```bash
 # 1. Apply every migration from scratch to a clean reference DB
-dropdb sunrise_squash_old && createdb sunrise_squash_old
-DATABASE_URL='postgresql://localhost/sunrise_squash_old' npx prisma migrate deploy
+dropdb resparkable_squash_old && createdb resparkable_squash_old
+DATABASE_URL='postgresql://localhost/resparkable_squash_old' npx prisma migrate deploy
 
 # 2. Generate a fresh baseline from the same schema
-dropdb sunrise_squash_intent && createdb sunrise_squash_intent
+dropdb resparkable_squash_intent && createdb resparkable_squash_intent
 npx prisma migrate diff \
   --from-empty \
   --to-schema prisma/schema \
   --script > /tmp/fresh-baseline.sql
 
 # 3. Apply the fresh baseline to scratch
-dropdb sunrise_squash_scratch && createdb sunrise_squash_scratch
-psql sunrise_squash_scratch < /tmp/fresh-baseline.sql
+dropdb resparkable_squash_scratch && createdb resparkable_squash_scratch
+psql resparkable_squash_scratch < /tmp/fresh-baseline.sql
 
 # 4. Diff with atlas — any output is a still-present generator bug
 atlas schema diff \
-  --from postgres://localhost/sunrise_squash_old?sslmode=disable \
-  --to   postgres://localhost/sunrise_squash_scratch?sslmode=disable
+  --from postgres://localhost/resparkable_squash_old?sslmode=disable \
+  --to   postgres://localhost/resparkable_squash_scratch?sslmode=disable
 ```
 
 Empty diff (after excluding `_prisma_migrations`) means the bug is fixed and the next baseline regeneration can stop hand-folding it.
 
 ## Filing upstream
 
-The reproductions above are minimal: each can be extracted into a tiny `schema.prisma` with the single model and the single bug to demonstrate it without depending on Sunrise. If you file, link the issue here so future contributors can track the fix.
+The reproductions above are minimal: each can be extracted into a tiny `schema.prisma` with the single model and the single bug to demonstrate it without depending on Resparkable. If you file, link the issue here so future contributors can track the fix.
 
 When the upstream fix lands, remove the corresponding `B*` block from this doc and the hand-fold from the baseline (or note in the row that the workaround is no longer needed on Prisma >= X.Y.Z).
 

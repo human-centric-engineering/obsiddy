@@ -37,7 +37,7 @@ vi.mock('@/lib/email/send', () => ({
 }));
 
 // Distinctive brand name so the subject assertion proves BRAND.name interpolation
-// rather than the "Sunrise" default (covered by lib/brand.test.tsx).
+// rather than the "Resparkable" default (covered by lib/brand.test.tsx).
 vi.mock('@/lib/brand', () => ({ BRAND: { name: 'Aurora Labs' } }));
 
 // Mock getRouteLogger - already mocked globally in tests/setup.ts
@@ -46,8 +46,8 @@ vi.mock('@/lib/brand', () => ({ BRAND: { name: 'Aurora Labs' } }));
 // Mock env module
 vi.mock('@/lib/env', () => ({
   env: {
-    CONTACT_EMAIL: 'admin@sunrise.example.com',
-    EMAIL_FROM: 'noreply@sunrise.example.com',
+    CONTACT_EMAIL: 'admin@resparkable.example.com',
+    EMAIL_FROM: 'noreply@resparkable.example.com',
     NODE_ENV: 'test',
   },
 }));
@@ -167,7 +167,7 @@ function createMockRateLimitResult(success: boolean, remaining = 4) {
 const validContactData = {
   name: 'John Doe',
   email: 'john@example.com',
-  subject: 'Question about Sunrise',
+  subject: 'Question about Resparkable',
   message: 'I would like to learn more about your product. Can you provide more details?',
 };
 
@@ -252,7 +252,7 @@ describe('POST /api/v1/contact', () => {
 
       // Assert: Email was sent to admin (sendEmail is awaited in the handler)
       expect(vi.mocked(sendEmail)).toHaveBeenCalledWith({
-        to: 'admin@sunrise.example.com',
+        to: 'admin@resparkable.example.com',
         subject: `[Aurora Labs Contact] ${validContactData.subject}`,
         react: expect.any(Object),
         replyTo: validContactData.email,
@@ -292,7 +292,7 @@ describe('POST /api/v1/contact', () => {
         // Assert: Email was sent to EMAIL_FROM (sendEmail is awaited in the handler)
         expect(vi.mocked(sendEmail)).toHaveBeenCalledWith(
           expect.objectContaining({
-            to: 'noreply@sunrise.example.com',
+            to: 'noreply@resparkable.example.com',
           })
         );
       } finally {

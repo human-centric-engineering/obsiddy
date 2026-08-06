@@ -2,7 +2,7 @@
 
 ## Overview
 
-Sunrise includes a maintenance mode system that allows administrators to temporarily block access to the site during updates, deployments, or scheduled downtime. The system uses feature flags stored in the database and provides automatic admin bypass.
+Resparkable includes a maintenance mode system that allows administrators to temporarily block access to the site during updates, deployments, or scheduled downtime. The system uses feature flags stored in the database and provides automatic admin bypass.
 
 **Key features:**
 

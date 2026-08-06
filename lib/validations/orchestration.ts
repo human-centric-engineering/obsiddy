@@ -4045,7 +4045,7 @@ export const consumerChatRequestSchema = z.object({
   /**
    * Optional opaque scope carrier (see `CapabilityContext.scope`), threaded
    * verbatim into every capability dispatch for this turn. Core names no keys
-   * and no built-in reads it, so it is inert in vanilla Sunrise; a fork uses it
+   * and no built-in reads it, so it is inert in vanilla Resparkable; a fork uses it
    * to surface-scope a conversation (e.g. `{ module, role }`) without having to
    * shadow this route.
    *

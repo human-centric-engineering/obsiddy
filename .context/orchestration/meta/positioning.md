@@ -1,6 +1,6 @@
-# Sunrise — Positioning
+# Resparkable — Positioning
 
-Short, punchy companion to `commercial-proposition.md`. Same truths, marketing register. Read this when you need to explain Sunrise to a non-technical reader, draft a sales email, or write a landing-page hero. For the full prose pitch, see `commercial-proposition.md`.
+Short, punchy companion to `commercial-proposition.md`. Same truths, marketing register. Read this when you need to explain Resparkable to a non-technical reader, draft a sales email, or write a landing-page hero. For the full prose pitch, see `commercial-proposition.md`.
 
 **Last updated:** 2026-05-09
 
@@ -8,13 +8,13 @@ Short, punchy companion to `commercial-proposition.md`. Same truths, marketing r
 
 ## One-line pitch
 
-Sunrise is a Next.js application with a production-grade agent orchestration engine baked in — you build apps that _have_ real AI capabilities, not apps that _call_ an AI API.
+Resparkable is a Next.js application with a production-grade agent orchestration engine baked in — you build apps that _have_ real AI capabilities, not apps that _call_ an AI API.
 
 ---
 
 ## Three-line pitch
 
-Building an AI-powered product today is mostly assembly. You stitch together an orchestration framework, an admin UI, an API layer, auth, cost tracking, safety guards, deployment plumbing, and an embed widget — and that integration work outweighs the agent design itself. Sunrise ships the assembled stack so you start with a working product and customise it.
+Building an AI-powered product today is mostly assembly. You stitch together an orchestration framework, an admin UI, an API layer, auth, cost tracking, safety guards, deployment plumbing, and an embed widget — and that integration work outweighs the agent design itself. Resparkable ships the assembled stack so you start with a working product and customise it.
 
 ---
 
@@ -37,9 +37,9 @@ Less of a fit: pure AI research, rapid Python notebook experimentation, or organ
 
 ---
 
-## Sunrise is / is not
+## Resparkable is / is not
 
-| Sunrise is                                                                | Sunrise is not                               |
+| Resparkable is                                                            | Resparkable is not                           |
 | ------------------------------------------------------------------------- | -------------------------------------------- |
 | A full-stack Next.js app with agents baked in                             | A library you embed in someone else's app    |
 | Self-hosted, single-tenant per deployment                                 | A managed SaaS you rent                      |
@@ -55,13 +55,13 @@ Less of a fit: pure AI research, rapid Python notebook experimentation, or organ
 
 Code-first frameworks like LangGraph or CrewAI give you an orchestration engine — you still need to build auth, admin UI, API, consumer chat, deployment, and database management around it. Managed services like AWS Bedrock or Azure Foundry hide the engine but lock you to a cloud. OpenAI AgentKit ships a hosted builder but the runtime is OpenAI's, not yours.
 
-Sunrise occupies the gap: the engine _and_ the surrounding application, self-hosted, vendor-portable, and shaped specifically for teams who code with AI assistants. The depth of that integration is the differentiator — and the `.context/` substrate that ships with it means hundreds of subsequent AI-generated edits stay coherent instead of degrading into drift.
+Resparkable occupies the gap: the engine _and_ the surrounding application, self-hosted, vendor-portable, and shaped specifically for teams who code with AI assistants. The depth of that integration is the differentiator — and the `.context/` substrate that ships with it means hundreds of subsequent AI-generated edits stay coherent instead of degrading into drift.
 
 ---
 
 ## The bigger picture
 
-Sunrise is open source under the MIT licence. Not as a marketing tactic — because the kind of agentic systems we want to see in the world need to be inspectable, forkable, and shaped by the people who'll use them, rather than rented from a handful of foundation-model vendors.
+Resparkable is open source under the MIT licence. Not as a marketing tactic — because the kind of agentic systems we want to see in the world need to be inspectable, forkable, and shaped by the people who'll use them, rather than rented from a handful of foundation-model vendors.
 
 We're building toward an ecosystem of builders. Engineers and business-domain experts collaborating side by side to put genuinely useful intelligence into the places where it can do the most good — across the long tail of domains that won't make it into a hyperscaler's roadmap. That collaboration — between people who know the technology and people who know the work — is the part most agent platforms skip, and it's where the real value lives.
 

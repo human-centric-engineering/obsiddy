@@ -56,7 +56,7 @@ describe('dispatchUserCreated', () => {
   });
 
   it('does nothing when no hook is registered', async () => {
-    // Vanilla Sunrise: the seam must cost nothing and must not throw.
+    // Vanilla Resparkable: the seam must cost nothing and must not throw.
     await expect(dispatchUserCreated(ctx)).resolves.toBeUndefined();
   });
 

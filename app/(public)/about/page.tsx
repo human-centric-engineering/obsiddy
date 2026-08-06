@@ -18,18 +18,18 @@ import { Hero, Section, Features, CTA } from '@/components/marketing';
 import { Card, CardContent } from '@/components/ui/card';
 
 const aboutDescription =
-  'Learn about Sunrise, a production-ready Next.js starter template designed for rapid application development with AI assistance — including a complete AI agent orchestration layer.';
+  'Learn about Resparkable, a production-ready Next.js starter template designed for rapid application development with AI assistance — including a complete AI agent orchestration layer.';
 
 export const metadata: Metadata = {
   title: 'About',
   description: aboutDescription,
   openGraph: {
-    title: 'About - Sunrise',
+    title: 'About - Resparkable',
     description: aboutDescription,
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'About - Sunrise',
+    title: 'About - Resparkable',
     description: aboutDescription,
   },
 };
@@ -91,7 +91,7 @@ const techStack = [
 /**
  * About Page
  *
- * Tells the story of Sunrise: mission, values, and technology stack.
+ * Tells the story of Resparkable: mission, values, and technology stack.
  *
  * Phase 3.5: Landing Page & Marketing
  */
@@ -100,7 +100,7 @@ export default function AboutPage() {
     <>
       {/* Hero Section */}
       <Hero
-        title="About Sunrise"
+        title="About Resparkable"
         description="A production-ready Next.js starter template built to help developers ship faster while maintaining high standards for code quality, security, and maintainability — including a complete AI agent orchestration layer."
         variant="centered"
         className="py-12 md:py-16"
@@ -116,16 +116,16 @@ export default function AboutPage() {
             and debugging. This takes time away from building the features that matter most.
           </p>
           <p className="text-muted-foreground mb-6 text-lg leading-relaxed">
-            <strong className="text-foreground">Sunrise solves this problem</strong> by providing a
-            complete, production-ready foundation. We&apos;ve made the hard decisions, implemented
-            best practices, and documented everything thoroughly. You get a head start measured in
-            weeks, not hours.
+            <strong className="text-foreground">Resparkable solves this problem</strong> by
+            providing a complete, production-ready foundation. We&apos;ve made the hard decisions,
+            implemented best practices, and documented everything thoroughly. You get a head start
+            measured in weeks, not hours.
           </p>
           <p className="text-muted-foreground text-lg leading-relaxed">
-            And because modern apps increasingly include AI agents, Sunrise ships with a complete
-            orchestration layer too: providers, agents, capabilities, workflows, knowledge bases,
-            and observability. The boring stuff done well — plus the modern agentic primitives so
-            your app can include AI agents from day one.
+            And because modern apps increasingly include AI agents, Resparkable ships with a
+            complete orchestration layer too: providers, agents, capabilities, workflows, knowledge
+            bases, and observability. The boring stuff done well — plus the modern agentic
+            primitives so your app can include AI agents from day one.
           </p>
         </div>
       </Section>
@@ -133,7 +133,7 @@ export default function AboutPage() {
       {/* Principles Section */}
       <Section
         title="Design Principles"
-        description="The guiding principles that shape every decision in Sunrise."
+        description="The guiding principles that shape every decision in Resparkable."
       >
         <Features features={principles} columns={3} variant="card" />
       </Section>
@@ -162,8 +162,8 @@ export default function AboutPage() {
         </div>
       </Section>
 
-      {/* Why Sunrise Section */}
-      <Section title="Why Choose Sunrise?" description="What makes Sunrise different.">
+      {/* Why Resparkable Section */}
+      <Section title="Why Choose Resparkable?" description="What makes Resparkable different.">
         <div className="mx-auto max-w-2xl space-y-4">
           {[
             'Complete authentication system with email/password and OAuth support',
@@ -190,7 +190,7 @@ export default function AboutPage() {
       {/* CTA Section */}
       <CTA
         title="Ready to Get Started?"
-        description="Join developers building production applications faster with Sunrise."
+        description="Join developers building production applications faster with Resparkable."
         primaryAction={{ label: 'Start Building', href: '/signup' }}
         secondaryAction={{
           label: 'View Source',

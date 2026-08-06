@@ -1,6 +1,6 @@
 # Environment Variable Reference
 
-Complete reference for all environment variables used in Sunrise.
+Complete reference for all environment variables used in Resparkable.
 
 ## Detailed Documentation by Category
 
@@ -62,7 +62,7 @@ Complete reference for all environment variables used in Sunrise.
 ### Development
 
 ```bash
-DATABASE_URL="postgresql://postgres:password@localhost:5432/sunrise_db"
+DATABASE_URL="postgresql://postgres:password@localhost:5432/resparkable_db"
 BETTER_AUTH_URL="http://localhost:3000"
 BETTER_AUTH_SECRET="dev-secret-at-least-32-characters-long"
 NODE_ENV="development"
@@ -72,7 +72,7 @@ NEXT_PUBLIC_APP_URL="http://localhost:3000"
 ### Production
 
 ```bash
-DATABASE_URL="postgresql://user:pass@prod-db.example.com:5432/sunrise?sslmode=require"
+DATABASE_URL="postgresql://user:pass@prod-db.example.com:5432/resparkable?sslmode=require"
 BETTER_AUTH_URL="https://app.example.com"
 BETTER_AUTH_SECRET="[strong-secret-from-secret-manager]"
 NODE_ENV="production"
@@ -82,7 +82,7 @@ NEXT_PUBLIC_APP_URL="https://app.example.com"
 ### Docker
 
 ```bash
-DATABASE_URL="postgresql://postgres:password@db:5432/sunrise_db"
+DATABASE_URL="postgresql://postgres:password@db:5432/resparkable_db"
 # Note: Use service name 'db' instead of 'localhost'
 ```
 
@@ -135,14 +135,14 @@ The section tiers and per-flow sub-caps each accept an optional `RATE_LIMIT_*` i
 
 ## Adding New Variables
 
-**Platform variables** (contributing to Sunrise):
+**Platform variables** (contributing to Resparkable):
 
 1. **Update `lib/env.ts`** - Add to Zod schema
 2. **Update `.env.example`** - Add with description
 3. **Update documentation** - Add to relevant category file
 4. **Update overview** - If it affects setup
 
-**App variables** (building on Sunrise): declare them in `lib/app/env.ts`'s `appEnvSchema` instead of editing `lib/env.ts` — the core validator merges your schema into the same fail-fast parse. See [overview.md → App-defined variables](./overview.md#app-defined-variables-forks).
+**App variables** (building on Resparkable): declare them in `lib/app/env.ts`'s `appEnvSchema` instead of editing `lib/env.ts` — the core validator merges your schema into the same fail-fast parse. See [overview.md → App-defined variables](./overview.md#app-defined-variables-forks).
 
 ## Security Best Practices
 

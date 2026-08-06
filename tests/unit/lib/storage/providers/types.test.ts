@@ -1,5 +1,5 @@
 /**
- * Tests for the storage capability contract (sunrise#490).
+ * Tests for the storage capability contract (resparkable#490).
  *
  * The contract's whole value is that an *undeclared* capability reads as
  * "cannot", not "unknown" — that is what lets a fork's custom provider keep

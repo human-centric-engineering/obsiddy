@@ -1,7 +1,7 @@
 /**
  * App authenticated-nav override.
  *
- * **Fork-owned scaffold** — Sunrise ships this `null` (= use the platform
+ * **Fork-owned scaffold** — Resparkable ships this `null` (= use the platform
  * default) and does NOT change this file after release, so your edits here merge
  * cleanly on upgrade (the stable contract is this file's export, not its value).
  * Treat it like the landing page: a starting point you're expected to modify.
@@ -29,25 +29,25 @@
  */
 import type { ProtectedNavItem } from '@/lib/protected-nav/types';
 import { DEFAULT_PROTECTED_NAV } from '@/lib/protected-nav/types';
-import { OBSIDDY_NAV_ITEM } from '@/lib/framework/obsiddy/protected-nav';
+import { RESPARKABLE_NAV_ITEM } from '@/lib/framework/resparkable/protected-nav';
 
 /**
  * Authenticated header nav. `null` = platform default; a non-null array replaces it.
  *
- * FORK NOTE (Obsiddy): filled with the platform default plus Obsiddy's own link,
- * which is what the seam replaced — until sunrise#473 landed this was a
- * hand-edit of `components/layouts/protected-nav.tsx`, a Sunrise-owned file every
+ * FORK NOTE (Resparkable): filled with the platform default plus Resparkable's own link,
+ * which is what the seam replaced — until resparkable#473 landed this was a
+ * hand-edit of `components/layouts/protected-nav.tsx`, a Resparkable-owned file every
  * host project would have re-resolved on every upgrade.
  *
- * Obsiddy goes second, after Dashboard: a host whose product *is* Obsiddy should
- * move it first and set `lib/app/auth-landing.ts` to `/obsiddy` as well —
- * see `.context/framework/obsiddy/install.md` §2.11.
+ * Resparkable goes second, after Dashboard: a host whose product *is* Resparkable should
+ * move it first and set `lib/app/auth-landing.ts` to `/resparkable` as well —
+ * see `.context/framework/resparkable/install.md` §2.11.
  *
  * Spreading `DEFAULT_PROTECTED_NAV` pins the platform list as it stands today; a
- * link Sunrise adds later needs a re-spread here to appear.
+ * link Resparkable adds later needs a re-spread here to appear.
  */
 export const protectedNavItems: ProtectedNavItem[] | null = [
   DEFAULT_PROTECTED_NAV[0],
-  OBSIDDY_NAV_ITEM,
+  RESPARKABLE_NAV_ITEM,
   ...DEFAULT_PROTECTED_NAV.slice(1),
 ];

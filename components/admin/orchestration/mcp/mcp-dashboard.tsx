@@ -35,7 +35,7 @@ interface McpDashboardProps {
 
 const DEFAULT_SETTINGS: McpSettingsResponse = {
   isEnabled: false,
-  serverName: 'Sunrise MCP Server',
+  serverName: 'Resparkable MCP Server',
   serverVersion: '1.0.0',
   maxSessionsPerKey: 5,
   globalRateLimit: 60,
@@ -221,7 +221,7 @@ export function McpDashboard({ initialSettings, stats }: McpDashboardProps) {
               {JSON.stringify(
                 {
                   mcpServers: {
-                    sunrise: {
+                    resparkable: {
                       url: '{YOUR_APP_URL}/api/v1/mcp',
                       headers: {
                         Authorization: 'Bearer smcp_YOUR_API_KEY',

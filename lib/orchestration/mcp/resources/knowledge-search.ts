@@ -1,7 +1,7 @@
 /**
  * MCP Resource Handler: Knowledge Search
  *
- * URI pattern: sunrise://knowledge/search?q={query}
+ * URI pattern: resparkable://knowledge/search?q={query}
  *
  * Routes through the agent knowledge-access resolver when the caller's API key is
  * bound to an agent (`McpApiKey.scopedAgentId`). Unscoped service keys still receive
@@ -24,7 +24,7 @@ export async function handleKnowledgeSearch(
 ): Promise<McpResourceContent> {
   let query = '';
   try {
-    const url = new URL(uri.replace('sunrise://', 'https://placeholder/'));
+    const url = new URL(uri.replace('resparkable://', 'https://placeholder/'));
     query = url.searchParams.get('q') ?? '';
   } catch {
     return {

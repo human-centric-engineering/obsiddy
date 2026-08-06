@@ -182,13 +182,13 @@ const clientEnvSchema = z.object({
       'NEXT_PUBLIC_APP_URL must be a valid URL (embedded at build time, must match BETTER_AUTH_URL for consistency)',
   }),
 
-  // Brand display name (optional - defaults to "Sunrise"). Consumed via
+  // Brand display name (optional - defaults to "Resparkable"). Consumed via
   // `lib/brand.ts` (`BRAND.name`), which reads process.env directly so it is
   // client-safe; registered here for validation/documentation.
   NEXT_PUBLIC_APP_NAME: z
     .string()
     .optional()
-    .describe('Display name for the app brand (layout titles, emails). Defaults to "Sunrise".'),
+    .describe('Display name for the app brand (layout titles, emails). Defaults to "Resparkable".'),
 
   // Consumed via `lib/brand.ts` (`BRAND.legalName`), same client-safe pattern as
   // NEXT_PUBLIC_APP_NAME. Copyright holder / legal entity for the footer
@@ -248,7 +248,7 @@ const appKeyCollisions = Object.keys(appEnvSchema.shape).filter(
 );
 if (appKeyCollisions.length > 0) {
   throw new Error(
-    `lib/app/env.ts redeclares core Sunrise env key(s): ${appKeyCollisions.join(', ')}. ` +
+    `lib/app/env.ts redeclares core Resparkable env key(s): ${appKeyCollisions.join(', ')}. ` +
       'Forks may extend the schema but must not override core keys (right-wins merge would ' +
       'silently weaken core validation). Rename the colliding key(s) in your appEnvSchema. ' +
       'See .context/environment/overview.md.'

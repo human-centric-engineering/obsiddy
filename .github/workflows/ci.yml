@@ -1,6 +1,6 @@
 name: CI
 
-# Adaptive pipeline — correct and fast on BOTH public Sunrise (free minutes,
+# Adaptive pipeline — correct and fast on BOTH public Resparkable (free minutes,
 # large runners) and private forks (capped minutes, 2-core/7GB runners).
 #
 # Universal speedups (on for everyone): cancel-superseded runs, warm build
@@ -40,7 +40,7 @@ concurrency:
 # `tsc` / `next build` OOMing (exit 134) when Node's default heap caps near ~2GB.
 #
 # Economics knob 2 — repo variable `CI_NODE_HEAP_MB` (default 5120):
-# 5120 is sized for base Sunrise. A fork with a meaningful amount of added code
+# 5120 is sized for base Resparkable. A fork with a meaningful amount of added code
 # can push type-aware ESLint past it and the lint job dies with **exit 134**
 # (SIGABRT / OOM) — an opaque failure with no message pointing at memory. Raise
 # it in repo settings (Settings → Secrets and variables → Actions → Variables)
@@ -106,7 +106,7 @@ jobs:
     # prisma generate (postinstall) needs DATABASE_URL defined; it does not
     # connect, so a placeholder is fine — no Postgres service on this job.
     env:
-      DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/sunrise_ci'
+      DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/resparkable_ci'
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -136,7 +136,7 @@ jobs:
     # whole-repo format:check (issue #314). ESLint is gated at the step level
     # below, so docs-only PRs skip the pointless lint and stay cheap.
     env:
-      DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/sunrise_ci'
+      DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/resparkable_ci'
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -176,13 +176,13 @@ jobs:
           fi
       # Fork-owned CI checks seam. A fork adds an `app:ci-checks` script to
       # package.json (a boundary check, migration-hygiene lint, etc.); vanilla
-      # Sunrise ships no such script, so `--if-present` makes this a no-op here
+      # Resparkable ships no such script, so `--if-present` makes this a no-op here
       # — no ci.yml edit required downstream. Gated on the code filter like
       # ESLint above (skip on docs-only PRs). See CUSTOMIZATION.md §4.
       - name: Fork checks (if present)
         if: needs.config.outputs.code == 'true'
         run: npm run app:ci-checks --if-present
-      # Same seam for the framework tier — a fork that sits between Sunrise and
+      # Same seam for the framework tier — a fork that sits between Resparkable and
       # its own leaf forks (see CUSTOMIZATION.md §7) owns `framework:*` scripts.
       # Reserving the namespace upstream is what keeps it merge-clean; a reserved
       # namespace with nothing running it is only half a seam. See #483.
@@ -196,7 +196,7 @@ jobs:
     needs: config
     if: needs.config.outputs.code == 'true'
     env:
-      DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/sunrise_ci'
+      DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/resparkable_ci'
       BETTER_AUTH_SECRET: 'ci-build-secret-not-for-production-use'
       BETTER_AUTH_URL: 'http://localhost:3000'
       NEXT_PUBLIC_APP_URL: 'http://localhost:3000'
@@ -237,7 +237,7 @@ jobs:
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: sunrise_ci
+          POSTGRES_DB: resparkable_ci
         ports:
           - 5432:5432
         options: >-
@@ -246,7 +246,7 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     env:
-      DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/sunrise_ci'
+      DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/resparkable_ci'
       BETTER_AUTH_SECRET: 'ci-build-secret-not-for-production-use'
       BETTER_AUTH_URL: 'http://localhost:3000'
       NEXT_PUBLIC_APP_URL: 'http://localhost:3000'
@@ -278,7 +278,7 @@ jobs:
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: sunrise_ci
+          POSTGRES_DB: resparkable_ci
         ports:
           - 5432:5432
         options: >-
@@ -287,7 +287,7 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     env:
-      DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/sunrise_ci'
+      DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/resparkable_ci'
       BETTER_AUTH_SECRET: 'ci-build-secret-not-for-production-use'
       BETTER_AUTH_URL: 'http://localhost:3000'
       NEXT_PUBLIC_APP_URL: 'http://localhost:3000'
@@ -325,7 +325,7 @@ jobs:
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: sunrise_ci
+          POSTGRES_DB: resparkable_ci
         ports:
           - 5432:5432
         options: >-
@@ -334,7 +334,7 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     env:
-      DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/sunrise_ci'
+      DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/resparkable_ci'
       BETTER_AUTH_SECRET: 'ci-build-secret-not-for-production-use'
       BETTER_AUTH_URL: 'http://localhost:3000'
       NEXT_PUBLIC_APP_URL: 'http://localhost:3000'
@@ -379,11 +379,11 @@ jobs:
         with:
           context: .
           push: false
-          tags: sunrise:${{ github.sha }}
+          tags: resparkable:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |
-            DATABASE_URL=postgresql://postgres:postgres@localhost:5432/sunrise
+            DATABASE_URL=postgresql://postgres:postgres@localhost:5432/resparkable
             BETTER_AUTH_URL=http://localhost:3000
             BETTER_AUTH_SECRET=ci-build-secret-not-for-production-use
             NEXT_PUBLIC_APP_URL=http://localhost:3000

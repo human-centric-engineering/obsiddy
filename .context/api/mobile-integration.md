@@ -6,7 +6,7 @@
 
 ## Overview
 
-This guide covers how mobile applications (React Native, Flutter, iOS, Android) should integrate with Sunrise's authentication and API systems.
+This guide covers how mobile applications (React Native, Flutter, iOS, Android) should integrate with Resparkable's authentication and API systems.
 
 **Key Principle**: Mobile apps should use better-auth endpoints directly for authentication, not custom endpoints. This ensures consistent behavior, security, and compatibility.
 

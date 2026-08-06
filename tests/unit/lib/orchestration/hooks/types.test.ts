@@ -16,8 +16,8 @@ vi.mock('@/lib/security/safe-url', () => ({
 // Mock the signing module to use real header names — the test verifies
 // case-insensitive matching against these values.
 vi.mock('@/lib/orchestration/hooks/signing', () => ({
-  SIGNATURE_HEADER: 'X-Sunrise-Signature',
-  TIMESTAMP_HEADER: 'X-Sunrise-Timestamp',
+  SIGNATURE_HEADER: 'X-Resparkable-Signature',
+  TIMESTAMP_HEADER: 'X-Resparkable-Timestamp',
 }));
 
 import { isSafeProviderUrl } from '@/lib/security/safe-url';
@@ -36,7 +36,7 @@ import {
 describe('hasReservedHookHeader', () => {
   it('returns true when headers contain the signature header (exact case)', () => {
     // Arrange
-    const headers = { 'X-Sunrise-Signature': 'sha256=abc' };
+    const headers = { 'X-Resparkable-Signature': 'sha256=abc' };
 
     // Act
     const result = hasReservedHookHeader(headers);
@@ -47,7 +47,7 @@ describe('hasReservedHookHeader', () => {
 
   it('returns true when headers contain the timestamp header (exact case)', () => {
     // Arrange
-    const headers = { 'X-Sunrise-Timestamp': '1700000000' };
+    const headers = { 'X-Resparkable-Timestamp': '1700000000' };
 
     // Act
     const result = hasReservedHookHeader(headers);
@@ -58,7 +58,7 @@ describe('hasReservedHookHeader', () => {
 
   it('returns true when the reserved header is provided in all-lowercase', () => {
     // Arrange — case-insensitive check: lowercase key should still match
-    const headers = { 'x-sunrise-signature': 'sha256=abc' };
+    const headers = { 'x-resparkable-signature': 'sha256=abc' };
 
     // Act
     const result = hasReservedHookHeader(headers);
@@ -69,7 +69,7 @@ describe('hasReservedHookHeader', () => {
 
   it('returns true when the reserved header is provided in all-uppercase', () => {
     // Arrange
-    const headers = { 'X-SUNRISE-TIMESTAMP': '1700000000' };
+    const headers = { 'X-RESPARKABLE-TIMESTAMP': '1700000000' };
 
     // Act
     const result = hasReservedHookHeader(headers);
@@ -112,8 +112,8 @@ describe('RESERVED_HEADER_ERROR', () => {
   });
 
   it('mentions both reserved header names', () => {
-    expect(RESERVED_HEADER_ERROR).toContain('X-Sunrise-Signature');
-    expect(RESERVED_HEADER_ERROR).toContain('X-Sunrise-Timestamp');
+    expect(RESERVED_HEADER_ERROR).toContain('X-Resparkable-Signature');
+    expect(RESERVED_HEADER_ERROR).toContain('X-Resparkable-Timestamp');
   });
 });
 

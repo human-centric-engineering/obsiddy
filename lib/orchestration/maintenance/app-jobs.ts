@@ -1,7 +1,7 @@
 /**
  * App recurring-job registry.
  *
- * Lets an app built on Sunrise run its own periodic work on the existing
+ * Lets an app built on Resparkable run its own periodic work on the existing
  * maintenance tick — a nightly digest, a stale-cache sweep, a sync with an
  * external system — without standing up a second scheduler.
  *
@@ -57,7 +57,7 @@ export interface AppJob {
 const jobs = new Map<string, AppJob>();
 /**
  * In-process start-to-start clock plus in-flight latch, keyed by job name. See
- * the cadence caveat above; the same mechanism throttles Sunrise's own tasks in
+ * the cadence caveat above; the same mechanism throttles Resparkable's own tasks in
  * `platform-jobs.ts`.
  */
 const clock = createJobClock();
@@ -137,7 +137,7 @@ export function getAppJobsMinIntervalMs(): number | null {
  * log line — `skipped` for jobs not yet due, so an operator can see the cadence
  * working rather than guessing.
  *
- * An empty registry short-circuits, so vanilla Sunrise pays nothing.
+ * An empty registry short-circuits, so vanilla Resparkable pays nothing.
  */
 export async function runDueAppJobs(
   now: number = Date.now()

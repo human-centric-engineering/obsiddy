@@ -17,7 +17,7 @@ export default defineConfig({
     // Include test files
     include: ['**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
 
-    // Exclude files. `tests/e2e` is forward-looking: Sunrise ships no Playwright
+    // Exclude files. `tests/e2e` is forward-looking: Resparkable ships no Playwright
     // suite, but a fork that adds one puts specs there using the conventional
     // `.spec.ts` suffix, which the include glob above would otherwise collect.
     // Vitest would then run files importing `@playwright/test`, and the failures

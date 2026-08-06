@@ -47,7 +47,7 @@ export function McpSettingsForm({ initialSettings }: McpSettingsFormProps) {
   } = useForm<McpSettingsFormInput>({
     resolver: zodResolver(mcpSettingsFormSchema),
     defaultValues: {
-      serverName: initialSettings?.serverName ?? 'Sunrise MCP Server',
+      serverName: initialSettings?.serverName ?? 'Resparkable MCP Server',
       serverVersion: initialSettings?.serverVersion ?? '1.0.0',
       maxSessionsPerKey: initialSettings?.maxSessionsPerKey ?? 5,
       globalRateLimit: initialSettings?.globalRateLimit ?? 60,

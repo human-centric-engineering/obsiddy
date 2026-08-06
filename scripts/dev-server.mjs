@@ -8,7 +8,7 @@
 // ignored by the server that hosts it. react-email's `email dev` is worse: its
 // port is a plain commander default with no env binding at all.
 //
-// That makes running several Sunrise apps side by side a memory exercise —
+// That makes running several Resparkable apps side by side a memory exercise —
 // every `npm run dev` needs the right `-p` typed by hand. This script closes
 // the gap: it reads *only* the port variable out of the env files, using the
 // same precedence Next uses, and hands it to the child process. Each app then

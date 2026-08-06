@@ -11,7 +11,7 @@ model McpServerConfig {
   id                 String   @id @default(cuid())
   slug               String   @unique @default("global")
   isEnabled          Boolean  @default(false)
-  serverName         String   @default("Sunrise MCP Server")
+  serverName         String   @default("Resparkable MCP Server")
   serverVersion      String   @default("1.0.0")
   maxSessionsPerKey  Int      @default(5)
   globalRateLimit    Int      @default(60) // requests per minute per API key
@@ -90,11 +90,11 @@ model McpExposedPrompt {
 
 /// Data endpoints exposed via MCP resources.
 ///
-/// Each resource has a `sunrise://` URI and maps to an internal handler
+/// Each resource has a `resparkable://` URI and maps to an internal handler
 /// that returns data without any external fetch.
 model McpExposedResource {
   id            String  @id @default(cuid())
-  uri           String  @unique // e.g. "sunrise://knowledge/search"
+  uri           String  @unique // e.g. "resparkable://knowledge/search"
   name          String
   description   String  @db.Text
   mimeType      String  @default("application/json")

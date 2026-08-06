@@ -79,7 +79,7 @@ const RESOURCE_ID = 'cmjbv4i3x00003wsloputgwu1';
 function makeResource(overrides: Record<string, unknown> = {}) {
   return {
     id: RESOURCE_ID,
-    uri: 'sunrise://knowledge/search',
+    uri: 'resparkable://knowledge/search',
     name: 'Knowledge Search',
     description: 'Search the knowledge base',
     mimeType: 'application/json',
@@ -193,7 +193,7 @@ describe('PATCH /mcp/resources/:id', () => {
     vi.mocked(auth.api.getSession).mockResolvedValue(mockAdminUser());
     vi.mocked(prisma.mcpExposedResource.findUnique).mockResolvedValue(makeResource());
     vi.mocked(prisma.mcpExposedResource.update).mockResolvedValue(
-      makeResource({ uri: 'sunrise://knowledge/search' })
+      makeResource({ uri: 'resparkable://knowledge/search' })
     );
 
     await PATCH(makePatchRequest({ isEnabled: false }), makeParams(RESOURCE_ID));
@@ -205,7 +205,7 @@ describe('PATCH /mcp/resources/:id', () => {
     // Per-URI fan-out lets subscribed clients refresh just this resource
     // without re-running resources/list. Asserting the URI argument
     // exercises the new Phase 4 wiring.
-    expect(broadcastMcpResourceUpdated).toHaveBeenCalledWith('sunrise://knowledge/search');
+    expect(broadcastMcpResourceUpdated).toHaveBeenCalledWith('resparkable://knowledge/search');
   });
 
   it('toggles isEnabled to false', async () => {

@@ -13,7 +13,7 @@
  * - onEditClick callback when flag name is clicked
  * - Clickable flag name badges
  *
- * @see /Users/simonholmes/Documents/Dev/studio/sunrise/components/admin/feature-flag-list.tsx
+ * @see /Users/simonholmes/Documents/Dev/studio/resparkable/components/admin/feature-flag-list.tsx
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';

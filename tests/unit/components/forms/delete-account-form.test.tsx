@@ -9,7 +9,7 @@
  * - Redirect after successful deletion
  * - Error handling
  *
- * @see /Users/simonholmes/Documents/Dev/studio/sunrise/components/forms/delete-account-form.tsx
+ * @see /Users/simonholmes/Documents/Dev/studio/resparkable/components/forms/delete-account-form.tsx
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';

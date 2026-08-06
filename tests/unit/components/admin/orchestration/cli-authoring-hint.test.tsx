@@ -20,7 +20,7 @@ import { CliAuthoringHint } from '@/components/admin/orchestration/cli-authoring
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
-const STORAGE_KEY = 'sunrise.cli-authoring-hint.dismissed-at';
+const STORAGE_KEY = 'resparkable.cli-authoring-hint.dismissed-at';
 const DISMISS_DURATION_MS = 28 * 24 * 60 * 60 * 1000; // 28 days, mirrors component
 
 // ─── Tests ─────────────────────────────────────────────────────────────────────

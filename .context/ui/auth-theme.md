@@ -2,7 +2,7 @@
 
 ## Overview
 
-Sunrise provides authentication UI components and a theme system for consistent user experience across the application. These components integrate with better-auth for authentication and use CSS classes for theming.
+Resparkable provides authentication UI components and a theme system for consistent user experience across the application. These components integrate with better-auth for authentication and use CSS classes for theming.
 
 ## Component Library
 

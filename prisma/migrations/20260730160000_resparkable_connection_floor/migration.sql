@@ -1,0 +1,32 @@
+-- Resparkable phase 5 — make the connection similarity floor a per-user setting.
+--
+-- ⚠️ HAND-EDITED. Do not regenerate. ⚠️
+--
+-- `prisma migrate diff` emits the usual destructive statements around every real
+-- change to this schema: the B1 cascade FK on framework_resparkable_space, baseline
+-- indexes A2–A4, Resparkable's B3/B5/B7, and three
+-- `ALTER COLUMN "searchVector" DROP DEFAULT` on GENERATED columns. All removed —
+-- see 20260729212556's header for the full list and the reasoning. `db:drift-check`
+-- is what proves none of them actually went missing.
+--
+-- WHY THIS EXISTS
+--
+-- The floor decides whether two things are "similar enough" to propose as a
+-- connection, and the right value is **model-dependent** — which phase 4
+-- discovered the hard way. The plan specified 0.72; against the default embedding
+-- model (`text-embedding-3-small`) that sits above the signal, so the flagship
+-- "same idea, different words" pair scored 0.679 and the engine proposed nothing
+-- at all. Silently, and for ever: a sweep that finds no candidates and a sweep
+-- that is mis-tuned produce identical output.
+--
+-- 0.55 is the measured replacement and stays the default. This column exists so
+-- someone running a different embedding model can move it without a code change,
+-- and so a brain that is drowning in weak suggestions can tighten it.
+--
+-- NULLABLE ON PURPOSE. `null` means "use whatever the code's default is",
+-- which keeps the default in one place (`STRENGTH_FLOOR`) rather than copied
+-- into every existing row — the same reasoning as `priorityWeights` and
+-- `retentionPolicy`, whose defaults also live in code so adding a factor needs
+-- no backfill.
+
+ALTER TABLE "framework_resparkable_space" ADD COLUMN "connectionStrengthFloor" DOUBLE PRECISION;

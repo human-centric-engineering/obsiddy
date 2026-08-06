@@ -49,7 +49,7 @@ import { emailOverrides } from '@/lib/app/emails';
  * `resolveEmailTemplate('app.invoiceReceipt', props)` is type-checked against
  * your declared props. Namespace your keys `app.` / `framework.` to match the
  * reserved tiers in CUSTOMIZATION.md and guarantee no collision with a kind a
- * future Sunrise release adds.
+ * future Resparkable release adds.
  *
  * A fork-added kind has no platform default — it exists only in
  * `emailOverrides` — which is why `defaultTemplates` below is `Partial` and

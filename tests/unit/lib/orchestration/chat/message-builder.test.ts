@@ -422,14 +422,14 @@ describe('buildMessages', () => {
       newUserMessage: 'go',
       userMemories: [
         { key: 'preferred_language', value: 'Python' },
-        { key: 'project_name', value: 'sunrise' },
+        { key: 'project_name', value: 'resparkable' },
       ],
     });
 
     const memMsg = messages.find((m) => getTextContent(m.content).includes('[User memories]'));
     expect(memMsg).toBeDefined();
     expect(memMsg?.content).toContain('- preferred_language: Python');
-    expect(memMsg?.content).toContain('- project_name: sunrise');
+    expect(memMsg?.content).toContain('- project_name: resparkable');
   });
 
   it('does not inject a memory message when userMemories is undefined', () => {

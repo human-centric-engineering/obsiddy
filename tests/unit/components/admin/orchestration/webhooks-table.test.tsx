@@ -66,7 +66,7 @@ const META: PaginationMeta = { page: 1, limit: 25, total: 0, totalPages: 1 };
 const MOCK_WEBHOOKS: WebhookListItem[] = [
   {
     id: 'wh-1',
-    url: 'https://example.com/hooks/sunrise',
+    url: 'https://example.com/hooks/resparkable',
     events: ['budget_exceeded', 'workflow_failed'],
     agentIds: [],
     workflowIds: [],
