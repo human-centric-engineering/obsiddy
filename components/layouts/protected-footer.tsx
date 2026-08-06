@@ -18,7 +18,8 @@ export function ProtectedFooter() {
 
   return (
     <footer className="border-t">
-      <div className="container mx-auto px-4 py-4">
+      {/* Same frame as the header and `<main>` above it — see `.app-shell`. */}
+      <div className="app-shell py-4">
         <div className="text-muted-foreground flex flex-col items-center justify-between gap-2 text-sm sm:flex-row">
           <p>
             &copy; {currentYear} {BRAND.legalName}

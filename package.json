@@ -108,6 +108,7 @@
     "echarts": "^6.1.0",
     "echarts-for-react": "^3.0.6",
     "epub2": "^3.0.2",
+    "fflate": "^0.8.3",
     "gpt-tokenizer": "^3.4.0",
     "jmespath": "^0.16.0",
     "jsdom": "^26.1.0",
@@ -133,7 +134,8 @@
     "resend": "^6.18.1",
     "sharp": "^0.35.3",
     "tailwind-merge": "^3.6.0",
-    "umap-js": "^1.4.0"
+    "umap-js": "^1.4.0",
+    "yaml": "^2.9.0"
   },
   "overrides": {
     "hono": "^4.11.7",

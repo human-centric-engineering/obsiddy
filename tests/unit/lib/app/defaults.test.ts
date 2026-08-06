@@ -115,12 +115,18 @@ const SEAM_DEFAULTS: SeamDefault[] = [
     risk: 'a stray tier or rule would re-cap every install',
     // FORK (Obsiddy): Sunrise asserts the effective policy is the base policy BY
     // IDENTITY — no app rules at all. Obsiddy fills this seam with per-flow
-    // sub-caps for its six expensive routes (every `/search` request embeds the
+    // sub-caps for its expensive routes (every `/search` request embeds the
     // query; `/reindex` and `/connections/sweep` start batch jobs; `/documents`
-    // parses an upload; `/ideate` makes a chat-completion call; `/chat` holds an
-    // SSE connection open for a tool loop). Asserting the exact set keeps the
+    // parses an upload; `/transcribe` ships audio to a paid provider; `/vault`
+    // reads every table the brain has, and on import inflates and plans an
+    // archive; `/ideate` makes a chat-completion call; `/chat` holds an SSE
+    // connection open for a tool loop). Asserting the exact set keeps the
     // original intent: a stray rule still fails, and so does one that escapes
     // the namespace.
+    //
+    // The order matters and is the registration order in
+    // `lib/framework/obsiddy/rate-limit.ts` — a rule spliced in the wrong place
+    // is a rule that never matches.
     assert: () => {
       registerAppRateLimits();
 
@@ -132,6 +138,8 @@ const SEAM_DEFAULTS: SeamDefault[] = [
         String(/^\/api\/v1\/obsiddy\/reindex(?:\/|$)/),
         String(/^\/api\/v1\/obsiddy\/connections\/sweep(?:\/|$)/),
         String(/^\/api\/v1\/obsiddy\/documents(?:\/|$)/),
+        String(/^\/api\/v1\/obsiddy\/transcribe(?:\/|$)/),
+        String(/^\/api\/v1\/obsiddy\/vault(?:\/|$)/),
         String(/^\/api\/v1\/obsiddy\/ideate(?:\/|$)/),
         String(/^\/api\/v1\/obsiddy\/chat(?:\/|$)/),
         String(/^\/api\/v1\/obsiddy\/briefing\/regenerate(?:\/|$)/),

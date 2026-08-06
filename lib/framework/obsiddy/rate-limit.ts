@@ -8,7 +8,7 @@
  * one import and one call. When Obsiddy adds a fifth expensive route, hosts get
  * it on upgrade without editing anything.
  *
- * ## Why these six routes need their own caps at all
+ * ## Why these eight routes need their own caps at all
  *
  * `/api/v1/**` already inherits 100/min keyed on the session user from
  * `proxy.ts`, and CLAUDE.md is explicit that handlers must not call section
@@ -25,6 +25,10 @@
  *     rather than fractions of one.
  *   - **`/chat/stream`** holds an SSE connection open for a multi-step tool
  *     loop, and each turn is an LLM call plus whatever tools it decides to run.
+ *   - **`/transcribe`** ships up to 25 MB of audio to a paid speech-to-text
+ *     provider that bills per audio-minute.
+ *   - **`/vault`** reads every table the brain has to build an export, and on
+ *     import inflates an archive and plans thousands of row writes.
  *
  * None of these is a per-second interaction — a person searches a few times a
  * minute and reindexes once a week — so the caps are comfortably above real use
@@ -59,6 +63,20 @@ const obsiddySearchLimiter = createRateLimiter({
 const obsiddyBatchLimiter = createRateLimiter({
   interval: HOUR,
   maxRequests: 5,
+  uniqueTokenPerInterval: 500,
+});
+
+/**
+ * Vault export and import: 10/hour.
+ *
+ * Both read every table the brain has, and an import additionally inflates and
+ * plans an archive. A real session is one export, one dry run and one apply —
+ * ten leaves room to iterate on a vault that needed fixing, and stops a stuck
+ * client from re-reading the whole corpus in a loop.
+ */
+const obsiddyVaultLimiter = createRateLimiter({
+  interval: HOUR,
+  maxRequests: 10,
   uniqueTokenPerInterval: 500,
 });
 
@@ -103,6 +121,21 @@ const obsiddyChatLimiter = createRateLimiter({
 });
 
 /**
+ * Voice capture: 10/min.
+ *
+ * Matches the platform's `audioLimiter` for the admin transcribe route, and for
+ * the same reason: each request ships up to 25 MB to a paid provider and comes
+ * back with a bill measured per audio-minute. Ten clips a minute is far past
+ * dictating — you cannot speak that many — and well under what a stuck recorder
+ * loop would send.
+ */
+const obsiddyAudioLimiter = createRateLimiter({
+  interval: MINUTE,
+  maxRequests: 10,
+  uniqueTokenPerInterval: 500,
+});
+
+/**
  * Register Obsiddy's tiers and rules.
  *
  * Idempotent: both registrars dedupe (by identical limiter instance and by rule
@@ -115,6 +148,8 @@ export function registerObsiddyRateLimits(): void {
   registerRateLimitTier('obsiddy-upload', obsiddyUploadLimiter);
   registerRateLimitTier('obsiddy-ideate', obsiddyIdeateLimiter);
   registerRateLimitTier('obsiddy-chat', obsiddyChatLimiter);
+  registerRateLimitTier('obsiddy-audio', obsiddyAudioLimiter);
+  registerRateLimitTier('obsiddy-vault', obsiddyVaultLimiter);
 
   // Keyed on the session user, not the IP: this is authenticated, per-person
   // work, and IP keying would make one household share a search budget.
@@ -136,9 +171,26 @@ export function registerObsiddyRateLimits(): void {
     key: 'session-user',
   });
 
+  // The prefix covers `/documents` and `/documents/extract` alike — one parses
+  // and stores, the other parses and throws away, and the expensive half
+  // (pulling text out of a PDF) is the same work in both.
   registerRateLimitRule({
     match: /^\/api\/v1\/obsiddy\/documents(?:\/|$)/,
     tier: 'obsiddy-upload',
+    key: 'session-user',
+  });
+
+  registerRateLimitRule({
+    match: /^\/api\/v1\/obsiddy\/transcribe(?:\/|$)/,
+    tier: 'obsiddy-audio',
+    key: 'session-user',
+  });
+
+  // The prefix covers `/vault/export` and `/vault/import` alike — both read the
+  // whole brain, and the import additionally inflates and plans an archive.
+  registerRateLimitRule({
+    match: /^\/api\/v1\/obsiddy\/vault(?:\/|$)/,
+    tier: 'obsiddy-vault',
     key: 'session-user',
   });
 

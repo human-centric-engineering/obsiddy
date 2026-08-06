@@ -66,16 +66,9 @@ export default async function ObsiddyArchivePage() {
 
   return (
     <div className="space-y-10 p-4 md:p-6">
-      <header>
-        <h1 className="text-2xl font-semibold">Archive</h1>
-        <p className="text-muted-foreground mt-1 text-sm">
-          Archived items are hidden from every list, search and prompt, and stay readable here for
-          as long as you want them. Nothing on this page was deleted — only completed tasks, closed
-          projects and untouched inbox notes age out on their own, and ageing out means archiving,
-          never removing.
-        </p>
-      </header>
-
+      {/* No heading here: the shell's `<SectionHeader>` names the section, and its
+          ⓘ carries what this header used to say — that nothing was deleted, and
+          that only completed tasks, closed projects and untouched notes age out. */}
       <section>
         <h2 className="text-lg font-semibold">Gone quiet</h2>
         <p className="text-muted-foreground mt-1 mb-4 text-sm">

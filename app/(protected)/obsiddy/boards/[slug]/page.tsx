@@ -56,7 +56,9 @@ export default async function ObsiddyBoardPage({ params }: { params: Promise<{ s
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h1 className="text-lg font-semibold">{view.data.board.name}</h1>
+          {/* h2 — the shell's section header is this page's h1 ("Boards"), and
+              this board is one of them. */}
+          <h2 className="text-lg font-semibold">{view.data.board.name}</h2>
           <p className="text-muted-foreground text-xs">
             {view.data.totalCards} {view.data.totalCards === 1 ? 'card' : 'cards'} ·{' '}
             {view.data.board.membership === 'explicit'

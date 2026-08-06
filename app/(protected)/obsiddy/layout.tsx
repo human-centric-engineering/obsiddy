@@ -3,8 +3,8 @@ import { z } from 'zod';
 
 import { ObsiddyNav } from '@/components/obsiddy/layout/obsiddy-nav';
 import { ObsiddySearchBox } from '@/components/obsiddy/layout/obsiddy-search-box';
-import { QuickCapture } from '@/components/obsiddy/layout/quick-capture';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ObsiddySidekick } from '@/components/obsiddy/layout/obsiddy-sidekick';
+import { SectionHeader } from '@/components/obsiddy/layout/section-header';
 import { parseApiResponse, serverFetch } from '@/lib/api/server-fetch';
 import { OBSIDDY_API } from '@/lib/framework/obsiddy/api/endpoints';
 import { logger } from '@/lib/logging';
@@ -22,17 +22,31 @@ export const metadata: Metadata = {
  *
  * ## Three things are always on screen, on purpose
  *
- * **Quick capture**, because a thought you had while looking at the projects list
- * has to land from there or it doesn't land at all — the inbox is the front door
- * of this product and the whole thing is worth only as much as capture is
- * frictionless.
+ * **Capture**, because a thought you had while looking at the projects list has to
+ * land from there or it doesn't land at all — the inbox is the front door of this
+ * product and the whole thing is worth only as much as capture is frictionless.
+ * It is a fixed, full-height drawer rather than a column in this grid: the panel
+ * overlays the page instead of narrowing it, so the board and the graph get their
+ * full width back and the capture box gets room to think in. See
+ * `obsiddy-sidekick.tsx`.
  *
  * **Search**, because "where did I write that" is the question a second brain
  * exists to answer, and making it a destination rather than a field means people
  * stop asking.
  *
  * **The section nav with counts**, because unreviewed work that is invisible is
- * unreviewed work that stays unreviewed.
+ * unreviewed work that stays unreviewed. It is a rail down the left rather than a
+ * row across the top — see `obsiddy-nav.tsx` for why fourteen pills on two rows
+ * had to go.
+ *
+ * ## Why there is no longer an "Obsiddy" title block
+ *
+ * There were three titles above the first card: the app nav said Obsiddy, an h1
+ * said Obsiddy, and the section header said Inbox. Two of them said the same
+ * thing, and the product tagline under the h1 ("everything you've captured…")
+ * said roughly what the Inbox blurb underneath it said, one line later. The page
+ * now names itself once — the section, which is the thing that changes — and the
+ * word Obsiddy survives in the rail head, where it is also the way home.
  *
  * ## Why the counts are fetched here and not in the pages
  *
@@ -69,35 +83,29 @@ export default async function ObsiddyLayout({ children }: Readonly<{ children: R
   const counts = await getCounts();
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Obsiddy</h1>
-          <p className="text-muted-foreground text-sm">
-            Everything you&rsquo;ve captured, ranked by what matters now.
-          </p>
-        </div>
-        <ObsiddySearchBox className="w-full sm:w-72" />
-      </div>
-
+    // `sm:pr-12` clears the closed capture handle, which is `fixed right-0` and
+    // used to land in the dead margin a centred container left behind. Full-bleed
+    // took that margin away, so the shell that owns the handle pays for it —
+    // below `sm` the handle overlays a full-width drawer trigger instead.
+    <div className="flex flex-col gap-6 sm:pr-12 lg:flex-row lg:gap-8">
       <ObsiddyNav
         {...(counts ? { inboxCount: counts.inbox, connectionCount: counts.connections } : {})}
       />
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
-        <div className="min-w-0">{children}</div>
+      <div className="min-w-0 flex-1 space-y-5">
+        <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+          {/* Names the section and explains where its contents come from. In the
+              shell because it is the only place that renders on every route —
+              see `section-help.ts`. */}
+          <SectionHeader />
+          <ObsiddySearchBox className="w-full sm:w-72" />
+        </div>
 
-        <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm">Capture</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <QuickCapture />
-            </CardContent>
-          </Card>
-        </aside>
+        {children}
       </div>
+
+      {/* Fixed, so opening it never reflows anything above. */}
+      <ObsiddySidekick />
     </div>
   );
 }
