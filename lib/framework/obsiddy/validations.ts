@@ -46,6 +46,8 @@ export const THOUGHT_SOURCES = [
   'chat',
   'agent',
   'api',
+  /** A note that came in from an Obsidian vault import (§14). */
+  'vault',
 ] as const;
 export const ENTITY_KINDS = ['person', 'company', 'segment'] as const;
 export const ENTITY_STATUSES = ['active', 'dormant', 'former'] as const;
@@ -1407,3 +1409,58 @@ export const updateSpaceSchema = z
   .strict();
 
 export type UpdateSpaceInput = z.infer<typeof updateSpaceSchema>;
+
+// ─── Obsidian vault (§14, Release 3) ─────────────────────────────────────────
+
+/**
+ * `GET /obsiddy/vault/export`.
+ *
+ * `includeArchived` defaults to `false` for the same reason every other list
+ * here does: a vault is a working surface, and an archive is the set of things
+ * you decided to stop thinking about (§11). Asking for them is a legitimate and
+ * different request — "everything I have" — so it is one query parameter, not a
+ * policy.
+ */
+export const vaultExportQuerySchema = z
+  .object({
+    includeArchived: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((value) => value === 'true'),
+  })
+  .strict();
+
+export type VaultExportQuery = z.infer<typeof vaultExportQuerySchema>;
+
+/**
+ * `POST /obsiddy/vault/import` — the two flags, both defaulting to the safe side.
+ *
+ * **`apply` defaults to `false`.** A plan is computed either way, so a dry run
+ * costs nothing and is what the user sees first (§14 blast radius). Writing has
+ * to be asked for.
+ *
+ * **`allowBlanking` defaults to `false`.** Nothing in import deletes a row, so
+ * the only shape data loss can take here is a file whose body has gone missing
+ * — a bad merge, a truncated sync, a half-written file — silently wiping the
+ * prose on a note. Refusing by default costs one checkbox on the rare occasion
+ * somebody meant it.
+ *
+ * Both arrive as multipart form strings, so `z.coerce.boolean()` is wrong:
+ * `Boolean("false")` is `true`, which would turn the safe default into a write.
+ * That is precisely the trap `booleanQueryParam` in `lib/validations/common.ts`
+ * documents.
+ */
+export const vaultImportSchema = z
+  .object({
+    apply: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((value) => value === 'true'),
+    allowBlanking: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((value) => value === 'true'),
+  })
+  .strict();
+
+export type VaultImportInput = z.infer<typeof vaultImportSchema>;

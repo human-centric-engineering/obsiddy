@@ -64,6 +64,37 @@
 }
 
 @layer utilities {
+  /**
+   * The signed-in app's horizontal frame — header, main and footer share it so
+   * the brand, the nav and the page's first pixel all sit on one line.
+   *
+   * Full-bleed rather than `container mx-auto`, which caps at the largest
+   * breakpoint and centres what is left: on a wide display that spends ~450px
+   * on empty margins while the app's own sidebar sits in the middle of the
+   * screen. Marketing pages still want the centred measure — long prose needs a
+   * line length — so `(public)` keeps `container` and only the app opts in via
+   * `<AppHeader fullWidth>`.
+   *
+   * The gutter grows with the viewport: content flush against the window edge
+   * on a 27" display reads as a bug, not as space.
+   */
+  .app-shell {
+    width: 100%;
+    padding-inline: 1rem;
+  }
+
+  @media (width >= 40rem) {
+    .app-shell {
+      padding-inline: 1.5rem;
+    }
+  }
+
+  @media (width >= 64rem) {
+    .app-shell {
+      padding-inline: 2rem;
+    }
+  }
+
   .text-balance {
     text-wrap: balance;
   }

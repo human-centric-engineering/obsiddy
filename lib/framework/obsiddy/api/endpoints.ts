@@ -107,7 +107,31 @@ export const OBSIDDY_API = {
   CONNECTIONS_SWEEP: '/api/v1/obsiddy/connections/sweep',
 
   DOCUMENTS: '/api/v1/obsiddy/documents',
+  /**
+   * Read a file's text and hand it back **without storing it** — the other half
+   * of an ad-hoc attachment, where the destination is the capture box rather
+   * than the document library. See the route header for why it is not a flag on
+   * `DOCUMENTS`.
+   */
+  DOCUMENTS_EXTRACT: '/api/v1/obsiddy/documents/extract',
   documentById: (id: string): string => `/api/v1/obsiddy/documents/${id}`,
+
+  /**
+   * Speech to text for the capture box. Consumer-side sibling of the platform's
+   * admin-only transcribe endpoint; the audio is never persisted.
+   */
+  TRANSCRIBE: '/api/v1/obsiddy/transcribe',
+
+  /**
+   * The whole brain as an Obsidian vault — the one endpoint that returns a file
+   * rather than JSON. Takes `?includeArchived=true`.
+   */
+  VAULT_EXPORT: '/api/v1/obsiddy/vault/export',
+  /**
+   * Read a vault back in. Multipart, and a **dry run unless `apply=true`** — the
+   * plan is computed either way, so previewing costs nothing (§14).
+   */
+  VAULT_IMPORT: '/api/v1/obsiddy/vault/import',
 
   /**
    * What has gone quiet — the four dormancy questions (§11, phase 8).

@@ -572,3 +572,52 @@ export const staleDigestSchema = z.object({
 });
 
 export type StaleDigestWire = z.infer<typeof staleDigestSchema>;
+
+// ─── Vault import (§14, Release 3) ───────────────────────────────────────────
+
+/**
+ * The response from `POST /obsiddy/vault/import`, for both a dry run and an apply.
+ *
+ * `outcome` is `null` on a dry run — which is what makes "would create" and "did
+ * create" distinguishable in the UI. Collapsing them into one set of numbers
+ * would leave somebody reading a preview as a receipt.
+ */
+export const vaultImportResponseSchema = z.object({
+  applied: z.boolean(),
+  summary: z.object({
+    creates: z.number(),
+    updates: z.number(),
+    unchanged: z.number(),
+    skipped: z.number(),
+    taskUpdates: z.number(),
+    mentions: z.number(),
+    ignored: z.number(),
+  }),
+  notes: z.array(
+    z.object({
+      path: z.string(),
+      type: z.string(),
+      action: z.enum(['create', 'update', 'unchanged']),
+      title: z.string(),
+      changedKeys: z.array(z.string()),
+      bodyChanged: z.boolean(),
+      issues: z.array(z.object({ field: z.string(), message: z.string() })),
+      /** An `obsiddy-id` that is not one of yours — imported as a new item. */
+      unknownId: z.string().nullable(),
+    })
+  ),
+  skipped: z.array(z.object({ path: z.string(), reason: z.string(), detail: z.string() })),
+  blankedBodies: z.array(z.string()),
+  outcome: z
+    .object({
+      created: z.number(),
+      updated: z.number(),
+      tasksTicked: z.number(),
+      tasksRetitled: z.number(),
+      linksProposed: z.number(),
+      failed: z.array(z.object({ path: z.string(), message: z.string() })),
+    })
+    .nullable(),
+});
+
+export type VaultImportResponse = z.infer<typeof vaultImportResponseSchema>;

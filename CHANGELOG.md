@@ -18,6 +18,102 @@ release process.
 
 ### Added
 
+- **Obsiddy: your brain as a folder of markdown, out and back in.** The Obsidian
+  on-ramp from plan §14, without a live sync engine — phase 15 plus the zip half
+  of 17. New `lib/framework/obsiddy/vault/**`:
+  `layout.ts` (folder set, path safety, filenames), `markdown.ts` (frontmatter
+  codec over `yaml@2`), `frontmatter.ts` (per-type Zod schemas), `notes.ts`
+  (encode/decode, the project checkbox block), `zip.ts` (`fflate`, with the
+  decompression caps), `export.ts`, `import-plan.ts` and `import.ts`. Two routes:
+  `GET /api/v1/obsiddy/vault/export` (returns a **zip**, the one Obsiddy endpoint
+  whose body is a file) and `POST /api/v1/obsiddy/vault/import` (multipart). A
+  page at `/obsiddy/vault`, a nav entry, `OBSIDDY_API.VAULT_EXPORT` /
+  `VAULT_IMPORT`, `OBSIDDY_ROUTES.VAULT`, a 10/hour `obsiddy-vault` rate-limit
+  tier, and `'vault'` added to `THOUGHT_SOURCES`.
+
+  **Two new direct dependencies, both named in the plan: `yaml` and `fflate`.**
+  Both were already present transitively; declaring them is the point —
+  free-riding on another package's copy is one `npm update` from a build failure.
+  `gray-matter` is deliberately skipped: 40 lines over `yaml@2` gives control of
+  BOM, CRLF and delimiter handling, and `yaml@2` preserves formatting when
+  rewriting frontmatter in a file somebody edits by hand.
+
+  **An export of an empty brain is the starter vault**, because it is the same
+  code path — folder skeleton, README describing the frontmatter contract, a
+  minimal `.obsidian/`, and `.brain/manifest.json`. There is no second generator
+  to rot.
+
+  **The importer's index is built from the exporter's own encoders**, so
+  *export → re-import is a no-op* holds by construction rather than by two field
+  lists that could drift. Change detection compares **normalised** forms — key
+  order, quote style, CRLF and trailing newlines are invisible to it, which §14
+  blames for ~80% of reported conflicts elsewhere.
+
+  **`obsiddy-id` is a claim, never an address.** It is resolved through an index
+  built from an owner-scoped read, so an id belonging to another user is simply
+  absent and the note becomes a new row — plan §16.7's single most important sync
+  test, asserted directly. The same rule covers the `^bt-` block ids in a project
+  note's checkbox block. A note carrying **no** id — one written in Obsidian
+  rather than exported — falls back to matching on slug, for areas, projects and
+  entities only, so importing the same hand-authored file twice updates it rather
+  than duplicating it. The fallback goes through the same owner-scoped index, and
+  the types without a per-owner-unique slug are excluded rather than guessed at.
+
+  **Nothing here deletes.** A row absent from the archive is left alone; the
+  nearest import comes to data loss is blanking a body, which is refused unless
+  the user ticks a box. Dry-run is the default and costs nothing, because the
+  plan is computed either way. `Reviews/` and `Documents/` are export-only, and
+  `archived:` is written but appears in no type's writable-key list, so a vault
+  edit can never pull an item out of semantic search.
+
+  Not in scope, and unchanged from the plan: no `ObsiddyVault*` tables, no
+  three-way merge base, no scheduling, no credentials, no git or cloud-drive
+  transports. Those are §14's Release 4.
+
+- **Obsiddy: the capture box became a sidekick.** `<ObsiddySidekick>`
+  (`components/obsiddy/layout/obsiddy-sidekick.tsx`) replaces the 18rem capture
+  card in the shell's grid with a fixed, full-height, resizable drawer that
+  overlays the page instead of narrowing it — the board, the graph and the
+  planner get their width back, and the capture box gets room to think in.
+  Width and open state persist; `⌘K` opens it and lands the caret in the box;
+  pointing anywhere else closes it **without swallowing that click**. Closing
+  parks the panel (`inert`) rather than unmounting it, so a stray click cannot
+  bin a half-written thought.
+
+  Two new endpoints back it. **`POST /api/v1/obsiddy/transcribe`** is the
+  consumer-side sibling of the platform's admin-only transcribe route — it
+  reuses `validateTranscribeUpload` / `getAudioProvider` / `logCost`, resolves
+  the companion agent server-side for cost attribution (a browser-supplied
+  `agentId` is overwritten), honours the org-wide `voiceInputGloballyEnabled`
+  kill switch, deliberately does **not** gate on any agent's
+  `enableVoiceInput` (that flag governs a chat surface; this microphone
+  addresses no agent), and persists no audio. New `obsiddy-audio` rate-limit
+  tier, 10/min per session user.
+
+  **`POST /api/v1/obsiddy/documents/extract`** parses a file and returns its
+  text **without storing anything** — the other half of an ad-hoc attachment,
+  where the destination is the capture box rather than the document library. A
+  separate route rather than a flag on `/documents` because the two make
+  different promises about what is kept. Capped at 20 000 characters with
+  `characters`/`truncated` describing the whole document. Inherits the
+  `obsiddy-upload` cap (20/hour).
+
+  Transport for uploads moved to `components/obsiddy/documents/upload-request.ts`
+  (`uploadDocument`), shared by the Documents page and the drawer.
+  `OBSIDDY_API` gains `TRANSCRIBE` and `DOCUMENTS_EXTRACT`.
+- **Obsiddy: every section explains itself.** New
+  `lib/framework/obsiddy/ui/section-help.ts` (`OBSIDDY_SECTION_HELP`,
+  `findSectionHelp`) holds a per-section title, one-line blurb and ⓘ body, and
+  the new `<SectionHeader>` renders it from the Obsiddy shell — so a surface is
+  documented once, for every route, rather than fifteen times or not at all.
+  The copy answers the question no screen was answering — **how do things get
+  here** (the four ways to capture into the inbox, the 03:15 triage run, the
+  similarity comparison behind Connections) and what a control actually does
+  (rejecting a suggestion is what stops it returning; an area with no weekly
+  target has no effect on 15% of every task's score). Help text is plain,
+  neutral English by rule, and states numbers rather than paraphrasing them.
+  `OBSIDDY_NAV_ITEMS` is now exported so a test fails when a section is added
+  without an explanation.
 - **Obsiddy phase 7b — the brain, from outside the app.** Eight capabilities and
   three slash-command prompts are exposed over MCP
   (`prisma/seeds/framework-obsiddy/006-mcp.ts`, written from the manifest at
@@ -559,6 +655,31 @@ release process.
 
 ### Changed
 
+- **The signed-in app shell is full-bleed.** New `.app-shell` utility in
+  `app/globals.css` (full width, gutter 1rem → 1.5rem → 2rem) replaces
+  `container mx-auto px-4` in `app/(protected)/layout.tsx`,
+  `components/layouts/protected-footer.tsx` and — behind a new
+  **`<AppHeader fullWidth>`** prop — the header. `container` caps at the largest
+  breakpoint and centres the remainder, which is right for marketing prose and
+  wrong for an application with its own sidebar: on a wide display it spent
+  ~450px on empty margins with the nav mid-screen. **`(public)` is unchanged** —
+  `fullWidth` defaults to `false`, so the marketing header keeps the centred
+  measure its sections are built on. Forks that want the old app frame back pass
+  nothing and swap `.app-shell` for `container mx-auto px-4`. Filed upstream as
+  Sunrise ask #35 — this is one of the few core-file edits Obsiddy carries.
+- **Obsiddy: the section nav is a grouped rail, not fourteen pills.**
+  `<ObsiddyNav>` now exports `OBSIDDY_NAV_GROUPS` — four named groups (Daily,
+  Organise, Knowledge, Manage) — and derives the existing `OBSIDDY_NAV_ITEMS`
+  export from them, so a section can no longer be in the nav but outside the
+  list `section-help.test.ts` checks. Above `lg` it renders as a sticky left
+  rail that collapses to icons (remembered under `obsiddy.nav.collapsed.v1`);
+  below `lg` it is a section switcher, because fourteen stacked rows is most of
+  a phone screen. The shell (`app/(protected)/obsiddy/layout.tsx`) is a two-
+  column flex as a result, and dropped its own "Obsiddy" title block: the app
+  nav and the rail head both already said it, and the product tagline under it
+  duplicated the section blurb one line below. `<SectionHeader>` now carries the
+  page's `h1` (was `h2`), and the board detail page's name demotes to `h2`
+  behind it. `OBSIDDY_NAV_ITEMS`, its shape, and every route are unchanged.
 - **Obsiddy: `POST /api/v1/obsiddy/links` now goes through `linkEntities`**
   (`lib/framework/obsiddy/services/links.ts`). The endpoint checks, the
   identical-404 rule and the server-pinned `origin` / `status` / `reviewedAt`

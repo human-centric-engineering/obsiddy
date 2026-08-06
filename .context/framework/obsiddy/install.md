@@ -43,6 +43,14 @@ every upgrade.
 Obsiddy adds **no new npm dependencies** in Release 1 except `d3-force`
 _(phase 5)_ and `@dnd-kit/core` + `@dnd-kit/sortable` _(phase 5b)_.
 
+Release 3 (Obsidian import/export) adds two more: **`yaml`** and **`fflate`**.
+Both are commonly present transitively already; Obsiddy declares them as direct
+dependencies deliberately, because free-riding on another package's copy is one
+`npm update` away from a build failure. `gray-matter` is deliberately _not_ used
+— 40 lines over `yaml@2` gives control of BOM, CRLF and delimiter handling, and
+`yaml@2` preserves formatting when rewriting frontmatter in a file somebody edits
+by hand.
+
 ---
 
 ## 1. Copy the tier directories
@@ -57,10 +65,10 @@ merge cleanly on upgrade:
 | `prisma/schema/framework-obsiddy.prisma` | same path                                                                  |
 | `prisma/seeds/framework-obsiddy/**`      | same path — five units: capabilities, profile, agents, bindings, workflows |
 | `.context/framework/obsiddy/**`          | same path                                                                  |
-| `app/api/v1/obsiddy/**`                  | same path — 66 route files, most of them 2 lines                           |
+| `app/api/v1/obsiddy/**`                  | same path — 70 route files, most of them 2 lines                           |
 | `app/api/v1/admin/obsiddy/**`            | same path — the instance-settings pair                                     |
 | `app/admin/obsiddy/**`                   | same path — the settings page                                              |
-| `app/(protected)/obsiddy/**`             | same path — 18 pages across fourteen surfaces                              |
+| `app/(protected)/obsiddy/**`             | same path — 19 pages across fifteen surfaces                               |
 | `scripts/framework/obsiddy/**`           | same path — plus one `package.json` script line, below                     |
 | `components/obsiddy/**`                  | same path — the surfaces, the board, and the admin settings form           |
 
@@ -197,23 +205,37 @@ export function registerAppRateLimits(): void {
 }
 ```
 
-Five per-flow sub-caps, on top of the 100/min section cap `/api/v1/**` already
+Eight per-flow sub-caps, on top of the 100/min section cap `/api/v1/**` already
 inherits from `proxy.ts`. They exist because a single request on these paths is
 expensive rather than cheap: `/search` embeds the query (one paid API call each),
 `/reindex` and `/connections/sweep` start batch jobs, `/documents` parses an
-upload, and `/ideate` makes a chat-completion call.
+upload, `/transcribe` ships audio to a paid speech-to-text provider, `/vault`
+reads every table the brain has (and on import inflates and plans an archive),
+`/ideate` makes a chat-completion call, and `/chat` holds an SSE connection open
+for a multi-step tool loop.
 
-| Path                            | Cap     | Keyed on     |
-| ------------------------------- | ------- | ------------ |
-| `/api/v1/obsiddy/search`        | 30/min  | session user |
-| `/api/v1/obsiddy/reindex`       | 5/hour  | session user |
-| `/api/v1/obsiddy/connections/*` | 5/hour  | session user |
-| `/api/v1/obsiddy/documents`     | 20/hour | session user |
-| `/api/v1/obsiddy/ideate`        | 10/hour | session user |
+| Path                                  | Cap     | Keyed on     |
+| ------------------------------------- | ------- | ------------ |
+| `/api/v1/obsiddy/search`              | 30/min  | session user |
+| `/api/v1/obsiddy/reindex`             | 5/hour  | session user |
+| `/api/v1/obsiddy/connections/sweep`   | 5/hour  | session user |
+| `/api/v1/obsiddy/documents/*`         | 20/hour | session user |
+| `/api/v1/obsiddy/transcribe`          | 10/min  | session user |
+| `/api/v1/obsiddy/vault/*`             | 10/hour | session user |
+| `/api/v1/obsiddy/ideate`              | 10/hour | session user |
+| `/api/v1/obsiddy/briefing/regenerate` | 10/hour | session user |
+| `/api/v1/obsiddy/chat/*`              | 20/min  | session user |
 
-`/ideate` is the tightest of the five because it is the only flow that buys
-tokens per request — the shape it guards against is a UI bug or an agent loop
-calling it in a cycle, where the bill rather than the load is the damage.
+`/ideate` and `/briefing/regenerate` are the tightest per hour because they are
+the flows that buy tokens per request — the shape they guard against is a UI bug
+or an agent loop calling one in a cycle, where the bill rather than the load is
+the damage. `/chat` and `/transcribe` are per-minute instead, because both are
+genuinely interactive: an hourly cap generous enough for a real working session
+would be no cap at all against a client that re-sends on every render.
+
+The rule order in the table is the registration order, and
+`tests/unit/lib/app/defaults.test.ts` asserts the exact set — a stray rule fails
+there, and so does one that escapes the `/api/v1/obsiddy/` namespace.
 
 Static import, like §2.2 — this runs in the middleware bundle, where there is
 nowhere to `await`. `registerRateLimitRule` throws at boot if a matcher could
@@ -519,7 +541,7 @@ import it. Uninstalling means undoing §2.1–§2.12, not just removing files:
 | --------------------------------------------------- | ----------------------------------------------- |
 | `lib/app/bootstrap.ts`, `lib/app/leaf-bootstrap.ts` | the boot hook                                   |
 | `lib/app/env.ts`                                    | `obsiddyEnvSchema`                              |
-| `lib/app/rate-limit.ts`                             | the four sub-caps                               |
+| `lib/app/rate-limit.ts`                             | the eight sub-caps                              |
 | `lib/app/admin-nav.ts`                              | the admin section                               |
 | `lib/app/db-drift.ts`                               | the six drift probes                            |
 | `lib/app/protected-routes.ts`                       | `/obsiddy`                                      |

@@ -44,15 +44,9 @@ const STARTERS = [
 export default function ObsiddyChatPage() {
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-xl font-semibold">Chat</h1>
-        <p className="text-muted-foreground text-sm">
-          It already knows today&rsquo;s date, your goals, what you are working on and how much of
-          the week is left. It can search everything you have written, and it can write things down
-          — it will say when it has.
-        </p>
-      </div>
-
+      {/* No heading here: the shell's `<SectionHeader>` names the section and its
+          ⓘ carries what this page used to say in prose — that the agent already
+          knows the date, the goals and the week, and that it says when it writes. */}
       <ObsiddyChat agentSlug={OBSIDDY_AGENT_SLUGS.companion} starterPrompts={STARTERS} />
     </div>
   );

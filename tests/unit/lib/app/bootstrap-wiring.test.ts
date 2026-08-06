@@ -98,7 +98,10 @@ describe('rate-limit auto-wire (lib/app/rate-limit.ts → middleware realm)', ()
     const eff = getEffectiveRateLimitPolicy();
     const appRules = eff.filter((rule) => !RATE_LIMIT_POLICY.includes(rule));
 
-    expect(appRules).toHaveLength(7);
+    // The count is deliberately loose about *which* rules exist — the exact set
+    // is asserted once, in `defaults.test.ts`. What this file protects is the
+    // namespace property below, so it only needs to know the seam is filled.
+    expect(appRules).toHaveLength(9);
     expect(
       appRules.every(
         (rule) => rule.match instanceof RegExp && String(rule.match).includes('obsiddy')

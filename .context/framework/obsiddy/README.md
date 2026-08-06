@@ -52,7 +52,7 @@ and image capture, and email-to-inbox — which closes Release 1.
 | Env schema                              | `lib/app/env.ts` merges `obsiddyEnvSchema` (currently empty)                                                                                                                                                                                                                                                                                                               |
 | Lint boundary                           | `lib/app/eslint.config.mjs` spreads `lib/framework/eslint.config.mjs`                                                                                                                                                                                                                                                                                                      |
 | Protected route                         | `/obsiddy` in `lib/app/protected-routes.ts`                                                                                                                                                                                                                                                                                                                                |
-| Rate-limit sub-caps                     | `lib/app/rate-limit.ts` → `registerObsiddyRateLimits()` (search, reindex, sweep, upload, ideate, chat, briefing regenerate — seven)                                                                                                                                                                                                                                        |
+| Rate-limit sub-caps                     | `lib/app/rate-limit.ts` → `registerObsiddyRateLimits()` (search, reindex, sweep, upload, ideate, chat, briefing regenerate, vault — eight)                                                                                                                                                                                                                                 |
 | Admin nav                               | `lib/app/admin-nav.ts` → `registerObsiddyAdminNav()`                                                                                                                                                                                                                                                                                                                       |
 | Drift probes                            | `lib/app/db-drift.ts` → `registerObsiddyDriftProbes()` (six, B1 + B3–B7)                                                                                                                                                                                                                                                                                                   |
 | Protected nav                           | `lib/app/protected-nav.ts` spreads `OBSIDDY_NAV_ITEM` — was a core-file edit until sunrise#473 landed 2026-07-31                                                                                                                                                                                                                                                           |
@@ -69,9 +69,10 @@ and image capture, and email-to-inbox — which closes Release 1.
 | Semantic layer                          | `lib/framework/obsiddy/{embedding,search,documents}/*` — indexer, hybrid search, sweep, ingest                                                                                                                                                                                                                                                                             |
 | Zoned time                              | `lib/framework/obsiddy/time/zoned.ts` — every schedule resolves in the user's zone                                                                                                                                                                                                                                                                                         |
 | UI contracts                            | `lib/framework/obsiddy/ui/*` — `OBSIDDY_ROUTES`, wire-shape schemas, the one server-read helper                                                                                                                                                                                                                                                                            |
-| API                                     | `app/api/v1/obsiddy/**` — 66 route files, plus one admin pair (`GET`/`PATCH` on `admin/obsiddy/settings`)                                                                                                                                                                                                                                                                  |
+| API                                     | `app/api/v1/obsiddy/**` — 70 route files, plus one admin pair (`GET`/`PATCH` on `admin/obsiddy/settings`)                                                                                                                                                                                                                                                                  |
 | User UI                                 | `app/(protected)/obsiddy/**` — 14 surfaces; components in `components/obsiddy/**`                                                                                                                                                                                                                                                                                          |
 | MCP exposure                            | `prisma/seeds/framework-obsiddy/006-mcp.ts` from `lib/framework/obsiddy/mcp/exposure.ts` — eight tools, three prompts, **no code** (phase 7b)                                                                                                                                                                                                                              |
+| Vault (Obsidian)                        | `lib/framework/obsiddy/vault/*` — layout, markdown codec, frontmatter schemas, note encoders, zip transport, export, pure import planner, apply (Release 3, phase 15 + the zip half of 17)                                                                                                                                                                                 |
 | Evaluation                              | `lib/framework/obsiddy/evaluations/*` — thirty triage cases, the `obsiddy_triage_accuracy` grader, dataset in `007-eval-dataset.ts`, runner at `npm run framework:obsiddy:eval-triage` (phase 7b)                                                                                                                                                                          |
 | Admin UI                                | `/admin/obsiddy/settings` — document handling and the upload ceiling                                                                                                                                                                                                                                                                                                       |
 
@@ -300,3 +301,122 @@ was **closed** by `14b6b324`, which added `{ statusFrom, statusTo }` to the
 `updated` event only when the status actually changed, and reads the newest per
 card in one `DISTINCT ON`. Cards with no such event still fall back to "untouched
 since", worded differently so the two are never confused.
+
+---
+
+## The vault (Release 3 — phase 15 and the zip half of 17)
+
+Obsidian import and export, without a live sync engine. §14 says phase 15 is
+independently shippable and worth doing even if Release 3 stops there; this is
+that, plus the zip transport and the starter-vault generator from 17.
+
+**What was built:** `lib/framework/obsiddy/vault/*` — `layout.ts` (the folder set,
+path safety, filenames), `markdown.ts` (frontmatter codec over `yaml@2`),
+`frontmatter.ts` (per-type Zod schemas), `notes.ts` (encoders, decoders, the
+project checkbox block), `zip.ts` (`fflate` plus the decompression caps),
+`export.ts`, `import-plan.ts` (pure) and `import.ts` (the writes). Two routes, a
+page at `/obsiddy/vault`, and a nav entry.
+
+**What was deliberately not built:** the `ObsiddyVault*` tables, the three-way
+merge base, the sync runner, scheduling, `secret-box`, and the git and
+cloud-drive transports. Those are §14's Release 4, and none of them is needed to
+answer "get my data out and put it back".
+
+### Six decisions worth knowing before reading the code
+
+1. **An export of an empty brain _is_ the starter vault.** §14 treats
+   `generateStarterVault` as a separate generator running against any transport.
+   It collapses further than that: every export already writes the folder
+   skeleton, the README describing the frontmatter contract, a minimal
+   `.obsidian/` and `.brain/manifest.json`, so a brand-new user's export opens in
+   Obsidian as a working vault. One code path means there is no second thing to
+   keep true.
+
+2. **The importer's index is built from the exporter's own encoders.** Change
+   detection compares the incoming file against _the file we would have written_,
+   not against a second view of the same columns. That is what makes **export →
+   re-import is a no-op** hold by construction rather than by two hand-maintained
+   field lists that drift apart in six months. It is the first test in
+   `import-plan.test.ts`.
+
+3. **`changedKeys` is the single source of truth, references included.** The
+   first cut counted a resolved reference as work, which made every round-tripped
+   task report an update — every export declares `project:`, so every import
+   "changed" it. A reference resolution turns a name into an id; it does not
+   decide whether to write. `hasWork()` is the one predicate, used by both the
+   plan counts and the apply gate.
+
+4. **Two spellings of one value must hash alike.** Quoting is presentation in
+   YAML and it changes the _type_ — `estimate-minutes: 30` is a number,
+   `"30"` is a string — and any editor may requote frontmatter without asking.
+   So every scalar is compared as a string, and the integer fields accept both
+   spellings rather than rejecting the note (a schema failure rejects the whole
+   file, which would cost the user the paragraph underneath).
+
+5. **The checkbox block is what makes this a surface rather than an export.**
+   Every project note carries `- [ ] Title ^bt-<id>` lines between sentinels, and
+   ticking one changes the real task. Exactly two things are read back: the state,
+   and the text before the block id. A checkbox with no `^bt-` id creates nothing
+   — otherwise pasting a to-do list into a project note as a note-to-self puts
+   forty tasks in your ranking.
+
+6. **Import never deletes, and blanking is guarded.** A row absent from the
+   archive is left alone; `deletePropagation` is Release 4's, with its own opt-in.
+   The only shape data loss can take here is a file whose body has gone missing —
+   a bad merge, a truncated sync, a half-written file — silently wiping a note's
+   prose. That is refused by default and reported per path, which costs one
+   checkbox on the rare occasion somebody meant it.
+
+### The security property, restated
+
+`obsiddy-id` is a **claim, never an address**. It is resolved through an index
+built from an owner-scoped read, so an id belonging to another user is simply
+absent and the note becomes a new row — §16.7's single most important sync test,
+asserted directly rather than left to the type system. The same rule covers the
+`^bt-` block ids in a checkbox block: an id that is not one of yours is ignored.
+
+A note with **no** `obsiddy-id` — one you wrote in Obsidian rather than exported —
+falls back to matching on **slug**, for areas, projects and entities only. Nothing
+writes a new id back into your file, so without this the second import of a
+hand-authored note would create a second row, the third a third. The fallback
+resolves through `bySlug` on that same owner-scoped index, so it widens nothing:
+another user's slug is as absent as their id. Tasks, goals and thoughts are
+excluded deliberately — they have no per-owner-unique slug, and two of them may
+legitimately share a title, so guessing would file somebody's work under the
+wrong item and they would find out much later.
+
+Everything else follows the tier's existing boundaries. The planner is pure, so
+the whole matrix is a table test with no mocks. The apply step writes only
+through `repo/*`, so cross-user writes are not expressible and `indexedHash` is
+nulled by the repo's own update — embedding stays deferred to the tick's
+backfill, which is the difference between a four-second import of 5,000 notes and
+a timeout.
+
+### Departures from §14, and why
+
+- **`Reviews/` and `Documents/` are export-only**, as §14 specifies — but they
+  are enumerated in `VAULT_EXPORT_ONLY_TYPES` and reported to the user as skipped
+  rather than silently dropped. "Nothing happened to my reviews" and "the Reviews
+  folder was ignored" are different messages and only one is trustworthy.
+- **The `## Links` block is export-only too.** §14 has associative links round-trip
+  in a sentineled section; a link carries a measured `strength` and a rationale
+  the sweep wrote, and there is no sane reading of a hand-edited similarity score.
+  What _does_ come back is any `[[wikilink]]` in free prose, as
+  `ObsiddyLink{kind:'mentions', origin:'vault', status:'proposed'}` — §14's own
+  highest-leverage line, capped at 25 per note so a hub note does not bury the
+  pairs the sweep found by measurement.
+- **Frontmatter/body conflict resolution is not implemented, because there is no
+  merge base.** §14's DB-wins-on-fields / vault-wins-on-body asymmetry needs
+  `ObsiddyVaultFile.syncedFrontmatter`, which is Release 4's table. For a manual
+  import the honest rule is "the file you uploaded wins for the fields it
+  declares, and you saw the diff first" — which is why the dry run is the default
+  rather than a convenience.
+- **`archived:` is written and never acted on.** §14 does not rule on it. Archiving
+  deletes an item's embeddings and takes it out of the semantic layer, so reaching
+  that from a text file a sync could rewrite is a destructive action reached by
+  accident. It appears in no type's `WRITABLE_KEYS`, and a test asserts that for
+  every type — along with `visibility`, so a frontmatter edit can never publish
+  something.
+- **A note that moved between type folders is refused, not retyped.** A task and a
+  project are different tables; creating a copy under the new type while the
+  original lives on is worse than doing nothing and saying so.

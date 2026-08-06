@@ -1,44 +1,28 @@
 'use client';
 
 /**
- * DocumentUpload — the one place in Obsiddy that sends bytes.
+ * DocumentUpload — the deliberate way to add reference material.
  *
- * ## Why `XMLHttpRequest` rather than `fetch`
+ * The transport lives in `upload-request.ts`, shared with the capture sidekick's
+ * ad-hoc attachment path: XHR for real upload progress, dedupe reported as
+ * dedupe, and the ingest layer's own failure messages passed through verbatim.
+ * Read that file for why each of those is the way it is.
  *
- * `apiClient` is the right tool for JSON and the wrong one here, for two reasons.
- * `fetch` has no upload-progress event — the browser gives you no way to observe a
- * request body being sent — and a 20 MB PDF over a slow connection takes long enough
- * that "is this working?" is a fair question. XHR's `upload.onprogress` is the only
- * API that answers it.
- *
- * A spinner would be the alternative and it would be a lie: it says "something is
- * happening" while telling you nothing about whether it will finish this minute or
- * this hour.
- *
- * ## Dedupe is reported honestly
- *
- * The endpoint returns **200 with `deduped: true`** when the same bytes have been
- * uploaded before, and 201 when it actually created something. Reporting both as
- * "uploaded" would leave someone believing they have two copies of a document, and
- * then wondering why deleting one leaves the other. So the two say different things.
- *
- * ## Failures are the file's, not the server's
- *
- * `ingestDocument` rejects an unsupported format, an empty scan or a minified blob
- * with a 400 and a specific reason. Those messages are written for the person who
- * chose the file, so they are surfaced verbatim rather than replaced with "upload
- * failed".
+ * What is specific to this surface is the framing. Here a file is being *filed* —
+ * the user came to the documents page to add something they intend to keep — so
+ * the copy talks about indexing and searchability, and the control is a labelled
+ * drop area rather than a paperclip tucked beside a textarea.
  */
 
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { Upload } from 'lucide-react';
 
+import { uploadDocument } from '@/components/obsiddy/documents/upload-request';
 import { ProgressBar } from '@/components/obsiddy/ui/progress-bar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { OBSIDDY_API } from '@/lib/framework/obsiddy/api/endpoints';
 
 type UploadState =
   | { kind: 'idle' }
@@ -54,7 +38,7 @@ export function DocumentUpload(): React.ReactElement {
   const [state, setState] = React.useState<UploadState>({ kind: 'idle' });
   const inputRef = React.useRef<HTMLInputElement>(null);
 
-  function upload(file: File): void {
+  async function upload(file: File): Promise<void> {
     setState({ kind: 'uploading', percent: 0 });
 
     // Clear the picker up front, not on success. A file input fires `change`
@@ -65,36 +49,16 @@ export function DocumentUpload(): React.ReactElement {
     // not affect this upload.
     if (inputRef.current) inputRef.current.value = '';
 
-    const form = new FormData();
-    form.append('file', file);
+    const result = await uploadDocument(file, {
+      onProgress: (percent) => setState({ kind: 'uploading', percent: percent ?? 0 }),
+    });
 
-    const request = new XMLHttpRequest();
-    request.open('POST', OBSIDDY_API.DOCUMENTS);
-
-    request.upload.onprogress = (event) => {
-      // `lengthComputable` is false on some proxies; an indeterminate bar is
-      // honest there, where a fabricated percentage would not be.
-      setState({
-        kind: 'uploading',
-        percent: event.lengthComputable ? Math.round((event.loaded / event.total) * 100) : 0,
-      });
-    };
-
-    request.onload = () => {
-      if (request.status >= 200 && request.status < 300) {
-        const deduped = readDeduped(request.responseText);
-        setState({ kind: 'done', deduped, title: file.name });
-        router.refresh();
-      } else {
-        setState({ kind: 'error', message: readErrorMessage(request.responseText) });
-      }
-    };
-
-    request.onerror = () => {
-      setState({ kind: 'error', message: 'The upload didn’t reach the server.' });
-    };
-
-    request.send(form);
+    if (result.ok) {
+      setState({ kind: 'done', deduped: result.deduped, title: file.name });
+      router.refresh();
+    } else {
+      setState({ kind: 'error', message: result.message });
+    }
   }
 
   return (
@@ -109,7 +73,7 @@ export function DocumentUpload(): React.ReactElement {
           disabled={state.kind === 'uploading'}
           onChange={(event) => {
             const file = event.target.files?.[0];
-            if (file) upload(file);
+            if (file) void upload(file);
           }}
         />
         <p className="text-muted-foreground text-xs">
@@ -159,43 +123,4 @@ export function DocumentUpload(): React.ReactElement {
       )}
     </div>
   );
-}
-
-/** `{ meta: { deduped } }` on a 200 that created nothing. */
-function readDeduped(body: string): boolean {
-  try {
-    const parsed: unknown = JSON.parse(body);
-    return (
-      typeof parsed === 'object' &&
-      parsed !== null &&
-      'meta' in parsed &&
-      typeof parsed.meta === 'object' &&
-      parsed.meta !== null &&
-      'deduped' in parsed.meta &&
-      parsed.meta.deduped === true
-    );
-  } catch {
-    return false;
-  }
-}
-
-/** The ingest layer's own reason, which is written for the person who chose the file. */
-function readErrorMessage(body: string): string {
-  try {
-    const parsed: unknown = JSON.parse(body);
-    if (
-      typeof parsed === 'object' &&
-      parsed !== null &&
-      'error' in parsed &&
-      typeof parsed.error === 'object' &&
-      parsed.error !== null &&
-      'message' in parsed.error &&
-      typeof parsed.error.message === 'string'
-    ) {
-      return parsed.error.message;
-    }
-  } catch {
-    // Fall through.
-  }
-  return 'That file couldn’t be added.';
 }

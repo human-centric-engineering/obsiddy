@@ -56,6 +56,16 @@ export const OBSIDDY_ROUTES = {
    */
   ARCHIVE: `${BASE}/archive`,
 
+  /**
+   * Obsidian import and export (§14, Release 3).
+   *
+   * In the nav rather than tucked behind Settings, unlike {@link ARCHIVE}. The
+   * reasoning is the opposite one: "how do I get my data out" is a question
+   * people ask *before* they commit to a tool, and an answer they have to go
+   * looking for reads as an answer somebody would rather they did not find.
+   */
+  VAULT: `${BASE}/vault`,
+
   /** Search prefilled from the layout's box. */
   searchFor: (query: string): string => `${BASE}/search?q=${encodeURIComponent(query)}`,
 } as const;

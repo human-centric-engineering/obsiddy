@@ -31,8 +31,12 @@ export default function ProtectedLayout({
   return (
     <MaintenanceWrapperWithAdminNotice>
       <div className="bg-background flex min-h-screen flex-col">
-        <AppHeader logoHref={AUTH_LANDING_ROUTE} navigation={<ProtectedNav />} />
-        <main className="container mx-auto flex-1 px-4 py-8">{children}</main>
+        {/* Full-bleed: this is an application, not a document. `container`
+            capped it at the largest breakpoint and centred the remainder, which
+            on a wide display spent ~450px on empty margins while the app's own
+            sidebar sat mid-screen. See `.app-shell` in `globals.css`. */}
+        <AppHeader logoHref={AUTH_LANDING_ROUTE} navigation={<ProtectedNav />} fullWidth />
+        <main className="app-shell flex-1 py-8">{children}</main>
         <ProtectedFooter />
       </div>
     </MaintenanceWrapperWithAdminNotice>
