@@ -204,7 +204,7 @@ export function TriggerForm({ mode, initial, workflows, agents, enabledChannels,
         </Select>
         <p className="text-muted-foreground text-xs">{CHANNEL_DESCRIPTIONS[channel]}</p>
         {!adapterRegistered && (
-          <Badge variant="destructive" className="text-[10px]">
+          <Badge variant="destructive" className="text-[11px]">
             adapter not registered in this deployment — inbound POSTs will 404 until env vars are
             set
           </Badge>
@@ -364,7 +364,7 @@ export function TriggerForm({ mode, initial, workflows, agents, enabledChannels,
       </div>
 
       {/* Enabled toggle */}
-      <div className="flex items-center justify-between rounded-lg border p-4">
+      <div className="bg-card flex items-center justify-between rounded-lg border p-4">
         <div>
           <Label htmlFor="isEnabled">Enabled</Label>
           <p className="text-muted-foreground text-xs">

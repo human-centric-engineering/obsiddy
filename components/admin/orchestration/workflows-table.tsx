@@ -341,7 +341,7 @@ export function WorkflowsTable({
         </div>
       )}
 
-      <div className="rounded-md border">
+      <div className="bg-card rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
@@ -428,7 +428,7 @@ export function WorkflowsTable({
                       <Tip label="System workflow — used internally by the platform. Cannot be deleted or deactivated.">
                         <Badge
                           variant="secondary"
-                          className="gap-1 px-1.5 py-0 text-[10px] font-medium"
+                          className="gap-1 px-1.5 py-0 text-[11px] font-medium"
                         >
                           <Shield className="h-3 w-3" />
                           System

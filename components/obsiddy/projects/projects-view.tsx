@@ -136,7 +136,7 @@ export function ProjectsView({ projects, areas, status }: ProjectsViewProps): Re
                     {project.status}
                   </Badge>
                   {project.snoozedUntil && (
-                    <Badge variant="outline" className="ml-1 text-[10px]">
+                    <Badge variant="outline" className="ml-1 text-[11px]">
                       snoozed
                     </Badge>
                   )}

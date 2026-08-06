@@ -427,7 +427,7 @@ export function ExecutionTraceEntryRow({
                 onClick={(e) => e.stopPropagation()}
                 data-testid={`trace-entry-agent-${stepId}`}
                 title={`Agent slug: ${agent.slug}`}
-                className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-medium text-blue-800 hover:bg-blue-200 dark:bg-blue-950/60 dark:text-blue-200 dark:hover:bg-blue-900/60"
+                className="rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-medium text-blue-800 hover:bg-blue-200 dark:bg-blue-950/60 dark:text-blue-200 dark:hover:bg-blue-900/60"
               >
                 Agent · {agent.name}
               </a>
@@ -435,7 +435,7 @@ export function ExecutionTraceEntryRow({
             {forkNumber !== undefined && (
               <span
                 data-testid={`trace-entry-fork-${stepId}`}
-                className="flex items-center gap-1 rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-medium text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300"
+                className="flex items-center gap-1 rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-medium text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300"
                 title="This step fans out concurrent branches"
               >
                 <GitBranch className="h-3 w-3" />
@@ -445,7 +445,7 @@ export function ExecutionTraceEntryRow({
             {parallelBranchOfNumber !== undefined && (
               <span
                 data-testid={`trace-entry-branch-${stepId}`}
-                className="rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-medium text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300"
+                className="rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-medium text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300"
                 title={`Concurrent branch of parallel fork #${parallelBranchOfNumber}`}
               >
                 ∥ Branch of fork #{parallelBranchOfNumber}
@@ -598,7 +598,7 @@ export function ExecutionTraceEntryRow({
                       <button
                         type="button"
                         onClick={() => setInputView((v) => (v === 'raw' ? 'resolved' : 'raw'))}
-                        className="text-muted-foreground hover:text-foreground text-[10px] font-medium tracking-wide uppercase underline-offset-2 hover:underline"
+                        className="text-muted-foreground hover:text-foreground text-[11px] font-medium tracking-wide uppercase underline-offset-2 hover:underline"
                         title={
                           inputView === 'raw'
                             ? 'Substitute {{stepId.output}} and {{input.foo}} tokens against the recorded trace'
@@ -704,7 +704,7 @@ function StepTypeChip({ stepId, stepType }: { stepId: string; stepType: string }
       data-testid={`trace-entry-step-type-${stepId}`}
       data-category={meta?.category ?? undefined}
       className={cn(
-        'rounded-full px-2 py-0.5 font-mono text-[10px] tracking-wide uppercase',
+        'rounded-full px-2 py-0.5 font-mono text-[11px] tracking-wide uppercase',
         chipColour
       )}
     >

@@ -489,7 +489,7 @@ export function McpResourcesList({ initialResources }: McpResourcesListProps) {
 
       {/* Table */}
       {!isEmpty && (
-        <div className="rounded-md border">
+        <div className="bg-card rounded-md border">
           <Table>
             <TableHeader>
               <TableRow>

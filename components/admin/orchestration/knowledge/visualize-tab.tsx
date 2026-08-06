@@ -606,7 +606,7 @@ export function VisualizeTab({ scope }: VisualizeTabProps) {
 
   if (graphError) {
     return (
-      <div className="text-muted-foreground rounded-lg border border-dashed p-12 text-center">
+      <div className="bg-card text-muted-foreground rounded-lg border border-dashed p-12 text-center">
         <p className="text-destructive text-sm font-medium">{graphError}</p>
       </div>
     );
@@ -623,7 +623,7 @@ export function VisualizeTab({ scope }: VisualizeTabProps) {
     return (
       <div className="space-y-4">
         {showToggle && viewToggle}
-        <div className="text-muted-foreground rounded-lg border border-dashed p-12 text-center">
+        <div className="bg-card text-muted-foreground rounded-lg border border-dashed p-12 text-center">
           <Network className="mx-auto mb-3 h-10 w-10 opacity-40" />
           <p className="text-sm font-medium">
             {showToggle ? 'No embedded chunks yet' : `No ${scopeLabel} knowledge base data`}

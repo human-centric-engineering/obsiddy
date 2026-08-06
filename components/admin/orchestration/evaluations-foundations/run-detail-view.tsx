@@ -229,14 +229,14 @@ export function RunDetailView({ runId }: { runId: string }): React.ReactElement 
           <CardContent className="text-sm">
             {run.subjectKind === 'agent' && run.agent ? (
               <>
-                <Badge variant="outline" className="text-[10px]">
+                <Badge variant="outline" className="text-[11px]">
                   agent
                 </Badge>{' '}
                 {run.agent.name}
               </>
             ) : run.workflow ? (
               <>
-                <Badge variant="outline" className="text-[10px]">
+                <Badge variant="outline" className="text-[11px]">
                   workflow
                 </Badge>{' '}
                 {run.workflow.name}
@@ -270,7 +270,7 @@ export function RunDetailView({ runId }: { runId: string }): React.ReactElement 
           <CardContent>
             <div className="flex flex-wrap gap-1">
               {run.metricConfigs.map((m) => (
-                <Badge key={m.slug} variant="outline" className="text-[10px]">
+                <Badge key={m.slug} variant="outline" className="text-[11px]">
                   {m.slug}
                 </Badge>
               ))}
@@ -301,7 +301,7 @@ export function RunDetailView({ runId }: { runId: string }): React.ReactElement 
               {run.progress.casesDone} / {run.progress.casesTotal} ({progressPct}%)
             </span>
             {run.progress.casesFailed > 0 ? (
-              <Badge variant="destructive" className="text-[10px]">
+              <Badge variant="destructive" className="text-[11px]">
                 {run.progress.casesFailed} failed
               </Badge>
             ) : null}
@@ -472,7 +472,7 @@ export function RunDetailView({ runId }: { runId: string }): React.ReactElement 
                 <Section title="Scores">
                   <div className="space-y-2">
                     {Object.entries(selected.metricScores).map(([slug, cell]) => (
-                      <div key={slug} className="rounded border p-2">
+                      <div key={slug} className="bg-card rounded border p-2">
                         <div className="flex items-center gap-2 text-sm">
                           <span className="font-mono">{slug}</span>
                           {cell.score == null ? (
@@ -591,14 +591,14 @@ function ToolCallsSection({
             const errorCode = stringOrUndefined(c.errorCode);
             const args = c.args ?? c.arguments;
             return (
-              <div key={i} className="rounded border p-2">
+              <div key={i} className="bg-card rounded border p-2">
                 <div className="flex items-center gap-2 text-sm">
                   <span className="font-mono">{slug}</span>
                   <Badge variant={success ? 'default' : 'destructive'}>
                     {success ? 'ok' : (errorCode ?? 'fail')}
                   </Badge>
                   {typeof c.latencyMs === 'number' ? (
-                    <span className="text-muted-foreground text-[10px]">{c.latencyMs}ms</span>
+                    <span className="text-muted-foreground text-[11px]">{c.latencyMs}ms</span>
                   ) : null}
                 </div>
                 {args !== undefined && args !== null ? (
@@ -634,7 +634,7 @@ function CitationsSection({
               <span className="text-muted-foreground mr-1.5 font-mono">[{marker}]</span>
               <span>{title ?? '(untitled source)'}</span>
               {uri ? (
-                <span className="text-muted-foreground ml-2 font-mono text-[10px]">{uri}</span>
+                <span className="text-muted-foreground ml-2 font-mono text-[11px]">{uri}</span>
               ) : null}
             </li>
           );

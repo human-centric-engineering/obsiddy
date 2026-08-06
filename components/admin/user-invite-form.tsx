@@ -138,7 +138,7 @@ export function UserInviteForm() {
             <CardDescription>{invitation.message}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="rounded-lg border p-4">
+            <div className="bg-card rounded-lg border p-4">
               <dl className="space-y-2 text-sm">
                 <div className="flex justify-between">
                   <dt className="text-muted-foreground">Name</dt>

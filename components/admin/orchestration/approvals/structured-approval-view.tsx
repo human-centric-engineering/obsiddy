@@ -120,7 +120,7 @@ export function StructuredApprovalView({
       </header>
 
       {allParsedEmpty && (
-        <div className="text-muted-foreground rounded-md border border-dashed p-4 text-center text-sm">
+        <div className="bg-card text-muted-foreground rounded-md border border-dashed p-4 text-center text-sm">
           The audit produced no proposed changes, new models, or deactivations. Approve to record
           the no-op and complete the workflow.
         </div>

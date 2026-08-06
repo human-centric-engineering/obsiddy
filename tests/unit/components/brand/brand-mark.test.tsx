@@ -1,10 +1,18 @@
 /**
  * BrandMark slot (issue #347)
  *
- * The fork-owned header/footer brand slot. Its default body renders `BRAND.name`
- * as a bare string (no wrapper element) so vanilla header/footer HTML is
- * unchanged. `BRAND.name` is read from `NEXT_PUBLIC_APP_NAME` at module load, so
- * each case stubs the env and re-imports fresh.
+ * The fork-owned header/footer brand slot. Sunrise's default body renders
+ * `BRAND.name` as a bare string; Obsiddy has taken the slot up on its offer and
+ * renders a shard mark alongside the wordmark, which is exactly the modification
+ * the seam exists to absorb.
+ *
+ * So the contract these tests hold is the seam's, not the default body's: the
+ * configured name must still reach the DOM as text (it is the accessible name of
+ * the surrounding link), and the decoration must stay decoration — hidden from
+ * assistive tech, or every page would announce "graphic, link, obsiddy".
+ *
+ * `BRAND.name` is read from `NEXT_PUBLIC_APP_NAME` at module load, so each case
+ * stubs the env and re-imports fresh.
  *
  * @see components/brand/brand-mark.tsx · lib/brand.ts
  */
@@ -37,10 +45,17 @@ describe('BrandMark default', () => {
     expect(container.textContent).toBe('Acme');
   });
 
-  it('renders as a bare string with no wrapper element (byte-for-byte header)', async () => {
+  it('renders the shard mark as decoration, not as content', async () => {
     const container = await renderBrandMark('Acme');
-    // No element node is added — just the text node, so the surrounding <Link>
-    // styling is preserved exactly.
-    expect(container.children).toHaveLength(0);
+    const svg = container.querySelector('svg');
+
+    expect(svg).not.toBeNull();
+    // Hidden from the accessibility tree: the wordmark text beside it already
+    // names the link, and an unlabelled graphic inside it would be announced
+    // twice on every page of the app.
+    expect(svg?.getAttribute('aria-hidden')).toBe('true');
+    // The name is still a text node, so `textContent` — and therefore the
+    // link's accessible name — is the brand and nothing else.
+    expect(container.textContent).toBe('Acme');
   });
 });

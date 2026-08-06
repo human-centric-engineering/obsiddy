@@ -773,7 +773,7 @@ export function ProviderModelForm({ model }: ProviderModelFormProps) {
 
         {/* Embedding-specific fields */}
         {hasEmbedding && (
-          <div className="space-y-4 rounded-md border p-4">
+          <div className="bg-card space-y-4 rounded-md border p-4">
             <h3 className="text-sm font-semibold">Embedding Details</h3>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">

@@ -14,7 +14,7 @@ interface PatternCardGridProps {
 export function PatternCardGrid({ patterns }: PatternCardGridProps) {
   if (patterns.length === 0) {
     return (
-      <div className="text-muted-foreground rounded-lg border border-dashed p-12 text-center">
+      <div className="bg-card text-muted-foreground rounded-lg border border-dashed p-12 text-center">
         <p className="text-sm">No patterns found.</p>
         <p className="mt-1 text-xs">Seed the knowledge base to load agentic design patterns.</p>
       </div>
@@ -33,7 +33,7 @@ export function PatternCardGrid({ patterns }: PatternCardGridProps) {
             <CardHeader className="pb-2">
               <div className="flex items-start justify-between gap-2">
                 <CardTitle className="text-base leading-tight">{p.patternName}</CardTitle>
-                <Badge variant="outline" className="shrink-0 font-mono text-[10px]">
+                <Badge variant="outline" className="shrink-0 font-mono text-[11px]">
                   {p.patternNumber}
                 </Badge>
               </div>

@@ -505,7 +505,7 @@ export function AgentForm({
               {isEdit ? agent?.name : initialKind === 'judge' ? 'New judge agent' : 'New agent'}
             </h1>
             {isEdit && agent?.isSystem && (
-              <Badge variant="secondary" className="gap-1 px-1.5 py-0 text-[10px] font-medium">
+              <Badge variant="secondary" className="gap-1 px-1.5 py-0 text-[11px] font-medium">
                 <Shield className="h-3 w-3" />
                 System
               </Badge>
@@ -513,7 +513,7 @@ export function AgentForm({
             {(isEdit ? agent?.kind === 'judge' : initialKind === 'judge') && (
               <Badge
                 variant="outline"
-                className="gap-1 border-amber-300 px-1.5 py-0 text-[10px] font-medium text-amber-700 dark:border-amber-700 dark:text-amber-300"
+                className="gap-1 border-amber-300 px-1.5 py-0 text-[11px] font-medium text-amber-700 dark:border-amber-700 dark:text-amber-300"
               >
                 <Scale className="h-3 w-3" />
                 Judge
@@ -525,7 +525,7 @@ export function AgentForm({
             <p className="text-muted-foreground mt-0.5 text-xs">
               The system instructions you write below ARE the rubric. The evaluation worker sends
               the case as a structured user message; the judge responds with{' '}
-              <code className="bg-muted rounded px-1 text-[10px]">
+              <code className="bg-muted rounded px-1 text-[11px]">
                 {'{"score": ..., "reasoning": "..."}'}
               </code>{' '}
               JSON.
@@ -729,7 +729,7 @@ export function AgentForm({
             </div>
           )}
 
-          <div className="flex items-center justify-between rounded-lg border p-4">
+          <div className="bg-card flex items-center justify-between rounded-lg border p-4">
             <div className="space-y-0.5">
               <Label htmlFor="isActive">
                 Active{' '}
@@ -881,7 +881,7 @@ export function AgentForm({
                   providers other than the primary are shown. Leave unchecked to disable failover.
                 </FieldHelp>
               </Label>
-              <div className="space-y-2 rounded-md border p-3">
+              <div className="bg-card space-y-2 rounded-md border p-3">
                 {providers
                   .filter((p) => p.slug !== currentProvider)
                   .map((p) => {
@@ -890,7 +890,7 @@ export function AgentForm({
                       <label key={p.id} className="flex items-center gap-2 text-sm">
                         <input
                           type="checkbox"
-                          className="rounded border-gray-300"
+                          className="bg-card rounded border-gray-300"
                           checked={checked}
                           onChange={(e) => {
                             const current = watch('fallbackProviders');
@@ -972,7 +972,7 @@ export function AgentForm({
                         <span className="flex items-center gap-2">
                           <span className={isLegacy ? 'italic' : undefined}>{m.id}</span>
                           {isLegacy ? (
-                            <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium tracking-wide text-amber-900 uppercase dark:bg-amber-950/40 dark:text-amber-200">
+                            <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium tracking-wide text-amber-900 uppercase dark:bg-amber-950/40 dark:text-amber-200">
                               no longer in matrix
                             </span>
                           ) : m.tier ? (
@@ -1113,7 +1113,7 @@ export function AgentForm({
             )}
           </div>
 
-          <div className="flex items-center justify-between rounded-lg border p-4">
+          <div className="bg-card flex items-center justify-between rounded-lg border p-4">
             <div className="space-y-0.5">
               <Label htmlFor="enableVoiceInput">
                 Enable voice input{' '}
@@ -1160,7 +1160,7 @@ export function AgentForm({
             />
           </div>
 
-          <div className="flex items-center justify-between rounded-lg border p-4">
+          <div className="bg-card flex items-center justify-between rounded-lg border p-4">
             <div className="space-y-0.5">
               <Label htmlFor="enableImageInput">
                 Enable image input{' '}
@@ -1211,7 +1211,7 @@ export function AgentForm({
             />
           </div>
 
-          <div className="flex items-center justify-between rounded-lg border p-4">
+          <div className="bg-card flex items-center justify-between rounded-lg border p-4">
             <div className="space-y-0.5">
               <Label htmlFor="enableDocumentInput">
                 Enable document (PDF) input{' '}
@@ -1330,7 +1330,7 @@ export function AgentForm({
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <div className="grid gap-2 rounded-md border p-3">
+            <div className="bg-card grid gap-2 rounded-md border p-3">
               <Label htmlFor="inputGuardMode">
                 Input guard{' '}
                 <FieldHelp title="Prompt injection protection">
@@ -1364,7 +1364,7 @@ export function AgentForm({
               </Select>
             </div>
 
-            <div className="grid gap-2 rounded-md border p-3">
+            <div className="bg-card grid gap-2 rounded-md border p-3">
               <Label htmlFor="outputGuardMode">
                 Output guard{' '}
                 <FieldHelp title="Response content filtering">
@@ -1397,7 +1397,7 @@ export function AgentForm({
               </Select>
             </div>
 
-            <div className="grid gap-2 rounded-md border p-3">
+            <div className="bg-card grid gap-2 rounded-md border p-3">
               <Label htmlFor="citationGuardMode">
                 Citation guard{' '}
                 <FieldHelp title="Citation hygiene">
@@ -1798,7 +1798,7 @@ export function AgentForm({
           {isEdit && agent ? (
             <AgentCapabilitiesTab agentId={agent.id} />
           ) : (
-            <div className="text-muted-foreground space-y-2 rounded-md border p-6 text-sm leading-relaxed">
+            <div className="bg-card text-muted-foreground space-y-2 rounded-md border p-6 text-sm leading-relaxed">
               <p>
                 <strong className="text-foreground">Capabilities</strong> are tools the agent can
                 call mid-conversation — e.g. search a knowledge base, look up an order, send an
@@ -1818,7 +1818,7 @@ export function AgentForm({
           {isEdit && agent && currentVisibility === 'invite_only' ? (
             <AgentInviteTokensTab agentId={agent.id} />
           ) : (
-            <div className="rounded-md border p-6 text-center text-sm">
+            <div className="bg-card rounded-md border p-6 text-center text-sm">
               <p className="text-muted-foreground">
                 {!isEdit
                   ? 'Save the agent first, then manage invite tokens.'
@@ -1885,7 +1885,7 @@ export function AgentForm({
               }}
             />
           ) : (
-            <div className="rounded-md border p-6 text-center text-sm">
+            <div className="bg-card rounded-md border p-6 text-center text-sm">
               <p className="text-muted-foreground">Save the agent first to view version history.</p>
             </div>
           )}
@@ -1909,7 +1909,7 @@ export function AgentForm({
               className="h-[500px]"
             />
           ) : (
-            <div className="rounded-md border p-6 text-center text-sm">
+            <div className="bg-card rounded-md border p-6 text-center text-sm">
               <p className="text-muted-foreground">Save the agent first to test a chat.</p>
             </div>
           )}
@@ -1920,7 +1920,7 @@ export function AgentForm({
           {isEdit && agent ? (
             <EmbedConfigPanel agentId={agent.id} appUrl={process.env.NEXT_PUBLIC_APP_URL ?? ''} />
           ) : (
-            <div className="text-muted-foreground space-y-2 rounded-md border p-6 text-sm leading-relaxed">
+            <div className="bg-card text-muted-foreground space-y-2 rounded-md border p-6 text-sm leading-relaxed">
               <p>
                 <strong className="text-foreground">Embed</strong> drops this agent onto a
                 third-party site as a floating chat widget. You generate an origin-scoped token,

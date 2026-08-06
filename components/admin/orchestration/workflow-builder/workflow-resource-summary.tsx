@@ -180,14 +180,14 @@ export function WorkflowResourceSummary({
           <span className="flex items-center gap-2">
             <span className="font-medium">Resources</span>
             {resources.capabilities.length > 0 && (
-              <Badge variant="secondary" className="gap-1 px-1.5 py-0 text-[10px]">
+              <Badge variant="secondary" className="gap-1 px-1.5 py-0 text-[11px]">
                 <Puzzle className="h-3 w-3" />
                 {resources.capabilities.length}{' '}
                 {resources.capabilities.length === 1 ? 'capability' : 'capabilities'}
               </Badge>
             )}
             {resources.agents.length > 0 && (
-              <Badge variant="secondary" className="gap-1 px-1.5 py-0 text-[10px]">
+              <Badge variant="secondary" className="gap-1 px-1.5 py-0 text-[11px]">
                 <Bot className="h-3 w-3" />
                 {resources.agents.length} {resources.agents.length === 1 ? 'agent' : 'agents'}
               </Badge>
@@ -201,7 +201,7 @@ export function WorkflowResourceSummary({
         <div className="max-h-48 space-y-3 overflow-y-auto px-4 pb-3">
           {resources.capabilities.length > 0 && (
             <div>
-              <p className="text-muted-foreground mb-1 flex items-center gap-1.5 text-[10px] font-semibold tracking-wide uppercase">
+              <p className="text-muted-foreground mb-1 flex items-center gap-1.5 text-[11px] font-semibold tracking-wide uppercase">
                 <Puzzle className="h-3 w-3" />
                 Capabilities
               </p>
@@ -214,7 +214,7 @@ export function WorkflowResourceSummary({
           )}
           {resources.agents.length > 0 && (
             <div>
-              <p className="text-muted-foreground mb-1 flex items-center gap-1.5 text-[10px] font-semibold tracking-wide uppercase">
+              <p className="text-muted-foreground mb-1 flex items-center gap-1.5 text-[11px] font-semibold tracking-wide uppercase">
                 <Bot className="h-3 w-3" />
                 Agents
               </p>
@@ -313,10 +313,10 @@ function CostBanner({
         <span className="font-medium">{headline}</span>
       </span>
       <span className="flex items-center gap-2">
-        <Badge variant="outline" className="px-1.5 py-0 text-[10px] uppercase">
+        <Badge variant="outline" className="px-1.5 py-0 text-[11px] uppercase">
           {estimate.basedOn}
         </Badge>
-        <span className="text-[10px] opacity-80">
+        <span className="text-[11px] opacity-80">
           range {formatUsd(estimate.lowUsd)}–{formatUsd(estimate.highUsd)}
         </span>
       </span>
@@ -345,14 +345,14 @@ function ResourceRow({
       >
         <span className="flex-1">
           <span className="font-medium">{entry.name}</span>
-          <span className="text-muted-foreground ml-1.5 font-mono text-[10px]">{entry.slug}</span>
+          <span className="text-muted-foreground ml-1.5 font-mono text-[11px]">{entry.slug}</span>
           {entry.stepIds.length > 1 && (
-            <Badge variant="outline" className="ml-1.5 px-1 py-0 text-[10px]">
+            <Badge variant="outline" className="ml-1.5 px-1 py-0 text-[11px]">
               {entry.stepIds.length} steps
             </Badge>
           )}
           {entry.description && (
-            <span className="text-muted-foreground ml-2 text-[10px]">— {entry.description}</span>
+            <span className="text-muted-foreground ml-2 text-[11px]">— {entry.description}</span>
           )}
         </span>
       </Button>

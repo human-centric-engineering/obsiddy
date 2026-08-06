@@ -197,7 +197,7 @@ export function BoardView({ view, allTags }: BoardViewProps): React.ReactElement
       </DndContext>
 
       {view.unplaced.length > 0 && (
-        <section className="space-y-2 rounded-lg border border-dashed p-3">
+        <section className="bg-card space-y-2 rounded-lg border border-dashed p-3">
           <h3 className="text-sm font-semibold">Not on any column</h3>
           <p className="text-muted-foreground text-xs">
             These tasks match the board but their status has no column here. They are not lost — add

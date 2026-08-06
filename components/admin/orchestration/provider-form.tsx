@@ -789,7 +789,7 @@ export function ProviderForm({ mode, provider }: ProviderFormProps) {
       )}
 
       {/* Active */}
-      <div className="flex items-center justify-between rounded-md border p-3">
+      <div className="bg-card flex items-center justify-between rounded-md border p-3">
         <div>
           <Label htmlFor="isActive" className="text-sm font-medium">
             Active{' '}
@@ -807,7 +807,7 @@ export function ProviderForm({ mode, provider }: ProviderFormProps) {
       </div>
 
       {/* Advanced settings — collapsible */}
-      <div className="rounded-md border">
+      <div className="bg-card rounded-md border">
         <button
           type="button"
           className="flex w-full items-center gap-2 p-3 text-sm font-medium"
@@ -871,7 +871,7 @@ export function ProviderForm({ mode, provider }: ProviderFormProps) {
 
       {/* Test connection — edit only (create mode has no id yet) */}
       {isEdit && provider && (
-        <div className="rounded-md border p-4">
+        <div className="bg-card rounded-md border p-4">
           <p className="mb-2 text-sm font-medium">Test connection</p>
           <p className="text-muted-foreground mb-3 text-xs">
             Calls the provider&apos;s list-models endpoint and reports back. Errors are sanitized —

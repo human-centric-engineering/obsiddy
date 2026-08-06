@@ -85,16 +85,19 @@ export function SearchResults({
 
           <ul className="space-y-2">
             {items.map((hit) => (
-              <li key={`${hit.entityType}:${hit.id}`} className="space-y-1 rounded-md border p-3">
+              <li
+                key={`${hit.entityType}:${hit.id}`}
+                className="bg-card space-y-1 rounded-md border p-3"
+              >
                 <div className="flex flex-wrap items-center gap-2">
                   <EntityChip type={hit.entityType} id={hit.id} label={hit.title} compact />
 
-                  <Badge variant="outline" className="text-[10px]">
+                  <Badge variant="outline" className="text-[11px]">
                     {hit.matchedBy === 'semantic' ? 'by meaning' : 'exact wording'}
                   </Badge>
 
                   {hit.archivedAt && (
-                    <Badge variant="secondary" className="text-[10px]">
+                    <Badge variant="secondary" className="text-[11px]">
                       archived
                     </Badge>
                   )}

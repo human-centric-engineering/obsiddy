@@ -197,12 +197,12 @@ function MessageCard({ message }: { message: ConversationMessage }) {
       {(message.agentVersionId || message.workflowExecutionId) && (
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
           {message.agentVersionId && (
-            <Badge variant="outline" className="font-mono text-[10px]">
+            <Badge variant="outline" className="font-mono text-[11px]">
               agent {message.agentVersionId.slice(0, 8)}
             </Badge>
           )}
           {message.workflowExecutionId && (
-            <Badge variant="outline" className="font-mono text-[10px]">
+            <Badge variant="outline" className="font-mono text-[11px]">
               workflow exec {message.workflowExecutionId.slice(0, 8)}
               {message.workflowVersionId ? ` @ ${message.workflowVersionId.slice(0, 8)}` : ''}
             </Badge>
@@ -321,7 +321,7 @@ function DownloadProvenance({ conversationId }: { conversationId: string }) {
   return (
     <div
       data-testid="download-provenance"
-      className="flex flex-wrap items-center gap-2 rounded-md border p-3"
+      className="bg-card flex flex-wrap items-center gap-2 rounded-md border p-3"
     >
       <Download className="text-muted-foreground h-4 w-4" />
       <span className="text-sm font-medium">Download provenance</span>

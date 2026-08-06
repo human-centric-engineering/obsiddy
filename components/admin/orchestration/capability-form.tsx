@@ -592,7 +592,7 @@ export function CapabilityForm({
               {isEdit ? capability?.name : 'New capability'}
             </h1>
             {isEdit && capability?.isSystem && (
-              <Badge variant="secondary" className="gap-1 px-1.5 py-0 text-[10px] font-medium">
+              <Badge variant="secondary" className="gap-1 px-1.5 py-0 text-[11px] font-medium">
                 <Shield className="h-3 w-3" />
                 System
                 <FieldHelp title="System capability">
@@ -810,7 +810,7 @@ export function CapabilityForm({
             {metadataError && <p className="text-destructive text-xs">{metadataError}</p>}
           </div>
 
-          <div className="flex items-center justify-between rounded-lg border p-4">
+          <div className="bg-card flex items-center justify-between rounded-lg border p-4">
             <div className="space-y-0.5">
               <Label htmlFor="isActive">
                 Active{' '}
@@ -983,7 +983,7 @@ export function CapabilityForm({
                   </p>
                 ) : (
                   <div className="space-y-2">
-                    <div className="text-muted-foreground grid grid-cols-[1fr_120px_2fr_80px_40px] gap-2 px-2 text-[10px] font-medium tracking-wide uppercase">
+                    <div className="text-muted-foreground grid grid-cols-[1fr_120px_2fr_80px_40px] gap-2 px-2 text-[11px] font-medium tracking-wide uppercase">
                       <span>Name</span>
                       <span>Type</span>
                       <span>Description</span>
@@ -993,7 +993,7 @@ export function CapabilityForm({
                     {rows.map((row, idx) => (
                       <div
                         key={idx}
-                        className="grid grid-cols-[1fr_120px_2fr_80px_40px] items-center gap-2 rounded-md border p-2"
+                        className="bg-card grid grid-cols-[1fr_120px_2fr_80px_40px] items-center gap-2 rounded-md border p-2"
                       >
                         <Input
                           placeholder="name"
@@ -1168,7 +1168,7 @@ export function CapabilityForm({
 
         {/* ================= TAB 4 — SAFETY ================= */}
         <TabsContent value="safety" className="space-y-4 pt-4">
-          <div className="flex items-center justify-between rounded-lg border p-4">
+          <div className="bg-card flex items-center justify-between rounded-lg border p-4">
             <div className="space-y-0.5">
               <Label htmlFor="requiresApproval">
                 Requires approval{' '}
@@ -1244,7 +1244,7 @@ export function CapabilityForm({
           </div>
 
           {isEdit && usedBy.length > 0 && (
-            <div className="rounded-md border p-4">
+            <div className="bg-card rounded-md border p-4">
               <p className="text-sm font-medium">
                 Used by {usedBy.length} agent{usedBy.length === 1 ? '' : 's'}
               </p>

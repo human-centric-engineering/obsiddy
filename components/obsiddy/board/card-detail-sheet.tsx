@@ -260,7 +260,7 @@ function CardDetailBody({
         </section>
 
         {card.task.manualBoost !== 0 && (
-          <Badge variant="secondary" className="text-[10px]">
+          <Badge variant="secondary" className="text-[11px]">
             {card.task.manualBoost > 0 ? 'Pinned by you' : 'Pushed down by you'}
           </Badge>
         )}

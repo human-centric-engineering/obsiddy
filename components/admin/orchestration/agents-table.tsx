@@ -526,7 +526,7 @@ export function AgentsTable({ initialAgents, initialMeta }: AgentsTableProps) {
             </Link>
             {agent.isSystem && (
               <Tip label="System agent — used internally by the platform. Cannot be deleted or deactivated.">
-                <Badge variant="secondary" className="gap-1 px-1.5 py-0 text-[10px] font-medium">
+                <Badge variant="secondary" className="gap-1 px-1.5 py-0 text-[11px] font-medium">
                   <Shield className="h-3 w-3" />
                   System
                 </Badge>
@@ -536,7 +536,7 @@ export function AgentsTable({ initialAgents, initialMeta }: AgentsTableProps) {
               <Tip label="Judge agent — driven by the evaluation worker (and the manual-session scorer) to score AI responses. Edit the system instructions to change its rubric.">
                 <Badge
                   variant="outline"
-                  className="gap-1 border-amber-300 px-1.5 py-0 text-[10px] font-medium text-amber-700 dark:border-amber-700 dark:text-amber-300"
+                  className="gap-1 border-amber-300 px-1.5 py-0 text-[11px] font-medium text-amber-700 dark:border-amber-700 dark:text-amber-300"
                 >
                   <Scale className="h-3 w-3" />
                   Judge
@@ -545,7 +545,7 @@ export function AgentsTable({ initialAgents, initialMeta }: AgentsTableProps) {
             )}
             {visBadge && (
               <Tip label={`Visibility: ${agent.visibility.replace('_', ' ')}`}>
-                <Badge variant="outline" className="gap-1 px-1.5 py-0 text-[10px] font-medium">
+                <Badge variant="outline" className="gap-1 px-1.5 py-0 text-[11px] font-medium">
                   {visBadge.icon}
                   {visBadge.label}
                 </Badge>
@@ -571,7 +571,7 @@ export function AgentsTable({ initialAgents, initialMeta }: AgentsTableProps) {
               >
                 <Badge
                   variant="outline"
-                  className="hover:bg-muted gap-1 px-1.5 py-0 text-[10px] font-medium"
+                  className="hover:bg-muted gap-1 px-1.5 py-0 text-[11px] font-medium"
                 >
                   {agent.profile.isSystem && <Shield className="h-3 w-3" aria-hidden="true" />}
                   {agent.profile.name}
@@ -601,7 +601,7 @@ export function AgentsTable({ initialAgents, initialMeta }: AgentsTableProps) {
         <TableCell className="text-xs">
           {agent.provider === '' && agent.model === '' ? (
             <Tip label="At runtime this agent uses the first active provider plus the default chat model from Orchestration Settings. Set the default chat model on the Settings page (Default models card) or via the setup wizard's 'Default models' step.">
-              <Badge variant="secondary" className="px-1.5 py-0 text-[10px] font-medium">
+              <Badge variant="secondary" className="px-1.5 py-0 text-[11px] font-medium">
                 System default
               </Badge>
             </Tip>
@@ -865,7 +865,9 @@ export function AgentsTable({ initialAgents, initialMeta }: AgentsTableProps) {
       )}
 
       {/* Table */}
-      <div className={`rounded-md border ${isLoading && agents.length > 0 ? 'opacity-60' : ''}`}>
+      <div
+        className={`rounded-md border ${isLoading && agents.length > 0 ? 'bg-card opacity-60' : ''}`}
+      >
         <Table>
           <TableHeader>
             <TableRow>
@@ -1019,7 +1021,7 @@ export function AgentsTable({ initialAgents, initialMeta }: AgentsTableProps) {
                             {bucket.label}
                           </span>
                         )}
-                        <Badge variant="secondary" className="px-1.5 py-0 text-[10px] font-medium">
+                        <Badge variant="secondary" className="px-1.5 py-0 text-[11px] font-medium">
                           {bucket.agents.length}
                         </Badge>
                       </button>

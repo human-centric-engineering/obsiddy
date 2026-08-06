@@ -555,7 +555,7 @@ export function ProviderModelsPanel({
           )}
 
           {sorted && sorted.length > 0 && (
-            <div className="rounded-md border">
+            <div className="bg-card rounded-md border">
               <Table>
                 <TableHeader className="bg-background sticky top-0 z-10">
                   <TableRow>
@@ -640,7 +640,7 @@ export function ProviderModelsPanel({
                           {m.inMatrix ? (
                             <Badge
                               variant="outline"
-                              className="border-green-600/40 text-[10px] text-green-700 dark:text-green-400"
+                              className="border-green-600/40 text-[11px] text-green-700 dark:text-green-400"
                             >
                               In matrix
                             </Badge>
@@ -720,7 +720,7 @@ export function ProviderModelsPanel({
                                         >
                                           <Badge
                                             variant="outline"
-                                            className="text-[10px] font-normal"
+                                            className="text-[11px] font-normal"
                                           >
                                             Default: {TASK_TYPE_LABEL[task]}
                                           </Badge>
@@ -736,7 +736,7 @@ export function ProviderModelsPanel({
                         <TableCell>
                           <div className="flex flex-wrap gap-1">
                             {(m.capabilities ?? ['chat']).map((c) => (
-                              <Badge key={c} variant="secondary" className="text-[10px] capitalize">
+                              <Badge key={c} variant="secondary" className="text-[11px] capitalize">
                                 {c}
                               </Badge>
                             ))}

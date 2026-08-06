@@ -215,7 +215,7 @@ function TokensCard({ agentId, appUrl }: EmbedConfigPanelProps): React.ReactElem
         {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
         {/* Create form */}
-        <div className="space-y-3 rounded-md border p-3">
+        <div className="bg-card space-y-3 rounded-md border p-3">
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1">
               <Label htmlFor="embed-label" className="text-xs">
@@ -269,13 +269,13 @@ function TokensCard({ agentId, appUrl }: EmbedConfigPanelProps): React.ReactElem
             </span>
           </div>
           {tokens.length === 0 ? (
-            <p className="text-muted-foreground rounded-md border border-dashed py-4 text-center text-sm">
+            <p className="bg-card text-muted-foreground rounded-md border border-dashed py-4 text-center text-sm">
               No embed tokens yet. Create one above to get started.
             </p>
           ) : (
             <div className="space-y-3">
               {tokens.map((t) => (
-                <div key={t.id} className="rounded-md border p-3">
+                <div key={t.id} className="bg-card rounded-md border p-3">
                   <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">

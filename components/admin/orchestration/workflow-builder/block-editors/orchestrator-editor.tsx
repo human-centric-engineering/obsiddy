@@ -92,11 +92,11 @@ export function OrchestratorEditor({
         </Label>
 
         {agents.length === 0 ? (
-          <p className="text-muted-foreground rounded-md border border-dashed px-3 py-2 text-xs italic">
+          <p className="bg-card text-muted-foreground rounded-md border border-dashed px-3 py-2 text-xs italic">
             No active agents available. Create agents in the Agents admin first.
           </p>
         ) : (
-          <div className="max-h-48 space-y-2 overflow-y-auto rounded-md border p-3">
+          <div className="bg-card max-h-48 space-y-2 overflow-y-auto rounded-md border p-3">
             {agents.map((agent) => (
               <label key={agent.slug} className="flex items-start gap-2 text-xs">
                 <Checkbox

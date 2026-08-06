@@ -425,7 +425,7 @@ export function McpToolsList({ initialTools, capabilities }: McpToolsListProps) 
       )}
 
       {/* Table */}
-      <div className="rounded-md border">
+      <div className="bg-card rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>

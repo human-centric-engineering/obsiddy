@@ -216,7 +216,7 @@ export function DocumentKeywordsModal({
                 <br />
                 1.{' '}
                 <strong>
-                  <code className="text-[10px]">{'<!-- metadata: keywords="..." -->'}</code>
+                  <code className="text-[11px]">{'<!-- metadata: keywords="..." -->'}</code>
                 </strong>{' '}
                 comments inside markdown uploads — the chunker reads them and writes the
                 comma-separated value onto each chunk in scope.
@@ -239,7 +239,7 @@ export function DocumentKeywordsModal({
           {loading ? (
             <p className="text-muted-foreground text-xs">Loading…</p>
           ) : rows.length === 0 ? (
-            <div className="text-muted-foreground rounded-md border border-dashed p-6 text-center">
+            <div className="bg-card text-muted-foreground rounded-md border border-dashed p-6 text-center">
               <p className="text-sm">No keywords indexed yet.</p>
               <p className="mt-1 text-xs">
                 Run <strong>Enrich keywords</strong> below to generate 3–8 BM25 phrases per chunk
@@ -247,7 +247,7 @@ export function DocumentKeywordsModal({
               </p>
             </div>
           ) : (
-            <div className="rounded-md border">
+            <div className="bg-card rounded-md border">
               <div className="text-muted-foreground bg-muted/40 flex items-center justify-between border-b px-3 py-1.5 text-xs">
                 <span>
                   {filtered.length} of {rows.length} keyword{rows.length === 1 ? '' : 's'}

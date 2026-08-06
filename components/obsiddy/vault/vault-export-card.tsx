@@ -80,7 +80,7 @@ export function VaultExportCard(): React.ReactElement {
   }
 
   return (
-    <section className="space-y-4 rounded-lg border p-4">
+    <section className="bg-card space-y-4 rounded-lg border p-4">
       <div className="space-y-1">
         <h2 className="text-base font-semibold">Export</h2>
         <p className="text-muted-foreground text-sm">

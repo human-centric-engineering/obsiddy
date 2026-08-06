@@ -444,7 +444,7 @@ export function WidgetAppearanceSection({ agentId }: Props): React.ReactElement 
             floating in dead space.
           */}
           <div className="space-y-3">
-            <div className="rounded-md border p-4">
+            <div className="bg-card rounded-md border p-4">
               <p className="text-muted-foreground mb-3 text-xs tracking-wide uppercase">Preview</p>
               <WidgetPreview cfg={form} />
             </div>
@@ -576,14 +576,14 @@ function FontFamilyField({
           />
           <div className="flex items-baseline justify-between">
             {!customLooksValid ? (
-              <p className="text-destructive text-[10px]">
+              <p className="text-destructive text-[11px]">
                 Font stack contains a disallowed character. Stick to letters, digits, spaces,
                 commas, hyphens, and quote marks.
               </p>
             ) : (
               <span />
             )}
-            <p className="text-muted-foreground text-[10px]">{value.length}/200</p>
+            <p className="text-muted-foreground text-[11px]">{value.length}/200</p>
           </div>
         </div>
       )}
@@ -626,7 +626,7 @@ function ColorField({ id, label, help, value, onChange }: ColorFieldProps): Reac
           aria-label={`${label} colour picker`}
           value={isValid ? value : '#000000'}
           onChange={(e) => onChange(e.target.value)}
-          className="h-9 w-9 cursor-pointer rounded border"
+          className="bg-card h-9 w-9 cursor-pointer rounded border"
         />
         <Input
           id={id}
@@ -672,7 +672,7 @@ function TextField({
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
       />
-      <p className="text-muted-foreground text-right text-[10px]">
+      <p className="text-muted-foreground text-right text-[11px]">
         {value.length}/{maxLength}
       </p>
     </div>

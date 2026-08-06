@@ -500,7 +500,7 @@ function SkippedStepRow({
       <Badge
         variant="outline"
         className={cn(
-          'shrink-0 text-[10px]',
+          'shrink-0 text-[11px]',
           tone === 'expected'
             ? 'border-amber-300/60 bg-amber-100/40 text-amber-900/80 dark:border-amber-800 dark:bg-amber-950/20 dark:text-amber-200/80'
             : 'border-amber-400 bg-amber-100 text-amber-900 dark:border-amber-700 dark:bg-amber-900/40 dark:text-amber-100'
@@ -511,7 +511,7 @@ function SkippedStepRow({
       <div className="min-w-0 flex-1">
         <p className="font-medium">
           {entry.label}
-          <span className="text-foreground/60 ml-2 font-mono text-[10px]">{entry.stepType}</span>
+          <span className="text-foreground/60 ml-2 font-mono text-[11px]">{entry.stepType}</span>
         </p>
         {entry.error ? (
           <p className="text-foreground/75 mt-0.5 break-words">{entry.error}</p>
@@ -536,7 +536,7 @@ function SkippedStepRow({
 
 function StepTypeChip({ type }: { type: string }) {
   return (
-    <span className="bg-background/70 text-foreground/70 rounded-full px-2 py-0.5 font-mono text-[10px] tracking-wide uppercase">
+    <span className="bg-background/70 text-foreground/70 rounded-full px-2 py-0.5 font-mono text-[11px] tracking-wide uppercase">
       {type}
     </span>
   );

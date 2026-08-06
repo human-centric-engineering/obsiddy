@@ -266,7 +266,7 @@ export function AgentCapabilitiesTab({ agentId }: AgentCapabilitiesTabProps) {
 
       <div className="grid gap-4 md:grid-cols-2">
         {/* Attached */}
-        <section className="rounded-md border">
+        <section className="bg-card rounded-md border">
           <header className="border-b px-3 py-2 text-sm font-medium">Attached</header>
           {attached && attached.length > 0 ? (
             <ul className="divide-y">
@@ -316,7 +316,7 @@ export function AgentCapabilitiesTab({ agentId }: AgentCapabilitiesTabProps) {
         </section>
 
         {/* Available */}
-        <section className="rounded-md border">
+        <section className="bg-card rounded-md border">
           <header className="space-y-2 border-b px-3 py-2">
             <div className="flex items-center justify-between gap-2">
               <span className="text-sm font-medium">Available</span>

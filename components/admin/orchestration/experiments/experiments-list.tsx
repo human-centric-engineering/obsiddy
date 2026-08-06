@@ -428,7 +428,7 @@ export function ExperimentsList(): React.ReactElement {
       </div>
 
       {/* Experiment table */}
-      <div className="rounded-md border">
+      <div className="bg-card rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>

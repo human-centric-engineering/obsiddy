@@ -262,7 +262,7 @@ export function WebhookDlqTable({
 
       {actionError && <p className="text-destructive text-sm">{actionError}</p>}
 
-      <div className="rounded-md border">
+      <div className="bg-card rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
@@ -302,7 +302,7 @@ export function WebhookDlqTable({
                     </Link>
                   </TableCell>
                   <TableCell>
-                    <Badge variant="secondary" className="text-[10px]">
+                    <Badge variant="secondary" className="text-[11px]">
                       {formatEventLabel(d.eventType)}
                     </Badge>
                   </TableCell>

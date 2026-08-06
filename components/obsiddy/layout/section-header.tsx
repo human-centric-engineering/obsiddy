@@ -32,19 +32,66 @@ import { usePathname } from 'next/navigation';
 import { ArrowRight } from 'lucide-react';
 
 import { FieldHelp } from '@/components/ui/field-help';
+import { OBSIDDY_NAV_GROUPS } from '@/components/obsiddy/layout/obsiddy-nav';
 import { findSectionHelp } from '@/lib/framework/obsiddy/ui/section-help';
+
+/**
+ * Which rail group owns this path.
+ *
+ * Derived from `OBSIDDY_NAV_GROUPS` rather than duplicated, so a section moved
+ * between groups moves its eyebrow with it and the two can't disagree. Longest
+ * href wins: `/obsiddy` prefixes every other route, so a plain `startsWith` scan
+ * would report the Today group for all fourteen sections.
+ */
+function findGroupLabel(pathname: string): string | null {
+  let best: { label: string; length: number } | null = null;
+
+  for (const group of OBSIDDY_NAV_GROUPS) {
+    for (const item of group.items) {
+      const matches =
+        pathname === item.href || (!item.exact && pathname.startsWith(`${item.href}/`));
+      if (matches && (!best || item.href.length > best.length)) {
+        best = { label: group.label, length: item.href.length };
+      }
+    }
+  }
+
+  return best?.label ?? null;
+}
 
 export function SectionHeader(): React.ReactElement | null {
   const pathname = usePathname();
   const section = findSectionHelp(pathname);
+  const group = findGroupLabel(pathname);
 
   if (!section) return null;
 
   return (
-    <div className="min-w-0 space-y-0.5">
+    <div className="min-w-0 space-y-1">
+      {/* The eyebrow names the rail group this section belongs to — Daily,
+          Organise, Knowledge, Manage.
+
+          Deliberately not the word "Obsiddy": the rail head and the app nav both
+          say that already, and printing it a third time is the duplication this
+          shell removed once before. The group is the one piece of orientation
+          the page doesn't otherwise carry — on a deep link into `/obsiddy/areas`
+          it tells you where you landed without a breadcrumb's worth of chrome.
+
+          The `▍` is what makes this read as a terminal rather than as a page with
+          a monospace heading: it is a prompt, and the section name is the thing
+          it was asked for. `aria-hidden` and a sibling rather than part of the
+          string, so a screen reader says "Organise" and not "vertical bar
+          Organise". Rendered only when a group is found, since an orphaned block
+          reads as a rendering fault. */}
+      {group && (
+        <div className="term-label text-primary/75 flex items-center gap-1.5">
+          <span aria-hidden="true">▍</span>
+          {group}
+        </div>
+      )}
       {/* h1 — the shell used to spend one on the word "Obsiddy", which the app
           nav already said. The page is the section, so the section names it. */}
-      <h1 className="flex items-center gap-1.5 text-2xl font-semibold tracking-tight">
+      <h1 className="flex items-center gap-1.5 text-2xl">
         {section.title}
         <FieldHelp
           title={section.title}

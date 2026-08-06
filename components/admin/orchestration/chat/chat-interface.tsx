@@ -1612,5 +1612,5 @@ export function ChatInterface({
     return content;
   }
 
-  return <div className="rounded-lg border">{content}</div>;
+  return <div className="bg-card rounded-lg border">{content}</div>;
 }

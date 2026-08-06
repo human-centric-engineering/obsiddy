@@ -136,18 +136,18 @@ function GoalNode({
   return (
     <li>
       <div
-        className="flex flex-wrap items-center gap-2 rounded-md border p-3"
+        className="bg-card flex flex-wrap items-center gap-2 rounded-md border p-3"
         // Indent by depth. Capped so a deep chain cannot push content off screen.
         style={{ marginLeft: `${Math.min(depth, 4) * 1.25}rem` }}
       >
         <span className="font-medium">{goal.title}</span>
 
-        <Badge variant="outline" className="text-[10px]">
+        <Badge variant="outline" className="text-[11px]">
           {goal.horizon}
         </Badge>
 
         {goal.status !== 'active' && (
-          <Badge variant="secondary" className="text-[10px]">
+          <Badge variant="secondary" className="text-[11px]">
             {goal.status}
           </Badge>
         )}
@@ -168,7 +168,7 @@ function GoalNode({
         )}
 
         {goal.archivedAt !== null && (
-          <Badge variant="outline" className="text-[10px]">
+          <Badge variant="outline" className="text-[11px]">
             archived
           </Badge>
         )}

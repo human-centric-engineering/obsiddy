@@ -264,7 +264,7 @@ function SupervisorDetailsPanel({
   const bg = verdictColour[verdict as keyof typeof verdictColour] ?? verdictColour.inconclusive;
   return (
     <div
-      className={cn('rounded-md border px-4 py-3 text-sm', bg)}
+      className={cn('bg-card rounded-md border px-4 py-3 text-sm', bg)}
       data-testid="supervisor-details-panel"
     >
       <div className="mb-2 flex flex-wrap items-baseline gap-2">

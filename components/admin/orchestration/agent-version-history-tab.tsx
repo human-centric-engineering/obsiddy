@@ -129,7 +129,7 @@ function DiffTable({ changes }: { changes: FieldChange[] }) {
   }
 
   return (
-    <div className="overflow-x-auto rounded border">
+    <div className="bg-card overflow-x-auto rounded border">
       <table className="w-full text-xs">
         <thead className="bg-muted/40">
           <tr>
@@ -363,7 +363,7 @@ export function AgentVersionHistoryTab({ agentId, onRestored }: AgentVersionHist
                         <div className="flex flex-wrap items-center gap-2">
                           <Badge
                             variant="secondary"
-                            className="px-1.5 py-0 text-[10px] tabular-nums"
+                            className="px-1.5 py-0 text-[11px] tabular-nums"
                           >
                             v{v.version}
                           </Badge>

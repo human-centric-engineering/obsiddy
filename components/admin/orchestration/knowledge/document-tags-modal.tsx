@@ -327,7 +327,7 @@ export function DocumentTagsModal({
           </div>
 
           {createOpen ? (
-            <div className="space-y-3 rounded-md border p-3">
+            <div className="bg-card space-y-3 rounded-md border p-3">
               <div className="grid gap-1.5">
                 <Label htmlFor="new-tag-name" className="text-xs">
                   Name
@@ -434,7 +434,7 @@ export function DocumentTagsModal({
               admin via <strong>Manage all tags</strong>.
             </p>
           ) : (
-            <div className="rounded-md border">
+            <div className="bg-card rounded-md border">
               <div className="border-b p-2">
                 <Input
                   value={filter}

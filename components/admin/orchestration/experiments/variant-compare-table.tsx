@@ -178,7 +178,7 @@ function VariantCell({
 function StatBadges({ decision }: { decision: PairwiseWinnerResult }): React.ReactElement | null {
   if (decision.pValue === null || decision.effectSize === null) {
     return (
-      <Badge variant="outline" className="text-[10px]">
+      <Badge variant="outline" className="text-[11px]">
         n &lt; 2
       </Badge>
     );
@@ -187,12 +187,12 @@ function StatBadges({ decision }: { decision: PairwiseWinnerResult }): React.Rea
   const meaningful = Math.abs(decision.effectSize) >= 0.5;
   return (
     <div className="flex flex-wrap gap-1">
-      <Badge variant={sig ? 'default' : 'outline'} className="px-1.5 py-0 text-[10px] font-normal">
+      <Badge variant={sig ? 'default' : 'outline'} className="px-1.5 py-0 text-[11px] font-normal">
         p = {formatPValue(decision.pValue)}
       </Badge>
       <Badge
         variant={meaningful ? 'default' : 'outline'}
-        className="px-1.5 py-0 text-[10px] font-normal"
+        className="px-1.5 py-0 text-[11px] font-normal"
       >
         d = {decision.effectSize.toFixed(2)}
       </Badge>

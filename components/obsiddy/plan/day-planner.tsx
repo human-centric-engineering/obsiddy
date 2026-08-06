@@ -132,7 +132,7 @@ export function DayPlanner({ blocks, projects, areas, day }: DayPlannerProps): R
         </p>
       </div>
 
-      <section className="space-y-3 rounded-lg border p-4">
+      <section className="bg-card space-y-3 rounded-lg border p-4">
         <h2 className="flex items-center gap-2 text-sm font-semibold">
           Block out some time
           <FieldHelp title="Why block time">
@@ -242,7 +242,10 @@ export function DayPlanner({ blocks, projects, areas, day }: DayPlannerProps): R
       ) : (
         <ul className="space-y-2">
           {blocks.map((block) => (
-            <li key={block.id} className="flex flex-wrap items-center gap-2 rounded-md border p-3">
+            <li
+              key={block.id}
+              className="bg-card flex flex-wrap items-center gap-2 rounded-md border p-3"
+            >
               <span className="font-medium">{block.title ?? 'Blocked time'}</span>
 
               <span className="text-muted-foreground text-xs">

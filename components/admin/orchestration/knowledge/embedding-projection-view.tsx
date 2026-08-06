@@ -257,7 +257,7 @@ export function EmbeddingProjectionView({ scope }: EmbeddingProjectionViewProps)
 
   if (error) {
     return (
-      <div className="text-muted-foreground rounded-lg border border-dashed p-12 text-center">
+      <div className="bg-card text-muted-foreground rounded-lg border border-dashed p-12 text-center">
         <p className="text-destructive text-sm font-medium">{error}</p>
         <Button variant="outline" size="sm" className="mt-3" onClick={() => void fetchProjection()}>
           Try again
@@ -268,7 +268,7 @@ export function EmbeddingProjectionView({ scope }: EmbeddingProjectionViewProps)
 
   if (!chunks || chunks.length === 0) {
     return (
-      <div className="text-muted-foreground rounded-lg border border-dashed p-12 text-center">
+      <div className="bg-card text-muted-foreground rounded-lg border border-dashed p-12 text-center">
         <Network className="mx-auto mb-3 h-10 w-10 opacity-40" />
         <p className="text-sm font-medium">No embedded chunks to project</p>
         <p className="mt-1 text-xs">
@@ -317,7 +317,7 @@ export function EmbeddingProjectionView({ scope }: EmbeddingProjectionViewProps)
         </Button>
       </div>
 
-      <div className="h-[500px] rounded-lg border">
+      <div className="bg-card h-[500px] rounded-lg border">
         <ReactECharts
           option={chartOption}
           style={{ height: '100%', width: '100%' }}

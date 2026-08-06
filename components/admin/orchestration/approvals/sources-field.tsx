@@ -123,12 +123,12 @@ export function SourcePill({ item }: { item: ProvenanceItem }) {
       <TooltipTrigger asChild>
         <Badge
           variant="outline"
-          className={`cursor-help gap-1 text-[10px] ${style.className}`}
+          className={`cursor-help gap-1 text-[11px] ${style.className}`}
           aria-label={`${style.description} (${item.confidence} confidence)`}
         >
           <span className="font-medium">{style.label}</span>
           {shortRef ? <span className="opacity-70">· {shortRef}</span> : null}
-          <span className="ml-0.5 font-mono text-[9px] opacity-60" aria-hidden>
+          <span className="ml-0.5 font-mono text-[11px] opacity-60" aria-hidden>
             {glyph}
           </span>
         </Badge>
@@ -151,20 +151,20 @@ export function SourceTooltipBody({
     <div className="space-y-2 text-xs">
       <div className="flex items-center justify-between gap-3">
         <span className="font-semibold capitalize">{item.source.replace(/_/g, ' ')}</span>
-        <span className="text-muted-foreground text-[10px] tracking-wide uppercase">
+        <span className="text-muted-foreground text-[11px] tracking-wide uppercase">
           {item.confidence} confidence
         </span>
       </div>
       <p className="text-muted-foreground text-[11px]">{description}</p>
       {item.reference ? (
         <div>
-          <div className="text-muted-foreground text-[10px] tracking-wide uppercase">Reference</div>
+          <div className="text-muted-foreground text-[11px] tracking-wide uppercase">Reference</div>
           <ReferenceLink reference={item.reference} stepId={item.stepId} />
         </div>
       ) : null}
       {item.snippet ? (
         <div>
-          <div className="text-muted-foreground text-[10px] tracking-wide uppercase">Snippet</div>
+          <div className="text-muted-foreground text-[11px] tracking-wide uppercase">Snippet</div>
           <blockquote className="border-muted-foreground/30 mt-1 border-l-2 pl-2 italic">
             {item.snippet}
           </blockquote>
@@ -172,7 +172,7 @@ export function SourceTooltipBody({
       ) : null}
       {item.note ? (
         <div>
-          <div className="text-muted-foreground text-[10px] tracking-wide uppercase">Note</div>
+          <div className="text-muted-foreground text-[11px] tracking-wide uppercase">Note</div>
           <p className="mt-1">{item.note}</p>
         </div>
       ) : null}

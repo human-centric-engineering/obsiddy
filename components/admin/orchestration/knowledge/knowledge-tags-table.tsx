@@ -185,7 +185,7 @@ export function KnowledgeTagsTable({ initialTags }: KnowledgeTagsTableProps): Re
         <Button onClick={() => setDialog({ kind: 'create' })}>New tag</Button>
       </div>
 
-      <div className="rounded-md border">
+      <div className="bg-card rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
@@ -613,7 +613,7 @@ function DeleteDialog({
         </DialogHeader>
 
         {isAgentBlocked && blockedAgents && blockedAgents.length > 0 ? (
-          <div className="rounded-md border p-3">
+          <div className="bg-card rounded-md border p-3">
             <p className="text-muted-foreground mb-2 text-xs">
               {blockedAgents.length} agent{blockedAgents.length === 1 ? '' : 's'} hold this grant:
             </p>
@@ -769,7 +769,7 @@ function TagUsagePanel({
           <ul className="space-y-1 text-sm">
             {usage.documents.map((doc) => (
               <li key={doc.id} className="flex items-center gap-2">
-                <Badge variant="outline" className="px-1 text-[10px]">
+                <Badge variant="outline" className="px-1 text-[11px]">
                   {doc.scope}
                 </Badge>
                 <span className="truncate">{doc.name}</span>
@@ -791,7 +791,7 @@ function TagUsagePanel({
             {usage.agents.map((agent) => (
               <li key={agent.id} className="flex items-center gap-2">
                 {agent.isActive ? null : (
-                  <Badge variant="outline" className="px-1 text-[10px]">
+                  <Badge variant="outline" className="px-1 text-[11px]">
                     inactive
                   </Badge>
                 )}

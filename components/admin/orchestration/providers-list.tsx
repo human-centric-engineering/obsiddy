@@ -604,7 +604,7 @@ export function ProvidersList({ initialProviders, hasAnyEnvKey = true }: Provide
       )}
 
       {providers.length === 0 ? (
-        <div className="rounded-md border border-dashed py-12 text-center">
+        <div className="bg-card rounded-md border border-dashed py-12 text-center">
           <p className="text-muted-foreground text-sm">
             {hasAnyEnvKey
               ? 'No providers configured yet.'
@@ -654,7 +654,7 @@ export function ProvidersList({ initialProviders, hasAnyEnvKey = true }: Provide
                       {p.isLocal && (
                         <Badge
                           variant="outline"
-                          className="text-[10px]"
+                          className="text-[11px]"
                           title="Runs locally (e.g. Ollama) — no API key needed, zero cost"
                         >
                           Local
@@ -663,7 +663,7 @@ export function ProvidersList({ initialProviders, hasAnyEnvKey = true }: Provide
                       {!p.isActive && (
                         <Badge
                           variant="outline"
-                          className="border-amber-300 bg-amber-50 text-[10px] text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200"
+                          className="border-amber-300 bg-amber-50 text-[11px] text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200"
                         >
                           Inactive
                         </Badge>

@@ -203,7 +203,7 @@ export function DocumentChunksModal({
           {!loading &&
             !error &&
             chunks.map((chunk, i) => (
-              <div key={chunk.id} className="space-y-1.5 rounded-md border p-3">
+              <div key={chunk.id} className="bg-card space-y-1.5 rounded-md border p-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
                     <span className="text-muted-foreground text-xs font-medium">#{i + 1}</span>
@@ -224,7 +224,7 @@ export function DocumentChunksModal({
                 {chunk.keywords && (
                   <div className="flex flex-wrap gap-1">
                     {chunk.keywords.split(',').map((kw) => (
-                      <Badge key={kw.trim()} variant="outline" className="text-[10px]">
+                      <Badge key={kw.trim()} variant="outline" className="text-[11px]">
                         {kw.trim()}
                       </Badge>
                     ))}

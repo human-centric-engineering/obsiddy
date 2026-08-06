@@ -78,7 +78,7 @@ export function EventSubscriptionsTabs({
         <TabsTrigger value="subscriptions">
           Subscriptions
           {webhooksMeta.total > 0 && (
-            <Badge variant="secondary" className="ml-2 px-1.5 text-[10px]">
+            <Badge variant="secondary" className="ml-2 px-1.5 text-[11px]">
               {webhooksMeta.total}
             </Badge>
           )}
@@ -86,7 +86,7 @@ export function EventSubscriptionsTabs({
         <TabsTrigger value="dlq">
           Dead Letter Queue
           {dlqMeta.total > 0 && (
-            <Badge variant="destructive" className="ml-2 px-1.5 text-[10px]">
+            <Badge variant="destructive" className="ml-2 px-1.5 text-[11px]">
               {dlqMeta.total}
             </Badge>
           )}

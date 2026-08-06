@@ -657,7 +657,7 @@ export function WebhookForm({ mode, webhook }: WebhookFormProps) {
             </ul>
           </FieldHelp>
         </Label>
-        <div className="grid grid-cols-2 gap-2 rounded-md border p-3">
+        <div className="bg-card grid grid-cols-2 gap-2 rounded-md border p-3">
           {WEBHOOK_EVENT_TYPES.map((event) => {
             const checked = currentEvents.includes(event);
             // An event is "wired" when there's a dispatchWebhookEvent call
@@ -674,7 +674,7 @@ export function WebhookForm({ mode, webhook }: WebhookFormProps) {
               >
                 <input
                   type="checkbox"
-                  className="rounded border-gray-300 disabled:cursor-not-allowed"
+                  className="bg-card rounded border-gray-300 disabled:cursor-not-allowed"
                   checked={checked}
                   disabled={!wired}
                   onChange={() => wired && toggleEvent(event)}
@@ -688,7 +688,7 @@ export function WebhookForm({ mode, webhook }: WebhookFormProps) {
       </div>
 
       {/* Entity scope */}
-      <div className="grid gap-4 rounded-lg border p-4">
+      <div className="bg-card grid gap-4 rounded-lg border p-4">
         <div className="space-y-0.5">
           <p className="text-sm font-medium">Scope</p>
           <p className="text-muted-foreground text-xs">
@@ -745,7 +745,7 @@ export function WebhookForm({ mode, webhook }: WebhookFormProps) {
       </div>
 
       {/* Retry policy */}
-      <div className="grid gap-4 rounded-lg border p-4">
+      <div className="bg-card grid gap-4 rounded-lg border p-4">
         <div className="space-y-0.5">
           <p className="text-sm font-medium">Retry policy</p>
           <p className="text-muted-foreground text-xs">
@@ -807,7 +807,7 @@ export function WebhookForm({ mode, webhook }: WebhookFormProps) {
       </div>
 
       {/* Active toggle */}
-      <div className="flex items-center justify-between rounded-lg border p-4">
+      <div className="bg-card flex items-center justify-between rounded-lg border p-4">
         <div className="space-y-0.5">
           <Label htmlFor="isActive">Active</Label>
           <p className="text-muted-foreground text-sm">

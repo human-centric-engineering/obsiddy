@@ -199,7 +199,7 @@ export function FeatureFlagForm({ open, onOpenChange, onSuccess, flag }: Feature
             </div>
 
             {/* Enabled field */}
-            <div className="flex items-center justify-between rounded-lg border p-4">
+            <div className="bg-card flex items-center justify-between rounded-lg border p-4">
               <div className="space-y-0.5">
                 <Label htmlFor="enabled">{isEditMode ? 'Enabled' : 'Enabled by default'}</Label>
                 <p className="text-muted-foreground text-sm">

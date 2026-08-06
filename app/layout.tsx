@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Suspense } from 'react';
 import { headers } from 'next/headers';
+import { Archivo, JetBrains_Mono, Martian_Mono } from 'next/font/google';
 import '@/app/globals.css';
 import '@/app/brand-theme.css'; // fork-owned per-surface palette; must cascade after globals
 import { ThemeProvider } from '@/hooks/use-theme';
@@ -12,6 +13,51 @@ import { AnalyticsScripts, UserIdentifier, PageTracker } from '@/components/anal
 import { SurfaceSync } from '@/components/surface-sync';
 import { DEFAULT_SURFACE } from '@/lib/app/surface';
 import { BRAND } from '@/lib/brand';
+
+/**
+ * The three fonts, and the one rule that keeps them apart.
+ *
+ * Obsiddy's premise is that the *chrome is an instrument and the content is a
+ * page*: the shell around your notes should read like a terminal — dense,
+ * aligned, monospaced — while the notes themselves should read like something a
+ * person wrote. One family cannot do both jobs. A whole UI set in monospace is
+ * the mistake the genre keeps making: it looks right in a screenshot and is
+ * tiring to actually read a paragraph in.
+ *
+ * So each family has one job and never takes another's:
+ *
+ * - **Martian Mono** (`--font-display`) — headings, the wordmark, and the tracked
+ *   micro-labels that name a region. Wide, mechanical, unmistakably a machine
+ *   talking. Only ever used on short strings, where its width is a feature.
+ * - **JetBrains Mono** (`--font-mono`) — anything that is *data*: ids, paths,
+ *   timestamps, counts, code, the capture prompt. Drawn for small sizes on dark
+ *   backgrounds, which is exactly where this app spends its time.
+ * - **Archivo** (`--font-sans`) — body copy and note content. A tall-x-height
+ *   grotesque that stays technical next to the two monos but reads at length.
+ *
+ * `display: 'swap'` on all three: a second brain that shows nothing for 300ms
+ * while a webfont lands has failed at the only thing it does.
+ */
+const fontDisplay = Martian_Mono({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-obsiddy-display',
+  display: 'swap',
+});
+
+const fontMono = JetBrains_Mono({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-obsiddy-mono',
+  display: 'swap',
+});
+
+const fontSans = Archivo({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-obsiddy-sans',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
   title: `${BRAND.name} - Next.js Starter`,
@@ -32,7 +78,16 @@ export default async function RootLayout({
   const surface = headersList.get('x-surface') ?? DEFAULT_SURFACE;
 
   return (
-    <html lang="en" data-surface={surface} suppressHydrationWarning>
+    <html
+      lang="en"
+      data-surface={surface}
+      // The font variables land on <html> rather than <body> so that
+      // body-portaled overlays (Radix dialogs, the cookie modal) inherit them
+      // for the same reason `data-surface` lives here — they mount outside the
+      // React tree that any lower element would wrap.
+      className={`${fontDisplay.variable} ${fontMono.variable} ${fontSans.variable}`}
+      suppressHydrationWarning
+    >
       <head>
         <script
           nonce={nonce}

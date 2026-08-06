@@ -92,12 +92,17 @@ export function BriefingCard({ initial }: { initial: BriefingWire }): React.Reac
                 night&rsquo;s did not happen.
               </p>
             )}
-            <p className="text-sm font-medium">{initial.review.title}</p>
-            {/* `whitespace-pre-wrap`: the briefing is written as plain prose with
-                real line breaks, and collapsing them would run it into a wall. */}
-            <p className="text-muted-foreground text-sm whitespace-pre-wrap">
-              {initial.review.body}
-            </p>
+            {/* `.terminal-surface` on the briefing itself and not the card: the
+                title and body are written overnight by `obsiddy-morning-briefing`
+                — machine output, same voice as the chat transcript — while the
+                staleness warning above and the buttons below are the app's own
+                chrome and stay in the reading font. */}
+            <div className="terminal-surface space-y-3">
+              <p className="text-foreground font-medium">{initial.review.title}</p>
+              {/* `whitespace-pre-wrap`: the briefing is written as plain prose with
+                  real line breaks, and collapsing them would run it into a wall. */}
+              <p className="text-muted-foreground whitespace-pre-wrap">{initial.review.body}</p>
+            </div>
           </>
         ) : (
           <p className="text-muted-foreground text-sm">

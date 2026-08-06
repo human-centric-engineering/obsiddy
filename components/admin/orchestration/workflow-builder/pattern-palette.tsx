@@ -65,7 +65,7 @@ function PaletteBlock({
       onDragStart={(e) => onDragStart(e, entry.type)}
       title={entry.description}
       className={cn(
-        'group cursor-grab rounded-md border p-2 transition-shadow hover:shadow-sm active:cursor-grabbing',
+        'bg-card group cursor-grab rounded-md border p-2 transition-shadow hover:shadow-sm active:cursor-grabbing',
         colours.bg,
         colours.border,
         colours.text,
@@ -81,7 +81,7 @@ function PaletteBlock({
           <span
             data-testid={`palette-count-${entry.type}`}
             className={cn(
-              'flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-semibold',
+              'flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[11px] font-semibold',
               colours.iconBg
             )}
           >
@@ -90,7 +90,7 @@ function PaletteBlock({
         )}
       </div>
       <p className="text-muted-foreground mt-1 line-clamp-2 text-[11px]">{entry.description}</p>
-      <span className="text-muted-foreground/60 mt-0.5 text-[10px]">{entry.estimatedDuration}</span>
+      <span className="text-muted-foreground/60 mt-0.5 text-[11px]">{entry.estimatedDuration}</span>
       {entry.relatedPatterns.length > 0 && onLearnMore && (
         <button
           type="button"
@@ -156,7 +156,7 @@ export function PatternPalette({ typeCounts = {} }: PatternPaletteProps) {
               <h3 className="text-muted-foreground mb-0.5 text-[11px] font-semibold tracking-wide uppercase">
                 {STEP_CATEGORY_LABELS[category]}
               </h3>
-              <p className="text-muted-foreground/70 mb-2 text-[10px]">
+              <p className="text-muted-foreground/70 mb-2 text-[11px]">
                 {CATEGORY_HINTS[category]}
               </p>
               <div className="space-y-2">

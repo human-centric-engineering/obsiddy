@@ -153,7 +153,7 @@ export function TriggersTable({ triggers, enabledChannels }: Props) {
   }
 
   return (
-    <div className="overflow-x-auto rounded-lg border">
+    <div className="bg-card overflow-x-auto rounded-lg border">
       <table className="w-full text-sm">
         <thead className="bg-muted/50 text-muted-foreground text-xs tracking-wide uppercase">
           <tr>
@@ -178,7 +178,7 @@ export function TriggersTable({ triggers, enabledChannels }: Props) {
                   </code>
                   {!adapterRegistered && (
                     <div className="mt-1">
-                      <Badge variant="destructive" className="text-[10px]">
+                      <Badge variant="destructive" className="text-[11px]">
                         adapter not registered
                       </Badge>
                     </div>
@@ -193,7 +193,7 @@ export function TriggersTable({ triggers, enabledChannels }: Props) {
                     {t.workflow.name}
                   </Link>
                   {!t.workflow.isActive && (
-                    <Badge variant="outline" className="ml-2 text-[10px]">
+                    <Badge variant="outline" className="ml-2 text-[11px]">
                       inactive
                     </Badge>
                   )}
@@ -211,7 +211,7 @@ export function TriggersTable({ triggers, enabledChannels }: Props) {
                   )}
                   {t.hasSigningSecret && (
                     <div className="mt-1">
-                      <Badge variant="outline" className="text-[10px]">
+                      <Badge variant="outline" className="text-[11px]">
                         per-trigger secret
                       </Badge>
                     </div>

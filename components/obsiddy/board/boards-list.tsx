@@ -63,17 +63,20 @@ export function BoardsList({ boards, projects, tags }: BoardsListProps): React.R
       ) : (
         <ul className="space-y-2">
           {boards.map((board) => (
-            <li key={board.id} className="flex flex-wrap items-center gap-2 rounded-md border p-3">
+            <li
+              key={board.id}
+              className="bg-card flex flex-wrap items-center gap-2 rounded-md border p-3"
+            >
               <Link href={OBSIDDY_ROUTES.board(board.slug)} className="font-medium hover:underline">
                 {board.name}
               </Link>
 
-              <Badge variant="secondary" className="text-[10px]">
+              <Badge variant="secondary" className="text-[11px]">
                 {board.membership === 'explicit' ? 'hand-picked' : 'a live query'}
               </Badge>
 
               {board.archivedAt !== null && (
-                <Badge variant="outline" className="text-[10px]">
+                <Badge variant="outline" className="text-[11px]">
                   archived
                 </Badge>
               )}
@@ -146,7 +149,7 @@ function TagLibrary({ tags }: { tags: TagWire[] }): React.ReactElement {
   }
 
   return (
-    <section className="space-y-3 rounded-lg border p-4">
+    <section className="bg-card space-y-3 rounded-lg border p-4">
       <div className="space-y-1">
         <h2 className="flex items-center gap-2 text-sm font-semibold">
           <TagIcon className="h-4 w-4" aria-hidden="true" />

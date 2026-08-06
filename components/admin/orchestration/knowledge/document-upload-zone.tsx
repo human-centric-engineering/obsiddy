@@ -372,7 +372,7 @@ export function DocumentUploadZone({ onUploadComplete, onPdfPreview }: DocumentU
         </div>
       ) : (
         /* Staged files — category + upload */
-        <div className="space-y-3 rounded-lg border p-4">
+        <div className="bg-card space-y-3 rounded-lg border p-4">
           <div className="space-y-2">
             {stagedFiles.map((file, idx) => (
               <div key={`${file.name}-${idx}`} className="flex items-center justify-between">

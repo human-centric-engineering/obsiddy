@@ -123,7 +123,7 @@ export function BlockConfigPanel({
       {/* Type badge */}
       <div
         className={cn(
-          'mb-4 flex items-center gap-2 rounded-md border px-2 py-1.5 text-xs',
+          'bg-card mb-4 flex items-center gap-2 rounded-md border px-2 py-1.5 text-xs',
           colours.bg,
           colours.border,
           colours.text
@@ -173,7 +173,7 @@ export function BlockConfigPanel({
           placeholder="e.g. Picks up the parsed model list and queries Brave for recent provider news"
           data-testid="step-description-textarea"
         />
-        <p className="text-muted-foreground text-right text-[10px] tabular-nums">
+        <p className="text-muted-foreground text-right text-[11px] tabular-nums">
           {(node.data.description ?? '').length} / {DESCRIPTION_MAX_CHARS}
         </p>
       </div>

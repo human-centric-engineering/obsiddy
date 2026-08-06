@@ -266,7 +266,7 @@ export function SetupWizard({ open, onOpenChange, forceOpen: _forceOpen }: Setup
         </DialogHeader>
 
         {probingError && (
-          <div className="text-muted-foreground mb-2 rounded-md border border-dashed p-2 text-xs">
+          <div className="bg-card text-muted-foreground mb-2 rounded-md border border-dashed p-2 text-xs">
             {probingError}
           </div>
         )}

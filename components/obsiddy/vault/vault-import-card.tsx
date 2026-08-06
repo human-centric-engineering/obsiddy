@@ -127,7 +127,7 @@ export function VaultImportCard(): React.ReactElement {
   const busy = state.kind === 'busy';
 
   return (
-    <section className="space-y-4 rounded-lg border p-4">
+    <section className="bg-card space-y-4 rounded-lg border p-4">
       <div className="space-y-1">
         <h2 className="text-base font-semibold">Import</h2>
         <p className="text-muted-foreground text-sm">
@@ -218,7 +218,7 @@ function ImportReport({
   const rows = result.notes.filter((note) => note.action !== 'unchanged');
 
   return (
-    <div className="space-y-4 rounded-md border p-3" role="status">
+    <div className="bg-card space-y-4 rounded-md border p-3" role="status">
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
         <Count
           label={applied ? 'created' : 'to create'}

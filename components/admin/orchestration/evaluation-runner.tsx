@@ -666,7 +666,7 @@ export function EvaluationRunner({ evaluation }: EvaluationRunnerProps) {
 
         {/* Metric summary card */}
         {completionResult.metricSummary && (
-          <div className="rounded-md border p-4">
+          <div className="bg-card rounded-md border p-4">
             <div className="flex items-center justify-between">
               <h3 className="font-medium">Quality scores</h3>
               <span className="text-muted-foreground text-xs">
@@ -737,7 +737,7 @@ export function EvaluationRunner({ evaluation }: EvaluationRunnerProps) {
             <p className="text-muted-foreground text-sm">Loading transcript…</p>
           )}
           {transcript && transcript.length > 0 ? (
-            <div className="max-h-96 space-y-2 overflow-y-auto rounded-md border p-3">
+            <div className="bg-card max-h-96 space-y-2 overflow-y-auto rounded-md border p-3">
               {transcript.map((msg, i) => (
                 <div
                   key={i}
@@ -833,7 +833,7 @@ export function EvaluationRunner({ evaluation }: EvaluationRunnerProps) {
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {/* Left: Chat */}
-        <div className="flex flex-col rounded-md border">
+        <div className="bg-card flex flex-col rounded-md border">
           <div className="border-b px-4 py-2">
             <h3 className="text-sm font-medium">Chat with {evaluation.agent?.name ?? 'Agent'}</h3>
             <Badge variant="secondary" className="mt-1 text-xs">
@@ -915,7 +915,7 @@ export function EvaluationRunner({ evaluation }: EvaluationRunnerProps) {
         </div>
 
         {/* Right: Annotations */}
-        <div className="flex flex-col rounded-md border">
+        <div className="bg-card flex flex-col rounded-md border">
           <div className="flex items-center justify-between border-b px-4 py-2">
             <div>
               <h3 className="text-sm font-medium">Annotations</h3>
@@ -961,7 +961,7 @@ export function EvaluationRunner({ evaluation }: EvaluationRunnerProps) {
               const isExpanded = expandedMsg === i;
 
               return (
-                <div key={i} className="rounded-md border p-2">
+                <div key={i} className="bg-card rounded-md border p-2">
                   {/* Message preview */}
                   <button
                     type="button"

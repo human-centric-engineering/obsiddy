@@ -81,7 +81,7 @@ export function EntitiesView({ entities }: { entities: EntityWire[] }): React.Re
                     {entity.name}
                   </Link>
                   {entity.archivedAt !== null && (
-                    <Badge variant="outline" className="ml-1 text-[10px]">
+                    <Badge variant="outline" className="ml-1 text-[11px]">
                       archived
                     </Badge>
                   )}

@@ -106,7 +106,7 @@ export function ReviewItem({ section, item, state, onChange }: ReviewItemProps) 
           <p className={`text-sm font-medium ${isRejected ? 'line-through' : ''}`}>{title}</p>
         </div>
         {isModified && !isRejected && (
-          <Badge variant="default" className="text-[10px]">
+          <Badge variant="default" className="text-[11px]">
             Modified
           </Badge>
         )}
@@ -119,7 +119,7 @@ export function ReviewItem({ section, item, state, onChange }: ReviewItemProps) 
             <Badge
               key={badge.key}
               variant="outline"
-              className="text-[10px]"
+              className="text-[11px]"
               title={badge.label ?? badge.key}
             >
               {badge.label ? `${badge.label}: ${text}` : text}
@@ -326,7 +326,7 @@ function NestedItemBody({
                 <td className="px-2 py-1.5 text-right">
                   <div className="flex items-center justify-end gap-1">
                     {isModified && !rejected && (
-                      <Badge variant="default" className="text-[9px]">
+                      <Badge variant="default" className="text-[11px]">
                         Modified
                       </Badge>
                     )}
@@ -334,7 +334,7 @@ function NestedItemBody({
                       <Button
                         size="sm"
                         variant="ghost"
-                        className="h-6 px-1.5 text-[10px]"
+                        className="h-6 px-1.5 text-[11px]"
                         title={editing ? 'Revert modifications' : 'Modify proposed values'}
                         onClick={() => {
                           if (editing) {

@@ -75,7 +75,7 @@ const SECTIONS: Record<
 export function StaleDigest({ digest }: { digest: StaleDigestWire }): React.ReactElement {
   if (digest.total === 0) {
     return (
-      <div className="rounded-lg border border-dashed p-6 text-center">
+      <div className="bg-card rounded-lg border border-dashed p-6 text-center">
         <p className="text-sm font-medium">Nothing has gone quiet.</p>
         <p className="text-muted-foreground mt-1 text-sm">
           Every project, goal, area and person has shown some sign of life inside its window.
@@ -111,7 +111,7 @@ function StaleSection({ section }: { section: StaleSectionWire }): React.ReactEl
         {question} Quiet for more than {section.windowDays} days.
       </p>
 
-      <ul className="mt-3 divide-y rounded-lg border">
+      <ul className="bg-card mt-3 divide-y rounded-lg border">
         {section.rows.map((row) => (
           <StaleRow key={row.id} type={section.type} row={row} />
         ))}

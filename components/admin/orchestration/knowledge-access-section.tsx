@@ -209,7 +209,7 @@ export function KnowledgeAccessSection({
     mode === 'restricted' && tagIds.length === 0 && documentIds.length === 0;
 
   return (
-    <div className="grid gap-3 rounded-md border p-4">
+    <div className="bg-card grid gap-3 rounded-md border p-4">
       <div>
         <Label className="text-base">
           Knowledge access{' '}

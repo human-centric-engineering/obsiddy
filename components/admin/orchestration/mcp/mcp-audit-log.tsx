@@ -272,7 +272,7 @@ export function McpAuditLog({ initialEntries, initialMeta }: McpAuditLogProps) {
       </div>
 
       {/* Table */}
-      <div className="rounded-md border">
+      <div className="bg-card rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>

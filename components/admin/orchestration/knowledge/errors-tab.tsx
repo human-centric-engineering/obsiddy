@@ -134,7 +134,7 @@ export function ErrorsTab({ scope }: ErrorsTabProps) {
 
   if (fetchError) {
     return (
-      <div className="text-muted-foreground rounded-lg border border-dashed p-12 text-center">
+      <div className="bg-card text-muted-foreground rounded-lg border border-dashed p-12 text-center">
         <AlertTriangle className="text-destructive mx-auto mb-3 h-10 w-10 opacity-60" />
         <p className="text-destructive text-sm font-medium">{fetchError}</p>
         <Button variant="outline" size="sm" className="mt-3" onClick={() => void fetchFailed()}>
@@ -147,7 +147,7 @@ export function ErrorsTab({ scope }: ErrorsTabProps) {
 
   if (documents.length === 0) {
     return (
-      <div className="text-muted-foreground rounded-lg border border-dashed p-12 text-center">
+      <div className="bg-card text-muted-foreground rounded-lg border border-dashed p-12 text-center">
         <CheckCircle className="mx-auto mb-3 h-10 w-10 opacity-40" />
         <p className="text-sm font-medium">No failed documents</p>
         <p className="mt-1 text-xs">All documents processed successfully.</p>
@@ -171,7 +171,7 @@ export function ErrorsTab({ scope }: ErrorsTabProps) {
 
       <div className="space-y-3">
         {documents.map((doc) => (
-          <div key={doc.id} className="rounded-lg border p-4">
+          <div key={doc.id} className="bg-card rounded-lg border p-4">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0 flex-1 space-y-2">
                 <div className="flex items-center gap-2">

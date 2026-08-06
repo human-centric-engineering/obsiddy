@@ -315,7 +315,7 @@ export function ExecutionsTable({
         </div>
       )}
 
-      <div className="rounded-md border">
+      <div className="bg-card rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>

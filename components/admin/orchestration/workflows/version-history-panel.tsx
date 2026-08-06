@@ -76,7 +76,7 @@ export function VersionHistoryPanel({
           const newerDef = idx === 0 ? currentDefinition : entries[idx - 1].definition;
 
           return (
-            <div key={`${entry.changedAt}-${idx}`} className="rounded-md border">
+            <div key={`${entry.changedAt}-${idx}`} className="bg-card rounded-md border">
               <button
                 type="button"
                 className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm"

@@ -33,7 +33,7 @@ export function ChainEditor(_props: EditorProps<ChainConfig>) {
           </p>
         </FieldHelp>
       </div>
-      <div className="text-muted-foreground rounded-md border border-dashed px-3 py-4 text-xs leading-relaxed">
+      <div className="bg-card text-muted-foreground rounded-md border border-dashed px-3 py-4 text-xs leading-relaxed">
         Visual sub-step configuration is not yet available. You can still use Chain nodes on the
         canvas for layout sketching — each one acts as a sequential composition placeholder until
         its sub-steps are configured.
