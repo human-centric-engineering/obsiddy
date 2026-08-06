@@ -252,6 +252,104 @@ old `h1` restated the section blurb one line below it.
 
 ---
 
+## 12. Machine output is monospaced. Yours is not.
+
+Anywhere the app is _talking to you_ — the chat transcript, the morning briefing
+— and the prompt you type into it get `.terminal-surface`
+([design-language.md](../../ui/design-language.md)), which switches the subtree to
+JetBrains Mono and gives it the leading monospace needs at reading length.
+
+**The line is who wrote it, not which component renders it.** `<MarkdownView>`
+renders both an assistant reply and a note you typed, so the class goes on the
+**call site**, never inside the component. Put it in `MarkdownView` and every
+project description in the product turns into a terminal.
+
+| Surface                       | Treatment                                                         |
+| ----------------------------- | ----------------------------------------------------------------- |
+| Chat transcript + composer    | `.terminal-surface` on the root — the whole exchange is a session |
+| Capture box                   | `.terminal-surface` on the `<Textarea>` only                      |
+| Morning briefing title + body | `.terminal-surface` on the prose, not the card                    |
+| Thoughts, notes, descriptions | **Nothing** — this is your writing, it stays in Archivo           |
+
+Scope it as tightly as the meaning goes. On capture that means the box and not
+the form: what you type into a terminal is monospaced, the panel around it isn't,
+and the attachment card and status notes below are the app addressing you. On the
+briefing it means the two paragraphs the overnight workflow wrote — the staleness
+warning above them is the app's own voice.
+
+The admin orchestration chat
+(`components/admin/orchestration/chat/chat-interface.tsx`) arrived at the same
+treatment independently and still carries its own `font-mono`; it is
+Sunrise-owned, so it is left alone rather than converted.
+
+Streaming output ends in a `.terminal-caret` — the blinking block says the
+program has the line and has not finished with it, which is the only thing you
+want to know while waiting. It stops blinking under `prefers-reduced-motion`, and
+the word beside it carries the meaning on its own.
+
+---
+
+## 13. The chat is one panel, and the wait explains itself
+
+**One border around the transcript and the composer, with a divider between
+them.** The exchange is a single object: the thing you type into is the bottom of
+the thing you are reading, and a gap with the page showing through says
+otherwise. `overflow-hidden` on the panel is what lets its corners clip the
+scrolling transcript inside.
+
+**The user's turn is a bubble; the assistant's is not.** Two near-identical greys
+stacked down a transcript is a weaker signal than shape and alignment, and the
+reply should read as the page rather than as a quote on it. A rule down the left
+marks it as spoken by the app.
+
+### Streaming is paced, not raw
+
+The stream was always token-by-token, but providers send whatever their own
+buffering produces — often a whole clause — so raw rendering arrives in slabs:
+technically streaming, visually a series of jumps.
+
+`useTypingAnimation` (`lib/hooks/` — platform-level, so the tier may import it,
+unlike anything under `components/admin/`) sits between the deltas and the DOM
+and releases the buffer at a fixed rate per frame. Two rules:
+
+- **State holds the whole answer; the hook holds how much may be shown.** The
+  renderer prefers `typing.displayText` for the last assistant turn while
+  `streaming || typing.isAnimating`, then hands over to the settled message with
+  no visible change.
+- **Never `flush()` on the happy path.** The stream finishing is not the same
+  event as the answer finishing being read; cutting the reveal short at `done`
+  makes the last sentence of every reply snap into place. Flush and `reset()` are
+  for `content_reset`, rollback, and teardown.
+
+It is a paced reveal of text already received — nothing extra on the wire, and it
+can never show a token the server did not send. Disabled under
+`prefers-reduced-motion`: that preference asks for the content, not the
+performance of it arriving.
+
+### The wait says what it is doing
+
+`<ThinkingIndicator>` renders while the live turn has no text yet — dots plus the
+handler's own status string ("searching your brain"). A static word during a
+ten-second tool call is indistinguishable from a hung page.
+
+Status arriving _mid-answer_ gets a separate `aria-live` line, rendered only when
+the indicator is not on screen. Two live regions carrying the same string
+announce the event twice.
+
+### Composer
+
+`<AutoGrowTextarea>` (`components/obsiddy/ui/`) — one row when empty, grows to
+ten, scrolls past that. It measures `scrollHeight` after collapsing to `auto`
+rather than counting newlines, because soft wrap makes counting wrong on a narrow
+box. It also sets `min-h-0`: the base `<Textarea>` ships `min-h-[60px]`, and
+`min-height` constrains `height` rather than losing to it.
+
+Dictation reuses `<VoiceCaptureButton>` and lands the transcript **in the box**
+rather than sending it — a transcript with a wrong word in it should be fixable
+before it is asked.
+
+---
+
 ## Adding a surface — the checklist
 
 1. Does an endpoint return **everything** the page renders? If not, add a `/view`

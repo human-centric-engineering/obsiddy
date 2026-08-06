@@ -655,6 +655,155 @@ release process.
 
 ### Changed
 
+- **Obsiddy has a visual identity: "amber phosphor on volcanic glass"** — and its
+  daylight face, the same glass held to the sun. The app ran on stock Sunrise
+  blue-on-white with no webfonts at all; it now has a designed system,
+  documented in
+  [`.context/ui/design-language.md`](./.context/ui/design-language.md).
+
+  **Almost all of it is tokens, so almost no component changed.** `app/brand-theme.css`
+  — the fork-owned per-surface seam, which shipped empty — now carries the full
+  light and dark palettes, the radius scale (roughly halved: 4px where Tailwind
+  had 6, because obsidian fractures into edges rather than curves), the
+  atmosphere variables, and seven composed classes (`.term-label`, `.term-meta`,
+  `.term-rule`, `.obsidian-field`, `.obsidian-chrome`, `.live-edge`,
+  `.obsidian-reveal`). Every shadcn/ui primitive already spoke in semantic
+  tokens, so re-pointing them re-skinned the app without edits.
+
+  **Three fonts, three jobs**, loaded via `next/font/google` in `app/layout.tsx`:
+  **Martian Mono** (`font-display` — `h1`/`h2`, wordmark, tracked micro-labels),
+  **JetBrains Mono** (`font-mono` — ids, paths, timestamps, counts, code) and
+  **Archivo** (`font-sans` — body and note content). The premise is that the
+  chrome is an instrument and the content is a page; a whole UI set in monospace
+  is the mistake this genre keeps making.
+
+  **New `@theme` keys in `app/globals.css`:** `--font-display` / `--font-sans` /
+  `--font-mono`, and four signal colours — `--color-signal`, `--color-info`,
+  `--color-warn`, `--color-sheen`. These have to be declared at build time
+  because Tailwind reads `@theme` to decide which utilities exist at all. The
+  signals are deliberately separate from `--color-primary`: primary is the
+  brand's voice and gets re-pointed per surface, the signals are meanings and
+  must not move when it does.
+
+  **The accent is ember amber in dark and indigo `#4338ca` in light** — the one
+  token whose hue depends on the mode, and a constraint before it is a choice.
+  Amber is a light colour: `#f5a524` is 1.9:1 on white, and any warm
+  yellow-orange dragged down to AA on paper reads as brown. Indigo-700 is 7.9:1
+  on a white card, deep enough to read as an instrument rather than as the
+  lavender every AI product reached for. The light neutrals carry a whisper of it
+  — greys that disagree with the buttons read as beige (warm under cool) or dirty
+  (green under indigo), and re-pointing the primary without moving them is the
+  step that gets forgotten.
+
+  **`/admin` runs on teal**, via the existing `data-surface` seam — deltas only
+  (`primary`, `ring`, `--obs-bloom`), everything else inherited. The back office
+  is where you change things for everybody, and a colour shift is read
+  pre-attentively, before any label is. This block was re-pointed twice while the
+  consumer accent settled (cyan, then blue), each time because it had drifted
+  inside ~25° of it; roughly 60° of separation is the floor, and that rule is now
+  written next to the block.
+
+  **The page wash is deliberately faint** — `--obs-bloom` at 0.045 alpha, its
+  gradient anchored above the viewport so only the falloff is on screen. On paper
+  a tint has nowhere to hide: the alpha that reads as depth on near-black reads
+  as a stain on white, and the eye finds the gradient's edge and starts treating
+  it as a shape.
+
+  **Readability, which is the half of this that isn't taste:** body text is 16px;
+  `muted-foreground` runs at 6.0:1 (light) / 7.6:1 (dark) rather than the ~3.5:1
+  "subtle grey" default; and the 168 instances of `text-[10px]`/`text-[9px]`
+  across `app/` and `components/` are now `text-[11px]`. Uppercase tracked text
+  below 11px is the most common failure of this aesthetic and the codebase had a
+  lot of it.
+
+- **Obsiddy chat: one panel, paced streaming, and a wait that explains itself.**
+  The transcript and composer are now two regions of a single bordered panel
+  rather than two boxes with the page showing through the gap. The user's turn
+  keeps its bubble; the assistant's loses it in favour of a rule down the left —
+  two near-identical greys down a transcript is a weaker signal than shape and
+  alignment, and the reply should read as the page rather than as a quote on it.
+
+  **Streaming is now paced.** The stream was always token-by-token, but providers
+  send whatever their buffering produces — often a whole clause — so raw
+  rendering arrived in slabs. `useTypingAnimation` (already in `lib/hooks/`, and
+  platform-level so the framework tier may import it) sits between the deltas and
+  the DOM. State holds the whole answer, the hook holds how much may be shown, and
+  the renderer prefers the buffer while `streaming || isAnimating`. There is
+  deliberately no `flush()` on the happy path: the stream finishing is not the
+  same event as the answer finishing being read. Disabled under
+  `prefers-reduced-motion`.
+
+  **New `<ThinkingIndicator>`** (`components/obsiddy/chat/`) — dots plus the
+  handler's own status string, replacing a static italic "Thinking…" that was
+  indistinguishable from a hung page during a ten-second tool call. Duplicated
+  from the admin component rather than imported, per the tier rule: contracts are
+  imported (`parseChatStreamEvent`), renderings are not.
+
+  **New `<AutoGrowTextarea>`** (`components/obsiddy/ui/`) — one row when empty,
+  grows to ten, scrolls past that. Measures `scrollHeight` after collapsing to
+  `auto` rather than counting newlines, which soft wrap makes wrong. Plus a mic
+  button in the composer, reusing `<VoiceCaptureButton>`; dictation lands in the
+  box rather than sending, so a transcript with a wrong word in it can be fixed
+  before it is asked.
+
+- **Form fields are opaque.** `<Input>`, `<Textarea>` and `<SelectTrigger>`
+  carried `bg-transparent`, which was invisible while the page was card-white and
+  became a see-through box over a textured background. All three now use
+  `bg-card`. Same root cause as the container sweep below.
+
+- **Every bordered container that holds content now has a surface** —
+  `bg-card` added to **158 containers across 99 files** in `components/` and
+  `app/`. Chips, pills and swatches are deliberately excluded; they sit _on_
+  something rather than holding anything.
+
+  This was invisible debt for the life of the codebase, not a regression from the
+  new palette. Sunrise's light theme set `--color-background` **and**
+  `--color-card` to the same `#ffffff`, so a bordered box that omitted `bg-card`
+  rendered identically to one that had it, and nothing ever revealed the
+  omission. The moment the page background stopped being card-white and grew a
+  grid, all 158 went see-through at once. Two rules came out of it, both now in
+  [`design-language.md`](./.context/ui/design-language.md): identical token
+  values hide missing tokens, and a textured page background is a correctness
+  constraint rather than decoration — it makes a missing surface obvious instead
+  of invisible.
+
+- **Machine output is monospaced.** New `.terminal-surface` class switches a
+  subtree to JetBrains Mono with the leading monospace needs at reading length
+  (`1.7`, because identical glyph widths strip the word shapes that carry the eye
+  across a line). Applied to the Obsiddy chat transcript and composer, the capture
+  `<Textarea>`, and the morning briefing's title and body — everywhere the app is
+  talking to you, or you are talking to it.
+
+  **The class goes on the call site, never inside `MarkdownView`**, which renders
+  both assistant replies and notes you typed by hand: same renderer, different
+  voice, decided by who is speaking. Your own thoughts, project descriptions and
+  entity notes stay in the reading font. Streaming chat output now ends in a
+  `.terminal-caret` in place of an italic "Thinking…". The admin orchestration
+  chat already had its own `font-mono` treatment and is left alone — it is
+  Sunrise-owned. Rules in
+  [`.context/framework/obsiddy/ui.md` §12](./.context/framework/obsiddy/ui.md).
+
+- **`<BrandMark>` renders a shard mark and wordmark, and takes `className`.**
+  The fork-owned brand slot returned a bare string; it now returns an inline SVG
+  (`currentColor`, so it follows the `/admin` colour shift with no variant logic)
+  beside the name in the display font. `BRAND.name` is still the only text node,
+  so the surrounding link's accessible name is unchanged and the SVG is
+  `aria-hidden`. This is the modification the seam exists to absorb —
+  `brand-mark.test.tsx` was updated to hold the seam's contract (name reaches the
+  DOM as text, decoration stays decoration) rather than the default body's.
+
+- **`<AppHeader>` is sticky glass.** `.obsidian-chrome` (blur + saturation boost
+  + a 1px inset top highlight) and `sticky top-0 z-40`. On a page you scroll for
+  a while, the brand, nav and account menu all left the viewport, and "scroll
+  back to the top to change section" is a tax paid on every navigation.
+
+- **The Obsiddy section header carries a group eyebrow.** `<SectionHeader>` now
+  prints the rail group a section belongs to — Daily, Organise, Knowledge,
+  Manage — above the `h1`, derived from `OBSIDDY_NAV_GROUPS` rather than
+  duplicated, longest-href-wins so `/obsiddy` doesn't match everything. It is
+  deliberately not the word "Obsiddy": the rail head and app nav both say that,
+  and this shell removed that duplication once already.
+
 - **The signed-in app shell is full-bleed.** New `.app-shell` utility in
   `app/globals.css` (full width, gutter 1rem → 1.5rem → 2rem) replaces
   `container mx-auto px-4` in `app/(protected)/layout.tsx`,
