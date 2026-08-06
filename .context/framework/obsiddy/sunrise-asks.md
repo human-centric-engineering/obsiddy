@@ -310,6 +310,25 @@ still resolves the key to its owner and `OwnerScope` still confines every write
 to that one brain — but the key on a phone reaches more than capture, and a
 reader of `install.md` should know that before deciding to make one.
 
+### Found restructuring the Obsiddy nav (2026-08-05)
+
+| #   | Ask                                                                                                                                                                                | Why                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | Priority | Issue     |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------- | --------- |
+| 35  | **No seam for the app shell's width** — the signed-in frame is `container mx-auto px-4`, hardcoded in three core files, and a fork that wants a full-bleed app must edit all three | `container` caps at the largest breakpoint and centres the remainder, which is right for marketing prose and wrong for an application with its own sidebar: on a 1990px display it spends ~450px on empty margins and puts the nav mid-screen. There is no prop, class or CSS variable to change it — `app/(protected)/layout.tsx`, `components/layouts/app-header.tsx` and `protected-footer.tsx` each hardcode it. Shape of the seam: a `.app-shell` utility in `globals.css` plus an `<AppHeader fullWidth>` prop, so `(public)` keeps the centred measure. This is a **layout** gap, not a theme one — `data-surface` (`.context/ui/surface-theming.md`) already classifies admin vs consumer, but it carries colour, not frame. | Medium   | Not filed |
+
+**Downstream status (#35): core edited, four files.** This is a deliberate
+exception to the no-core-edits rule and the merge cost is real —
+`app/globals.css` (a new `.app-shell` utility), `components/layouts/app-header.tsx`
+(a `fullWidth` prop), `app/(protected)/layout.tsx` and
+`components/layouts/protected-footer.tsx` (both switched to it). It could not be
+done from the tier: the header and footer are rendered by the protected layout
+_above_ `/obsiddy`, so no Obsiddy-owned file is in a position to widen them, and
+a negative-margin full-bleed hack inside `/obsiddy` would leave the header
+centred above full-width content — visibly worse than either choice made
+consistently. The edits are additive and each is one line at the call site, so
+the upstream seam, if it lands in this shape, replaces them rather than
+conflicting with them.
+
 ---
 
 ## State at the Sunrise 0.8.0 merge (2026-08-05)

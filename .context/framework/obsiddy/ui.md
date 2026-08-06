@@ -78,7 +78,9 @@ Two rules:
   with the server in a way nobody notices until a refresh.
 - **Never lose user input.** `QuickCapture` clears the textarea immediately and
   puts the text _back_ if the POST fails. That is the one unforgivable failure in
-  this product.
+  this product. It is also why the capture drawer is parked off-screen rather
+  than unmounted when it closes (§10) — a stray click must not be able to bin a
+  half-written thought.
 
 ## 5. Missing primitives are built here, not installed.
 
@@ -158,6 +160,96 @@ domain of your life this belongs to" is a definition; "a neglected area floats i
 work up your list, and this is 15% of every task's score" is the reason someone
 would fill it in.
 
+## 10. The capture sidekick
+
+`components/obsiddy/layout/obsiddy-sidekick.tsx` — a fixed, full-height drawer
+rendered by the Obsiddy shell, not a column in it.
+
+**It overlays; it never narrows the page.** It used to be an 18rem card in a
+two-column grid, which cost every surface a fifth of its width permanently in
+exchange for a two-row textarea — the wrong trade twice over, since the board,
+the graph and the planner are all width-hungry and two rows is not room to think
+in. Opening the drawer now reflows nothing underneath.
+
+**Closing parks it, it does not unmount it** (`inert` + `translate-x-full`). See
+§4: the textarea's contents, an attached file and an in-flight transcript all
+survive being clicked away from.
+
+**Pointing anywhere else closes it, and that click still lands.** No backdrop
+above `sm`, no focus trap, no `preventDefault` on the outside click — a
+dismissing overlay that swallows the first click is what makes a drawer feel
+like an obstacle. The listener is on `pointerdown` rather than `click` so that
+releasing the resize drag past the page edge does not close it.
+
+**Three ways in, one destination.** Typing, dictating (`voice-capture-button.tsx`)
+and dropping a file (`capture-attachment.tsx`) all end in the same textarea. None
+of them posts anything on its own: dictation mishears, extracted document text
+needs cutting down, and both stay drafts until a person presses Capture. That is
+what makes it safe for the easy paths to be this easy.
+
+**A dropped file asks where it goes, and is never guessed at.** Two endpoints,
+because they are two different promises:
+
+| Choice            | Endpoint                     | What happens                                  |
+| ----------------- | ---------------------------- | --------------------------------------------- |
+| Read into capture | `/obsiddy/documents/extract` | Parsed, text returned, **nothing stored**     |
+| Add to Documents  | `/obsiddy/documents`         | Hashed, deduped, embedded, searchable forever |
+
+Guessing is a bad trade in both directions: guess "read" and the report someone
+meant to keep is gone; guess "file" and their library fills with attachments they
+only wanted to glance at. Extraction is capped at 20 000 characters and reports
+`characters`/`truncated` for the whole document, so the UI can say what it left
+out rather than passing off a third of a book as the whole thing.
+
+**Voice reuses the platform's machinery but not its route or its component.**
+`useVoiceRecording` and `MicLevelMeter` are imported as-is; `MicButton` is not,
+because it requires an `agentId` and posts it, and the platform's transcribe
+endpoint is `withAdminAuth`. `/obsiddy/transcribe` resolves the companion agent
+server-side for cost attribution only, and gates on the org-wide
+`voiceInputGloballyEnabled` kill switch but **not** on any agent's
+`enableVoiceInput` — that flag governs an agent's chat surface, and this
+microphone addresses no agent.
+
+---
+
+## 11. The section nav
+
+`components/obsiddy/layout/obsiddy-nav.tsx` — a grouped rail down the left of the
+shell, not a row of pills across the top.
+
+**Fourteen equal-weight pills is a list nobody has named.** Wrapped onto two
+rows, every item looked equally likely, so finding one was a linear scan of
+fourteen words — and the second row pushed the page's own heading below the fold
+on a laptop. The four groups (**Daily**, **Organise**, **Knowledge**,
+**Manage**) are the product's model, so a scan is four short lists, and a section
+added next month joins a group instead of starting a third row.
+
+**Vertical is the axis these pages have to spare.** The rail costs 224px of a
+width nothing was using and returns the height everything was using. It collapses
+to icons for the surfaces that want the width back — Graph, Boards — and the
+choice persists under `obsiddy.nav.collapsed.v1`.
+
+**Both the rail and the small-screen switcher are always rendered**, one hidden
+by a media query. No JS branch on viewport, so nothing shifts on hydration. It
+also means jsdom sees both: nav tests scope to
+`getByRole('navigation', { name: 'Obsiddy sections' })`, or a badge in the tree
+twice reads as a badge on screen twice.
+
+**`OBSIDDY_NAV_ITEMS` is derived from `OBSIDDY_NAV_GROUPS`**, never hand-kept
+alongside it. `section-help.test.ts` asserts every entry in the flat list has help
+copy; a second hand-maintained list is how a section would end up in the nav and
+outside that check.
+
+**Counts sit in a right-aligned column.** "What is waiting on me" should be one
+downward glance. Collapsed, the number becomes a dot for sighted users and stays
+a number in `sr-only` text — a link named `7 waiting` with no section name is
+worse than no badge.
+
+**The shell prints one title, and it is the section's.** `<SectionHeader>` owns
+the `h1`. The word "Obsiddy" survives once, in the rail head, where it is also
+the way home — the app nav says it too, and the old product tagline under the
+old `h1` restated the section blurb one line below it.
+
 ---
 
 ## Adding a surface — the checklist
@@ -166,7 +258,9 @@ would fill it in.
    sibling and a service that batches. Assert the query count.
 2. Add its wire schema to `ui/payloads.ts`.
 3. Server page: `readObsiddy` → `<LoadError>` on failure → pass `initial` down.
-4. Add the route to `OBSIDDY_ROUTES` and, if it deserves one, a nav entry.
+4. Add the route to `OBSIDDY_ROUTES` and, if it deserves one, a nav entry — into
+   a group in `OBSIDDY_NAV_GROUPS`, and a matching entry in `ui/section-help.ts`
+   or its test fails.
 5. Add a `loading.tsx` using `SkeletonList`.
 6. Component tests for the behaviour that would look fine if wrong — optimistic
    rollback, request shape, and the copy that explains a silent behaviour.
