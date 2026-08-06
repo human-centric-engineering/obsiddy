@@ -115,7 +115,16 @@ export function useVoiceRecording(options: UseVoiceRecordingOptions = {}): UseVo
   const [state, setState] = useState<VoiceRecordingState>('idle');
   const [elapsedMs, setElapsedMs] = useState(0);
   const [error, setError] = useState<VoiceRecordingError | null>(null);
-  const [supported] = useState<boolean>(() => isSupported());
+  // Starts `false` on both server and client so the first client render
+  // matches the SSR HTML — `isSupported()` is always false during SSR
+  // (no `window`), so a lazy initializer here would make the client's
+  // pre-hydration render disagree with the server and break hydration.
+  // The real value lands one tick later, after mount.
+  const [supported, setSupported] = useState<boolean>(false);
+
+  useEffect(() => {
+    setSupported(isSupported());
+  }, []);
   // Mirror of `streamRef.current` for consumers (visualizers). Set when
   // recording starts, cleared on teardown. Kept as state so React re-renders
   // when capture begins/ends; the hook does not re-render on every audio frame.
