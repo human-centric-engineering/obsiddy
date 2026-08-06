@@ -49,7 +49,7 @@ export function ToolCallEditor({
         </Label>
 
         {capabilities.length === 0 ? (
-          <p className="text-muted-foreground rounded-md border border-dashed px-3 py-2 text-xs italic">
+          <p className="bg-card text-muted-foreground rounded-md border border-dashed px-3 py-2 text-xs italic">
             No capabilities available. Create one in the Capabilities admin first.
           </p>
         ) : (

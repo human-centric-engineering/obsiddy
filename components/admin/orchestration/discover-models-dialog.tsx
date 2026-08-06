@@ -731,7 +731,7 @@ function DiscoveryStep({
       )}
 
       {candidates.length > 0 && (
-        <div className="rounded-md border">
+        <div className="bg-card rounded-md border">
           <Table>
             <TableHeader>
               <TableRow>
@@ -768,7 +768,7 @@ function DiscoveryStep({
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="secondary" className="text-[10px] capitalize">
+                      <Badge variant="secondary" className="text-[11px] capitalize">
                         {c.inferredCapability}
                       </Badge>
                     </TableCell>
@@ -777,11 +777,11 @@ function DiscoveryStep({
                     </TableCell>
                     <TableCell>
                       {c.inMatrix ? (
-                        <Badge variant="outline" className="text-[10px]">
+                        <Badge variant="outline" className="text-[11px]">
                           In matrix
                         </Badge>
                       ) : (
-                        <span className="text-muted-foreground text-[10px]">New</span>
+                        <span className="text-muted-foreground text-[11px]">New</span>
                       )}
                     </TableCell>
                   </TableRow>
@@ -868,7 +868,7 @@ function ReviewCard({
   // expand simultaneously.
   const checkboxIdPrefix = useId();
   return (
-    <div className="rounded-md border">
+    <div className="bg-card rounded-md border">
       <button
         type="button"
         onClick={onToggle}

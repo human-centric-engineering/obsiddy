@@ -23,6 +23,42 @@
   --color-card-foreground: #0a0a0a;
   --color-popover: #ffffff;
   --color-popover-foreground: #0a0a0a;
+
+  /**
+   * Typography. The three families are loaded by `next/font` in app/layout.tsx,
+   * which puts `--font-obsiddy-*` on <html>; these keys are what turn them into
+   * `font-display` / `font-sans` / `font-mono` utilities. They have to live in
+   * `@theme` (not brand-theme.css) because Tailwind reads this block at BUILD
+   * time to decide which utility classes exist at all — a variable set at
+   * runtime can restyle a utility, but it cannot bring one into being.
+   *
+   * The fallback chains matter more than usual here: everything in this app is
+   * aligned to a grid of some kind, so if a webfont fails the replacement must
+   * still be monospaced.
+   */
+  --font-display: var(--font-obsiddy-display), ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  --font-sans:
+    var(--font-obsiddy-sans), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: var(--font-obsiddy-mono), ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+
+  /**
+   * Signal colours — the four things the app needs to say that aren't "primary".
+   *
+   * Deliberately separate from `--color-primary`: primary is the brand's voice
+   * and can be re-pointed per surface (see brand-theme.css, where /admin takes a
+   * different one). These four are *meanings* and must not move when the brand
+   * does — a live indicator that turned amber because someone rebranded would be
+   * a lie. Values here are the dark-mode ones; brand-theme.css darkens them for
+   * light mode, where luminous greens fail on paper.
+   */
+  --color-signal: #34d399;
+  --color-info: #38bdf8;
+  --color-warn: #fbbf24;
+  /* The one violet in the system, reserved for the AI sidekick. Rainbow
+     obsidian shows a violet sheen when the light catches a fracture; this is
+     the app's equivalent — you should only ever see it where the machine is
+     thinking on your behalf. */
+  --color-sheen: #c084fc;
 }
 
 @layer base {

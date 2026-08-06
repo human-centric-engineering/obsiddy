@@ -315,7 +315,7 @@ export function ConversationsTable({
       )}
 
       {/* Table */}
-      <div className="rounded-md border">
+      <div className="bg-card rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
@@ -374,12 +374,12 @@ export function ConversationsTable({
                           ) : null}
                         </span>
                         {conv.fromAddress && (
-                          <span className="text-muted-foreground/70 font-mono text-[10px]">
+                          <span className="text-muted-foreground/70 font-mono text-[11px]">
                             {conv.fromAddress}
                           </span>
                         )}
                         {conv.smsOptedOut && (
-                          <Badge variant="destructive" className="w-fit text-[10px]">
+                          <Badge variant="destructive" className="w-fit text-[11px]">
                             opted out
                           </Badge>
                         )}

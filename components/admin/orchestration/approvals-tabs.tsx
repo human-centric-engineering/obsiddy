@@ -29,7 +29,7 @@ export function ApprovalsTabs({ initialApprovals, initialMeta }: Props): ReactEl
         <TabsTrigger value="pending">
           Pending
           {initialMeta.total > 0 && (
-            <Badge variant="secondary" className="ml-2 px-1.5 text-[10px]">
+            <Badge variant="secondary" className="ml-2 px-1.5 text-[11px]">
               {initialMeta.total}
             </Badge>
           )}

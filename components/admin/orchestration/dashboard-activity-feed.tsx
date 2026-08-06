@@ -77,7 +77,7 @@ export function DashboardActivityFeed({ items, limit = 10 }: DashboardActivityFe
                         {item.title}
                       </Link>
                       {isError && (
-                        <Badge variant="destructive" className="px-1.5 py-0 text-[10px]">
+                        <Badge variant="destructive" className="px-1.5 py-0 text-[11px]">
                           error
                         </Badge>
                       )}

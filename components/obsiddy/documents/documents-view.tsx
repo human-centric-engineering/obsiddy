@@ -53,7 +53,7 @@ export function DocumentsView({ documents }: { documents: DocumentWire[] }): Rea
       ) : (
         <ul className="space-y-2">
           {documents.map((document) => (
-            <li key={document.id} className="space-y-2 rounded-md border p-3">
+            <li key={document.id} className="bg-card space-y-2 rounded-md border p-3">
               <div className="flex flex-wrap items-center gap-2">
                 <FileText className="text-muted-foreground h-4 w-4 shrink-0" aria-hidden="true" />
                 <span className="font-medium">{document.title}</span>
@@ -66,13 +66,13 @@ export function DocumentsView({ documents }: { documents: DocumentWire[] }): Rea
                         ? 'destructive'
                         : 'secondary'
                   }
-                  className="text-[10px]"
+                  className="text-[11px]"
                 >
                   {STATUS_COPY[document.status] ?? document.status}
                 </Badge>
 
                 {document.archivedAt !== null && (
-                  <Badge variant="outline" className="text-[10px]">
+                  <Badge variant="outline" className="text-[11px]">
                     archived
                   </Badge>
                 )}

@@ -427,7 +427,7 @@ export function ManageTab({ documents: initialDocuments, onRefresh, scope }: Man
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="text-sm font-medium">Built-in: Agentic Design Patterns</h3>
-            <Badge variant="outline" className="text-[10px] tracking-wide uppercase">
+            <Badge variant="outline" className="text-[11px] tracking-wide uppercase">
               One-time setup
             </Badge>
             {setupComplete && (
@@ -699,7 +699,7 @@ export function ManageTab({ documents: initialDocuments, onRefresh, scope }: Man
         {listError && <p className="text-destructive text-sm">{listError}</p>}
 
         {documents.length === 0 ? (
-          <div className="text-muted-foreground rounded-lg border border-dashed p-8 text-center">
+          <div className="bg-card text-muted-foreground rounded-lg border border-dashed p-8 text-center">
             {searchQuery || statusFilter !== STATUS_FILTER_ALL || scope ? (
               <>
                 <p className="text-sm">No documents match these filters.</p>
@@ -720,7 +720,9 @@ export function ManageTab({ documents: initialDocuments, onRefresh, scope }: Man
           <>
             {rechunkError && <p className="text-destructive text-sm">{rechunkError}</p>}
             {deleteError && <p className="text-destructive text-sm">{deleteError}</p>}
-            <div className={`overflow-x-auto rounded-lg border ${listLoading ? 'opacity-60' : ''}`}>
+            <div
+              className={`overflow-x-auto rounded-lg border ${listLoading ? 'bg-card opacity-60' : ''}`}
+            >
               <table className="w-full text-sm">
                 <thead className="bg-muted/50">
                   <tr>

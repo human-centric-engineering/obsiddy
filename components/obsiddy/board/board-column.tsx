@@ -54,7 +54,7 @@ export function BoardColumn({ column, onOpenCard }: BoardColumnProps): React.Rea
           {column.wipLimit !== null && (
             <Badge
               variant={column.overWip ? 'destructive' : 'secondary'}
-              className="text-[10px]"
+              className="text-[11px]"
               // Named for screen readers, since the colour carries the meaning.
               aria-label={
                 column.overWip

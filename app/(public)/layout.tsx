@@ -30,7 +30,7 @@ export default function PublicLayout({
 }>) {
   return (
     <MaintenanceWrapper>
-      <div className="bg-background flex min-h-screen flex-col">
+      <div className="obsidian-field flex min-h-screen flex-col">
         <AppHeader logoHref="/" navigation={<PublicNav />} />
         <main className="flex-1">{children}</main>
         <PublicFooter />

@@ -684,7 +684,7 @@ export function ProviderModelsMatrix({
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto rounded-md border">
+      <div className="bg-card overflow-x-auto rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
@@ -816,7 +816,7 @@ export function ProviderModelsMatrix({
                           STORAGE_ONLY_SET.has(c as ModelCapability)
                         ) && (
                           <Tip label="The orchestration engine does not invoke image or moderation models — this row is informational/inventory only.">
-                            <span className="text-muted-foreground cursor-help text-[10px] uppercase">
+                            <span className="text-muted-foreground cursor-help text-[11px] uppercase">
                               Storage-only
                             </span>
                           </Tip>
@@ -910,7 +910,7 @@ export function ProviderModelsMatrix({
                                     href="/admin/orchestration/settings"
                                     aria-label={`Edit ${TASK_TYPE_LABEL[task]} default in orchestration settings`}
                                   >
-                                    <Badge variant="outline" className="text-[10px] font-normal">
+                                    <Badge variant="outline" className="text-[11px] font-normal">
                                       Default: {TASK_TYPE_LABEL[task]}
                                     </Badge>
                                   </Link>
@@ -1075,7 +1075,7 @@ export function ProviderModelsMatrix({
       </AlertDialog>
 
       {/* Decision heuristic */}
-      <div className="rounded-md border">
+      <div className="bg-card rounded-md border">
         <div className="bg-muted/30 border-b px-4 py-2.5">
           <h3 className="text-sm font-medium">Model Selection Heuristic</h3>
           <p className="text-muted-foreground text-xs">

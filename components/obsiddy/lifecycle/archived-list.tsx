@@ -53,7 +53,7 @@ export function ArchivedList({
   }
 
   return (
-    <ul className="divide-y rounded-lg border">
+    <ul className="bg-card divide-y rounded-lg border">
       {items.map((item) => (
         <li key={item.id} className="flex flex-wrap items-center justify-between gap-3 p-3">
           <div className="min-w-0">

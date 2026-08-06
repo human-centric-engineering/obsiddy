@@ -353,7 +353,7 @@ export function CapabilitiesTable({
       )}
 
       {/* Table */}
-      <div className="rounded-md border">
+      <div className="bg-card rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
@@ -428,7 +428,7 @@ export function CapabilitiesTable({
                         <Tip label="System capability — cannot be deleted or deactivated">
                           <Badge
                             variant="secondary"
-                            className="gap-1 px-1.5 py-0 text-[10px] font-medium"
+                            className="gap-1 px-1.5 py-0 text-[11px] font-medium"
                           >
                             <Shield className="h-3 w-3" />
                             System
@@ -446,8 +446,8 @@ export function CapabilitiesTable({
                               variant={q === 'quarantined-hard' ? 'destructive' : 'secondary'}
                               className={
                                 q === 'quarantined-soft'
-                                  ? 'border-amber-500/50 bg-amber-500/10 px-1.5 py-0 text-[10px] font-medium text-amber-700 dark:text-amber-300'
-                                  : 'px-1.5 py-0 text-[10px] font-medium'
+                                  ? 'border-amber-500/50 bg-amber-500/10 px-1.5 py-0 text-[11px] font-medium text-amber-700 dark:text-amber-300'
+                                  : 'px-1.5 py-0 text-[11px] font-medium'
                               }
                             >
                               {label}

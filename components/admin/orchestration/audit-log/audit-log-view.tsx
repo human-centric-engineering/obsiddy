@@ -206,7 +206,7 @@ export function AuditLogView() {
 
       {error && <p className="text-destructive text-sm">{error}</p>}
 
-      <div className="rounded-md border">
+      <div className="bg-card rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>

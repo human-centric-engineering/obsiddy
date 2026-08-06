@@ -161,7 +161,7 @@ export default async function ConversationDetailPage({
             {conversation.smsOptedOut && (
               <div className="bg-destructive/10 text-destructive border-destructive/30 rounded-md border px-3 py-1.5 text-xs font-medium">
                 Opted out (STOP)
-                <p className="text-destructive/80 mt-0.5 text-[10px] font-normal">
+                <p className="text-destructive/80 mt-0.5 text-[11px] font-normal">
                   Outbound dispatches refused
                 </p>
               </div>

@@ -198,7 +198,7 @@ export function UserEditForm({ user, currentUserId }: UserEditFormProps) {
               </div>
 
               {/* Email Verified field */}
-              <div className="flex items-center justify-between rounded-lg border p-4">
+              <div className="bg-card flex items-center justify-between rounded-lg border p-4">
                 <div className="space-y-0.5">
                   <Label htmlFor="emailVerified">Email Verified</Label>
                   <p className="text-muted-foreground text-sm">

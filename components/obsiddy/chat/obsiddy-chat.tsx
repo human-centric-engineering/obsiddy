@@ -41,13 +41,15 @@ import * as React from 'react';
 import { Brain, Loader2, Send, Wrench } from 'lucide-react';
 
 import { parseChatStreamEvent } from '@/components/admin/orchestration/chat/chat-events';
+import { ThinkingIndicator } from '@/components/obsiddy/chat/thinking-indicator';
+import { VoiceCaptureButton } from '@/components/obsiddy/layout/voice-capture-button';
+import { AutoGrowTextarea } from '@/components/obsiddy/ui/auto-grow-textarea';
 import { EmptyState } from '@/components/obsiddy/ui/empty-state';
 import { MarkdownView } from '@/components/obsiddy/ui/markdown-view';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
 import { OBSIDDY_API } from '@/lib/framework/obsiddy/api/endpoints';
+import { useTypingAnimation } from '@/lib/hooks/use-typing-animation';
 import { getUserFacingError } from '@/lib/orchestration/chat/error-messages';
-import { cn } from '@/lib/utils';
 
 /**
  * Human names for the tools the companion can call.
@@ -105,6 +107,36 @@ export function ObsiddyChat({
   const conversationId = React.useRef<string | null>(null);
   const abortRef = React.useRef<AbortController | null>(null);
   const endRef = React.useRef<HTMLDivElement | null>(null);
+  const inputRef = React.useRef<HTMLTextAreaElement | null>(null);
+
+  /**
+   * Typing animation.
+   *
+   * The stream was already token-by-token, but a provider does not send one
+   * character at a time — it sends whatever its own buffering produces, which is
+   * often a whole clause. Rendering each frame as it lands makes the reply
+   * arrive in slabs: technically streaming, visually a series of jumps.
+   *
+   * `useTypingAnimation` (lib/hooks — platform-level, not admin-owned, so the
+   * tier can use it) sits between the deltas and the DOM and releases the buffer
+   * at a fixed rate per animation frame. Bursts smooth out; the text appears to
+   * be typed. It is a paced *reveal* of text already received, so it costs
+   * nothing on the wire and can never show a token the server did not send.
+   *
+   * Disabled under `prefers-reduced-motion` — the hook's pass-through mode drops
+   * straight to the full text, which is the correct reading of that preference:
+   * the person wants the content, not the performance of it arriving.
+   */
+  const [reducedMotion, setReducedMotion] = React.useState(false);
+  React.useEffect(() => {
+    const query = window.matchMedia('(prefers-reduced-motion: reduce)');
+    setReducedMotion(query.matches);
+    const onChange = (event: MediaQueryListEvent): void => setReducedMotion(event.matches);
+    query.addEventListener('change', onChange);
+    return () => query.removeEventListener('change', onChange);
+  }, []);
+
+  const typing = useTypingAnimation({ chunkSize: 2, disabled: reducedMotion });
 
   React.useEffect(() => {
     // Abort on unmount. Without it a half-read stream keeps the connection open
@@ -113,8 +145,11 @@ export function ObsiddyChat({
   }, []);
 
   React.useEffect(() => {
+    // `typing.displayText` is in the dependency list so the view follows the
+    // text as it is revealed. Without it the transcript scrolls once when a turn
+    // starts and then sits still while the answer grows off the bottom edge.
     endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-  }, [messages, streaming]);
+  }, [messages, streaming, typing.displayText]);
 
   const send = React.useCallback(
     async (text: string) => {
@@ -124,6 +159,9 @@ export function ObsiddyChat({
       setInput('');
       setError(null);
       setStatus(null);
+      // Clear the reveal buffer before the turn, not after: a leftover from the
+      // previous answer would type itself out again under the new question.
+      typing.reset();
       setMessages((prior) => [
         ...prior,
         { role: 'user', content: message },
@@ -207,6 +245,10 @@ export function ObsiddyChat({
                 assistant += event.delta;
                 deliveredNothing = false;
                 setStatus(null);
+                // State holds the whole answer; `typing` holds how much of it is
+                // allowed on screen yet. The renderer prefers the latter while
+                // the turn is live — see the transcript below.
+                typing.appendDelta(event.delta);
                 updateAssistant();
                 break;
               case 'status':
@@ -216,6 +258,7 @@ export function ObsiddyChat({
                 // The handler retried the turn. Keeping the discarded partial
                 // would show the user two half-answers stitched together.
                 assistant = '';
+                typing.reset();
                 updateAssistant();
                 break;
               case 'capability_result':
@@ -281,10 +324,17 @@ export function ObsiddyChat({
         if (deliveredNothing) {
           setMessages((prior) => prior.slice(0, -2));
           setInput((current) => (current.length > 0 ? current : message));
+          typing.reset();
         }
+        // Note there is deliberately no `typing.flush()` on the happy path. The
+        // stream finishing is not the same event as the answer finishing being
+        // read out, and cutting the reveal short at `done` would make the last
+        // sentence of every reply snap into place. The renderer keeps preferring
+        // the buffer while `isAnimating`, so it plays out and then hands over to
+        // the settled message with no visible change.
       }
     },
-    [agentSlug, streaming]
+    [agentSlug, streaming, typing]
   );
 
   const onKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>): void => {
@@ -297,99 +347,180 @@ export function ObsiddyChat({
   };
 
   return (
-    <div className="flex h-[calc(100vh-14rem)] min-h-[28rem] flex-col gap-4">
-      <div className="flex-1 space-y-4 overflow-y-auto pr-1">
-        {messages.length === 0 ? (
-          <EmptyState
-            icon={Brain}
-            title="Ask your brain something"
-            description="It has read everything you have written down and you have not. Ask what you decided, what has gone quiet, or what to do next — and say anything worth keeping and it will be captured as you talk."
-            action={
-              starterPrompts.length > 0 ? (
-                <div className="flex flex-wrap justify-center gap-2">
-                  {starterPrompts.map((prompt) => (
-                    <Button
-                      key={prompt}
-                      variant="outline"
-                      size="sm"
-                      onClick={() => void send(prompt)}
-                    >
-                      {prompt}
-                    </Button>
-                  ))}
-                </div>
-              ) : undefined
-            }
-          />
-        ) : (
-          messages.map((message, index) => (
-            <div
-              // Index is a stable key here: messages are only ever appended and
-              // the last one mutated in place — never reordered or removed.
-              key={index}
-              className={cn(
-                'rounded-lg px-4 py-3',
-                message.role === 'user' ? 'bg-muted ml-8' : 'bg-card mr-8 border'
-              )}
-            >
-              {message.role === 'user' ? (
-                <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-              ) : (
-                <>
-                  {message.content ? (
-                    <MarkdownView content={message.content} />
-                  ) : (
-                    <p className="text-muted-foreground text-sm italic">Thinking…</p>
-                  )}
-                  {message.tools && message.tools.length > 0 ? (
-                    <p className="text-muted-foreground mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 border-t pt-2 text-xs">
-                      <Wrench className="size-3 shrink-0" aria-hidden="true" />
-                      {message.tools.map(toolLabel).join(' · ')}
-                    </p>
-                  ) : null}
-                </>
-              )}
-            </div>
-          ))
-        )}
+    /* `.terminal-surface` (brand-theme.css) puts the whole exchange — transcript
+       and composer both — into the mono family. This is a session with a program,
+       not a document, and the empty state is the only part of it a person wrote.
+       The composer inherits without a class of its own; Tailwind's preflight sets
+       `font: inherit` on textareas. */
+    <div className="terminal-surface flex h-[calc(100vh-14rem)] min-h-[28rem] flex-col">
+      {/* The transcript and the composer are two regions of ONE panel — one
+          border around both, a divider between them — rather than two floating
+          boxes with the page showing through the gap. The exchange is a single
+          object: the thing you are typing into is the bottom of the thing you
+          are reading, and a seam between them says otherwise.
 
-        {/* `aria-live` rather than a toast: the tier builds its primitives, and a
-            status line is read out where a toast is missed (ui.md rule 4). */}
-        <p aria-live="polite" className="text-muted-foreground min-h-5 text-xs">
-          {status ?? ''}
-        </p>
-
-        {error ? (
-          <p role="alert" className="text-destructive text-sm">
-            {error}
-          </p>
-        ) : null}
-
-        <div ref={endRef} />
-      </div>
-
-      <div className="flex items-end gap-2 border-t pt-4">
-        <Textarea
-          value={input}
-          onChange={(event) => setInput(event.target.value)}
-          onKeyDown={onKeyDown}
-          placeholder="Ask, or just think out loud…"
-          rows={2}
-          disabled={streaming}
-          aria-label="Message"
-          className="resize-none"
-        />
-        <Button
-          onClick={() => void send(input)}
-          disabled={streaming || input.trim().length === 0}
-          aria-label="Send"
-        >
-          {streaming ? (
-            <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+          `overflow-hidden` is what lets the panel's rounded corners actually clip
+          the scrolling transcript inside it; without it the content squares off
+          the top corners the moment it scrolls. */}
+      <div className="bg-card flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border shadow-sm">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
+          {messages.length === 0 ? (
+            <EmptyState
+              icon={Brain}
+              title="Ask your brain something"
+              description="It has read everything you have written down and you have not. Ask what you decided, what has gone quiet, or what to do next — and say anything worth keeping and it will be captured as you talk."
+              className="border-0"
+              action={
+                starterPrompts.length > 0 ? (
+                  <div className="flex flex-wrap justify-center gap-2">
+                    {starterPrompts.map((prompt) => (
+                      <Button
+                        key={prompt}
+                        variant="outline"
+                        size="sm"
+                        onClick={() => void send(prompt)}
+                      >
+                        {prompt}
+                      </Button>
+                    ))}
+                  </div>
+                ) : undefined
+              }
+            />
           ) : (
-            <Send className="size-4" aria-hidden="true" />
+            messages.map((message, index) => {
+              // The turn in flight reads from the reveal buffer instead of the
+              // settled message. `isAnimating` is in the test as well as
+              // `streaming` because the stream finishes before the reveal does,
+              // and dropping to the settled text at `done` would snap the last
+              // sentence into place.
+              const live =
+                message.role === 'assistant' &&
+                index === messages.length - 1 &&
+                (streaming || typing.isAnimating);
+              const body = live ? typing.displayText : message.content;
+
+              return (
+                <div
+                  // Index is a stable key here: messages are only ever appended
+                  // and the last one mutated in place — never reordered.
+                  key={index}
+                  className={
+                    message.role === 'user'
+                      ? 'bg-muted ml-8 rounded-lg px-4 py-3'
+                      : // The machine's turn gets no bubble. Two near-identical
+                        // greys stacked down a transcript is a weaker signal than
+                        // shape and alignment, and this is the reply — it should
+                        // read as the page rather than as a quote on it. The rule
+                        // down the left is what marks it as spoken by the app.
+                        'border-primary/25 mr-8 border-l-2 py-1 pl-4'
+                  }
+                >
+                  {message.role === 'user' ? (
+                    <p className="whitespace-pre-wrap">{message.content}</p>
+                  ) : (
+                    <>
+                      {body ? (
+                        <>
+                          {/* `MarkdownView` hardcodes `leading-relaxed`, tuned for
+                              Archivo. Monospace needs more: identical glyph widths
+                              strip the word shapes that carry the eye across a
+                              line, so the return sweep needs extra leading. */}
+                          <MarkdownView content={body} className="leading-[1.75]" />
+                          {live && (
+                            // The caret only rides the text while it is still
+                            // arriving. Left on a finished answer it reads as a
+                            // reply that never completed.
+                            <span
+                              className="terminal-caret text-primary -mt-1 inline-block align-text-bottom"
+                              aria-hidden="true"
+                            >
+                              ▍
+                            </span>
+                          )}
+                        </>
+                      ) : (
+                        // Nothing to show yet. The dots say something is
+                        // happening; `status` says what, in the handler's own
+                        // words ("searching your brain"), so a ten-second tool
+                        // call explains itself instead of looking like a hang.
+                        <ThinkingIndicator message={status} />
+                      )}
+                      {message.tools && message.tools.length > 0 ? (
+                        <p className="text-muted-foreground mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 border-t pt-2 text-xs">
+                          <Wrench className="size-3 shrink-0" aria-hidden="true" />
+                          {message.tools.map(toolLabel).join(' · ')}
+                        </p>
+                      ) : null}
+                    </>
+                  )}
+                </div>
+              );
+            })
           )}
-        </Button>
+
+          {/* Status arriving mid-answer — a tool called after the model has
+              already said something. Suppressed while the indicator is on
+              screen, which carries the same string: two live regions announcing
+              one event reads it out twice.
+
+              `aria-live` rather than a toast: the tier builds its own primitives,
+              and a status line is read where a toast is missed (ui.md rule 4). */}
+          {streaming && status && messages[messages.length - 1]?.content ? (
+            <p aria-live="polite" className="term-meta">
+              {status}
+            </p>
+          ) : null}
+
+          {error ? (
+            <p role="alert" className="text-destructive text-sm">
+              {error}
+            </p>
+          ) : null}
+
+          <div ref={endRef} />
+        </div>
+
+        {/* The composer is the bottom of the same panel — a divider, not a gap.
+            See the panel comment above. */}
+        <div className="bg-card border-t p-3">
+          <div className="flex items-end gap-2">
+            <AutoGrowTextarea
+              ref={inputRef}
+              value={input}
+              onChange={(event) => setInput(event.target.value)}
+              onKeyDown={onKeyDown}
+              placeholder="Ask, or just think out loud…"
+              minRows={1}
+              maxRows={10}
+              disabled={streaming}
+              aria-label="Message"
+            />
+            {/* Dictation lands in the box rather than sending, so a transcript
+                with a wrong word in it can be fixed before it is asked. The
+                append is careful about the join — speaking twice in a row must
+                not weld the last word of one take to the first of the next. */}
+            <VoiceCaptureButton
+              onTranscript={(text) =>
+                setInput((current) => (current ? `${current.replace(/\s+$/, '')} ${text}` : text))
+              }
+              onError={setError}
+              disabled={streaming}
+            />
+            <Button
+              onClick={() => void send(input)}
+              disabled={streaming || input.trim().length === 0}
+              aria-label="Send"
+            >
+              {streaming ? (
+                <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+              ) : (
+                <Send className="size-4" aria-hidden="true" />
+              )}
+            </Button>
+          </div>
+          <p className="term-meta mt-2 px-1">Enter to send · Shift+Enter for a new line</p>
+        </div>
       </div>
     </div>
   );

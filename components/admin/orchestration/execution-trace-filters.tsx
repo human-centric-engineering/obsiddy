@@ -135,7 +135,7 @@ export function ExecutionTraceFilters({
             <span>{FILTER_LABEL[filter]}</span>
             <span
               className={cn(
-                'rounded px-1 py-0 font-mono text-[10px]',
+                'rounded px-1 py-0 font-mono text-[11px]',
                 active === filter ? 'bg-primary-foreground/20' : 'bg-muted'
               )}
             >

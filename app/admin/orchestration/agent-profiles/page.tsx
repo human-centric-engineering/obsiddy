@@ -70,7 +70,7 @@ export default async function AgentProfilesListPage() {
       </header>
 
       {profiles.length === 0 ? (
-        <div className="text-muted-foreground rounded-md border border-dashed p-8 text-center text-sm">
+        <div className="bg-card text-muted-foreground rounded-md border border-dashed p-8 text-center text-sm">
           <Users className="mx-auto mb-2 h-8 w-8 opacity-40" />
           <p>No profiles yet.</p>
           <p className="mt-1 text-xs">
@@ -78,7 +78,7 @@ export default async function AgentProfilesListPage() {
           </p>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-md border">
+        <div className="bg-card overflow-x-auto rounded-md border">
           <table className="w-full text-sm">
             <thead className="bg-muted/40 text-muted-foreground text-left text-xs uppercase">
               <tr>

@@ -151,7 +151,7 @@ export function BudgetAlertsList({ alerts, globalCap }: BudgetAlertsListProps) {
                         {Math.round(alert.utilisation * 100)}%
                       </Badge>
                       {rowState.paused && (
-                        <Badge variant="outline" className="text-[10px]">
+                        <Badge variant="outline" className="text-[11px]">
                           Paused
                         </Badge>
                       )}

@@ -180,7 +180,10 @@ export interface ObsiddyNavProps {
 function CountBadge({ count }: { count: number }): React.ReactElement {
   return (
     <span
-      className="bg-primary text-primary-foreground ml-auto rounded-full px-1.5 py-0.5 text-[10px] leading-none font-semibold tabular-nums"
+      // Mono and tabular so a column of counts down the rail lines up on the
+      // digit rather than jittering, and 11px rather than 10 — this is a number
+      // people are meant to read at a glance from a normal seating distance.
+      className="bg-primary text-primary-foreground ml-auto rounded-full px-1.5 py-0.5 font-mono text-[11px] leading-none font-semibold tabular-nums"
       aria-label={`${count} waiting`}
     >
       {count > 99 ? '99+' : count}
@@ -225,9 +228,7 @@ export function ObsiddyNav({ inboxCount, connectionCount }: ObsiddyNavProps): Re
             {OBSIDDY_NAV_GROUPS.map((group, index) => (
               <React.Fragment key={group.label}>
                 {index > 0 && <DropdownMenuSeparator />}
-                <DropdownMenuLabel className="text-muted-foreground text-[10px] font-semibold tracking-[0.08em] uppercase">
-                  {group.label}
-                </DropdownMenuLabel>
+                <DropdownMenuLabel className="term-label">{group.label}</DropdownMenuLabel>
                 {group.items.map((item) => {
                   const Icon = item.icon;
                   const badge = badgeFor(item.href);
@@ -269,7 +270,10 @@ export function ObsiddyNav({ inboxCount, connectionCount }: ObsiddyNavProps): Re
             {!collapsed && (
               <Link
                 href={OBSIDDY_ROUTES.TODAY}
-                className="hover:text-primary text-sm font-semibold tracking-tight transition-colors"
+                // The rail head is the way home, and `.term-label` makes it read
+                // as the name of this region rather than as a fifteenth
+                // destination competing with the fourteen below it.
+                className="term-label hover:text-primary px-2 transition-colors"
               >
                 Obsiddy
               </Link>
@@ -300,10 +304,7 @@ export function ObsiddyNav({ inboxCount, connectionCount }: ObsiddyNavProps): Re
                     the sighted version falls back to a rule. */}
                 <div
                   id={groupId(group.label)}
-                  className={cn(
-                    'text-muted-foreground/80 mb-1.5 px-2 text-[10px] font-semibold tracking-[0.12em] uppercase',
-                    collapsed && 'sr-only'
-                  )}
+                  className={cn('term-label mb-1.5 px-2', collapsed && 'sr-only')}
                 >
                   {group.label}
                 </div>
@@ -324,23 +325,20 @@ export function ObsiddyNav({ inboxCount, connectionCount }: ObsiddyNavProps): Re
                           href={item.href}
                           aria-current={active ? 'page' : undefined}
                           title={collapsed ? item.label : undefined}
+                          // `.live-edge` is the one piece of colour in the rail:
+                          // a 2px lit bar hard against the left edge. A fill
+                          // alone reads as "hovered" at this density — the bar is
+                          // what says "you are here". Defined in brand-theme.css
+                          // so the same treatment marks the selected card and the
+                          // streaming message, and always means the same thing.
                           className={cn(
                             'relative flex items-center rounded-md text-sm transition-colors',
-                            collapsed ? 'h-9 w-9 justify-center' : 'gap-2.5 py-1.5 pr-2 pl-2.5',
+                            collapsed ? 'h-9 w-9 justify-center' : 'gap-2.5 py-1.5 pr-2 pl-3',
                             active
-                              ? 'bg-accent text-accent-foreground font-medium'
+                              ? 'live-edge bg-accent text-accent-foreground font-medium'
                               : 'text-muted-foreground hover:bg-accent/60 hover:text-accent-foreground'
                           )}
                         >
-                          {/* The one piece of colour in the rail. A fill alone
-                              reads as "hovered" at this density; the bar is what
-                              says "you are here". */}
-                          {active && (
-                            <span
-                              className="bg-primary absolute top-1/2 left-0 h-4 w-0.5 -translate-y-1/2 rounded-full"
-                              aria-hidden="true"
-                            />
-                          )}
                           <Icon
                             className={cn('h-4 w-4 shrink-0', active && 'text-primary')}
                             aria-hidden="true"

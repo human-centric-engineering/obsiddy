@@ -419,11 +419,11 @@ function CompatibilityBadge({ model }: { model: EmbeddingModelInfo }) {
       <Tooltip>
         <TooltipTrigger asChild>
           {model.schemaCompatible ? (
-            <Badge variant="default" className="cursor-help text-[10px]">
+            <Badge variant="default" className="cursor-help text-[11px]">
               Yes
             </Badge>
           ) : (
-            <Badge variant="outline" className="cursor-help text-[10px]">
+            <Badge variant="outline" className="cursor-help text-[11px]">
               No
             </Badge>
           )}
@@ -464,19 +464,19 @@ function QualityBadge({ quality }: { quality: string }) {
   switch (quality) {
     case 'high':
       return (
-        <Badge variant="default" className="text-[10px]">
+        <Badge variant="default" className="text-[11px]">
           High
         </Badge>
       );
     case 'medium':
       return (
-        <Badge variant="secondary" className="text-[10px]">
+        <Badge variant="secondary" className="text-[11px]">
           Medium
         </Badge>
       );
     default:
       return (
-        <Badge variant="outline" className="text-[10px]">
+        <Badge variant="outline" className="text-[11px]">
           Budget
         </Badge>
       );

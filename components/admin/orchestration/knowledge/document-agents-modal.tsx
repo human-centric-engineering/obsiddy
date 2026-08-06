@@ -159,7 +159,7 @@ export function DocumentAgentsModal({
           {loading ? (
             <p className="text-muted-foreground text-xs">Loading…</p>
           ) : total === 0 ? (
-            <div className="text-muted-foreground rounded-md border border-dashed p-6 text-center">
+            <div className="bg-card text-muted-foreground rounded-md border border-dashed p-6 text-center">
               <p className="text-sm">No active agents can access this document.</p>
               <p className="mt-1 text-xs">
                 Grant access from an agent&apos;s <strong>Knowledge</strong> tab — either pick this
@@ -167,14 +167,14 @@ export function DocumentAgentsModal({
               </p>
             </div>
           ) : (
-            <div className="rounded-md border">
+            <div className="bg-card rounded-md border">
               <div className="text-muted-foreground bg-muted/40 flex items-center justify-between border-b px-3 py-1.5 text-xs">
                 <span>
                   {total} agent{total === 1 ? '' : 's'}
                 </span>
                 {scope === 'system' ? (
                   <span>
-                    <Badge variant="outline" className="text-[10px] uppercase">
+                    <Badge variant="outline" className="text-[11px] uppercase">
                       System scope
                     </Badge>
                   </span>
@@ -195,7 +195,7 @@ export function DocumentAgentsModal({
                           {agent.slug}
                         </span>
                         {agent.kind !== 'chat' ? (
-                          <Badge variant="outline" className="text-[10px] uppercase">
+                          <Badge variant="outline" className="text-[11px] uppercase">
                             {agent.kind}
                           </Badge>
                         ) : null}
@@ -218,7 +218,7 @@ export function DocumentAgentsModal({
                             key={key}
                             variant={variant}
                             title={tooltip}
-                            className="text-[10px]"
+                            className="text-[11px]"
                           >
                             {label}
                           </Badge>

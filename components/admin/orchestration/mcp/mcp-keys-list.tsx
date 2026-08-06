@@ -317,7 +317,7 @@ export function McpKeysList({ initialKeys }: McpKeysListProps) {
       </Dialog>
 
       {/* Keys Table */}
-      <div className="rounded-md border">
+      <div className="bg-card rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
@@ -386,7 +386,7 @@ export function McpKeysList({ initialKeys }: McpKeysListProps) {
                     <TableCell>
                       <div className="flex flex-wrap gap-1">
                         {key.scopes.map((s) => (
-                          <Badge key={s} variant="outline" className="text-[10px]">
+                          <Badge key={s} variant="outline" className="text-[11px]">
                             {s}
                           </Badge>
                         ))}

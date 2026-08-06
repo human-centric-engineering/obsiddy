@@ -85,7 +85,7 @@ function HybridScoreBadges({
   return (
     <div className="flex shrink-0 flex-col items-end gap-1" title="vector / keyword / final">
       <Badge className={similarityClasses(finalScore)}>{finalScore.toFixed(2)}</Badge>
-      <div className="text-muted-foreground flex gap-1 text-[10px] tabular-nums">
+      <div className="text-muted-foreground flex gap-1 text-[11px] tabular-nums">
         <span>v {vectorScore.toFixed(2)}</span>
         <span>•</span>
         <span>k {keywordScore.toFixed(2)}</span>
@@ -211,7 +211,7 @@ export function ExploreTab({ scope }: ExploreTabProps) {
 
       {/* Empty states */}
       {!searching && !searched && query.trim().length === 0 && (
-        <div className="text-muted-foreground rounded-lg border border-dashed p-12 text-center">
+        <div className="bg-card text-muted-foreground rounded-lg border border-dashed p-12 text-center">
           <Search className="mx-auto mb-3 h-10 w-10 opacity-40" />
           <p className="text-sm font-medium">Explore the knowledge base</p>
           <p className="mt-1 text-xs">
@@ -223,7 +223,7 @@ export function ExploreTab({ scope }: ExploreTabProps) {
       {searchError && <p className="text-destructive text-sm">{searchError}</p>}
 
       {!searching && !searchError && searched && results.length === 0 && (
-        <div className="text-muted-foreground rounded-lg border border-dashed p-12 text-center">
+        <div className="bg-card text-muted-foreground rounded-lg border border-dashed p-12 text-center">
           <p className="text-sm font-medium">No results found</p>
           <p className="mt-1 text-xs">
             No matching chunks for &ldquo;{query.trim()}&rdquo;. Try a different query or ensure
@@ -312,7 +312,7 @@ export function ExploreTab({ scope }: ExploreTabProps) {
           {selected && (
             <div className="space-y-4">
               {/* Content */}
-              <div className="prose prose-sm dark:prose-invert max-w-none rounded-lg border p-4">
+              <div className="bg-card prose prose-sm dark:prose-invert max-w-none rounded-lg border p-4">
                 {looksLikeMarkdown(selected.chunk.content) ? (
                   <Markdown>{selected.chunk.content}</Markdown>
                 ) : (

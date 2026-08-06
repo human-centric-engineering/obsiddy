@@ -144,7 +144,7 @@ export function WebhookDeliveries({ webhookId }: WebhookDeliveriesProps) {
 
       {retryError && <p className="text-destructive text-sm">{retryError}</p>}
 
-      <div className="rounded-md border">
+      <div className="bg-card rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
@@ -171,12 +171,12 @@ export function WebhookDeliveries({ webhookId }: WebhookDeliveriesProps) {
                     {new Date(d.createdAt).toLocaleString()}
                   </TableCell>
                   <TableCell>
-                    <Badge variant="secondary" className="text-[10px]">
+                    <Badge variant="secondary" className="text-[11px]">
                       {formatEventLabel(d.eventType)}
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    <Badge variant={STATUS_VARIANTS[d.status] ?? 'outline'} className="text-[10px]">
+                    <Badge variant={STATUS_VARIANTS[d.status] ?? 'outline'} className="text-[11px]">
                       {d.status}
                     </Badge>
                   </TableCell>

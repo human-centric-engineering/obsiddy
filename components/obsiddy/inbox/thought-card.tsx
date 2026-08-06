@@ -97,9 +97,9 @@ export function ThoughtCard({ item, projects }: ThoughtCardProps): React.ReactEl
   const visibleSuggestions = suggestedLinks.filter((link) => !reviewed.has(link.id));
 
   return (
-    <li className="space-y-3 rounded-lg border p-4">
+    <li className="bg-card space-y-3 rounded-lg border p-4">
       <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
-        <Badge variant="outline" className="text-[10px]">
+        <Badge variant="outline" className="text-[11px]">
           {SOURCE_LABELS[thought.source] ?? thought.source}
         </Badge>
         <ClientDate date={thought.createdAt} />

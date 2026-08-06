@@ -106,7 +106,7 @@ export function TaskRow({ task, rank, returnedFromSnooze }: TaskRowProps): React
           <span className={cn('font-medium', done && 'line-through')}>{task.title}</span>
 
           {returnedFromSnooze && (
-            <Badge variant="secondary" className="text-[10px]">
+            <Badge variant="secondary" className="text-[11px]">
               Back from snooze
             </Badge>
           )}

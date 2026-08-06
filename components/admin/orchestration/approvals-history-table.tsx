@@ -327,7 +327,7 @@ export function ApprovalsHistoryTable(): ReactElement {
         </div>
       )}
 
-      <div className="rounded-md border">
+      <div className="bg-card rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>

@@ -225,7 +225,7 @@ export function ImportAgentsDialog({ open, onOpenChange, onImported }: ImportAge
           {error && <p className="text-destructive text-sm">{error}</p>}
 
           {result && (
-            <div className="border-border rounded-md border p-3 text-sm">
+            <div className="bg-card border-border rounded-md border p-3 text-sm">
               <p>
                 <strong>Imported:</strong> {result.imported}
                 <span className="text-muted-foreground"> · </span>

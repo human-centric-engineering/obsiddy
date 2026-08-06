@@ -44,15 +44,30 @@ export function AppHeader({
   fullWidth = false,
 }: AppHeaderProps) {
   return (
-    <header className="border-b">
+    /**
+     * Sticky glass. The header carries the brand, the nav and the account menu —
+     * on a page you scroll for a while (a long project, a chat) all three become
+     * unreachable the moment it leaves the viewport, and "scroll back to the top
+     * to change section" is a tax paid on every navigation.
+     *
+     * `.obsidian-chrome` is the translucent panel treatment from brand-theme.css:
+     * blur plus a saturation boost, so content passing underneath stays coloured
+     * rather than going grey, and a 1px inset highlight along the top edge, which
+     * is how glass actually announces itself.
+     *
+     * The border is at 60% rather than full strength because the blur already
+     * separates the header from the page; a solid rule on top of it reads as two
+     * edges stacked.
+     */
+    <header className="border-border/60 obsidian-chrome sticky top-0 z-40 border-b">
       <div
         className={cn(
-          'flex items-center justify-between py-4',
+          'flex items-center justify-between py-3.5',
           fullWidth ? 'app-shell' : 'container mx-auto px-4'
         )}
       >
         <div className="flex items-center gap-8">
-          <Link href={logoHref} className="text-xl font-bold hover:opacity-80">
+          <Link href={logoHref} className="text-lg transition-opacity hover:opacity-75">
             {logoText ?? <BrandMark />}
           </Link>
           {navigation}

@@ -99,14 +99,14 @@ export function PricingReference({ models, fetchedAt }: PricingReferenceProps) {
         <CardContent>
           <div className="text-muted-foreground mb-4 text-sm">
             <span>Per-token rates used to calculate your spend figures. Rates marked </span>
-            <Badge variant="secondary" className="inline-flex text-[10px]">
+            <Badge variant="secondary" className="inline-flex text-[11px]">
               Live
             </Badge>
             <span>
               {' '}
               are fetched from OpenRouter every 24 hours and reflect current market prices.{' '}
             </span>
-            <Badge variant="outline" className="inline-flex text-[10px]">
+            <Badge variant="outline" className="inline-flex text-[11px]">
               Fallback
             </Badge>
             <span>
@@ -140,7 +140,7 @@ export function PricingReference({ models, fetchedAt }: PricingReferenceProps) {
                   <TableRow key={m.id}>
                     <TableCell className="font-mono text-xs">
                       <span>{m.name}</span>
-                      <div className="text-muted-foreground text-[10px]">{m.id}</div>
+                      <div className="text-muted-foreground text-[11px]">{m.id}</div>
                     </TableCell>
                     <TableCell className="text-sm capitalize">{m.provider}</TableCell>
                     <TableCell>
@@ -155,7 +155,7 @@ export function PricingReference({ models, fetchedAt }: PricingReferenceProps) {
                       {formatRate(m.outputCostPerMillion)}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Badge variant={isLive ? 'secondary' : 'outline'} className="text-[10px]">
+                      <Badge variant={isLive ? 'secondary' : 'outline'} className="text-[11px]">
                         {isLive ? 'Live' : 'Fallback'}
                       </Badge>
                     </TableCell>

@@ -193,7 +193,7 @@ export function PatternCoverageDialog({ open, onOpenChange }: PatternCoverageDia
 
         <div className="space-y-2 py-2">
           {PATTERN_MAPPINGS.map((pattern) => (
-            <div key={pattern.number} className="rounded-md border px-3 py-2">
+            <div key={pattern.number} className="bg-card rounded-md border px-3 py-2">
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <span className="text-muted-foreground font-mono text-xs">#{pattern.number}</span>

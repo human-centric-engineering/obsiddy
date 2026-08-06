@@ -594,7 +594,7 @@ export function ExecutionTimelineStrip({
                         >
                           {isFork && (
                             <span
-                              className="flex items-center gap-0.5 bg-indigo-100 px-1 py-0.5 text-[10px] font-medium text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300"
+                              className="flex items-center gap-0.5 bg-indigo-100 px-1 py-0.5 text-[11px] font-medium text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300"
                               title={`Parallel fork #${forkNumber} — branches run concurrently`}
                             >
                               <GitBranch className="h-2.5 w-2.5" />
@@ -603,7 +603,7 @@ export function ExecutionTimelineStrip({
                           )}
                           {parentForkNumber !== undefined && (
                             <span
-                              className="text-[10px] text-indigo-700 dark:text-indigo-300"
+                              className="text-[11px] text-indigo-700 dark:text-indigo-300"
                               title={`Concurrent branch of parallel fork #${parentForkNumber}`}
                             >
                               ∥{parentForkNumber}
@@ -653,7 +653,7 @@ export function ExecutionTimelineStrip({
                           {waitMs > 0 && (
                             <span
                               data-testid={`timeline-wait-suffix-${entry.stepId}`}
-                              className="text-muted-foreground/70 ml-1 block text-[10px]"
+                              className="text-muted-foreground/70 ml-1 block text-[11px]"
                               title="Time spent waiting for slower sibling branches to finish"
                             >
                               +{formatDuration(waitMs, unit)} wait
@@ -664,7 +664,7 @@ export function ExecutionTimelineStrip({
                     </TooltipTrigger>
                     <TooltipContent side="top" className="max-w-xs text-left">
                       <p className="font-medium">{entry.label}</p>
-                      <p className="text-primary-foreground/70 mt-0.5 font-mono text-[10px] tracking-wide uppercase">
+                      <p className="text-primary-foreground/70 mt-0.5 font-mono text-[11px] tracking-wide uppercase">
                         {friendlyType}
                       </p>
                       {description && (

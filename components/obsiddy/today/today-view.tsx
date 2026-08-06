@@ -173,7 +173,7 @@ export function TodayView({ payload }: { payload: TodayPayloadWire }): React.Rea
                   <Link href={OBSIDDY_ROUTES.GOALS} className="hover:underline">
                     {goal.title}
                   </Link>
-                  <Badge variant="outline" className="text-[10px]">
+                  <Badge variant="outline" className="text-[11px]">
                     {goal.horizon}
                   </Badge>
                   {goal.targetDate && (

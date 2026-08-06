@@ -63,7 +63,7 @@ export default async function WebhookDetailPage({ params }: { params: Promise<{ 
 
       <WebhookForm mode="edit" webhook={webhook} />
 
-      <div className="flex items-center gap-4 rounded-lg border p-4">
+      <div className="bg-card flex items-center gap-4 rounded-lg border p-4">
         <div className="flex-1 space-y-0.5">
           <p className="text-sm font-medium">Test connectivity</p>
           <p className="text-muted-foreground text-xs">

@@ -70,7 +70,7 @@ export function ReviewField({ field, value, rowContext, editable, onChange }: Re
   switch (field.display) {
     case 'badge':
       return (
-        <Badge variant="outline" className="text-[10px]">
+        <Badge variant="outline" className="text-[11px]">
           {safeText(value)}
         </Badge>
       );
@@ -91,7 +91,7 @@ export function ReviewField({ field, value, rowContext, editable, onChange }: Re
 
     case 'boolean':
       return (
-        <Badge variant={value ? 'default' : 'secondary'} className="text-[10px]">
+        <Badge variant={value ? 'default' : 'secondary'} className="text-[11px]">
           {value ? 'true' : 'false'}
         </Badge>
       );

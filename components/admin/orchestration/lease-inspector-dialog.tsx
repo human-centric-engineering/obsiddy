@@ -164,7 +164,7 @@ export function LeaseInspectorDialog({
                   No lease transitions recorded for this execution yet.
                 </p>
               ) : (
-                <div className="rounded-md border">
+                <div className="bg-card rounded-md border">
                   <Table>
                     <TableHeader>
                       <TableRow>

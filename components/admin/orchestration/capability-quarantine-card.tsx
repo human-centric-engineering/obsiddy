@@ -275,7 +275,7 @@ function ActiveView({
               placeholder="e.g. Stripe charges returning 500s since 14:32 UTC"
               rows={3}
             />
-            <p className="text-muted-foreground text-right text-[10px]">
+            <p className="text-muted-foreground text-right text-[11px]">
               {reason.length}/{MAX_REASON_LENGTH}
             </p>
           </div>

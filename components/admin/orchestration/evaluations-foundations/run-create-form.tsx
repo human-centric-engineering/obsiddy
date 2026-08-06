@@ -544,7 +544,7 @@ export function RunCreateForm({
               );
               const helpText = (graderHelp as Record<string, string>)[g.slug] ?? g.description;
               return (
-                <div key={g.slug} className="rounded-md border p-3">
+                <div key={g.slug} className="bg-card rounded-md border p-3">
                   <div className="flex items-start gap-3">
                     <Checkbox
                       id={`heuristic-${g.slug}`}
@@ -555,7 +555,7 @@ export function RunCreateForm({
                       <Label htmlFor={`heuristic-${g.slug}`} className="flex items-center gap-2">
                         <span className="font-mono text-sm">{g.slug}</span>
                         {g.referenceRequired ? (
-                          <Badge variant="secondary" className="text-[10px]">
+                          <Badge variant="secondary" className="text-[11px]">
                             needs expectedOutput
                           </Badge>
                         ) : null}
@@ -751,20 +751,20 @@ function JudgeRow({
   onToggle: () => void;
 }): React.ReactElement {
   return (
-    <div className="rounded-md border p-3">
+    <div className="bg-card rounded-md border p-3">
       <div className="flex items-start gap-3">
         <Checkbox id={`judge-${judge.slug}`} checked={selected} onCheckedChange={onToggle} />
         <div className="flex-1 space-y-1">
           <Label htmlFor={`judge-${judge.slug}`} className="flex items-center gap-2">
             <span className="font-medium">{judge.name}</span>
-            <span className="text-muted-foreground font-mono text-[10px]">{judge.slug}</span>
+            <span className="text-muted-foreground font-mono text-[11px]">{judge.slug}</span>
             {judge.isSystem ? (
-              <Badge variant="outline" className="text-[10px]">
+              <Badge variant="outline" className="text-[11px]">
                 built-in
               </Badge>
             ) : null}
             {judge.model ? (
-              <Badge variant="secondary" className="text-[10px]">
+              <Badge variant="secondary" className="text-[11px]">
                 {judge.model}
               </Badge>
             ) : null}
@@ -962,7 +962,7 @@ function CostEstimateBanner({ estimate }: { estimate: EstimateState }): React.Re
   const isLoading = estimate.status === 'loading';
   if (!data) {
     return (
-      <div className="text-muted-foreground rounded-md border p-3 text-xs">
+      <div className="bg-card text-muted-foreground rounded-md border p-3 text-xs">
         <Loader2 className="mr-1.5 inline h-3.5 w-3.5 animate-spin" aria-hidden />
         Estimating cost…
       </div>
@@ -982,7 +982,7 @@ function CostEstimateBanner({ estimate }: { estimate: EstimateState }): React.Re
         </span>
         <Badge
           variant={data.basedOn === 'empirical' ? 'default' : 'secondary'}
-          className="text-[10px]"
+          className="text-[11px]"
         >
           {data.basedOn === 'empirical' ? `empirical · ${data.sampleSize} past runs` : 'heuristic'}
         </Badge>
@@ -1034,7 +1034,7 @@ function ConfigEditor({
                   </SelectContent>
                 </Select>
                 {f.selectHint ? (
-                  <p className="text-muted-foreground text-[10px]">{f.selectHint}</p>
+                  <p className="text-muted-foreground text-[11px]">{f.selectHint}</p>
                 ) : null}
               </>
             ) : (

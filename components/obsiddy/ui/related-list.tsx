@@ -88,7 +88,7 @@ export function RelatedList({ related, emptyMessage }: RelatedListProps): React.
             <li
               key={item.linkId}
               className={cn(
-                'flex flex-wrap items-center gap-2 rounded-md border p-2',
+                'bg-card flex flex-wrap items-center gap-2 rounded-md border p-2',
                 suggested && 'border-dashed'
               )}
             >
@@ -110,14 +110,14 @@ export function RelatedList({ related, emptyMessage }: RelatedListProps): React.
               />
 
               {item.endpoint.archivedAt && (
-                <Badge variant="secondary" className="text-[10px]">
+                <Badge variant="secondary" className="text-[11px]">
                   archived
                 </Badge>
               )}
 
               {suggested && (
                 <>
-                  <Badge variant="outline" className="text-[10px]">
+                  <Badge variant="outline" className="text-[11px]">
                     suggested
                   </Badge>
                   {item.strength !== null && (

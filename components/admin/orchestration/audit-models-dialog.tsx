@@ -529,7 +529,7 @@ export function AuditModelsDialog({
               </div>
 
               {/* Model list */}
-              <div className="max-h-[300px] overflow-y-auto rounded-md border">
+              <div className="bg-card max-h-[300px] overflow-y-auto rounded-md border">
                 {filtered.length === 0 && (
                   <p className="text-muted-foreground p-4 text-center text-sm">
                     No models match the selected provider filter.
@@ -559,13 +559,13 @@ export function AuditModelsDialog({
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
                           <span className="truncate text-sm font-medium">{model.name}</span>
-                          <Badge variant="secondary" className="shrink-0 text-[10px]">
+                          <Badge variant="secondary" className="shrink-0 text-[11px]">
                             {TIER_ROLE_META[model.tierRole as TierRole]?.label ?? model.tierRole}
                           </Badge>
                           {model.capabilities.includes('embedding') && (
                             <Badge
                               variant="outline"
-                              className="shrink-0 bg-amber-100 text-[10px] text-amber-800 dark:bg-amber-900 dark:text-amber-200"
+                              className="shrink-0 bg-amber-100 text-[11px] text-amber-800 dark:bg-amber-900 dark:text-amber-200"
                             >
                               Embedding
                             </Badge>
@@ -575,7 +575,7 @@ export function AuditModelsDialog({
                           <span className="text-muted-foreground text-xs">
                             {model.providerSlug} / {model.modelId}
                           </span>
-                          <span className="text-muted-foreground/50 text-[10px]">
+                          <span className="text-muted-foreground/50 text-[11px]">
                             {model.metadata?.lastAudit?.timestamp
                               ? `Audited ${formatAuditAge(model.metadata.lastAudit.timestamp)}`
                               : 'Never audited'}

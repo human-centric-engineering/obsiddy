@@ -53,7 +53,7 @@ export function AgentCallEditor({
           </FieldHelp>
         </Label>
         {agents.length === 0 ? (
-          <p className="text-muted-foreground rounded-md border border-dashed px-3 py-2 text-xs italic">
+          <p className="bg-card text-muted-foreground rounded-md border border-dashed px-3 py-2 text-xs italic">
             No active agents available. Create agents in the Agents admin first.
           </p>
         ) : (

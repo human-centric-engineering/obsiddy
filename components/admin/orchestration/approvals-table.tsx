@@ -329,7 +329,7 @@ export function ApprovalsTable({ initialApprovals, initialMeta }: ApprovalsTable
         </div>
       )}
 
-      <div className="rounded-md border">
+      <div className="bg-card rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
@@ -572,7 +572,7 @@ export function ApprovalsTable({ initialApprovals, initialMeta }: ApprovalsTable
                                           className="bg-background flex items-center justify-between rounded border px-3 py-1.5 text-xs"
                                         >
                                           <span>
-                                            <Badge variant="secondary" className="mr-2 text-[10px]">
+                                            <Badge variant="secondary" className="mr-2 text-[11px]">
                                               {step.stepType}
                                             </Badge>
                                             {step.label}

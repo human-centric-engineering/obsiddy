@@ -131,7 +131,7 @@ export function WorkflowDefinitionHistoryPanel({
   }, [revertTarget, workflowId, fetchHistory, onReverted]);
 
   return (
-    <div className="border-border rounded-md border">
+    <div className="bg-card border-border rounded-md border">
       <div className="hover:bg-muted/40 flex w-full items-center gap-2 px-3 py-2 text-sm font-medium">
         <button
           type="button"
@@ -231,7 +231,7 @@ export function WorkflowDefinitionHistoryPanel({
             </DialogDescription>
           </DialogHeader>
           {diffOpen && data && (
-            <div className="max-h-[60vh] overflow-auto rounded-md border">
+            <div className="bg-card max-h-[60vh] overflow-auto rounded-md border">
               <DiffView
                 oldText={JSON.stringify(diffOpen.snapshot, null, 2)}
                 newText={JSON.stringify(data.publishedSnapshot ?? {}, null, 2)}

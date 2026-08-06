@@ -214,7 +214,7 @@ export function WorkflowSchedulesTab({ workflowId }: WorkflowSchedulesTabProps) 
       )}
 
       {schedules.length === 0 ? (
-        <div className="rounded-md border p-6 text-center text-sm">
+        <div className="bg-card rounded-md border p-6 text-center text-sm">
           <CalendarClock className="text-muted-foreground mx-auto mb-2 h-8 w-8" />
           <p className="text-muted-foreground">
             No schedules yet. Create one to automate this workflow.
@@ -223,15 +223,18 @@ export function WorkflowSchedulesTab({ workflowId }: WorkflowSchedulesTabProps) 
       ) : (
         <div className="space-y-2">
           {schedules.map((s) => (
-            <div key={s.id} className="flex items-center justify-between rounded-md border p-3">
+            <div
+              key={s.id}
+              className="bg-card flex items-center justify-between rounded-md border p-3"
+            >
               <div className="space-y-0.5">
                 <div className="flex items-center gap-2">
                   <span className="font-medium">{s.name}</span>
-                  <Badge variant="secondary" className="font-mono text-[10px]">
+                  <Badge variant="secondary" className="font-mono text-[11px]">
                     {s.cronExpression}
                   </Badge>
                   {!s.isEnabled && (
-                    <Badge variant="outline" className="text-[10px]">
+                    <Badge variant="outline" className="text-[11px]">
                       Disabled
                     </Badge>
                   )}

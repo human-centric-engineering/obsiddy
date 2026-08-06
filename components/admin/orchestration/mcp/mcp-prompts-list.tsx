@@ -383,7 +383,7 @@ export function McpPromptsList({ initialPrompts }: McpPromptsListProps) {
 
       {/* Table */}
       {!isEmpty && (
-        <div className="rounded-md border">
+        <div className="bg-card rounded-md border">
           <Table>
             <TableHeader>
               <TableRow>

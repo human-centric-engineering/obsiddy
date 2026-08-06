@@ -68,7 +68,7 @@ export function CostMethodology() {
               context) and <strong>output</strong> (the model&apos;s response). Output tokens
               typically cost 3–5x more than input tokens.
             </p>
-            <div className="rounded-md border p-3">
+            <div className="bg-card rounded-md border p-3">
               <p className="mb-2 text-xs font-semibold uppercase">
                 Industry pricing trends (as of April 2026)
               </p>
@@ -160,12 +160,12 @@ export function CostMethodology() {
               each step uses, and how much context passes between steps. As a rough guide:
             </p>
             <div className="grid gap-2 sm:grid-cols-2">
-              <div className="rounded-md border p-2.5">
+              <div className="bg-card rounded-md border p-2.5">
                 <p className="font-medium">Simple workflow (2–3 LLM steps)</p>
                 <p className="text-muted-foreground text-xs">e.g. classify → draft → review</p>
                 <p className="mt-1 font-mono text-xs">~$0.005–$0.05 per run</p>
               </div>
-              <div className="rounded-md border p-2.5">
+              <div className="bg-card rounded-md border p-2.5">
                 <p className="font-medium">Complex workflow (5–8 LLM steps)</p>
                 <p className="text-muted-foreground text-xs">
                   e.g. research → plan → draft → critique → revise → format

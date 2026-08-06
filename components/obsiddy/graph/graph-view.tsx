@@ -164,7 +164,7 @@ export function GraphView({ payload }: { payload: GraphPayloadWire }): React.Rea
   };
 
   return (
-    <div className="h-[520px] w-full overflow-hidden rounded-lg border">
+    <div className="bg-card h-[520px] w-full overflow-hidden rounded-lg border">
       <ReactFlow
         nodes={nodes}
         edges={edges}

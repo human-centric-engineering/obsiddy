@@ -199,7 +199,7 @@ export function AgentInviteTokensTab({ agentId }: AgentInviteTokensTabProps) {
       )}
 
       {tokens && tokens.length > 0 ? (
-        <div className="rounded-md border">
+        <div className="bg-card rounded-md border">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b text-left">
@@ -280,7 +280,7 @@ export function AgentInviteTokensTab({ agentId }: AgentInviteTokensTabProps) {
           </table>
         </div>
       ) : (
-        <div className="text-muted-foreground rounded-md border p-6 text-center text-sm">
+        <div className="bg-card text-muted-foreground rounded-md border p-6 text-center text-sm">
           No invite tokens yet. Create one to give users access to this agent.
         </div>
       )}

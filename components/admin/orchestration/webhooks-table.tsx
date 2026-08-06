@@ -183,7 +183,7 @@ export function WebhooksTable({ initialWebhooks, initialMeta }: WebhooksTablePro
       )}
 
       {/* Table */}
-      <div className="rounded-md border">
+      <div className="bg-card rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
@@ -219,19 +219,19 @@ export function WebhooksTable({ initialWebhooks, initialMeta }: WebhooksTablePro
                   <TableCell>
                     <div className="flex flex-wrap gap-1">
                       {wh.events.slice(0, 3).map((e) => (
-                        <Badge key={e} variant="secondary" className="text-[10px]">
+                        <Badge key={e} variant="secondary" className="text-[11px]">
                           {formatEventLabel(e)}
                         </Badge>
                       ))}
                       {wh.events.length > 3 && (
-                        <Badge variant="outline" className="text-[10px]">
+                        <Badge variant="outline" className="text-[11px]">
                           +{wh.events.length - 3}
                         </Badge>
                       )}
                       {(wh.agentIds?.length ?? 0) + (wh.workflowIds?.length ?? 0) > 0 && (
                         <Badge
                           variant="outline"
-                          className="text-[10px]"
+                          className="text-[11px]"
                           title={`Scoped to ${wh.agentIds?.length ?? 0} agent(s), ${wh.workflowIds?.length ?? 0} workflow(s)`}
                         >
                           Scoped

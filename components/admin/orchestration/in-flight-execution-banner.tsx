@@ -168,7 +168,7 @@ function BannerInner({
       <span className="font-medium">{entry.label}</span>
       <Badge
         variant={terminal ? (ok ? 'secondary' : 'destructive') : 'outline'}
-        className="text-[10px]"
+        className="text-[11px]"
       >
         {formatStatus(snapshot.status)}
       </Badge>

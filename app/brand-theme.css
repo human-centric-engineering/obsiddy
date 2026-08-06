@@ -1,58 +1,617 @@
 /* app/brand-theme.css
  *
- * Fork-owned per-surface theming. SHIPS EMPTY — vanilla Sunrise is byte-for-byte
- * unchanged: with no overrides here, every surface inherits app/globals.css's
- * `@theme` defaults. A fork fills this file to repaint one surface (e.g. its
- * consumer-facing pages) while leaving others (e.g. `/admin`) on the platform
- * defaults, including future upstream palette tweaks. No platform layout or page
- * is ever edited — that's the whole point of the seam.
+ * ═══════════════════════════════════════════════════════════════════════════
+ *  OBSIDDY — "amber phosphor on volcanic glass"
+ * ═══════════════════════════════════════════════════════════════════════════
  *
- * Imported once in app/layout.tsx AFTER globals.css. Keep these selectors
- * UNLAYERED (no `@layer`): Tailwind 4 emits its `@theme` tokens inside a layer at
- * `:root`, so an unlayered selector here beats them by layer order, and a
- * descendant subtree pin beats the `<html>`-level scope by specificity.
+ * This is the fork-owned per-surface theming seam. In vanilla Sunrise it ships
+ * empty and every surface inherits `app/globals.css`'s `@theme` defaults. Obsiddy
+ * fills it, which is the whole point of the seam: the entire brand lives in one
+ * file that upstream never edits, so a Sunrise upgrade can change the platform's
+ * palette without ever colliding with ours.
  *
- * MECHANISM
- *   proxy.ts classifies each request via `classifySurface(pathname)` and sets the
- *   `x-surface` request header; the root layout puts it on `<html data-surface>`;
- *   `<SurfaceSync>` keeps that attribute correct across client-side navigation.
- *   Because the marker is on `<html>`, body-portaled overlays (Radix dialog /
- *   dropdown / popover / toast, the cookie-consent modal) inherit it too — they
- *   mount at document.body, outside any route-group subtree, which is exactly why
- *   the marker must live at the root and not on a `(group)/layout.tsx`.
+ * ── THE IDEA ───────────────────────────────────────────────────────────────
  *
- * The two surfaces vanilla Sunrise classifies are `admin` and `consumer`
- * (see lib/app/surface.ts — the policy seam). Redeclare only the tokens you
- * change; everything else inherits, so upstream palette changes flow through the
- * tokens you didn't touch.
+ * The name is the brief. Obsidian is volcanic glass: black, cold, and *sharp* —
+ * it fractures into edges rather than curves, which is why it made the first
+ * blades. But it was lava an hour ago, and the good specimens still catch light
+ * along a fracture.
  *
- * --------------------------------------------------------------------------
- * EXAMPLE (commented out — uncomment and adjust to brand a surface). Note the
- * TWO dark-mode selector FORMS; they are NOT interchangeable (see the docs):
+ * So: a near-black base with a blue-violet cast (glass, not soot), geometry that
+ * fractures rather than rounds — every radius pulled in hard, 4px where the
+ * platform had 6, because a second brain full of pill-shaped cards reads as a
+ * consumer app rather than an instrument — and one hot colour, an ember amber,
+ * used only where something is live, selected, or asking for you.
  *
- *   [data-surface='consumer'] {                 // light, on <html>
- *     --color-primary: #0a1a3a;
- *     --color-background: #fbf6ec;
- *     --color-foreground: #16213d;
- *   }
- *   [data-surface='consumer'].dark {            // dark: `.dark` is on the SAME
- *     --color-primary: #ffc73a;                 // element (<html>) -> COMPOUND
- *     --color-background: #0a1a3a;
- *     --color-foreground: #f2eede;
- *   }
+ * Amber also happens to be the other phosphor. Everyone reaches for green when
+ * they want "terminal"; amber CRTs were the ones people chose when they had to
+ * read all day, and that is what this app is for.
  *
- * For a surface PINNED on a descendant element (a wrapper that sets its own
- * `data-surface`), the dark scope is a DESCENDANT selector instead, because the
- * pin sits below `<html>.dark`:
+ * ── WHAT THIS FILE OWNS, AND WHY IT'S SPLIT ────────────────────────────────
  *
- *   .dark [data-surface='canvas'] { --color-background: #0a0a0a; ... }
+ * Colour, geometry, texture and the handful of composed classes the terminal
+ * look needs. It does NOT own the font *declarations* — those are `@theme` keys
+ * in globals.css, because Tailwind reads that block at build time to decide
+ * which utilities exist. A runtime variable can restyle `font-mono`; it cannot
+ * conjure it.
  *
- * And because a pin only re-tokenises its own subtree, an ANCESTOR that frames it
- * (e.g. a `<main>`) still shows the parent surface's background; paint it with
- * `:has()`:
+ * ── THE CASCADE RULE (read before editing) ─────────────────────────────────
  *
- *   main:has([data-surface='canvas']) { background-color: #ffffff; }
+ * Token blocks below are UNLAYERED and must stay that way. Tailwind emits its
+ * `@theme` tokens inside the `theme` cascade layer, and an unlayered declaration
+ * beats *any* layered one regardless of specificity. That is what lets ~40 lines
+ * here re-skin an app of several hundred components without touching one of them.
  *
- * See .context/ui/surface-theming.md for all six design constraints.
- * --------------------------------------------------------------------------
+ * The corollary is a trap: because unlayered wins on layer and not specificity,
+ * `:root` here would also beat globals.css's `.dark` block. So each block below
+ * declares the FULL token set rather than a delta, and dark is pinned at higher
+ * specificity (`:root.dark`, 0-2-0) than light (`:root`, 0-1-0). Add a token to
+ * one block and you must add it to the other, or dark mode silently inherits a
+ * light value.
+ *
+ * Composed classes (`.term-label` and friends) go in `@layer components` instead,
+ * so a Tailwind utility on the same element still wins. Cascade layers are
+ * document-global by name and globals.css already declared the order, so naming
+ * the layer here slots into it correctly.
+ *
+ * See .context/ui/surface-theming.md for the mechanism and its six constraints.
  */
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   1. PALETTE — LIGHT ("polished glass on paper")
+   ═══════════════════════════════════════════════════════════════════════════
+   Light mode is not an afterthought — half of thinking work happens in a bright
+   room. Geometry and typography are identical to dark; only the material
+   changes: the same instrument, milled from paper instead of glass.
+
+   ## Why the accent is indigo here and ember there
+
+   This is the one place the brand hue is mode-dependent, and it is a constraint
+   before it is a choice. Amber is a *light* colour — #f5a524 is 1.9:1 on white,
+   invisible. To clear AA on paper it has to come down to roughly #b45309, and
+   any warm yellow-orange dark enough to pass reads as **brown**. There is no
+   amber that is both legible on white and still amber. Light mode ran rust for
+   a while and it looked like a filing cabinet.
+
+   Indigo-700, #4338ca, is what it runs on instead: 7.9:1 on a white card, so it
+   carries link text as well as filling a button, which is what keeps it from
+   needing a second readable hue beside it. Deep enough to read as an instrument
+   rather than as the lavender every AI product reached for; blue enough not to
+   be mistaken for the violet reserved by `--color-sheen`.
+
+   Dark stays on the ember. Two faces of one material rather than two brands: the
+   glass with the heat still in it, and the same glass in daylight.
+
+   ## The neutrals moved with it
+
+   They were warm (#faf9f7) for the amber, then faintly green for a teal that
+   didn't survive review. Neutrals carry a trace of whatever the accent is, or
+   the page fights the buttons — warm greys under a cool accent read as beige,
+   and green-tinted greys under indigo read as dirty. These carry a whisper of
+   the indigo, which is what makes white cards sit on the page as objects rather
+   than as holes in it. */
+:root {
+  --color-background: #f8f8fb;
+  --color-foreground: #15161c;
+
+  --color-card: #ffffff;
+  --color-card-foreground: #15161c;
+  --color-popover: #ffffff;
+  --color-popover-foreground: #15161c;
+
+  --color-primary: #4338ca;
+  --color-primary-foreground: #f5f4ff;
+
+  --color-secondary: #eeeef4;
+  --color-secondary-foreground: #24252e;
+
+  /* `muted-foreground` is the single most-used colour in this app — every
+     timestamp, count, blurb and helper line — and the most commonly botched.
+     6.3:1 here, not the 3.5:1 that "subtle grey" usually lands on. Secondary
+     text that you have to lean in for is text nobody reads. */
+  --color-muted: #f0f0f5;
+  --color-muted-foreground: #585b6b;
+
+  --color-accent: #e9e9f1;
+  --color-accent-foreground: #15161c;
+
+  --color-destructive: #be123c;
+  --color-destructive-foreground: #fff5f7;
+
+  --color-border: #e0e0ea;
+  --color-input: #c9c9d8;
+  --color-ring: #4338ca;
+
+  /* Signals, darkened for paper. The luminous dark-mode versions are set in
+     globals.css `@theme`; these are the same hues taken down to AA.
+
+     `sheen` is the one that has to be watched. It is violet, and violet next to
+     indigo is a distinction nobody makes at a glance — so on paper it is pushed
+     most of the way to fuchsia. It still reads as the sheen on a fracture; it
+     just stops looking like a slightly-off primary. */
+  --color-signal: #047857;
+  --color-info: #0369a1;
+  --color-warn: #a16207;
+  --color-sheen: #a21caf;
+
+  /* ── Atmosphere ────────────────────────────────────────────────────────
+     Not Tailwind tokens — inputs to the composed classes in §4. Kept as
+     variables so the two modes share one set of rules and differ only here.
+
+     `--obs-bloom` is the wash in the corner of `.obsidian-field`. It is named
+     for its job rather than its colour precisely because its colour is
+     mode-dependent — it was `--obs-ember`, which stopped being true the moment
+     light mode stopped being amber.
+
+     Both values here are deliberately low. On paper a tint has nowhere to hide:
+     the same 0.10 alpha that reads as depth on near-black reads as a *stain* on
+     white, and the eye finds the edge of the gradient and starts treating it as
+     a shape. 0.045 is roughly the point where it stops being a thing you can
+     point at and starts being a room the page is lit in. If you can name its
+     colour, it is too strong. */
+  --obs-grid-line: rgb(21 22 28 / 0.04);
+  --obs-grid-size: 48px;
+  --obs-bloom: rgb(67 56 202 / 0.045);
+  --obs-hairline: rgb(21 22 28 / 0.1);
+  --obs-panel: rgb(255 255 255 / 0.72);
+  --obs-inset-highlight: rgb(255 255 255 / 0.9);
+
+  /* ═════════════════════════════════════════════════════════════════════
+     2. GEOMETRY — the fracture
+     ═════════════════════════════════════════════════════════════════════
+     Mode-independent, declared once. Every radius roughly halved against
+     Tailwind's defaults. The components never asked for a radius by name —
+     they say `rounded-md` — so re-pointing five variables re-cuts every card,
+     button, input, dialog and popover in the product at once.
+
+     `rounded-full` is left alone on purpose: dots, avatars and count pills are
+     the places where a circle means something, and they read better for being
+     the only curves in the room. */
+  --radius-xs: 1px;
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+  --radius-xl: 8px;
+  --radius-2xl: 12px;
+  --radius-3xl: 16px;
+  /* Consumed by tailwind.config.ts's legacy `borderRadius` block. */
+  --radius: 6px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   3. PALETTE — DARK ("volcanic glass") — the mode this app was designed in
+   ═══════════════════════════════════════════════════════════════════════════
+   The base is #0a0b0f rather than #000: pure black on an OLED panel makes every
+   border float and every card edge disappear, and there is nothing left to build
+   depth out of. This is black with about a degree of blue-violet in it, which is
+   what obsidian actually looks like when it is thin enough to pass light.
+
+   The surfaces climb in ~2% steps — background → card → popover → input — so
+   elevation is legible without a single shadow. Shadows are dishonest in the
+   dark anyway; they show up as smudges. */
+:root.dark {
+  --color-background: #0a0b0f;
+  --color-foreground: #e9ebf2;
+
+  --color-card: #10121a;
+  --color-card-foreground: #e9ebf2;
+  --color-popover: #14161f;
+  --color-popover-foreground: #e9ebf2;
+
+  /* The ember. 9.7:1 on the base — it can carry text, not just fills, which is
+     what lets it work as a link colour and an active-state colour rather than
+     needing a second brand hue to do the readable half of the job. */
+  --color-primary: #f5a524;
+  --color-primary-foreground: #0a0b0f;
+
+  --color-secondary: #191c25;
+  --color-secondary-foreground: #dfe3ec;
+
+  --color-muted: #14161e;
+  --color-muted-foreground: #99a1b3;
+
+  --color-accent: #1b1f2a;
+  --color-accent-foreground: #f2f4f9;
+
+  --color-destructive: #fb7185;
+  --color-destructive-foreground: #17070b;
+
+  /* Two border weights, and the gap between them is deliberate. `border` is the
+     structural line you are meant to see; `input` is a shade brighter because a
+     field has to advertise that it is a field before you click it. */
+  --color-border: #232732;
+  --color-input: #313745;
+  --color-ring: #f5a524;
+
+  --color-signal: #34d399;
+  --color-info: #38bdf8;
+  --color-warn: #fbbf24;
+  --color-sheen: #c084fc;
+
+  --obs-grid-line: rgb(233 235 242 / 0.035);
+  --obs-grid-size: 48px;
+  --obs-bloom: rgb(245 165 36 / 0.09);
+  --obs-hairline: rgb(233 235 242 / 0.09);
+  --obs-panel: rgb(16 18 26 / 0.72);
+  --obs-inset-highlight: rgb(255 255 255 / 0.05);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   3b. THE /admin SURFACE — same glass, colder fracture
+   ═══════════════════════════════════════════════════════════════════════════
+   `proxy.ts` classifies each request through `classifySurface()` and the root
+   layout puts the answer on `<html data-surface>`. Obsiddy uses that for one
+   distinction: the back office runs on teal.
+
+   This is not decoration. `/admin` is where you change things for everybody —
+   provider keys, budgets, feature flags — and the single most useful thing the
+   UI can do is make it impossible to think you are still in your own notes. A
+   colour shift is read pre-attentively, before any label is.
+
+   **This block has been re-pointed twice, both times because the consumer accent
+   moved, and that is the part worth remembering.** It was cyan against a rust
+   consumer; when consumer light went teal the two sat ~24° apart, and when it
+   went indigo the blue that had replaced the cyan sat ~21° from *that*. Neither
+   was wrong on its own; both quietly stopped doing the one job this shift has.
+
+   **If you re-point the consumer accent, check this pair again.** Roughly 60° of
+   hue separation is the floor. A surface-distinguishing colour that no longer
+   distinguishes is worse than none, because it is still claiming to.
+
+   Teal is ~70° off the indigo and on the far side of the wheel from the dark
+   ember, so it holds in both modes — and unlike consumer, admin keeps ONE hue
+   across them (teal-700 for contrast on paper, teal-400 on glass). The back
+   office has no brand story to tell; it needs to be unmistakably not-your-notes
+   in whichever mode you happen to be in, and nothing more.
+
+   Deltas only. Everything else — base, surfaces, borders, type — is inherited,
+   so an edit to the palette above reaches admin too and the two surfaces can
+   never drift into being two products. Specificity is one step above the block
+   it overrides in each mode, and these come last in source order. */
+:root[data-surface='admin'] {
+  --color-primary: #0f766e;
+  --color-primary-foreground: #f0fdfa;
+  --color-ring: #0f766e;
+  --obs-bloom: rgb(15 118 110 / 0.045);
+}
+
+:root[data-surface='admin'].dark {
+  --color-primary: #2dd4bf;
+  --color-primary-foreground: #04211d;
+  --color-ring: #2dd4bf;
+  --obs-bloom: rgb(45 212 191 / 0.07);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   4. TYPE, TEXTURE AND THE TERMINAL VOCABULARY
+   ═══════════════════════════════════════════════════════════════════════════
+   Layered as `components` so any Tailwind utility on the same element still
+   wins — these are defaults with opinions, not overrides. */
+@layer components {
+  /* ── The reading baseline ──────────────────────────────────────────────
+     16px, not the 14px that dense "pro tool" UIs drift toward. The complaint
+     that starts most redesigns of this genre is that the text is too small, and
+     it is nearly always true: density is worth having right up until the moment
+     it costs you a re-read.
+
+     `optimizeLegibility` plus JetBrains/Archivo's contextual alternates; and
+     `tnum` globally, because this app is full of counts, dates and durations
+     sitting in columns, and proportional digits make a column of numbers wobble. */
+  body {
+    font-family: var(--font-sans);
+    font-size: 1rem;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    font-feature-settings:
+      'rlig' 1,
+      'calt' 1,
+      'tnum' 1;
+  }
+
+  /* ── Headings are the machine speaking ────────────────────────────────
+     Display font, negative tracking, weight 600. Martian Mono is wide enough
+     that it needs the letter-spacing pulled back in or a four-word heading
+     reaches the fold; at -0.04em it reads as engineered rather than merely
+     monospaced.
+
+     Scoped to `h1, h2` only. h3 and below sit inside cards next to body copy,
+     and a monospace h3 two lines above a paragraph makes the paragraph look
+     like a mistake. */
+  h1,
+  h2 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    letter-spacing: -0.04em;
+    line-height: 1.15;
+  }
+
+  /* ── `.term-label` — the tracked micro-heading ────────────────────────
+     The workhorse of the whole look: the thing that names a region without
+     spending a heading on it. Nav group labels, table column heads, card
+     eyebrows, status strips.
+
+     11px is the floor, not a preference. Uppercase costs you the ascender and
+     descender cues that make lowercase scannable, so tracking has to buy them
+     back (+0.14em) and the size cannot also be shaved. 10px uppercase tracked
+     is the single most common readability failure in this aesthetic. */
+  .term-label {
+    font-family: var(--font-display);
+    font-size: 0.6875rem; /* 11px */
+    font-weight: 600;
+    line-height: 1.45;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-muted-foreground);
+  }
+
+  /* Same job, lighter voice — for labels that repeat many times down a page
+     (one per row) where the display font's width would start to shout. */
+  .term-meta {
+    font-family: var(--font-mono);
+    font-size: 0.75rem; /* 12px */
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-muted-foreground);
+  }
+
+  /* ── `.term-rule` — a divider that admits it is one ───────────────────
+     A dashed hairline instead of a solid border. In a UI with this many
+     rectangles a solid rule reads as the edge of another box; a dashed one
+     reads as punctuation. Used to separate regions *within* a panel, where a
+     real border would imply a nesting that isn't there. */
+  .term-rule {
+    border: 0;
+    border-top: 1px dashed var(--obs-hairline);
+  }
+
+  /* ── `.terminal-surface` — where the machine talks ───────────────────
+     Switches a whole subtree to the mono family: the chat transcript, the
+     capture box, the morning briefing.
+
+     This is the one place the "chrome is an instrument, content is a page" rule
+     is deliberately suspended, and the exception has a principle behind it.
+     Archivo is for prose *a person wrote*. Everything under this class is either
+     machine output or the prompt you type into it — a session with a program,
+     not a document — and a session should look like one. It is also, practically,
+     where the terminal reading of this app is most legible: a monospaced
+     transcript with a caret at the end is instantly recognisable in a way that a
+     tinted card is not.
+
+     Applied at the CALL SITE rather than inside `MarkdownView`, because that
+     component renders both halves — assistant replies *and* the notes you wrote
+     by hand. Same renderer, different voice, decided by who is speaking. Do not
+     move this into the component.
+
+     ## The tuning, which is not optional
+
+     Monospace at reading length is not the same problem as monospace in a code
+     block, and dropping the family in without adjusting for it is what makes
+     terminal-styled prose tiring:
+
+     - **`line-height: 1.7`** — every glyph having the same width strips the word
+       *shapes* that let you scan a sans paragraph, so the eye works line by line
+       and needs the extra leading to keep its place on the return sweep.
+     - **`0.875rem`** — JetBrains Mono runs optically large; at 14px it reads
+       about the size of 15px Archivo, so this is a step down in number and a
+       wash in perceived size. Still well above the 11px floor.
+     - **Ligatures left ON**, which needs no declaration here — the body rule
+       above already sets `calt 1`, and it inherits. JetBrains Mono turns `->`
+       and `=>` into real arrows, which LLM output produces constantly. Free
+       character, and the detail that reads as a terminal rather than as a font
+       swap. Resist "fixing" it by switching them off.
+
+     What it deliberately does NOT set is a max-width. Callers own their measure,
+     and a monospace column wants a narrower one than sans — chat bubbles get it
+     from their margins, cards from their padding. If you apply this to something
+     full-bleed, cap the line length yourself.
+
+     Form controls inherit the family for free: Tailwind's preflight sets
+     `font: inherit` on input/textarea, so a composer inside this scope becomes a
+     prompt without needing the class of its own. */
+  .terminal-surface {
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
+    line-height: 1.7;
+  }
+
+  /* ── `.obsidian-field` — the ground the app stands on ─────────────────
+     A 48px grid at ~4% opacity with a single warm bloom in the top-left, sized
+     to the viewport so it never tiles visibly.
+
+     The grid is doing real work rather than being texture for its own sake: it
+     gives the eye a reference for the alignment everything else is built on, so
+     the layout reads as deliberate rather than merely tidy. At this contrast it
+     is below the threshold of "pattern" and lands as depth — you notice it when
+     it is removed, not when it is there.
+
+     `background-attachment: fixed` keeps the grid still while content scrolls
+     over it, which is what sells it as a surface rather than a texture painted
+     on the page. Dropped on touch devices, where fixed attachment is both
+     expensive and unsupported. */
+  .obsidian-field {
+    background-color: var(--color-background);
+    background-image:
+      /* Wide and shallow, anchored above the top edge so only its falloff is on
+         screen. A gradient whose bright centre is visible reads as an object;
+         one that arrives already fading reads as light. `transparent 78%` rather
+         than 70% pushes the terminus off the viewport, which is what stops the
+         eye finding an edge and treating the wash as a shape. */
+      radial-gradient(ellipse 90% 45% at 8% -14%, var(--obs-bloom), transparent 78%),
+      linear-gradient(to right, var(--obs-grid-line) 1px, transparent 1px),
+      linear-gradient(to bottom, var(--obs-grid-line) 1px, transparent 1px);
+    background-size:
+      100% 100%,
+      var(--obs-grid-size) var(--obs-grid-size),
+      var(--obs-grid-size) var(--obs-grid-size);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .obsidian-field {
+      background-attachment: fixed, fixed, fixed;
+    }
+  }
+
+  /* ── `.obsidian-chrome` — sticky header / rail glass ──────────────────
+     Translucent panel plus a 1px top highlight, which is how real glass shows
+     an edge. The `saturate` in the backdrop filter is the detail that matters:
+     blur alone greys out whatever passes beneath, and pushing saturation back
+     up keeps the ember and the signal colours alive through it. */
+  .obsidian-chrome {
+    background-color: var(--obs-panel);
+    backdrop-filter: blur(14px) saturate(160%);
+    -webkit-backdrop-filter: blur(14px) saturate(160%);
+    box-shadow: inset 0 1px 0 0 var(--obs-inset-highlight);
+  }
+
+  /* ── `.live-edge` — "this one is live" ───────────────────────────────
+     A 2px bar hard against the left edge with a short bleed of glow. Reserved
+     for the current item: the active nav row, the selected card, the streaming
+     message. Deliberately scarce — the whole colour strategy is one accent
+     against a quiet field, and it stops working the moment two things glow.
+
+     Named `.ember-edge` until light mode went teal, at which point the name was
+     describing a colour the class no longer had in half the app. It draws in
+     `--color-primary`, whatever that currently is — including the blue on
+     `/admin` — so it is named for the job. */
+  .live-edge {
+    position: relative;
+  }
+
+  .live-edge::before {
+    content: '';
+    position: absolute;
+    inset-block: 0;
+    left: 0;
+    width: 2px;
+    background: var(--color-primary);
+    box-shadow: 0 0 12px -1px var(--color-primary);
+  }
+
+  /* ── Focus: a fracture, not a halo ────────────────────────────────────
+     Square-cornered, offset, in the ring colour. The platform default was a
+     soft 1px inset that vanishes on a dark background against a bright border.
+     `:focus-visible` only, so a mouse click never draws it. */
+  :where(a, button, [role='button'], input, select, textarea, summary, [tabindex]):focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+    border-radius: var(--radius-xs);
+  }
+
+  /* Selection in the ember, at low alpha so the text underneath stays black-on-
+     amber rather than becoming a highlighter smear. */
+  ::selection {
+    background-color: color-mix(in srgb, var(--color-primary) 28%, transparent);
+    color: var(--color-foreground);
+  }
+
+  /* ── Scrollbars ───────────────────────────────────────────────────────
+     A default light scrollbar cutting down the side of a black app is the one
+     thing that gives away that the dark theme is paint. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-input) transparent;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background-color: var(--color-input);
+    border: 3px solid transparent;
+    background-clip: content-box;
+    border-radius: 999px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: var(--color-muted-foreground);
+  }
+
+  /* ── `code` / `kbd` ───────────────────────────────────────────────────
+     Inline code appears constantly in this product — paths, ids, shortcuts —
+     and the platform left it at browser-default serif monospace, which is the
+     one place the terminal illusion visibly broke. */
+  code,
+  kbd,
+  samp,
+  pre {
+    font-family: var(--font-mono);
+    font-feature-settings: 'calt' 1;
+  }
+
+  /* ── Prose ────────────────────────────────────────────────────────────
+     Note bodies render through @tailwindcss/typography, which ships its own
+     greys and would otherwise paint document text in a palette unrelated to the
+     rest of the app. Re-point its variables at ours rather than restyling the
+     elements, so the plugin keeps owning rhythm and we only own colour.
+
+     `--tw-prose-body` is set to the full foreground, not a muted grey: this is
+     the one place in the app where the text *is* the content. */
+  .prose {
+    --tw-prose-body: var(--color-foreground);
+    --tw-prose-headings: var(--color-foreground);
+    --tw-prose-lead: var(--color-muted-foreground);
+    --tw-prose-links: var(--color-primary);
+    --tw-prose-bold: var(--color-foreground);
+    --tw-prose-counters: var(--color-muted-foreground);
+    --tw-prose-bullets: var(--color-input);
+    --tw-prose-hr: var(--color-border);
+    --tw-prose-quotes: var(--color-foreground);
+    --tw-prose-quote-borders: var(--color-primary);
+    --tw-prose-captions: var(--color-muted-foreground);
+    --tw-prose-code: var(--color-foreground);
+    --tw-prose-pre-code: var(--color-foreground);
+    --tw-prose-pre-bg: var(--color-muted);
+    --tw-prose-th-borders: var(--color-border);
+    --tw-prose-td-borders: var(--color-border);
+    max-width: 68ch;
+  }
+
+  /* Prose headings keep the sans, not the display font. A note is the user's
+     writing, and stamping their h2s in the product's machine voice makes the
+     page look like it belongs to the app rather than to them. */
+  .prose :is(h1, h2, h3, h4) {
+    font-family: var(--font-sans);
+    letter-spacing: -0.015em;
+  }
+
+  /* ── Page entrance ────────────────────────────────────────────────────
+     One 12px rise and fade, and only ever on the page's own first paint. The
+     staggering is left to callers via inline `animation-delay`, so nothing has
+     to be told how many siblings it has.
+
+     A single orchestrated arrival beats scattered micro-animation: it says the
+     app assembled itself, then gets out of the way. Anything that re-renders
+     often must not use it — a card that fades in every time a count changes is
+     a bug wearing a costume. */
+  .obsidian-reveal {
+    animation: obsidian-reveal 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  @keyframes obsidian-reveal {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  /* The whole aesthetic still has to work with motion off — nothing here
+     carries meaning that only the animation conveys. */
+  @media (prefers-reduced-motion: reduce) {
+    .obsidian-reveal {
+      animation: none;
+    }
+  }
+}

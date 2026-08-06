@@ -85,7 +85,7 @@ export function DatasetsTable({ datasets }: DatasetsTableProps): React.ReactElem
                     <span className="text-muted-foreground text-xs">—</span>
                   ) : (
                     d.tags.map((t) => (
-                      <Badge key={t} variant="secondary" className="text-[10px]">
+                      <Badge key={t} variant="secondary" className="text-[11px]">
                         {t}
                       </Badge>
                     ))
@@ -93,7 +93,7 @@ export function DatasetsTable({ datasets }: DatasetsTableProps): React.ReactElem
                 </div>
               </TableCell>
               <TableCell>
-                <Badge variant="outline" className="text-[10px]">
+                <Badge variant="outline" className="text-[11px]">
                   {d.source}
                 </Badge>
               </TableCell>

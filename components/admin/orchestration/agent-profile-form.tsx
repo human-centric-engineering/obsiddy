@@ -328,7 +328,7 @@ export function AgentProfileForm({ mode, profile }: Props) {
       </div>
 
       {isEdit && profile?.agents && profile.agents.length > 0 && (
-        <div className="rounded-md border p-4">
+        <div className="bg-card rounded-md border p-4">
           <h2 className="text-sm font-medium">
             Agents using this profile ({profile.agents.length})
           </h2>

@@ -288,7 +288,7 @@ function NavItemList({
               <Icon className={cn('shrink-0', nested ? 'h-4 w-4' : 'h-5 w-5')} />
               {!collapsed && <span className="flex-1">{item.label}</span>}
               {!collapsed && item.badge != null && item.badge > 0 && (
-                <span className="ml-auto rounded-full bg-orange-500 px-1.5 py-0.5 text-[10px] leading-none font-medium text-white">
+                <span className="ml-auto rounded-full bg-orange-500 px-1.5 py-0.5 text-[11px] leading-none font-medium text-white">
                   {item.badge}
                 </span>
               )}

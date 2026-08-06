@@ -44,7 +44,7 @@ export function PatternNode({ data, selected }: NodeProps<PatternNodeType>) {
       data-testid={`pattern-node-${data.type}`}
       data-cost-band={costBand ?? undefined}
       className={cn(
-        'flex max-w-[160px] min-w-[140px] flex-col items-center gap-2 rounded-lg border-2 px-3 py-3 shadow-sm transition-shadow',
+        'bg-card flex max-w-[160px] min-w-[140px] flex-col items-center gap-2 rounded-lg border-2 px-3 py-3 shadow-sm transition-shadow',
         colours.bg,
         colours.border,
         colours.text,
@@ -81,7 +81,7 @@ export function PatternNode({ data, selected }: NodeProps<PatternNodeType>) {
 
       <div className="text-center">
         <div className="text-sm leading-tight font-semibold">{data.label}</div>
-        <div className="text-muted-foreground font-mono text-[10px] uppercase">{data.type}</div>
+        <div className="text-muted-foreground font-mono text-[11px] uppercase">{data.type}</div>
       </div>
 
       {/* Output handles — stacked on the right side. The handle's `title`

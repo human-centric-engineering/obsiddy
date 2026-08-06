@@ -105,13 +105,13 @@ export function PerModelBreakdownTable({ rows, models }: PerModelBreakdownTableP
                     <div className="flex items-center gap-2">
                       <span>{row.info?.name ?? row.model}</span>
                       {row.isLocal && (
-                        <Badge variant="outline" className="text-[10px]">
+                        <Badge variant="outline" className="text-[11px]">
                           Local
                         </Badge>
                       )}
                     </div>
                     {row.info?.name && (
-                      <div className="text-muted-foreground text-[10px]">{row.model}</div>
+                      <div className="text-muted-foreground text-[11px]">{row.model}</div>
                     )}
                   </TableCell>
                   {/* From the cost log, not the catalogue — this is the

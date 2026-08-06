@@ -142,19 +142,19 @@ export function ConnectionsView({
       ) : (
         <ul className="space-y-2">
           {visible.map((row) => (
-            <li key={row.id} className="space-y-2 rounded-md border border-dashed p-3">
+            <li key={row.id} className="bg-card space-y-2 rounded-md border border-dashed p-3">
               <div className="flex flex-wrap items-center gap-2">
                 <EntityChip type={row.source.type} id={row.source.id} label={row.source.title} />
                 <ArrowRight className="text-muted-foreground h-3 w-3" aria-hidden="true" />
                 <EntityChip type={row.target.type} id={row.target.id} label={row.target.title} />
 
                 {row.strength !== null && (
-                  <Badge variant="outline" className="text-[10px]">
+                  <Badge variant="outline" className="text-[11px]">
                     {Math.round(row.strength * 100)}% similar
                   </Badge>
                 )}
 
-                <Badge variant="secondary" className="text-[10px]">
+                <Badge variant="secondary" className="text-[11px]">
                   {row.origin === 'user' ? 'you' : row.origin === 'llm' ? 'the agent' : 'the sweep'}
                 </Badge>
               </div>

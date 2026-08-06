@@ -143,6 +143,12 @@ export function QuickCapture({
           // two-row textarea inside a full-height panel is a smaller target than
           // the empty space beneath it, and the point of the panel is room to think.
           'min-h-24 flex-1 resize-none text-sm',
+          // `.terminal-surface` on the box and NOT on the surrounding form: what
+          // you type into a terminal is monospaced, the panel around it isn't.
+          // The attachment card, the status notes and the buttons below stay in
+          // the reading font — they are the app talking to you, and a mono button
+          // label is just a wide button.
+          'terminal-surface',
           dragging && 'border-primary ring-primary/30 ring-2'
         )}
         onChange={(event) => setValue(event.target.value)}

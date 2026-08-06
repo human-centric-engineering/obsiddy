@@ -53,7 +53,7 @@ export function CaseReviewStep({
   return (
     <div className="space-y-3 py-2">
       <div className="text-muted-foreground flex items-center gap-2 text-xs">
-        <Badge variant="outline" className="text-[10px]">
+        <Badge variant="outline" className="text-[11px]">
           {preview.cases.length} proposals
         </Badge>
         <span>·</span>
@@ -73,7 +73,7 @@ export function CaseReviewStep({
         {preview.cases.map((c, i) => {
           const inputIsObject = typeof c.input !== 'string';
           return (
-            <div key={i} className="rounded-md border p-3">
+            <div key={i} className="bg-card rounded-md border p-3">
               <div className="flex items-start gap-3">
                 <Checkbox
                   id={`proposal-${i}`}

@@ -93,7 +93,10 @@ export function AreasView({ areas, weeklyCapacityMinutes }: AreasViewProps): Rea
       ) : (
         <ul className="space-y-2">
           {areas.map((area) => (
-            <li key={area.id} className="flex flex-wrap items-center gap-2 rounded-md border p-3">
+            <li
+              key={area.id}
+              className="bg-card flex flex-wrap items-center gap-2 rounded-md border p-3"
+            >
               <span
                 aria-hidden="true"
                 className="inline-block h-3 w-3 shrink-0 rounded-full border"
@@ -103,7 +106,7 @@ export function AreasView({ areas, weeklyCapacityMinutes }: AreasViewProps): Rea
               <span className="font-medium">{area.name}</span>
 
               {area.targetWeeklyMinutes !== null ? (
-                <Badge variant="secondary" className="text-[10px]">
+                <Badge variant="secondary" className="text-[11px]">
                   {formatMinutes(area.targetWeeklyMinutes)} a week
                 </Badge>
               ) : (
@@ -114,7 +117,7 @@ export function AreasView({ areas, weeklyCapacityMinutes }: AreasViewProps): Rea
               )}
 
               {area.archivedAt !== null && (
-                <Badge variant="outline" className="text-[10px]">
+                <Badge variant="outline" className="text-[11px]">
                   archived
                 </Badge>
               )}

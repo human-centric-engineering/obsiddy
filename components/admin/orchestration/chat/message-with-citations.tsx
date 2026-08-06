@@ -266,7 +266,7 @@ export function CitationsList({
                   {relevancePercent(c)}% match
                 </span>
                 {used && (
-                  <span className="bg-primary/10 text-primary inline-flex items-center rounded-sm px-1 text-[10px] leading-none font-medium uppercase">
+                  <span className="bg-primary/10 text-primary inline-flex items-center rounded-sm px-1 text-[11px] leading-none font-medium uppercase">
                     Used
                   </span>
                 )}

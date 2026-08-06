@@ -93,14 +93,14 @@ export function RunsTable({ runs }: RunsTableProps): React.ReactElement {
               <TableCell className="text-sm">
                 {r.subjectKind === 'agent' && r.agent ? (
                   <>
-                    <Badge variant="outline" className="text-[10px]">
+                    <Badge variant="outline" className="text-[11px]">
                       agent
                     </Badge>{' '}
                     {r.agent.name}
                   </>
                 ) : r.subjectKind === 'workflow' && r.workflow ? (
                   <>
-                    <Badge variant="outline" className="text-[10px]">
+                    <Badge variant="outline" className="text-[11px]">
                       workflow
                     </Badge>{' '}
                     {r.workflow.name}
@@ -113,7 +113,7 @@ export function RunsTable({ runs }: RunsTableProps): React.ReactElement {
                 {r.dataset ? r.dataset.name : <span className="text-muted-foreground">—</span>}
               </TableCell>
               <TableCell>
-                <Badge className={`${STATUS_STYLES[r.status]} text-[10px]`}>{r.status}</Badge>
+                <Badge className={`${STATUS_STYLES[r.status]} text-[11px]`}>{r.status}</Badge>
               </TableCell>
               <TableCell className="font-mono text-xs">{progressPercent(r.progress)}</TableCell>
               <TableCell className="text-muted-foreground font-mono text-xs">

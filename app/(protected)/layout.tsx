@@ -30,7 +30,11 @@ export default function ProtectedLayout({
 }>) {
   return (
     <MaintenanceWrapperWithAdminNotice>
-      <div className="bg-background flex min-h-screen flex-col">
+      {/* `.obsidian-field` (brand-theme.css) replaces the flat `bg-background`:
+          the same base colour plus the 48px alignment grid and a single warm
+          bloom in the top-left. It sets its own background-color, so the utility
+          would only fight it. */}
+      <div className="obsidian-field flex min-h-screen flex-col">
         {/* Full-bleed: this is an application, not a document. `container`
             capped it at the largest breakpoint and centred the remainder, which
             on a wide display spent ~450px on empty margins while the app's own

@@ -308,7 +308,7 @@ export function InvitationTable({
       )}
 
       {/* Table */}
-      <div className="rounded-md border">
+      <div className="bg-card rounded-md border">
         <Table className="table-fixed">
           <TableHeader>
             <TableRow>

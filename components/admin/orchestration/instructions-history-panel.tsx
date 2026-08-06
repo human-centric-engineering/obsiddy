@@ -121,7 +121,7 @@ export function InstructionsHistoryPanel({ agentId, onReverted }: InstructionsHi
   }, [revertTarget, agentId, fetchHistory, onReverted]);
 
   return (
-    <div className="border-border rounded-md border">
+    <div className="bg-card border-border rounded-md border">
       <button
         type="button"
         onClick={handleToggle}
@@ -215,7 +215,7 @@ export function InstructionsHistoryPanel({ agentId, onReverted }: InstructionsHi
             </DialogDescription>
           </DialogHeader>
           {diffOpen && data && (
-            <div className="max-h-[60vh] overflow-auto rounded-md border">
+            <div className="bg-card max-h-[60vh] overflow-auto rounded-md border">
               <DiffView oldText={diffOpen.instructions} newText={data.current} />
             </div>
           )}

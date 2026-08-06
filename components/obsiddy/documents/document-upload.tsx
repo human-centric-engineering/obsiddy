@@ -62,7 +62,7 @@ export function DocumentUpload(): React.ReactElement {
   }
 
   return (
-    <div className="space-y-3 rounded-lg border border-dashed p-4">
+    <div className="bg-card space-y-3 rounded-lg border border-dashed p-4">
       <div className="space-y-1.5">
         <Label htmlFor="obsiddy-document-upload">Add a document</Label>
         <Input
