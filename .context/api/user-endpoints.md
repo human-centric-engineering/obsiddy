@@ -255,6 +255,7 @@ different account, or a self-hosted install.
 ```
 GET /api/v1/users/me/transfer/export
 GET /api/v1/users/me/transfer/export?groups=brain,conversations
+GET /api/v1/users/me/transfer/export?format=logseq
 ```
 
 **Not a duplicate of the endpoint above.** That one answers "what is held about
@@ -274,15 +275,33 @@ keys and the same reasoning.
 | Param    | Type   | Notes                                                                         |
 | -------- | ------ | ----------------------------------------------------------------------------- |
 | `groups` | string | Comma-separated sections. Omit for all. An unknown name is a 400, not ignored |
+| `format` | string | How to write it out. Omit for the complete JSON bundle. Unknown name is a 400 |
 
 Valid sections: `account`, `brain`, `conversations`, `automation`, `history`.
 
-**Response** (200 OK): `application/zip`, with `Content-Disposition:
-attachment; filename="account-export-YYYY-MM-DD.zip"`, `Cache-Control: private,
-no-store`, and an `X-Transfer-Rows` count so a client can report what landed
-without unzipping it.
+**Formats**:
 
-The archive holds:
+| `format` | Covers     | Response                                           |
+| -------- | ---------- | -------------------------------------------------- |
+| `bundle` | everything | `application/zip` — the JSON bundle below. Default |
+| `logseq` | `brain`    | `application/zip` — a Logseq graph                 |
+| `notion` | `brain`    | `application/zip` — CSV databases + markdown pages |
+| `csv`    | everything | `application/zip` — one CSV per table              |
+| `digest` | everything | `text/markdown` — one document, sent as itself     |
+
+`bundle` is the **only** format an import can read back. The rest are one-way
+renderings for other tools, and each says so in its own README.
+
+A format that covers only part of an account **refuses** a `?groups=` asking for
+the rest (400) rather than quietly narrowing it — an export that silently answers
+a narrower question than the one asked is indistinguishable from one where those
+tables were empty.
+
+**Response** (200 OK): the format's content type, with `Content-Disposition:
+attachment; filename="…"`, `Cache-Control: private, no-store`, and an
+`X-Transfer-Rows` count so a client can report what landed without unzipping it.
+
+The default archive holds:
 
 ```
 manifest.json              every table gathered, every one that was not, and why
@@ -292,8 +311,9 @@ data/<Model>.json          one file per table with rows; none for an empty table
 
 **Error Responses**:
 
-- **400 Validation Error**: unknown section; or the account is too large to build
-  in one archive (the message names the limit and says to export fewer sections)
+- **400 Validation Error**: unknown section or format; a format asked for a
+  section it cannot render; or the account is too large to build in one archive
+  (the message names the limit and says to export fewer sections)
 - **401 Unauthorized**: No valid session
 - **403 Forbidden**: Authenticated with an API key rather than a browser session
 - **429 Too Many Requests**: Export sub-cap exhausted

@@ -18,6 +18,37 @@ release process.
 
 ### Added
 
+- **Export formats: Logseq, Notion, CSV and a one-page digest.**
+  `GET /api/v1/users/me/transfer/export` takes a new `?format=` — `bundle`
+  (default, unchanged), `logseq`, `notion`, `csv` or `digest` — and the **Your
+  data** tab offers them as a picker. A renderer receives the rows the collector
+  already gathered and returns files; it never touches the database, so no
+  format can widen what leaves an account.
+
+  `bundle` remains the only format an import will be able to read back. The
+  others are one-way renderings for other tools and each says so in its own
+  README: `logseq` writes a graph (`pages/`, `journals/`, `logseq/config.edn`)
+  with tasks as `TODO` blocks under their project rather than as pages, because
+  that is what Logseq's agenda and queries read; `notion` writes CSV databases
+  and markdown pages laid out for Notion's importer, with every reference as the
+  target's **name** rather than an id, since Notion creates no relations on
+  import; `csv` writes one spreadsheet per table alongside the same manifest and
+  README the JSON bundle carries; `digest` is a single Markdown document, sent as
+  itself rather than as a zip of one file.
+
+  A format that covers only part of an account — `logseq` and `notion` render
+  the brain — **refuses** a `?groups=` asking for the rest rather than quietly
+  narrowing it, and the UI disables those sections so the refusal is a backstop
+  rather than the way somebody finds out. The digest prints every table's true
+  row count and says how many records it is not showing.
+
+  New public surface: `lib/portability/format.ts` (`TransferFormatSpec`,
+  `TRANSFER_FORMATS`, `transferFormatSummaries()`, `resolveFormatGroups()`,
+  `TransferFormatError`), `lib/portability/formats/{json-bundle,csv,digest}.ts`,
+  and `lib/framework/resparkable/transfer/{brain-view,formats/logseq,formats/notion}.ts`.
+  `lib/api/csv.ts` gains `csvDocument()`. `AccountExportPanel` gains a required
+  `formats` prop and `SettingsTabs` a required `transferFormats`.
+
 - **Account export: take your data with you.** New
   `GET /api/v1/users/me/transfer/export` returns the calling account as a zip —
   `manifest.json`, a plain-English `README.md`, and one `data/<Model>.json` per
@@ -738,6 +769,21 @@ release process.
   the route logs its length and the hit count instead.
 
 ### Changed
+
+- **`exportAccount()` returns a format-neutral result.** `AccountExport` drops
+  `manifest` — which only the JSON bundle has — and gains `contentType`,
+  `format` and `totalRows`. The route reads `totalRows` for its
+  `X-Transfer-Rows` header and `contentType` for the response, so a format that
+  is not a zip is sent as itself. `exportAccount()` also takes an optional
+  `format`.
+
+- **`lib/portability/bundle.ts` exports its manifest and README builders.**
+  `buildBundleManifest()`, `renderBundleReadme()`, `jsonDataPath`, the
+  `DataPathFor` type and `isoDate()` are now public so the CSV rendering shares
+  them rather than writing a second copy of the four omission lists — redacted
+  columns, reissued columns, unreachable tables, excluded tables. A second copy
+  would drift, and it would drift silently: both manifests would still look
+  complete. `buildTransferBundle()` is unchanged.
 
 - **BREAKING — the project is renamed Obsiddy → Resparkable, and the fork's own
   brand name goes with it.** Every public identifier moves: the 19 Prisma models

@@ -3,10 +3,10 @@
 Moving one person's data out of an account and into a different one — a new
 account, or the same account on a self-hosted install.
 
-**Status: Phases A and B shipped.** The model graph, the policy manifest, the
-coverage guards, and a working export — `GET /api/v1/users/me/transfer/export`,
-plus the Your data tab in Settings. There is no import yet; see
-[Phases](#phases).
+**Status: Phases A, B and C shipped.** The model graph, the policy manifest, the
+coverage guards, a working export — `GET /api/v1/users/me/transfer/export`, plus
+the Your data tab in Settings — and five formats to write it out in. There is no
+import yet; see [Phases](#phases).
 
 ## What already existed, and why none of it was enough
 
@@ -52,7 +52,22 @@ lib/portability/archive.ts                 the zip
 lib/portability/export-account.ts          the three, joined
 app/api/v1/users/me/transfer/export/       the endpoint
 components/settings/account-export-panel.tsx   Settings → Your data
+
+lib/portability/format.ts                  the formats and what they promise (Phase C)
+lib/portability/formats/json-bundle.ts     the default, as a format
+lib/portability/formats/csv.ts             one CSV per table
+lib/portability/formats/digest.ts          one Markdown document
+lib/framework/resparkable/transfer/brain-view.ts       collected rows → typed brain
+lib/framework/resparkable/transfer/formats/logseq.ts   a Logseq graph
+lib/framework/resparkable/transfer/formats/notion.ts   a Notion import
 ```
+
+The generic renderers live in **core** because nothing in them knows what a task
+is: `csv` and `digest` work off the model graph and would render a fork's tables
+as readily as ours. `logseq` and `notion` sit in the framework tier because they
+speak the brain's vocabulary — a Logseq page for a rate-limit counter is not a
+thing. Core's format registry imports the tier's two specs statically, exactly as
+`registry.ts` already imports the tier's policy.
 
 The engine lives in **core**, not in the framework tier, and treats the brain as
 more models in the graph. A `repo/**` adapter would defeat the whole point —
@@ -257,6 +272,85 @@ expiry timestamps. Requiring a written exemption for each would mean forty
 rubber-stamped lines — and a guard people rubber-stamp is one that stops being
 read. An `Int` named `maxTokens` cannot be an API key whatever it is called.
 
+## Formats
+
+One collection, five renderings. A renderer receives the rows `collect.ts`
+gathered and returns files; it never touches the database, so it inherits every
+guarantee the collector makes rather than restating them. **A format cannot widen
+what leaves an account**, which is what makes adding one a presentation decision
+rather than a privacy one.
+
+| `format` | Covers     | Reads back? | For                                      |
+| -------- | ---------- | ----------- | ---------------------------------------- |
+| `bundle` | everything | ✅ Phase D  | the record, and the only importable copy |
+| `logseq` | brain      | ❌          | leaving for Logseq                       |
+| `notion` | brain      | ❌          | leaving for Notion                       |
+| `csv`    | everything | ❌          | opening in a spreadsheet                 |
+| `digest` | everything | ❌          | reading, in one document                 |
+
+`bundle` is the default, so every caller written before Phase C — and anybody who
+bookmarked the URL — gets exactly what they got before.
+
+### A format may narrow the sections, never widen them
+
+`logseq` and `notion` declare `groups: ['brain']`. Asking one of them for
+`?groups=brain,history` is a **400 naming the sections it cannot render**, not a
+quiet intersection. The quiet version is the tempting implementation and it
+produces an export that answers a narrower question than the one asked — which,
+in a folder listing, is indistinguishable from those tables being empty. The UI
+disables the sections a format does not cover, so the refusal is a backstop
+rather than the way somebody finds out.
+
+### Two transports, declared rather than inferred
+
+Most formats are a folder and ship as a zip. `digest` is one document and is sent
+as itself. `Rendering` is a discriminated union rather than "a zip unless there
+happens to be one file", because the inferred rule would silently turn a CSV
+export of a one-table account into a bare `.csv`.
+
+### Tasks are blocks in Logseq and pages in Obsidian
+
+The same data, deliberately shaped differently, because the target tools differ.
+Obsidian's unit is the note, and `vault/export.ts` gives every task one. Logseq's
+`TODO` blocks are what its agenda and query engine read, and a graph where every
+task is a page has a thousand pages and an empty agenda. The cost is that a
+Logseq task has no file of its own and so no identity a re-import could match —
+acceptable, because the format is one-way by design and its README says so.
+
+### Notion gets names, not ids
+
+**Notion does not create relations on import.** A column of `clx0k3…` arrives as
+text that sorts, filters and means nothing, so every reference is written as the
+_name_ of its target: a task's `Project` says "Website rebuild". Those columns
+convert to real relations in a couple of clicks. The loss — two projects with the
+same name become indistinguishable — is stated in the export's own README, and
+the ids are all still in the bundle.
+
+### The digest is a summary and says so
+
+Every table prints its true row count and how many records are shown, and the
+omitted ones are counted out loud. The rule everywhere else here is that a short
+answer must announce that it is short; the digest is the one place a short answer
+is the _intended product_, which makes announcing it more important rather than
+less. Which columns appear is not guessed at from names — the model graph already
+knows which are ids, foreign keys, `Json` or reference-shaped, and what is left
+in schema order is the answer.
+
+### Rows become typed exactly once
+
+`brain-view.ts` is the only place `Record<string, unknown>` becomes a task, and
+it happens through Zod rather than an `as`. Schemas take the handful of columns a
+renderer uses and ignore the rest, so a new column cannot break an export; a row
+that genuinely will not parse is **counted and skipped**, and the count is
+printed in the rendering. One bad row in nine thousand must not cost somebody
+their whole export, and a renderer that silently produced 8,997 notes from 9,000
+tasks would be indistinguishable from one that worked.
+
+Only `accepted` links are drawn. A `suggested` link is a machine's guess nobody
+has looked at and a `rejected` one is a tombstone that exists to stop the guess
+coming back — neither is the user's own thinking, and a fresh graph full of both
+would be our unfinished business wearing their notes' clothes.
+
 ## What never round-trips
 
 ids · owner columns · session and credential material · `inboxToken` ·
@@ -274,7 +368,7 @@ of the prioritiser and precisely the thing they would be angriest to lose.
 | --- | --------------------------------------------------------- | ---------- |
 | A   | Model graph, policy manifest, coverage guards             | ✅ shipped |
 | B   | Export: collector, bundle writer, zip, route, UI          | ✅ shipped |
-| C   | Brain formats: Logseq, Notion, CSV, single-file digest    | planned    |
+| C   | Brain formats: Logseq, Notion, CSV, single-file digest    | ✅ shipped |
 | D   | Import, **dry-run only** — planner, id-map, orphan report | planned    |
 | E   | Import apply, fresh mode only                             | planned    |
 | F   | Merge mode + the `ResparkableGoal` unique migration       | planned    |

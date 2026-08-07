@@ -11,6 +11,12 @@
  *
  * `?groups=brain,conversations` narrows it. Absent means all of them.
  *
+ * `?format=logseq` changes how it is written out — a Logseq graph, a Notion
+ * import, a folder of CSVs, or one Markdown document. Absent means the complete
+ * JSON bundle, which is the only format an import can read back. A format that
+ * covers only part of an account refuses a `?groups=` asking for the rest
+ * rather than quietly narrowing it. See `lib/portability/format.ts`.
+ *
  * Not ETag'd, for the reason the vault export gives: a conditional GET would
  * mean building the whole archive in order to hash it, and the building is the
  * expensive part. A download is a deliberate one-off, not something polled.
@@ -30,6 +36,7 @@ import { withAuth } from '@/lib/auth/guards';
 import { TransferArchiveError } from '@/lib/portability/archive';
 import { TransferCollectError } from '@/lib/portability/collect';
 import { exportAccount } from '@/lib/portability/export-account';
+import { TransferFormatError } from '@/lib/portability/format';
 import { accountExportQuerySchema } from '@/lib/portability/validation';
 import { createRateLimitResponse, exportLimiter } from '@/lib/security/rate-limit';
 
@@ -54,39 +61,45 @@ export const GET = withAuth(async (request, session) => {
   const rl = exportLimiter.check(`transfer:export:${session.user.id}`);
   if (!rl.success) return createRateLimitResponse(rl);
 
-  const { groups } = validateQueryParams(
+  const { groups, format } = validateQueryParams(
     new URL(request.url).searchParams,
     accountExportQuerySchema
   );
 
-  let archive;
+  let exported;
   try {
-    archive = await exportAccount({ userId: session.user.id, groups });
+    exported = await exportAccount({ userId: session.user.id, groups, format });
   } catch (error) {
-    // An account too large for one archive is the caller's situation, not a
-    // server fault — a 400 naming the limit beats a 500 naming nothing. Both
-    // error types carry a `reason` the UI can show as-is.
-    if (error instanceof TransferCollectError || error instanceof TransferArchiveError) {
+    // An account too large for one archive, or a format that cannot cover the
+    // sections asked for, is the caller's situation rather than a server fault
+    // — a 400 naming the limit beats a 500 naming nothing. All three error
+    // types carry a `reason` the UI can show as-is.
+    if (
+      error instanceof TransferCollectError ||
+      error instanceof TransferArchiveError ||
+      error instanceof TransferFormatError
+    ) {
       throw new ValidationError(error.message, { export: [error.reason] });
     }
     throw error;
   }
 
-  log.info('Account transfer bundle downloaded', {
+  log.info('Account transfer export downloaded', {
     groups,
-    rows: archive.manifest.totalRows,
-    bytes: archive.bytes.byteLength,
+    format: exported.format,
+    rows: exported.totalRows,
+    bytes: exported.bytes.byteLength,
   });
 
-  return new Response(new Uint8Array(archive.bytes), {
+  return new Response(new Uint8Array(exported.bytes), {
     headers: {
-      'Content-Type': 'application/zip',
-      'Content-Disposition': `attachment; filename="${archive.fileName}"`,
-      'Content-Length': String(archive.bytes.byteLength),
+      'Content-Type': exported.contentType,
+      'Content-Disposition': `attachment; filename="${exported.fileName}"`,
+      'Content-Length': String(exported.bytes.byteLength),
       // A copy of somebody's whole account has no business in any shared cache.
       'Cache-Control': 'private, no-store',
       // Lets the UI report what landed without unzipping it.
-      'X-Transfer-Rows': String(archive.manifest.totalRows),
+      'X-Transfer-Rows': String(exported.totalRows),
     },
   });
 });

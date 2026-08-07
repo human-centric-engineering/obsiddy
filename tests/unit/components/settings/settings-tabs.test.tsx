@@ -92,6 +92,14 @@ const defaultProps = {
   transferGroups: [
     { group: 'brain' as const, label: 'Your brain', models: 3, notes: ['Tasks and notes.'] },
   ],
+  transferFormats: [
+    {
+      id: 'bundle',
+      label: 'Complete bundle (JSON)',
+      description: 'Everything, as one JSON file per table.',
+      groups: null,
+    },
+  ],
 };
 
 /**

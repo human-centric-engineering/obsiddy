@@ -116,6 +116,61 @@ export interface TransferBundle {
 }
 
 /**
+ * Where one model's rows live, or `null` when there were none to write.
+ *
+ * A parameter rather than a constant because Phase C renders the same collected
+ * rows as CSV as well as JSON, and the four omission lists below — redacted,
+ * regenerated, unreachable, excluded — are the part that must not be written
+ * twice. A second copy would drift, and it would drift silently: both manifests
+ * would still look complete.
+ */
+export type DataPathFor = (model: string, rows: number) => string | null;
+
+/** The JSON bundle's own layout: `data/<Model>.json`, nothing for an empty table. */
+export const jsonDataPath: DataPathFor = (model, rows) =>
+  rows > 0 ? `${BUNDLE_DATA_DIR}/${model}.json` : null;
+
+/**
+ * Describe what was gathered, independently of how it is about to be written.
+ *
+ * Pure, and deliberately ignorant of the file format: everything here is a fact
+ * about the *account* — which tables were reached, which were not and why, which
+ * columns were dropped — and none of it changes because the rows are going into
+ * a CSV instead of a JSON file.
+ */
+export function buildBundleManifest(
+  collected: CollectedAccount,
+  generatedAt: Date,
+  dataPathFor: DataPathFor
+): BundleManifest {
+  const models: BundleModelEntry[] = collected.models.map((entry) => ({
+    model: entry.model,
+    group: entry.group,
+    disposition: entry.disposition,
+    note: entry.note,
+    strategy: entry.strategy,
+    file: dataPathFor(entry.model, entry.rows.length),
+    rows: entry.rows.length,
+    redacted: entry.redacted,
+    regenerate: policyFor(entry.model)?.regenerate ?? [],
+    unsupported: entry.unsupported,
+  }));
+
+  return {
+    formatVersion: TRANSFER_BUNDLE_VERSION,
+    generatedAt: generatedAt.toISOString(),
+    schemaFingerprint: SCHEMA_FINGERPRINT,
+    subjectUserId: collected.userId,
+    groups: collected.groups,
+    totalRows: collected.totalRows,
+    models,
+    unreachable: collected.unreachable,
+    excluded: TRANSFER_EXCLUDED,
+    crossBoundaryEdges: CROSS_BOUNDARY_EDGES,
+  };
+}
+
+/**
  * JSON that survives the trip.
  *
  * `Date` already serialises to ISO-8601 through its own `toJSON`, and so does
@@ -147,56 +202,41 @@ export function buildTransferBundle(
   generatedAt: Date
 ): TransferBundle {
   const files: Record<string, string> = {};
-  const models: BundleModelEntry[] = [];
+  const manifest = buildBundleManifest(collected, generatedAt, jsonDataPath);
 
   for (const entry of collected.models) {
     // A table with no rows gets a manifest line and no file. The line is the
     // point: it records that the table was looked at, which an absent file
     // cannot. An empty file would say the same thing and cost a download.
-    const file = entry.rows.length > 0 ? `${BUNDLE_DATA_DIR}/${entry.model}.json` : null;
+    const file = jsonDataPath(entry.model, entry.rows.length);
     if (file) files[file] = toJson(entry.rows);
-
-    models.push({
-      model: entry.model,
-      group: entry.group,
-      disposition: entry.disposition,
-      note: entry.note,
-      strategy: entry.strategy,
-      file,
-      rows: entry.rows.length,
-      redacted: entry.redacted,
-      regenerate: policyFor(entry.model)?.regenerate ?? [],
-      unsupported: entry.unsupported,
-    });
   }
 
-  const manifest: BundleManifest = {
-    formatVersion: TRANSFER_BUNDLE_VERSION,
-    generatedAt: generatedAt.toISOString(),
-    schemaFingerprint: SCHEMA_FINGERPRINT,
-    subjectUserId: collected.userId,
-    groups: collected.groups,
-    totalRows: collected.totalRows,
-    models,
-    unreachable: collected.unreachable,
-    excluded: TRANSFER_EXCLUDED,
-    crossBoundaryEdges: CROSS_BOUNDARY_EDGES,
-  };
-
   files[BUNDLE_MANIFEST_PATH] = toJson(manifest);
-  files[BUNDLE_README_PATH] = renderReadme(manifest);
+  files[BUNDLE_README_PATH] = renderBundleReadme(manifest, {
+    fileNoun: 'JSON file',
+    reassurance: 'You do not need this app to read any of it. It is ordinary JSON.',
+  });
 
   return { files, manifest };
 }
 
 /** `2026-08-07` — the date part of an ISO timestamp, for filenames. */
-function isoDate(date: Date): string {
+export function isoDate(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
 /** The download's filename. Carries a date and nothing else identifying. */
 export function bundleFileName(generatedAt: Date): string {
   return `account-export-${isoDate(generatedAt)}.zip`;
+}
+
+/** The two sentences that differ between a JSON bundle and a CSV one. */
+export interface BundleReadmeCopy {
+  /** "one JSON file per table" — the noun in the file listing. */
+  fileNoun: string;
+  /** The line under the listing that says the reader needs nothing of ours. */
+  reassurance: string;
 }
 
 /**
@@ -207,8 +247,13 @@ export function bundleFileName(generatedAt: Date): string {
  * imported somewhere. Plain English throughout: the reader may well not be the
  * person who built the system, and by the time they are reading it there is
  * nobody to ask.
+ *
+ * Everything below the file listing is about the account rather than the file
+ * format, which is why the CSV rendering shares this rather than writing a
+ * second README. The omissions are the part a reader cannot see for themselves,
+ * and they are identical whichever way the rows were written.
  */
-function renderReadme(manifest: BundleManifest): string {
+export function renderBundleReadme(manifest: BundleManifest, copy: BundleReadmeCopy): string {
   const lines: string[] = [];
 
   lines.push('# Your data');
@@ -221,9 +266,11 @@ function renderReadme(manifest: BundleManifest): string {
   );
   lines.push('');
   lines.push('- `manifest.json` — the full, machine-readable description of what is here.');
-  lines.push('- `data/` — one JSON file per table. Tables with no records have no file.');
+  lines.push(
+    `- \`${BUNDLE_DATA_DIR}/\` — one ${copy.fileNoun} per table. Tables with no records have no file.`
+  );
   lines.push('');
-  lines.push('You do not need this app to read any of it. It is ordinary JSON.');
+  lines.push(copy.reassurance);
   lines.push('');
 
   // ── what came ──

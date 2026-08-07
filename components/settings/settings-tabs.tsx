@@ -37,6 +37,7 @@ import {
   DEFAULT_SETTINGS_TAB,
   type SettingsTab,
 } from '@/lib/constants/settings';
+import type { TransferFormatSummary } from '@/lib/portability/format';
 import type { TransferGroupSummary } from '@/lib/portability/registry';
 import type { UserPreferences } from '@/types';
 
@@ -78,6 +79,8 @@ interface SettingsTabsProps {
    * importing it would ship all of it to the browser to render five checkboxes.
    */
   transferGroups: readonly TransferGroupSummary[];
+  /** The export formats on offer. Passed in for the same reason as the sections. */
+  transferFormats: readonly TransferFormatSummary[];
 }
 
 /**
@@ -96,6 +99,7 @@ export function SettingsTabs({
   oauthProviders,
   initials,
   transferGroups,
+  transferFormats,
 }: SettingsTabsProps) {
   const { activeTab, setActiveTab } = useTrackedUrlTabs<SettingsTab>({
     defaultTab: DEFAULT_SETTINGS_TAB,
@@ -202,7 +206,7 @@ export function SettingsTabs({
             <CardDescription>Take a copy of your account with you</CardDescription>
           </CardHeader>
           <CardContent>
-            <AccountExportPanel groups={transferGroups} />
+            <AccountExportPanel groups={transferGroups} formats={transferFormats} />
           </CardContent>
         </Card>
       </TabsContent>

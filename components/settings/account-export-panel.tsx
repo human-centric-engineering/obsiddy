@@ -18,33 +18,72 @@
  * discovered later. Credentials are named as omitted before the download rather
  * than explained afterwards in the README.
  *
+ * ## The format picker leads, and the sections follow it
+ *
+ * A format that covers only part of an account — Logseq and Notion render the
+ * brain and nothing else — **ticks and disables** the sections it does not
+ * cover rather than leaving them checked and having the endpoint refuse. The
+ * refusal exists and is correct, but a person should not have to trigger an
+ * error to discover what a format holds; the disabled rows and the line above
+ * them say it before the click.
+ *
  * @see lib/portability/registry.ts — where the sections come from
+ * @see lib/portability/format.ts — where the formats come from
  * @see app/api/v1/users/me/transfer/export/route.ts
  */
 
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Download, Loader2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { FieldHelp } from '@/components/ui/field-help';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import type { TransferFormatSummary } from '@/lib/portability/format';
 import type { TransferGroupSummary } from '@/lib/portability/registry';
 
 export interface AccountExportPanelProps {
   /** The sections on offer, computed on the server. */
   groups: readonly TransferGroupSummary[];
+  /** The formats on offer, in the order they should be listed. */
+  formats: readonly TransferFormatSummary[];
 }
 
-export function AccountExportPanel({ groups }: AccountExportPanelProps) {
+export function AccountExportPanel({ groups, formats }: AccountExportPanelProps) {
   // Everything ticked to begin with. The common case is "all of it", and a
   // person who wants less can say so — whereas an empty set as the default
   // invites downloading an archive that is missing something they assumed.
   const [selected, setSelected] = useState<ReadonlySet<string>>(
     () => new Set(groups.map((group) => group.group))
   );
+  const [formatId, setFormatId] = useState(() => formats[0]?.id ?? 'bundle');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const format = formats.find((candidate) => candidate.id === formatId);
+
+  /** The sections this format can render, or `null` when it renders all of them. */
+  const covered = useMemo(() => (format?.groups ? new Set<string>(format.groups) : null), [format]);
+
+  /**
+   * What will actually be asked for.
+   *
+   * Intersected rather than sent as ticked. The endpoint would refuse a section
+   * the format cannot render, and being refused for a box you did not tick —
+   * because it was ticked before you changed the format — is a confusing way to
+   * find out.
+   */
+  const effective = useMemo(
+    () => [...selected].filter((group) => !covered || covered.has(group)),
+    [covered, selected]
+  );
 
   const toggle = useCallback((group: string, checked: boolean) => {
     setSelected((current) => {
@@ -60,12 +99,14 @@ export function AccountExportPanel({ groups }: AccountExportPanelProps) {
     setError(null);
 
     try {
-      // Every section ticked means no filter at all, so a section added later
-      // is included by default rather than silently missing for anyone whose
-      // browser cached this page.
-      const all = selected.size === groups.length;
-      const query = all ? '' : `?groups=${[...selected].join(',')}`;
-      const response = await fetch(`/api/v1/users/me/transfer/export${query}`);
+      // Everything this format covers means no section filter at all, so a
+      // section added later is included by default rather than silently missing
+      // for anyone whose browser cached this page.
+      const all = effective.length === (covered ? covered.size : groups.length);
+      const params = new URLSearchParams({ format: formatId });
+      if (!all) params.set('groups', effective.join(','));
+
+      const response = await fetch(`/api/v1/users/me/transfer/export?${params.toString()}`);
 
       if (!response.ok) {
         // The endpoint's refusals are written to be shown as-is — too many rows,
@@ -80,7 +121,7 @@ export function AccountExportPanel({ groups }: AccountExportPanelProps) {
 
       const blob = await response.blob();
       const disposition = response.headers.get('Content-Disposition');
-      const fileName = disposition?.match(/filename="(.+)"/)?.[1] ?? 'account-export.zip';
+      const fileName = disposition?.match(/filename="(.+)"/)?.[1] ?? `account-export-${formatId}`;
 
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -93,29 +134,57 @@ export function AccountExportPanel({ groups }: AccountExportPanelProps) {
     } finally {
       setBusy(false);
     }
-  }, [groups.length, selected]);
+  }, [covered, effective, formatId, groups.length]);
 
   return (
     <div className="space-y-6">
       <div className="space-y-2">
         <h3 className="font-medium">Download your data</h3>
         <p className="text-muted-foreground text-sm">
-          A zip file holding your account as ordinary JSON — one file per table, plus a plain
-          English description of what is in it. You do not need this app, or any other, to read it.
+          Take a copy of your account away with you. Nothing here needs this app, or any other, to
+          be readable.
         </p>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="export-format">Format</Label>
+        <Select value={formatId} onValueChange={setFormatId} disabled={busy}>
+          <SelectTrigger id="export-format" className="w-full sm:max-w-md">
+            <SelectValue placeholder="Choose a format" />
+          </SelectTrigger>
+          <SelectContent>
+            {formats.map((candidate) => (
+              <SelectItem key={candidate.id} value={candidate.id}>
+                {candidate.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {format ? <p className="text-muted-foreground text-xs">{format.description}</p> : null}
       </div>
 
       <fieldset className="space-y-3" disabled={busy}>
         <legend className="sr-only">Sections to include</legend>
+        {covered ? (
+          <p className="text-muted-foreground text-xs">
+            This format covers only the sections below that are still available. Choose the complete
+            bundle to include everything.
+          </p>
+        ) : null}
         {groups.map((group) => {
-          const checked = selected.has(group.group);
+          const available = !covered || covered.has(group.group);
+          const checked = available && selected.has(group.group);
           const id = `export-group-${group.group}`;
 
           return (
-            <div key={group.group} className="flex items-start gap-3">
+            <div
+              key={group.group}
+              className={`flex items-start gap-3 ${available ? '' : 'opacity-50'}`}
+            >
               <Checkbox
                 id={id}
                 checked={checked}
+                disabled={!available}
                 onCheckedChange={(next) => toggle(group.group, next)}
                 className="mt-1"
               />
@@ -146,7 +215,9 @@ export function AccountExportPanel({ groups }: AccountExportPanelProps) {
                   </FieldHelp>
                 </div>
                 <p className="text-muted-foreground text-xs">
-                  {group.models} {group.models === 1 ? 'table' : 'tables'}
+                  {available
+                    ? `${group.models} ${group.models === 1 ? 'table' : 'tables'}`
+                    : 'Not included in this format'}
                 </p>
               </div>
             </div>
@@ -159,7 +230,7 @@ export function AccountExportPanel({ groups }: AccountExportPanelProps) {
           onClick={() => {
             void download();
           }}
-          disabled={busy || selected.size === 0}
+          disabled={busy || effective.length === 0}
         >
           {busy ? (
             <>
@@ -174,7 +245,7 @@ export function AccountExportPanel({ groups }: AccountExportPanelProps) {
           )}
         </Button>
 
-        {selected.size === 0 ? (
+        {effective.length === 0 ? (
           <p className="text-muted-foreground text-xs">Choose at least one section.</p>
         ) : null}
 
