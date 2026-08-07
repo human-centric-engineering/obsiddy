@@ -44,6 +44,7 @@
  */
 
 import { prisma } from '@/lib/db/client';
+import { orderById } from '@/lib/portability/collect';
 import { MODEL_GRAPH } from '@/lib/portability/model-graph.generated';
 import type { ExistingLookup } from '@/lib/portability/import-plan';
 import { mergeKeyOf } from '@/lib/portability/import-plan';
@@ -86,6 +87,7 @@ interface GenericDelegate {
   findMany(args: {
     where?: Record<string, unknown>;
     select?: Record<string, boolean>;
+    orderBy?: Record<string, 'asc' | 'desc'>[];
     take?: number;
   }): Promise<Record<string, unknown>[]>;
 }
@@ -207,10 +209,27 @@ export function createExistingLookup(userId: string): ExistingLookup {
         );
       }
 
+      const node = MODEL_GRAPH[model];
+
       const rows = await delegateFor(model).findMany({
         where: { [policy.ownerColumn]: userId },
+        // A fixed order, and it decides something. The planner keys these rows
+        // by their soft merge key and keeps the **first** it sees, so when an
+        // account already holds two rows that produce the same key — two goals
+        // with one title, one horizon and one target date — the winner is
+        // whichever the database happened to return first. Postgres promises
+        // nothing about that without an `ORDER BY`, so the same query run twice
+        // could name a different row.
+        //
+        // That is tolerable while nothing is written and intolerable the moment
+        // something is: an apply that re-runs the planner would merge into a row
+        // other than the one the dry run showed. The soft key is already a
+        // guess, offered so it can be vetoed; a guess that changes between the
+        // showing and the doing cannot be.
+        orderBy: orderById(node),
         // One over the cap, so a breach is detectable rather than a silent
-        // truncation at exactly the limit.
+        // truncation at exactly the limit. `take` without an order is doubly
+        // arbitrary — it would not even be a consistent *subset*.
         take: LOOKUP_CAPS.maxSoftCandidates + 1,
       });
 

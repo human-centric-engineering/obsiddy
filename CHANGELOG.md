@@ -58,6 +58,8 @@ release process.
   `lib/portability/import-lookup.ts` (`createExistingLookup()`,
   `TransferLookupError`, `LOOKUP_CAPS`) and
   `lib/portability/import-account.ts` (`planAccountImport()`).
+  `lib/portability/collect.ts` now exports `orderById()`, previously private, so
+  the export and import paths share one definition of a stable row order.
 
 - **Export formats: Logseq, Notion, CSV and a one-page digest.**
   `GET /api/v1/users/me/transfer/export` takes a new `?format=` — `bundle`

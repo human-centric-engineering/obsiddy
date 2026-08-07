@@ -439,6 +439,22 @@ silently changes what they agreed to.
 The second becomes a new row and is reported. Never merge both, never let the
 last one win: a duplicate is recoverable and an overwrite is not.
 
+### The same bundle always plans the same way
+
+No clock, no randomness, sorted tie-breaks — and every database read the planner
+depends on carries an `orderBy`. The last one is easy to leave out and matters
+most: the soft-key index keeps the **first** row it sees for each key, so an
+account holding two goals with one title, one horizon and one target date would
+otherwise pick between them on whatever order Postgres felt like. `collect.ts`
+exports `orderById` and the lookup uses it, so both halves of the subsystem order
+the same way.
+
+Determinism is what a plan being worth approving rests on. Phase E will apply a
+plan by re-running this planner rather than by stashing one — a two-million-row
+plan cannot be held between two requests — so anything that could resolve
+differently on the second run is a difference between what somebody agreed to and
+what happens.
+
 ### The canary reports; it never rewrites
 
 A finding says the manifest needs an edit, not that the planner should guess. The

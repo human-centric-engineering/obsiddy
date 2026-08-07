@@ -202,8 +202,19 @@ function outgoingEdges(node: ModelNode, inScope: ReadonlySet<string>): Edge[] {
   return allOutgoingEdges(node).filter((edge) => inScope.has(edge.toModel));
 }
 
-/** Stable ordering, so two exports of an unchanged account differ only where it changed. */
-function orderById(node: ModelNode): Record<string, 'asc'>[] {
+/**
+ * Stable ordering, so two exports of an unchanged account differ only where it changed.
+ *
+ * Exported because the import path needs the same guarantee for a different
+ * reason — see `import-lookup.ts`. One definition rather than two: a second copy
+ * that drifted would leave one half of the subsystem deterministic and the other
+ * not, which is the hardest version of this bug to notice.
+ *
+ * Ordered by the primary key rather than by `createdAt`, because the key is
+ * unique by construction and a timestamp is not — two rows written in the same
+ * millisecond would put the tie-break back where it started.
+ */
+export function orderById(node: ModelNode): Record<string, 'asc'>[] {
   return node.idFields.map((field) => ({ [field]: 'asc' as const }));
 }
 
