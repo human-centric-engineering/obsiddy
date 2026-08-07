@@ -1,16 +1,27 @@
 /**
- * POST /api/v1/users/me/transfer/import — what would this bundle do to my account?
+ * POST /api/v1/users/me/transfer/import — plan a bundle, and write it.
  *
  * Multipart, one `file` field holding a bundle produced by
- * `GET /api/v1/users/me/transfer/export`. Returns a plan and writes nothing.
+ * `GET /api/v1/users/me/transfer/export`, plus two flags.
  *
- * ## Dry run is not a mode here, it is the whole endpoint
+ * ## Dry run is the default, and writing is opt-in
  *
- * The vault importer takes `apply=true` because both halves exist. This one does
- * not, and an `apply` field is **refused rather than ignored** — a caller who
- * sends it believes rows are being written, and returning 202 with a plan would
- * confirm that belief. Phase E adds the flag along with the code that honours
- * it, and until then the honest answer to "did it apply?" is a 400 saying no.
+ * Without `apply=true` this computes the whole plan and writes nothing. That is
+ * free — the plan is computed either way — and it is what somebody pointing a
+ * script at this endpoint for the first time should get. An import is not
+ * reversible, so the safe reading of silence is "show me".
+ *
+ * `conflictMode` decides what happens to a record matching one the account
+ * already has: `skip` (the default, and all this version honours) leaves the
+ * existing row exactly as it is; `overwrite` is Phase F, and is refused by the
+ * applier with a sentence saying why rather than by a validator listing
+ * permitted strings.
+ *
+ * ## What this route does not do
+ *
+ * It never deletes, and in `skip` mode it never edits. The only write is an
+ * insert: a record already here is left alone, and everything that referred to
+ * the bundle's copy is pointed at the one already here instead.
  *
  * ## Guard order
  *
@@ -36,9 +47,15 @@ import { enforceContentLengthCap } from '@/lib/api/multipart-guard';
 import { errorResponse, successResponse } from '@/lib/api/responses';
 import { isApiKeySession } from '@/lib/auth/api-keys';
 import { withAuth } from '@/lib/auth/guards';
-import { planAccountImport } from '@/lib/portability/import-account';
+import { TransferApplyError, type ApplyResult } from '@/lib/portability/apply-import';
+import {
+  applyAccountImport,
+  planAccountImport,
+  type AccountImportPlan,
+} from '@/lib/portability/import-account';
 import { TransferLookupError } from '@/lib/portability/import-lookup';
 import { TransferBundleError } from '@/lib/portability/read-bundle';
+import { accountImportSchema } from '@/lib/portability/validation';
 import { createRateLimitResponse, uploadLimiter } from '@/lib/security/rate-limit';
 
 /**
@@ -85,21 +102,31 @@ export const POST = withAuth(async (request, session) => {
     });
   }
 
-  // Refused, not ignored. See the header.
-  if (form.get('apply') !== null) {
-    throw new ValidationError('This endpoint cannot write yet', {
-      apply: [
-        'Importing currently reports what a bundle would do and writes nothing. Remove `apply` ' +
-          'to see the plan.',
-      ],
-    });
-  }
+  const flags = accountImportSchema.parse({
+    apply: form.get('apply') ?? undefined,
+    conflictMode: form.get('conflictMode') ?? undefined,
+  });
 
   const archive = new Uint8Array(await file.arrayBuffer());
 
-  let planned;
+  // Two variables rather than one narrowed union: an outcome *is* a plan, so
+  // `'applied' in planned` cannot discriminate between them. Saying which
+  // happened is the flag's job, not the shape's.
+  let planned: AccountImportPlan;
+  let applied: ApplyResult | null = null;
+
   try {
-    planned = await planAccountImport({ userId: session.user.id, archive });
+    if (flags.apply) {
+      const outcome = await applyAccountImport({
+        userId: session.user.id,
+        archive,
+        conflictMode: flags.conflictMode,
+      });
+      planned = outcome;
+      applied = outcome.applied;
+    } else {
+      planned = await planAccountImport({ userId: session.user.id, archive });
+    }
   } catch (error) {
     // A refused bundle is the user's file being wrong — not a zip, a version
     // this code cannot read, a table larger than the cap. Each deserves a 400
@@ -111,23 +138,39 @@ export const POST = withAuth(async (request, session) => {
     if (error instanceof TransferLookupError) {
       throw new ValidationError(error.message, { account: [error.reason] });
     }
+    // An import too large for one transaction, or a mode this version cannot
+    // honour. The caller's situation rather than a server fault, and the reason
+    // says which.
+    if (error instanceof TransferApplyError) {
+      throw new ValidationError(error.message, { apply: [error.reason] });
+    }
     throw error;
   }
 
   const { plan, totalRows, ignoredCount } = planned;
 
-  log.info('Account import plan produced', {
+  log.info(applied ? 'Account import applied' : 'Account import plan produced', {
     rows: totalRows,
     creates: plan.totals.creates,
     matches: plan.totals.matches,
     softMatches: plan.totals.softMatches,
     drops: plan.totals.drops,
+    written: applied?.totals.created ?? 0,
     warnings: plan.warnings.length,
   });
 
   return successResponse(
     {
-      applied: false,
+      applied: applied !== null,
+      /**
+       * What was actually written, when anything was.
+       *
+       * Reported beside the plan rather than instead of it, so the two can be
+       * read against each other — a plan that said `creates: 40` and an outcome
+       * that says `created: 39` is a question somebody should be able to ask.
+       */
+      outcome: applied,
+      conflictMode: flags.conflictMode,
       source: plan.source,
       schemaMatches: plan.schemaMatches,
       groups: plan.groups,
@@ -149,8 +192,9 @@ export const POST = withAuth(async (request, session) => {
       warnings: plan.warnings,
     },
     undefined,
-    // 202 rather than 200, as the vault's dry run does: the request was
-    // understood and acted on as far as it goes, and nothing was written.
-    { status: 202 }
+    // 200 when something was written, 202 when nothing was — as the vault
+    // importer does. A dry run was understood and acted on as far as it goes,
+    // which is exactly what 202 says and 200 does not.
+    { status: applied ? 200 : 202 }
   );
 });

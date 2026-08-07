@@ -1,26 +1,34 @@
 /**
- * Account import, dry run: read, look up, plan.
+ * Account import, end to end: read, look up, plan — and then, if asked, write.
  *
- * The mirror of `export-account.ts`, and thin for the same reason — the three
- * steps are separable and each is worth being able to reason about alone.
+ * The mirror of `export-account.ts`, and thin for the same reason: the steps are
+ * separable and each is worth being able to reason about alone.
  * {@link readTransferBundle} touches no database and no policy;
- * {@link buildImportPlan} touches no database at all; only the lookup does, and
- * it does nothing else.
+ * {@link buildImportPlan} touches no database at all; only the lookup and the
+ * applier do, and neither decides anything.
  *
- * ## Nothing here writes
+ * ## Applying re-plans rather than remembering
  *
- * That is Phase D's whole scope, and it is a deliberate stopping point rather
- * than an unfinished one. A plan is the artefact somebody reads before agreeing
- * to anything, and it is worth shipping on its own: it is the only way to find
- * out what a bundle from a *different* installation would do to this one without
- * finding out the expensive way. Phase E applies a plan; it will not compute a
- * second one, so what this returns is what will happen.
+ * {@link applyAccountImport} reads the bundle and builds the plan again before
+ * writing it. That looks wasteful and is the point: a plan for a large account
+ * is the whole bundle over again and cannot be held between two requests, so the
+ * alternative to re-planning is not "keep the plan" but "let the apply decide
+ * for itself" — two implementations that agree until the day they do not.
+ *
+ * The planner is deterministic, which is what makes this safe rather than merely
+ * cheap, and it is why the soft-key read carries an `orderBy`. See
+ * `import-lookup.ts`.
  *
  * @see lib/portability/export-account.ts — the other direction
  * @see .context/framework/resparkable/transfer.md — the phase plan
  */
 
 import { logger } from '@/lib/logging';
+import {
+  applyImportPlan,
+  type ApplyResult,
+  type ConflictMode,
+} from '@/lib/portability/apply-import';
 import { createExistingLookup } from '@/lib/portability/import-lookup';
 import { buildImportPlan, type ImportPlan } from '@/lib/portability/import-plan';
 import { readTransferBundle } from '@/lib/portability/read-bundle';
@@ -79,4 +87,48 @@ export async function planAccountImport(
   });
 
   return { plan, totalRows: bundle.totalRows, ignoredCount: bundle.ignoredCount };
+}
+
+export interface ApplyAccountImportParams extends PlanAccountImportParams {
+  /** What to do about a record that matches one the account already has. */
+  conflictMode: ConflictMode;
+}
+
+/** A plan, and what happened when it was written. */
+export interface AccountImportOutcome extends AccountImportPlan {
+  applied: ApplyResult;
+}
+
+/**
+ * Plan an uploaded bundle and write it.
+ *
+ * Returns the plan alongside the outcome, so a caller can show what was decided
+ * and what came of it in one response — and so the two can be compared. They are
+ * the same decisions: the applier consumes {@link ImportPlan.resolved} rather
+ * than working anything out for itself.
+ *
+ * @throws {TransferBundleError} on an unreadable archive or a cap breach
+ * @throws {TransferLookupError} if a model cannot be looked up within one account
+ * @throws {TransferApplyError} if the plan is larger than one transaction carries
+ */
+export async function applyAccountImport(
+  params: ApplyAccountImportParams
+): Promise<AccountImportOutcome> {
+  const planned = await planAccountImport(params);
+
+  const applied = await applyImportPlan({
+    plan: planned.plan,
+    userId: params.userId,
+    conflictMode: params.conflictMode,
+  });
+
+  logger.info('Account import written', {
+    userId: params.userId,
+    conflictMode: params.conflictMode,
+    created: applied.totals.created,
+    skipped: applied.totals.skipped,
+    dropped: applied.totals.dropped,
+  });
+
+  return { ...planned, applied };
 }

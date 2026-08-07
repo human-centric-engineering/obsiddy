@@ -64,11 +64,20 @@ const collected: CollectedAccount = {
     model({ model: 'ResparkableSpace', rows: [{ id: 'space-1', userId: SOURCE }] }),
     model({
       model: 'ResparkableArea',
-      rows: [{ id: 'area-1', userId: SOURCE, slug: 'health', title: 'Health' }],
+      rows: [{ id: 'area-1', userId: SOURCE, slug: 'health', name: 'health', title: 'Health' }],
     }),
     model({
       model: 'ResparkableProject',
-      rows: [{ id: 'proj-1', userId: SOURCE, slug: 'rebuild', title: 'Rebuild', areaId: 'area-1' }],
+      rows: [
+        {
+          id: 'proj-1',
+          userId: SOURCE,
+          slug: 'rebuild',
+          name: 'rebuild',
+          title: 'Rebuild',
+          areaId: 'area-1',
+        },
+      ],
     }),
     model({
       model: 'ResparkableTask',

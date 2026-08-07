@@ -136,7 +136,9 @@ describe('buildImportPlan', () => {
       return buildImportPlan({
         bundle: bundleOf({
           ResparkableSpace: [SPACE],
-          ResparkableArea: [{ id: 'area-old', userId: SOURCE, slug: 'health', title: 'Health' }],
+          ResparkableArea: [
+            { id: 'area-old', userId: SOURCE, slug: 'health', name: 'health', title: 'Health' },
+          ],
         }),
         targetUserId: TARGET,
         lookup,
@@ -150,7 +152,7 @@ describe('buildImportPlan', () => {
 
     it('lands on the importing account even when the bundle claims another owner', async () => {
       const lookup = new FakeLookup({
-        ResparkableArea: [{ id: 'area-here', userId: TARGET, slug: 'health' }],
+        ResparkableArea: [{ id: 'area-here', userId: TARGET, slug: 'health', name: 'health' }],
       });
 
       const plan = await buildImportPlan({
@@ -159,7 +161,9 @@ describe('buildImportPlan', () => {
           // A hand-edited bundle, pointing at an account that is not the
           // importer's. The owner value is overwritten rather than consulted, so
           // this matches the importer's own area.
-          ResparkableArea: [{ id: 'area-old', userId: 'somebody-else', slug: 'health' }],
+          ResparkableArea: [
+            { id: 'area-old', userId: 'somebody-else', slug: 'health', name: 'health' },
+          ],
         }),
         targetUserId: TARGET,
         lookup,
@@ -198,11 +202,11 @@ describe('buildImportPlan', () => {
       const plan = await buildImportPlan({
         bundle: bundleOf({
           ResparkableSpace: [SPACE],
-          ResparkableArea: [{ id: 'area-old', userId: SOURCE, slug: 'health' }],
+          ResparkableArea: [{ id: 'area-old', userId: SOURCE, slug: 'health', name: 'health' }],
         }),
         targetUserId: TARGET,
         lookup: new FakeLookup({
-          ResparkableArea: [{ id: 'area-here', userId: TARGET, slug: 'health' }],
+          ResparkableArea: [{ id: 'area-here', userId: TARGET, slug: 'health', name: 'health' }],
         }),
       });
 
@@ -214,7 +218,7 @@ describe('buildImportPlan', () => {
       const plan = await buildImportPlan({
         bundle: bundleOf({
           ResparkableSpace: [SPACE],
-          ResparkableArea: [{ id: 'area-old', userId: SOURCE, slug: 'health' }],
+          ResparkableArea: [{ id: 'area-old', userId: SOURCE, slug: 'health', name: 'health' }],
         }),
         targetUserId: TARGET,
         lookup: new FakeLookup(),
@@ -305,14 +309,14 @@ describe('buildImportPlan', () => {
       // Computed on the raw bundle row it would look for a board in the account
       // the bundle came from and match nothing.
       const lookup = new FakeLookup({
-        ResparkableBoard: [{ id: 'board-here', userId: TARGET, slug: 'work' }],
+        ResparkableBoard: [{ id: 'board-here', userId: TARGET, slug: 'work', name: 'work' }],
       });
 
       await buildImportPlan({
         bundle: bundleOf({
           ResparkableSpace: [SPACE],
           ResparkableTask: [{ id: 'task-old', userId: SOURCE, title: 'Ship it' }],
-          ResparkableBoard: [{ id: 'board-old', userId: SOURCE, slug: 'work' }],
+          ResparkableBoard: [{ id: 'board-old', userId: SOURCE, slug: 'work', name: 'work' }],
           ResparkableBoardCard: [
             { id: 'card-old', userId: SOURCE, boardId: 'board-old', taskId: 'task-old' },
           ],
@@ -385,7 +389,13 @@ describe('buildImportPlan', () => {
           ResparkableSpace: [SPACE],
           // No area table at all, so `areaId` names nothing.
           ResparkableProject: [
-            { id: 'proj-old', userId: SOURCE, slug: 'rebuild', areaId: 'area-missing' },
+            {
+              id: 'proj-old',
+              userId: SOURCE,
+              slug: 'rebuild',
+              name: 'rebuild',
+              areaId: 'area-missing',
+            },
           ],
         }),
         targetUserId: TARGET,
@@ -534,7 +544,9 @@ describe('buildImportPlan', () => {
       const plan = await buildImportPlan({
         bundle: bundleOf({
           ResparkableSpace: [SPACE],
-          ResparkableProject: [{ id: 'proj-old', userId: SOURCE, slug: 'rebuild' }],
+          ResparkableProject: [
+            { id: 'proj-old', userId: SOURCE, slug: 'rebuild', name: 'rebuild' },
+          ],
           ResparkableBoard: [
             {
               id: 'board-old',
@@ -605,7 +617,9 @@ describe('buildImportPlan', () => {
       const plan = await buildImportPlan({
         bundle: bundleOf({
           ResparkableSpace: [SPACE],
-          ResparkableProject: [{ id: 'proj-old', userId: SOURCE, slug: 'rebuild' }],
+          ResparkableProject: [
+            { id: 'proj-old', userId: SOURCE, slug: 'rebuild', name: 'rebuild' },
+          ],
           ResparkableBoard: [
             {
               id: 'board-old',
@@ -637,9 +651,17 @@ describe('buildImportPlan', () => {
       const plan = await buildImportPlan({
         bundle: bundleOf({
           ResparkableSpace: [SPACE],
-          ResparkableProject: [{ id: 'proj-old', userId: SOURCE, slug: 'rebuild' }],
+          ResparkableProject: [
+            { id: 'proj-old', userId: SOURCE, slug: 'rebuild', name: 'rebuild' },
+          ],
           ResparkableBoard: [
-            { id: 'board-old', userId: SOURCE, slug: 'work', filter: { projectId: 'proj-old' } },
+            {
+              id: 'board-old',
+              userId: SOURCE,
+              slug: 'work',
+              name: 'work',
+              filter: { projectId: 'proj-old' },
+            },
           ],
         }),
         targetUserId: TARGET,
@@ -789,14 +811,14 @@ describe('buildImportPlan', () => {
         bundle: bundleOf({
           ResparkableSpace: [SPACE],
           ResparkableArea: [
-            { id: 'a1', userId: SOURCE, slug: 'health' },
-            { id: 'a2', userId: SOURCE, slug: 'work' },
+            { id: 'a1', userId: SOURCE, slug: 'health', name: 'health' },
+            { id: 'a2', userId: SOURCE, slug: 'work', name: 'work' },
           ],
           ResparkableTask: [{ id: 't1', userId: SOURCE, title: 'Ship it' }],
         }),
         targetUserId: TARGET,
         lookup: new FakeLookup({
-          ResparkableArea: [{ id: 'area-here', userId: TARGET, slug: 'health' }],
+          ResparkableArea: [{ id: 'area-here', userId: TARGET, slug: 'health', name: 'health' }],
         }),
       });
 
@@ -806,7 +828,7 @@ describe('buildImportPlan', () => {
     it('reports the order it would write in', async () => {
       const plan = await buildImportPlan({
         bundle: bundleOf({
-          ResparkableArea: [{ id: 'a1', userId: SOURCE, slug: 'health' }],
+          ResparkableArea: [{ id: 'a1', userId: SOURCE, slug: 'health', name: 'health' }],
           ResparkableSpace: [SPACE],
         }),
         targetUserId: TARGET,

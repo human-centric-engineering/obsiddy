@@ -18,6 +18,54 @@ release process.
 
 ### Added
 
+- **Account import can now write.** `POST /api/v1/users/me/transfer/import`
+  takes `apply=true` and `conflictMode`, and writes the plan it just produced.
+  Dry run remains the default — an import is not reversible and the plan is
+  free, so the safe reading of silence is "show me".
+
+  `conflictMode: 'skip'` is the only mode this version honours: a record matching
+  one the account already has is **left exactly as it is**, and everything that
+  referred to the bundle's copy is pointed at the record already here — so
+  importing an export into an account that already has an area called Health
+  files the bundle's projects under the existing one. `overwrite` (Phase F) is
+  refused by the applier with a reason rather than by a validator. Both values
+  are `importAgentsSchema`'s, so there is one vocabulary for this question across
+  the codebase; note that `mergeKeys` is how a collision is *found* and
+  `conflictMode` is what is *done* about it.
+
+  The applier makes no decisions — every one arrives on `ImportPlan.resolved`
+  from the planner, so the dry run and the write cannot disagree. **Every id is
+  minted before anything is written**, rather than reading generated ids back
+  from a bulk insert, because matching returned rows to input rows means trusting
+  a result ordering no database promises — and a permutation would attach
+  somebody's tasks to the wrong project while violating nothing. The whole import
+  runs in **one transaction** with a row cap that refuses rather than
+  half-writing, and a row pointing into its own table is written with that column
+  empty and linked afterwards.
+
+  A model whose owner column *is* its primary key (`User`) is never created,
+  matched or not — an import lands on the account doing it rather than creating a
+  person.
+
+  New public surface: `lib/portability/apply-import.ts` (`applyImportPlan()`,
+  `ApplyResult`, `ConflictMode`, `TransferApplyError`, `APPLY_CAPS`),
+  `applyAccountImport()` in `lib/portability/import-account.ts`,
+  `accountImportSchema` in `lib/portability/validation.ts`, and
+  `isWritableScalar()` plus `ImportPlan.resolved` / `ResolvedRow` in
+  `lib/portability/import-plan.ts`.
+
+### Fixed
+
+- **`redact` could produce a table an import cannot write.** A column dropped on
+  the way out that is required and undefaulted on the way in leaves nothing to
+  write — `ResparkableSpace.inboxToken`, a bearer token routing email capture,
+  was exactly that, so no import could create a space. `TransferPolicy` gains
+  **`mint`**, a per-column generator declared in the tier that owns the column,
+  and the coverage guard now fails for any column that is redacted, required and
+  undefaulted without one. `ImportPlan` also reports `missingRequired` per table,
+  so a dry run says which records could not be written rather than leaving the
+  apply to discover it.
+
 - **Account import, dry run: what would this bundle do?** New
   `POST /api/v1/users/me/transfer/import` takes a bundle produced by the export
   endpoint and returns a plan. **Nothing is written** — an `apply` field is

@@ -177,6 +177,29 @@ export interface TransferPolicy {
   reset?: Readonly<Record<string, null | number | boolean | string>>;
 
   /**
+   * Issued fresh by the importer, because the column is required and the bundle
+   * will never carry it.
+   *
+   * The gap {@link redact} opens. A redacted column is dropped on the way out,
+   * which is right for a live credential — but a column that is **required and
+   * has no database default** then has no value at all on the way in, and the
+   * row cannot be written. `ResparkableSpace.inboxToken` is the case: a bearer
+   * token routing somebody's email capture, unique, required, and rightly absent
+   * from every bundle.
+   *
+   * A function rather than a constant, because these are exactly the values that
+   * must not repeat, and `softMergeKey` already establishes that a policy may
+   * carry a pure function. It stays in the tier that owns the column, so how
+   * long a token is and what alphabet it uses remain decisions of the code that
+   * reads it rather than of the generic engine that writes it.
+   *
+   * The coverage guard requires one for every column that is redacted, required,
+   * and undefaulted — which is the only combination that silently produces an
+   * import unable to write a table.
+   */
+  mint?: Readonly<Record<string, () => string>>;
+
+  /**
    * How to recognise a row that is already here, in preference order.
    *
    * Every tuple must correspond to a real unique constraint — the coverage guard

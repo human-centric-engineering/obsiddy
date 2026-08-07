@@ -218,6 +218,14 @@ export interface ModelPlan {
   contested: number;
   /** Columns in the bundle this schema does not have. */
   unknownColumns: Capped<string>;
+  /**
+   * Columns this schema insists on that the bundle does not carry.
+   *
+   * A row missing one cannot be written at all. Reported by the dry run rather
+   * than discovered by the apply, so "what would this do" does not quietly
+   * exclude "fail".
+   */
+  missingRequired: Capped<string>;
   /** Columns in the bundle that are deliberately not written. */
   notWritten: NotWritten[];
   unresolved: UnresolvedSummary[];
@@ -267,6 +275,35 @@ export interface UnwrittenModel {
   reason: string;
 }
 
+/** One row, decided, and shaped as far as it can be without writing anything. */
+export interface ResolvedRow {
+  /** The id it carried in the bundle. A key into the id-map, never an address. */
+  sourceId: string | null;
+  outcome: RowOutcome;
+  /** The existing row it matched, when it matched one. */
+  targetId: string | null;
+  /**
+   * The bundle's row with the owner column overwritten and every reference the
+   * planner could settle already remapped.
+   *
+   * A reference to a row that will be **created** still holds the bundle's id
+   * here, because no new id exists until something mints one. The applier
+   * substitutes them; the plan's job was to establish that they resolve.
+   */
+  values: Record<string, unknown>;
+}
+
+/**
+ * Model → its rows, in the order they would be written.
+ *
+ * Carried on the plan but deliberately **not** part of the report: it is the
+ * whole bundle again, and a response that included it would be larger than the
+ * upload it describes. The import route lists the fields it returns one by one,
+ * so this stays server-side by construction rather than by remembering to strip
+ * it.
+ */
+export type ResolvedRows = Map<string, ResolvedRow[]>;
+
 /** The whole answer to "what would this do". */
 export interface ImportPlan {
   /** The account this would land in. Never taken from the bundle. */
@@ -308,6 +345,14 @@ export interface ImportPlan {
    * that gets read by somebody who is about to say yes.
    */
   warnings: string[];
+  /**
+   * What the applier consumes. Not reported — see {@link ResolvedRows}.
+   *
+   * Its presence is what makes a plan a thing that can be *executed* rather than
+   * merely described, and it is why the apply step has no identity logic of its
+   * own to disagree with this one.
+   */
+  resolved: ResolvedRows;
 }
 
 // ─────────────────────────────── the machinery ──────────────────────────────
@@ -359,6 +404,22 @@ class UnresolvedTally {
   get value(): UnresolvedSummary[] {
     return [...this.byColumn.values()].sort((a, b) => b.count - a.count);
   }
+}
+
+/**
+ * Whether the engine may write this field at all.
+ *
+ * Relation fields (`kind: 'object'`) are Prisma's view of the other end and hold
+ * no column of their own — the foreign key beside them is the writable thing.
+ * `isGenerated` is Prisma's own notion of a value it supplies. Columns the
+ * database computes are absent from the field list entirely, being declared
+ * `Unsupported()`, so they cannot be reached here even by mistake.
+ *
+ * Shared with the applier so that "the plan says this column is missing" and
+ * "the applier would have written it" cannot come apart.
+ */
+export function isWritableScalar(field: FieldMeta): boolean {
+  return field.kind !== 'object' && !field.isGenerated;
 }
 
 /** Single-column foreign keys this planner can follow. Composite keys are reported, not walked. */
@@ -574,6 +635,17 @@ export async function buildImportPlan(params: BuildImportPlanParams): Promise<Im
     );
   }
 
+  const incomplete = plans.filter((plan) => plan.missingRequired.total > 0);
+  if (incomplete.length > 0) {
+    warnings.push(
+      `Some records are missing a column this installation insists on, so they could not be ` +
+        `written: ${incomplete
+          .map((plan) => `${plan.model} (${plan.missingRequired.shown.join(', ')})`)
+          .join('; ')}. That usually means the bundle came from a version of the schema where ` +
+        'the column did not exist yet.'
+    );
+  }
+
   if (contestedDetail.value.total > 0) {
     warnings.push(
       `${contestedDetail.value.total} ${contestedDetail.value.total === 1 ? 'record' : 'records'} ` +
@@ -603,7 +675,46 @@ export async function buildImportPlan(params: BuildImportPlanParams): Promise<Im
     contested: contestedDetail.value,
     totals,
     warnings,
+    resolved: resolveRows(order.order, states, idMap),
   };
+}
+
+/**
+ * The rows, arranged for the applier.
+ *
+ * Assembled from the same state the report was counted from, rather than
+ * recomputed — that is the whole of what "Phase E applies a plan; it does not
+ * compute a second one" buys. A `create` in the summary and a `create` here are
+ * the same decision, not two functions that agree today.
+ */
+function resolveRows(
+  order: readonly string[],
+  states: ReadonlyMap<string, RowState[]>,
+  idMap: ReadonlyMap<string, Resolution>
+): ResolvedRows {
+  const out: ResolvedRows = new Map();
+
+  for (const model of order) {
+    const rowStates = states.get(model);
+    if (!rowStates) continue;
+
+    out.set(
+      model,
+      rowStates.map((state) => {
+        // A dropped row never entered the id-map — that is how the cascade
+        // works — so its outcome cannot be looked up there.
+        const resolution = state.sourceId ? idMap.get(state.sourceId) : undefined;
+        return {
+          sourceId: state.sourceId,
+          outcome: state.dropped ? 'drop' : (resolution?.outcome ?? 'create'),
+          targetId: resolution?.targetId ?? null,
+          values: state.resolved,
+        };
+      })
+    );
+  }
+
+  return out;
 }
 
 // ───────────────────────────── one table's plan ─────────────────────────────
@@ -636,6 +747,7 @@ async function planModel(
   const fields = new Map(node.fields.map((field) => [field.name, field]));
   const unresolved = new UnresolvedTally();
   const unknownColumns = new Set<string>();
+  const missingRequired = new Set<string>();
   const overLength = new Map<string, OverLength>();
   const rowStates: RowState[] = [];
 
@@ -657,6 +769,26 @@ async function planModel(
         continue;
       }
       noteOverLength(overLength, field, row[column]);
+    }
+
+    // A column this schema insists on that the bundle does not carry. Found
+    // here rather than by the apply step, because a dry run that stayed silent
+    // about it would be describing an import that cannot happen — and the whole
+    // point of the dry run is that it is the same decision the apply makes.
+    for (const field of node.fields) {
+      if (!isWritableScalar(field)) continue;
+      if (!field.isRequired || field.hasDefault) continue;
+      // Prisma supplies `@updatedAt` itself, so it is required of the database
+      // and not of the bundle.
+      if (field.isUpdatedAt) continue;
+      if (policy.ownerColumn === field.name) continue;
+      if (idColumns.has(field.name)) continue;
+      // Supplied by the importer rather than carried — the answer to a redacted
+      // column that the schema still insists on.
+      if (policy.mint && field.name in policy.mint) continue;
+      if (policy.reset && field.name in policy.reset) continue;
+      const value = row[field.name];
+      if (value === undefined || value === null) missingRequired.add(field.name);
     }
 
     // ── real foreign keys ──
@@ -778,6 +910,10 @@ async function planModel(
       unknownColumns: {
         shown: [...unknownColumns].sort().slice(0, PLAN_CAPS.unknownColumns),
         total: unknownColumns.size,
+      },
+      missingRequired: {
+        shown: [...missingRequired].sort().slice(0, PLAN_CAPS.unknownColumns),
+        total: missingRequired.size,
       },
       notWritten: notWrittenColumns(policy, node),
       unresolved: unresolved.value,

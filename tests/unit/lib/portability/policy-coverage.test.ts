@@ -267,6 +267,7 @@ describe('column classification', () => {
         ]),
         ...(policy.softRefs ?? []).map((r): [string, string] => [r.idColumn, 'softRefs']),
         ...(policy.jsonRefs ?? []).map((r): [string, string] => [r.column, 'jsonRefs']),
+        ...Object.keys(policy.mint ?? {}).map((c): [string, string] => [c, 'mint']),
       ];
 
       for (const [column, where] of named) {
@@ -300,6 +301,33 @@ describe('column classification', () => {
         `${policy.model} names Unsupported column(s) ${named.join(', ')} in a write list. ` +
           `Prisma cannot read or write them, so the instruction would do nothing.`
       ).toEqual([]);
+    }
+  });
+
+  it('mints every redacted column the schema still insists on', () => {
+    // The gap `redact` opens, and the one combination that produces a table an
+    // import cannot write at all: a column dropped on the way out, required on
+    // the way in, and with no default for the database to fall back on. Nothing
+    // about the export notices — it is the *import* that has no value to supply.
+    //
+    // `ResparkableSpace.inboxToken` is the case that exists. It was found by an
+    // apply that could not create a space, which is a late and expensive way to
+    // learn it; this is the early and cheap one.
+    for (const policy of TRANSFER_POLICIES) {
+      if (policy.disposition !== 'transfer') continue;
+
+      const fields = new Map(MODEL_GRAPH[policy.model].fields.map((f) => [f.name, f]));
+
+      for (const column of policy.redact ?? []) {
+        const field = fields.get(column);
+        if (!field || !field.isRequired || field.hasDefault || field.isUpdatedAt) continue;
+
+        expect(
+          Boolean(policy.mint?.[column]) || policy.reset?.[column] !== undefined,
+          `${policy.model}.${column} is redacted, required, and has no default — so an import ` +
+            `has no value to write. Give it a \`mint\` generator in the policy that owns it.`
+        ).toBe(true);
+      }
     }
   });
 

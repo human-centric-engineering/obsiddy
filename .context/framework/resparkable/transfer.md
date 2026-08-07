@@ -3,11 +3,12 @@
 Moving one person's data out of an account and into a different one — a new
 account, or the same account on a self-hosted install.
 
-**Status: Phases A–D shipped.** The model graph, the policy manifest, the
+**Status: Phases A–E shipped.** The model graph, the policy manifest, the
 coverage guards, a working export — `GET /api/v1/users/me/transfer/export`, plus
-the Your data tab in Settings — five formats to write it out in, and an import
-that says what a bundle **would** do: `POST /api/v1/users/me/transfer/import`.
-Nothing writes yet; see [Phases](#phases).
+the Your data tab in Settings — five formats to write it out in, and a working
+import: `POST /api/v1/users/me/transfer/import` says what a bundle would do, and
+with `apply=true` does it. Only `conflictMode: 'skip'` so far — a record already
+here is left alone rather than written into. See [Phases](#phases).
 
 ## What already existed, and why none of it was enough
 
@@ -69,6 +70,8 @@ lib/portability/import-plan.ts             the planner. Pure — no DB
 lib/portability/import-lookup.ts           the owner-scoped reads it asks for
 lib/portability/import-account.ts          the three, joined
 app/api/v1/users/me/transfer/import/       the endpoint
+
+lib/portability/apply-import.ts            writes a plan (Phase E)
 ```
 
 The generic renderers live in **core** because nothing in them knows what a task
@@ -478,6 +481,79 @@ manifest does not vouch for, and deleting one it does. Both are **reported**, an
 a file the manifest never mentions is ignored — otherwise "models opt in" would
 mean "models opt in unless you unzip the bundle first".
 
+## Writing a plan
+
+`apply-import.ts` is the only thing in this subsystem that changes anything, and
+it makes no decisions. What matches what, what is created, what was dropped for
+want of a reference — all of it arrives on `ImportPlan.resolved`, which the
+planner assembled from the same state it counted the report from. There is no
+identity logic in the applier to disagree with the dry run's, because there is
+none there at all.
+
+### Every id is minted before anything is written
+
+The obvious implementation inserts a table, reads the generated ids back, and
+uses them for the next one. That means trusting the order a bulk insert returns
+rows in, which no database contract promises — and a permutation would attach
+somebody's tasks to the wrong project, violate no constraint, and be found never.
+
+So ids are generated up front and the id-map is complete before the first row
+lands. Nothing depends on result ordering, and `createMany` becomes usable, which
+is what keeps a large import to a handful of round trips.
+
+`crypto.randomUUID()` rather than a cuid: standard library, no new dependency for
+a starter template, and no hand-rolled entropy. Imported rows therefore carry
+uuid-shaped ids beside the app's own cuids — visible in the database and nowhere
+else, because nothing here parses the shape of an id.
+
+### One transaction, and a cap that refuses
+
+A half-applied import is the worst artefact this could produce: rows attached to
+parents that exist, beside rows whose parents never arrived, and nothing to say
+which is which. So it is one transaction, which bounds what it can carry —
+`APPLY_CAPS.maxRows` refuses above the limit rather than streaming. Importing an
+account too large for one request is Phase G.
+
+### What is never created
+
+A model whose owner column **is** its primary key describes the account rather
+than something the account owns. `User` is the case, and its policy sets
+`ownerColumn: 'id'` precisely so an import "lands on the account doing the
+importing rather than creating a person". Those rows are never written, matched
+or not — the alternative is an insert carrying the importer's own id, colliding
+with the row it failed to match.
+
+### `mint`: the gap `redact` opens
+
+A redacted column is dropped on the way out, which is right for a live
+credential. But a column that is **required and undefaulted** then has no value
+at all on the way in, and the table cannot be written.
+
+`ResparkableSpace.inboxToken` is the case — a bearer token routing somebody's
+email capture. `mint` is how a policy supplies one: a function, in the tier that
+owns the column, so token length and alphabet stay decisions of the code that
+reads it. The coverage guard now requires a `mint` (or a `reset`) for every
+column that is redacted, required and undefaulted, which is the only combination
+that silently yields an import unable to write a table.
+
+That combination was found by an apply that could not create a space. The guard
+is the cheap way to find the next one.
+
+### Getting values back out of JSON
+
+A bundle went through JSON to get here, so every date is a string, every `BigInt`
+is a string and every `Bytes` is base64 — the inverse of what `bundle.ts` encodes
+on the way out. Coercion is driven off the generated graph rather than off the
+shape of the value, because `"2026-08-07"` is a perfectly good string until the
+column it is going into disagrees.
+
+### The second pass
+
+A row pointing into its **own** table cannot be written in one go: the foreign
+key is checked as each row lands, so a child written before its parent fails even
+inside one statement. Those columns are held back and set afterwards, by id.
+Cycle-breaking deferred edges take the same route.
+
 ## What never round-trips
 
 ids · owner columns · session and credential material · `inboxToken` ·
@@ -491,47 +567,65 @@ of the prioritiser and precisely the thing they would be angriest to lose.
 
 ## Phases
 
-|     |                                                                           | Status     |
-| --- | ------------------------------------------------------------------------- | ---------- |
-| A   | Model graph, policy manifest, coverage guards                             | ✅ shipped |
-| B   | Export: collector, bundle writer, zip, route, UI                          | ✅ shipped |
-| C   | Brain formats: Logseq, Notion, CSV, single-file digest                    | ✅ shipped |
-| D   | Import, **dry-run only** — planner, id-map, orphan report                 | ✅ shipped |
-| E   | Import apply, `conflictMode: 'create'` only                               | planned    |
-| F   | `conflictMode: 'merge'` + the `ResparkableGoal` unique migration it needs | planned    |
-| G   | Document originals, background jobs, admin-initiated                      | planned    |
+|     |                                                                               | Status     |
+| --- | ----------------------------------------------------------------------------- | ---------- |
+| A   | Model graph, policy manifest, coverage guards                                 | ✅ shipped |
+| B   | Export: collector, bundle writer, zip, route, UI                              | ✅ shipped |
+| C   | Brain formats: Logseq, Notion, CSV, single-file digest                        | ✅ shipped |
+| D   | Import, **dry-run only** — planner, id-map, orphan report                     | ✅ shipped |
+| E   | Import apply, `conflictMode: 'skip'` only                                     | ✅ shipped |
+| F   | `conflictMode: 'overwrite'` + the `ResparkableGoal` unique migration it needs | planned    |
+| G   | Document originals, background jobs, admin-initiated                          | planned    |
 
 ### The two conflict modes
 
-`conflictMode` answers one question: **when a record in the bundle looks like one
-the account already has, what happens?**
+`conflictMode` answers one question: **when a record in the bundle matches one
+the account already has, what happens to the record already here?**
 
-|          |                                                                     |
-| -------- | ------------------------------------------------------------------- |
-| `create` | Nothing already here is touched. Every record arrives as a new one. |
-| `merge`  | The record is written into the row it matched.                      |
+|             |                                                          |
+| ----------- | -------------------------------------------------------- |
+| `skip`      | It is left exactly as it is. Nothing is written into it. |
+| `overwrite` | The bundle's values are written into it.                 |
 
-The name is the one this codebase already uses for the question —
-`lib/validations/orchestration.ts` takes a `conflictMode` on the agent importer,
-though its values are `skip` and `overwrite`, because that importer decides per
-agent and this one decides per row across 57 tables. The values are the words the
-planner already reports in: a plan's `creates` count is what
-`conflictMode: 'create'` acts on, and `merge` is the manifest's own word —
-`mergeKeys`, `softMergeKey`.
+Both are `lib/validations/orchestration.ts`'s words: the agent importer already
+takes a `conflictMode` with exactly these two values. Reusing them means one
+vocabulary for one question across the whole codebase.
 
-Identity resolution will run the same way in both (`mergeKeys` → `softMergeKey` →
-create) — the mode decides only what is _done_ with a match, not how one is
-found. Phase D's planner already resolves them, which is why the dry run reports
-`matches` today with no mode to act on them.
+Note that `mergeKeys` and `conflictMode` are not two halves of one idea, and it
+is worth keeping them apart. The keys are how a collision is **found**; the mode
+is what is **done** about it. Calling the write-into-it mode "merge" would blur
+precisely that.
 
-E and F ship separately on purpose. In `create` mode the worst bug is a duplicate
-— visible, and deletable. In `merge` mode the worst bug writes somebody's data
+An earlier draft called these `create` and `merge`. Implementing Phase E showed
+`create` up: a colliding record cannot be created — the unique constraint that
+detected the collision would reject it — so `create` was describing what happens
+to the records that _don't_ collide, which is the one thing `conflictMode` is not
+about. That is the same defect as the "fresh mode" it replaced.
+
+### What `skip` does with a collision
+
+It leaves the row alone **and points everything that referred to the bundle's
+copy at the row already here.** So importing an export into an account that
+already has an area called Health files the bundle's projects under the existing
+Health, rather than creating a second one.
+
+That matters more than it sounds: `User` and `ResparkableSpace` collide on every
+import by construction — you cannot create a second you, and the space is unique
+per user — so a mode that could not resolve a collision to something usable could
+not import anything at all.
+
+Identity resolution runs the same way in both modes (`mergeKeys` → `softMergeKey`
+→ create); only the response differs. The dry run reports `matches` without a
+mode to act on them, which is why a plan is comparable across modes.
+
+E and F ship separately on purpose. Under `skip` the worst bug is a duplicate —
+visible, and deletable. Under `overwrite` the worst bug writes somebody's data
 into the wrong existing row, which is neither, and is found a month later. It is
 the same trade `ResparkableTask` already makes by declaring no merge key at all.
 
-`merge` needs the `ResparkableGoal` unique constraint before it can ship, which
-is why the two are one phase: merging on a key with no constraint behind it is
-merging on a guess.
+`overwrite` needs the `ResparkableGoal` unique constraint before it can ship,
+which is why the two are one phase: writing into a row matched by a key with no
+constraint behind it is writing into a guess.
 
 ## See also
 

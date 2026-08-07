@@ -233,7 +233,7 @@ function chunk<T>(values: readonly T[], size: number): T[][] {
 
 /** Identity of a row within its own model, for de-duplicating overlapping queries. */
 function rowKey(node: ModelNode, row: Record<string, unknown>): string {
-  return node.idFields.map((field) => String(row[field])).join(' ');
+  return node.idFields.map((field) => String(row[field])).join('\u0000');
 }
 
 /** Distinct non-null values of one column across a set of rows. */

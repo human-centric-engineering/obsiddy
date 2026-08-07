@@ -68,3 +68,39 @@ export const accountExportQuerySchema = z.object({
 });
 
 export type AccountExportQuery = z.infer<typeof accountExportQuerySchema>;
+
+/**
+ * The two flags on an import.
+ *
+ * Both arrive as strings from a multipart form, and both are parsed here rather
+ * than compared to `'true'` at the call site — so "the only way to write is to
+ * say so explicitly" is expressed once, in a schema, where it can be read. The
+ * vault importer's flags are shaped the same way for the same reason.
+ */
+export const accountImportSchema = z.object({
+  /**
+   * Write, rather than describe.
+   *
+   * Absent means a dry run, which is the answer somebody experimenting with the
+   * endpoint should get by default. An import is not reversible and the plan is
+   * free, so the safe reading of silence is "show me".
+   */
+  apply: z
+    .union([z.literal('true'), z.literal('false'), z.undefined()])
+    .transform((value) => value === 'true'),
+
+  /**
+   * What to do about a record that matches one the account already has.
+   *
+   * `skip` is the default and the only value this version honours — the existing
+   * row is left exactly as it is, and records matching nothing are created.
+   * `overwrite` is accepted by the schema so the refusal comes from the applier
+   * with a sentence about why, rather than from a validator with a list of
+   * permitted strings.
+   */
+  conflictMode: z
+    .union([z.literal('skip'), z.literal('overwrite'), z.undefined()])
+    .transform((value) => value ?? 'skip'),
+});
+
+export type AccountImportRequest = z.infer<typeof accountImportSchema>;

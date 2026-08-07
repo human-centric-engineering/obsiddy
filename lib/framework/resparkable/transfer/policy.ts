@@ -27,6 +27,8 @@
  * @see .context/framework/resparkable/transfer.md
  */
 
+import { randomBytes } from 'node:crypto';
+
 import { SEARCHABLE_ENTITY_TYPES } from '@/lib/framework/resparkable/validations';
 import type { TransferPolicySet } from '@/lib/portability/policy';
 
@@ -112,6 +114,12 @@ export const resparkableTransferPolicies: TransferPolicySet = {
       // Being absent also makes the import unambiguous: the column is unique,
       // so the target has to mint its own regardless.
       redact: ['inboxToken'],
+      // Required, unique, and never in a bundle — so an import has to issue one
+      // or it cannot write this table at all. Sized and encoded exactly as
+      // `services/space.ts` does when it mints one for a new user: 16 bytes of
+      // hex, because the value lands in an email local part and has to survive
+      // mail systems that lowercase it.
+      mint: { inboxToken: () => randomBytes(16).toString('hex') },
       reset: {
         // Where the weekly connection sweep got to. Points at this
         // installation's clock, not at anything the user owns.
