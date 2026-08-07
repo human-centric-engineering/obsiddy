@@ -65,6 +65,22 @@ export const accountExportQuerySchema = z.object({
     .refine((value) => TRANSFER_FORMAT_IDS.includes(value), {
       message: `Unknown format. Valid formats are: ${TRANSFER_FORMAT_IDS.join(', ')}`,
     }),
+
+  /**
+   * `?originals=true` — carry the uploaded files, not just the text taken out
+   * of them.
+   *
+   * Off by default, which is the one default here that costs the caller
+   * something rather than saving them from something. Originals are the only
+   * incompressible part of a bundle, so including them by default would make the
+   * ordinary export of an account with a few hundred PDFs a download that times
+   * out — and the people with the most to move would be the ones least able to
+   * move it. The manifest records the choice either way, so a bundle without
+   * them says so rather than resembling an account that has none.
+   */
+  originals: z
+    .union([z.literal('true'), z.literal('false'), z.undefined()])
+    .transform((value) => value === 'true'),
 });
 
 export type AccountExportQuery = z.infer<typeof accountExportQuerySchema>;

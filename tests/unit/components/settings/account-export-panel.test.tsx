@@ -92,12 +92,14 @@ const FORMATS: TransferFormatSummary[] = [
     label: 'Complete bundle (JSON)',
     description: 'Everything, as one JSON file per table.',
     groups: null,
+    carriesOriginals: true,
   },
   {
     id: 'logseq',
     label: 'Logseq graph',
     description: 'Your brain as a Logseq graph.',
     groups: ['brain'],
+    carriesOriginals: false,
   },
 ];
 
@@ -249,6 +251,64 @@ describe('AccountExportPanel', () => {
       await waitFor(() => expect(globalThis.fetch).toHaveBeenCalled());
       // No `groups=` at all: brain is everything this format covers, so the
       // filter would be noise — and would freeze today's answer into the URL.
+      expect(fetchedUrl()).toBe('/api/v1/users/me/transfer/export?format=logseq');
+    });
+  });
+
+  describe('the uploaded files', () => {
+    const fileBox = () => screen.getByRole('checkbox', { name: /files you uploaded/i });
+
+    it('leaves them out unless asked', async () => {
+      // The one default here that withholds something. Uploaded files do not
+      // compress, so including them by default would make the ordinary export of
+      // a document-heavy account a download that times out.
+      armFetch(zipResponse());
+      renderPanel();
+
+      expect(fileBox()).not.toBeChecked();
+
+      fireEvent.click(screen.getByRole('button', { name: /download/i }));
+
+      await waitFor(() => expect(globalThis.fetch).toHaveBeenCalled());
+      expect(fetchedUrl()).not.toContain('originals');
+    });
+
+    it('asks for them when ticked', async () => {
+      armFetch(zipResponse());
+      renderPanel();
+
+      fireEvent.click(fileBox());
+      fireEvent.click(screen.getByRole('button', { name: /download/i }));
+
+      await waitFor(() => expect(globalThis.fetch).toHaveBeenCalled());
+      expect(fetchedUrl()).toBe('/api/v1/users/me/transfer/export?format=bundle&originals=true');
+    });
+
+    it('disables the box for a format with nowhere to put a file', () => {
+      renderPanel();
+
+      fireEvent.change(screen.getByRole('combobox', { name: /format/i }), {
+        target: { value: 'logseq' },
+      });
+
+      expect(fileBox()).toBeDisabled();
+      expect(screen.getByText(/only the complete bundle can carry them/i)).toBeInTheDocument();
+    });
+
+    it('never asks a format that cannot carry them, even if the box was ticked first', async () => {
+      // Same trap the sections have: ticked under one format, then the format
+      // changes underneath. Being refused for a box you can no longer see is a
+      // confusing way to find out.
+      armFetch(zipResponse('resparkable-logseq-2026-08-07.zip'));
+      renderPanel();
+
+      fireEvent.click(fileBox());
+      fireEvent.change(screen.getByRole('combobox', { name: /format/i }), {
+        target: { value: 'logseq' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: /download/i }));
+
+      await waitFor(() => expect(globalThis.fetch).toHaveBeenCalled());
       expect(fetchedUrl()).toBe('/api/v1/users/me/transfer/export?format=logseq');
     });
   });

@@ -123,6 +123,44 @@ export interface JsonRef {
   onUnresolved: 'drop-entry' | 'null' | 'keep';
 }
 
+/**
+ * A row whose real content is a file somewhere else.
+ *
+ * Most columns are the data. A storage key is an *address*, and an address is
+ * the one kind of value that is worthless in the account it arrives at: the
+ * blob it names sits in a bucket the importing installation may not be able to
+ * read, under a path built from somebody else's user id. Copying it across
+ * gives a row that looks complete and resolves to nothing.
+ *
+ * So a model that declares this is one whose bytes travel *beside* the rows, in
+ * their own part of the bundle, and whose key column is written by the importer
+ * from where it actually put them.
+ *
+ * Declared rather than discovered, like every other judgement in this file: the
+ * graph can see a `String` column called `storageKey`, and cannot see that it
+ * addresses a blob rather than describes one.
+ *
+ * This is the columns half only. *Where* an arriving file goes, and whether the
+ * installation keeps it at all, is runtime state rather than policy, so it lives
+ * in an {@link OriginalsStore} the tier registers with `originals.ts` — this
+ * file stays a value that loads without a database. The coverage guard requires
+ * a store for every model that declares this, so the two cannot drift apart.
+ */
+export interface OriginalsPolicy {
+  /**
+   * The column holding the storage key.
+   *
+   * Must also appear in {@link TransferPolicy.reset} with a null, which is what
+   * makes "no original travelled" the default rather than "the source's key
+   * travelled". The coverage guard checks both halves — a key column reset to
+   * nothing is a document that lost its file; a key column *not* reset is a
+   * document pointing at a stranger's bucket, which is worse.
+   */
+  keyColumn: string;
+  /** The column naming the file's MIME type, so the bytes can be re-uploaded as themselves. */
+  contentTypeColumn?: string;
+}
+
 /** Which tier owns a model, and therefore which file must classify it. */
 export type PolicyOwner = 'core' | 'framework:resparkable' | 'app';
 
@@ -198,6 +236,16 @@ export interface TransferPolicy {
    * import unable to write a table.
    */
   mint?: Readonly<Record<string, () => string>>;
+
+  /**
+   * This model's rows address a file, and the file can travel with them.
+   *
+   * Opt-in per model *and* per export request: originals are the only part of a
+   * bundle that is not text, they do not compress, and an account with a few
+   * hundred PDFs in it is a bundle nobody can download. See
+   * {@link OriginalsPolicy}.
+   */
+  originals?: OriginalsPolicy;
 
   /**
    * How to recognise a row that is already here, in preference order.

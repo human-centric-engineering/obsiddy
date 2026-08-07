@@ -61,7 +61,18 @@ export class TransferFormatError extends Error {
 /** What a renderer produced, and how it should reach the browser. */
 export type Rendering =
   /** A folder of files. Compressed on the way out. */
-  | { kind: 'archive'; files: Record<string, string> }
+  | {
+      kind: 'archive';
+      files: Record<string, string>;
+      /**
+       * Entries that are bytes rather than text — the files a user uploaded.
+       *
+       * Kept apart from `files` all the way to the archive because they are the
+       * only entries that must not be UTF-8 encoded and must not be deflated.
+       * Only the bundle format ever sets this; see {@link carriesOriginals}.
+       */
+      blobs?: Record<string, Uint8Array>;
+    }
   /** One document, sent as itself. */
   | { kind: 'document'; contents: string; contentType: string };
 
@@ -82,6 +93,17 @@ export interface TransferFormatSpec {
    * and refuses anything left over.
    */
   groups?: readonly TransferGroup[];
+  /**
+   * Whether this format can carry the files behind the rows.
+   *
+   * Only the bundle can, and that is not an oversight to fix later: the other
+   * four are renderings for tools that would have nowhere to put a PDF, and the
+   * bundle is the only one an import reads back — which is the only context in
+   * which a file needs to survive rather than merely be downloaded. Asking any
+   * other format for originals is refused rather than quietly ignored, exactly
+   * as {@link resolveFormatGroups} refuses a section a format cannot render.
+   */
+  carriesOriginals?: boolean;
   /** The download's name, date included. */
   fileName(generatedAt: Date): string;
   render(collected: CollectedAccount, generatedAt: Date): Rendering;
@@ -157,6 +179,8 @@ export interface TransferFormatSummary {
   description: string;
   /** The sections this format covers, or `null` for all of them. */
   groups: readonly TransferGroup[] | null;
+  /** Whether this format can carry the uploaded files, not just the text from them. */
+  carriesOriginals: boolean;
 }
 
 /**
@@ -172,5 +196,6 @@ export function transferFormatSummaries(): TransferFormatSummary[] {
     label: format.label,
     description: format.description,
     groups: format.groups ? [...format.groups] : null,
+    carriesOriginals: format.carriesOriginals === true,
   }));
 }

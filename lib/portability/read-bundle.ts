@@ -52,6 +52,12 @@ import {
   BUNDLE_MANIFEST_PATH,
   TRANSFER_BUNDLE_VERSION,
 } from '@/lib/portability/bundle';
+import {
+  isOriginalsPath,
+  ORIGINALS_CAPS,
+  safeContentType,
+  type ArrivingOriginal,
+} from '@/lib/portability/originals';
 
 /**
  * Limits applied to every bundle read.
@@ -112,6 +118,30 @@ const manifestModelSchema = z.looseObject({
   rows: z.number().int().nonnegative(),
 });
 
+/**
+ * The originals block, which a bundle written before Phase G will not have.
+ *
+ * Defaulted rather than required, and that is why the format version does not
+ * move: a bundle with no `originals` key is a bundle that carried no files,
+ * which is exactly what every bundle written until now was. Making it required
+ * would refuse those for describing themselves accurately.
+ */
+const manifestOriginalSchema = z.looseObject({
+  model: z.string().min(1),
+  row: z.string().min(1),
+  file: z.string().min(1),
+  bytes: z.number().int().nonnegative().default(0),
+  contentType: z.string().default(''),
+});
+
+const manifestOriginalsSchema = z
+  .looseObject({
+    requested: z.boolean().default(false),
+    files: z.array(manifestOriginalSchema).default([]),
+    totalBytes: z.number().int().nonnegative().default(0),
+  })
+  .default({ requested: false, files: [], totalBytes: 0 });
+
 const manifestSchema = z.looseObject({
   formatVersion: z.number().int(),
   generatedAt: z.string().min(1),
@@ -120,6 +150,7 @@ const manifestSchema = z.looseObject({
   groups: z.array(z.string()).default([]),
   totalRows: z.number().int().nonnegative(),
   models: z.array(manifestModelSchema),
+  originals: manifestOriginalsSchema,
 });
 
 /** The manifest as read from an uploaded bundle. */
@@ -138,6 +169,14 @@ export interface IncomingBundle {
   manifest: IncomingManifest;
   /** Model name → its rows. Only tables with a file appear here. */
   tables: Map<string, IncomingTable>;
+  /**
+   * The uploaded files, by the bundle's id for the row each belongs to.
+   *
+   * Keyed by row rather than by path because that is what the applier has: the
+   * planner's decisions are per row, and the path is an implementation detail of
+   * the archive that nothing downstream needs.
+   */
+  originals: Map<string, ArrivingOriginal>;
   totalRows: number;
   /** Entries skipped because they are not part of the format. Counted, not listed. */
   ignoredCount: number;
@@ -166,7 +205,7 @@ function modelFromPath(path: string): string | null {
 
 /** Is this an entry the format defines? Anything else is never inflated. */
 function isBundleEntry(path: string): boolean {
-  return path === BUNDLE_MANIFEST_PATH || modelFromPath(path) !== null;
+  return path === BUNDLE_MANIFEST_PATH || modelFromPath(path) !== null || isOriginalsPath(path);
 }
 
 /**
@@ -178,6 +217,8 @@ function inflate(data: Uint8Array): { entries: Unzipped; ignored: number } {
   let seen = 0;
   let ignored = 0;
   let totalBytes = 0;
+  let originalsBytes = 0;
+  let originalsCount = 0;
 
   const filter = (file: UnzipFileInfo): boolean => {
     seen += 1;
@@ -195,6 +236,53 @@ function inflate(data: Uint8Array): { entries: Unzipped; ignored: number } {
     }
 
     const original = file.originalSize ?? 0;
+
+    // Uploaded files are budgeted apart from the tables, and more tightly. Their
+    // ceiling is the one the writer applied, so a bundle this installation
+    // produced always reads back — and a bundle carrying a thousand times that
+    // is refused before any of it is inflated, which the table caps alone would
+    // not do because no single file need be large to add up.
+    if (isOriginalsPath(file.name)) {
+      originalsCount += 1;
+      originalsBytes += original;
+
+      if (original > ORIGINALS_CAPS.maxFileBytes) {
+        throw new TransferBundleError(
+          `"${file.name}" is larger than the ${ORIGINALS_CAPS.maxFileBytes / (1024 * 1024)} MB ` +
+            'limit for one uploaded file and was refused.',
+          'original-too-large'
+        );
+      }
+      if (originalsCount > ORIGINALS_CAPS.maxFiles) {
+        throw new TransferBundleError(
+          `This bundle holds more than ${ORIGINALS_CAPS.maxFiles.toLocaleString('en-GB')} ` +
+            'uploaded files, which is more than one import carries. It was refused.',
+          'too-many-originals'
+        );
+      }
+      if (originalsBytes > ORIGINALS_CAPS.maxTotalBytes) {
+        throw new TransferBundleError(
+          `The uploaded files in this bundle exceed the ${
+            ORIGINALS_CAPS.maxTotalBytes / (1024 * 1024)
+          } MB limit and it was refused. Import fewer sections at a time.`,
+          'originals-too-large'
+        );
+      }
+
+      totalBytes += original;
+      if (totalBytes > BUNDLE_READ_CAPS.maxTotalBytes) {
+        throw new TransferBundleError(
+          `This bundle expands beyond the ${BUNDLE_READ_CAPS.maxTotalBytes / (1024 * 1024)} MB ` +
+            'limit and was refused. Import one section at a time.',
+          'archive-too-large'
+        );
+      }
+      // No ratio check: originals are stored rather than deflated, so their
+      // ratio is 1 by construction. Applying one would only ever fire on an
+      // archive somebody rebuilt by hand, and the byte caps above already bound
+      // what that could cost.
+      return true;
+    }
 
     if (original > BUNDLE_READ_CAPS.maxFileBytes) {
       throw new TransferBundleError(
@@ -398,5 +486,79 @@ export function readTransferBundle(data: Uint8Array): IncomingBundle {
     );
   }
 
-  return { manifest, tables, totalRows, ignoredCount: ignored, discrepancies };
+  const originals = readOriginals(manifest, entries, discrepancies);
+
+  return { manifest, tables, originals, totalRows, ignoredCount: ignored, discrepancies };
+}
+
+/**
+ * Match the manifest's file list against what the archive actually holds.
+ *
+ * The same posture as the tables above, and it matters more here: a data file
+ * the manifest does not name is a table somebody added by hand, and an uploaded
+ * file the manifest does not name is *bytes somebody added by hand* which would
+ * otherwise be written into this installation's storage under a key derived from
+ * a row it was never attached to. So the manifest is the allowlist, an entry it
+ * does not vouch for is ignored, and both directions of disagreement are
+ * reported rather than resolved.
+ */
+function readOriginals(
+  manifest: IncomingManifest,
+  entries: Unzipped,
+  discrepancies: string[]
+): Map<string, ArrivingOriginal> {
+  const originals = new Map<string, ArrivingOriginal>();
+  const unclaimed = new Set(
+    Object.keys(entries).filter((path) => isOriginalsPath(path) && !path.endsWith('/'))
+  );
+
+  for (const entry of manifest.originals.files) {
+    // A path the writer would never have produced. Checked rather than trusted,
+    // because everything from here is a lookup into a map keyed by it.
+    if (!isOriginalsPath(entry.file)) {
+      discrepancies.push(
+        `The manifest names "${entry.file}" as an uploaded file, which is not a path this ` +
+          'format uses. It was ignored.'
+      );
+      continue;
+    }
+
+    const bytes = entries[entry.file];
+    if (!bytes) {
+      discrepancies.push(
+        `The manifest names "${entry.file}" as an uploaded file, which is not in the archive. ` +
+          'That record will arrive with the text taken from it and no original.'
+      );
+      continue;
+    }
+
+    unclaimed.delete(entry.file);
+
+    // Two manifest entries pointing at one row. Whichever came first wins, and
+    // it is reported: silently overwriting would make which file a record ends
+    // up with depend on the order somebody wrote a JSON array in.
+    if (originals.has(entry.row)) {
+      discrepancies.push(
+        `Two uploaded files in this bundle claim the same record (${entry.row}). ` +
+          'Only the first was kept.'
+      );
+      continue;
+    }
+
+    originals.set(entry.row, {
+      model: entry.model,
+      row: entry.row,
+      bytes,
+      contentType: safeContentType(entry.contentType),
+    });
+  }
+
+  for (const path of unclaimed) {
+    discrepancies.push(
+      `"${path}" is in the archive but the manifest does not say which record it belongs to, ` +
+        'so it was ignored.'
+    );
+  }
+
+  return originals;
 }

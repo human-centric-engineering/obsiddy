@@ -48,6 +48,7 @@ import { prisma } from '@/lib/db/client';
 import { logger } from '@/lib/logging';
 import { MODEL_GRAPH } from '@/lib/portability/model-graph.generated';
 import type { ModelNode } from '@/lib/portability/model-graph-types';
+import type { CollectedOriginals } from '@/lib/portability/originals';
 import type { Disposition, TransferGroup, TransferPolicy } from '@/lib/portability/policy';
 import { exportableModels, TRANSFER_GROUP_ORDER } from '@/lib/portability/registry';
 
@@ -118,6 +119,16 @@ export interface CollectedAccount {
   models: CollectedModel[];
   unreachable: UnreachableModel[];
   totalRows: number;
+  /**
+   * The uploaded files behind some of those rows.
+   *
+   * Not gathered here — this module reads the database and nothing else, and a
+   * file lives in a bucket. `export-account.ts` fetches them through
+   * `originals.ts` and attaches them before rendering, which is why this is
+   * optional: every other producer of a {@link CollectedAccount}, and every
+   * format that cannot carry a file, leaves it absent.
+   */
+  originals?: CollectedOriginals;
 }
 
 /**

@@ -386,6 +386,13 @@ export const resparkableTransferPolicies: TransferPolicySet = {
         // text, which is what the product actually uses, still arrives.
         storageKey: null,
       },
+      // The file behind the row. Opt-in per export, because originals are the
+      // only incompressible part of a bundle; refusable per installation,
+      // because holding somebody's uploads is an operator's decision and an
+      // import must not be a way around it. The key layout and that setting both
+      // live in `transfer/originals.ts` — this file stays loadable without a
+      // database.
+      originals: { keyColumn: 'storageKey', contentTypeColumn: 'mimeType' },
       secretReviewed: {
         ...INDEXED_HASH_REVIEWED,
         fileHash:

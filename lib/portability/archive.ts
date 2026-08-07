@@ -12,11 +12,14 @@
  * are JSON rather than prose, so they compress hard; a bundle that is
  * uncomfortably large uncompressed is usually a comfortable download.
  *
+ * That last sentence stops being true the moment a bundle carries originals, and
+ * the entries are typed accordingly — see {@link buildTransferArchive}.
+ *
  * @see lib/portability/bundle.ts — what goes in
  * @see lib/portability/read-bundle.ts — the reader
  */
 
-import { zipSync } from 'fflate';
+import { zipSync, type Zippable } from 'fflate';
 
 /**
  * The point at which we stop rather than try.
@@ -61,9 +64,22 @@ export interface TransferArchive {
  * being able to diff two exports is how anybody would ever notice this system
  * quietly dropping a table.
  *
+ * ## Two kinds of entry, compressed differently
+ *
+ * `files` is text this system wrote — JSON and Markdown — and deflates to a
+ * fraction of its size. `blobs` is whatever a user uploaded, which in practice
+ * means PDFs, DOCX and images: formats that are *already* compressed, where
+ * deflate spends real CPU to save a percent or two and occasionally makes the
+ * entry larger. So blobs are stored rather than deflated, which is both faster
+ * and honest about what a bundle with originals in it will weigh.
+ *
  * @throws {TransferArchiveError} if the bundle exceeds {@link ARCHIVE_CAPS}
  */
-export function buildTransferArchive(files: Record<string, string>, mtime: Date): TransferArchive {
+export function buildTransferArchive(
+  files: Record<string, string>,
+  mtime: Date,
+  blobs: Record<string, Uint8Array> = {}
+): TransferArchive {
   // Size first, in a pass that allocates nothing. Measuring as we encode would
   // mean holding most of an oversized bundle in memory before deciding not to
   // build it, which is the failure the cap exists to prevent rather than a
@@ -71,6 +87,9 @@ export function buildTransferArchive(files: Record<string, string>, mtime: Date)
   let uncompressedBytes = 0;
   for (const contents of Object.values(files)) {
     uncompressedBytes += Buffer.byteLength(contents, 'utf8');
+  }
+  for (const contents of Object.values(blobs)) {
+    uncompressedBytes += contents.byteLength;
   }
 
   if (uncompressedBytes > ARCHIVE_CAPS.maxUncompressedBytes) {
@@ -83,14 +102,19 @@ export function buildTransferArchive(files: Record<string, string>, mtime: Date)
   }
 
   const encoder = new TextEncoder();
-  const entries: Record<string, Uint8Array> = {};
+  const entries: Zippable = {};
   for (const [path, contents] of Object.entries(files)) {
     entries[path] = encoder.encode(contents);
   }
+  // Per-entry options, which is why this is a `Zippable` rather than a plain
+  // map: level 0 stores the bytes as they are.
+  for (const [path, contents] of Object.entries(blobs)) {
+    entries[path] = [contents, { level: 0 }];
+  }
 
-  // Level 6 rather than 9: JSON is already highly compressible, and the last
-  // three levels cost noticeably more CPU for a percent or two on a request a
-  // person is sitting and waiting for.
+  // Level 6 rather than 9 for everything else: JSON is already highly
+  // compressible, and the last three levels cost noticeably more CPU for a
+  // percent or two on a request a person is sitting and waiting for.
   const bytes = zipSync(entries, { level: 6, mtime });
 
   return { bytes, uncompressedBytes, fileCount: Object.keys(entries).length };

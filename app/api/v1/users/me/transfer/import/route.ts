@@ -149,10 +149,11 @@ export const POST = withAuth(async (request, session) => {
     throw error;
   }
 
-  const { plan, totalRows, ignoredCount } = planned;
+  const { plan, totalRows, ignoredCount, originalsAvailable } = planned;
 
   log.info(applied ? 'Account import applied' : 'Account import plan produced', {
     rows: totalRows,
+    originals: originalsAvailable,
     creates: plan.totals.creates,
     matches: plan.totals.matches,
     softMatches: plan.totals.softMatches,
@@ -176,6 +177,21 @@ export const POST = withAuth(async (request, session) => {
       source: plan.source,
       schemaMatches: plan.schemaMatches,
       groups: plan.groups,
+      /**
+       * The uploaded files, in both tenses.
+       *
+       * `available` is what the bundle holds and is answerable by a dry run;
+       * `stored` is what was actually kept and is only knowable after the fact.
+       * They differ legitimately — this installation may be set to discard
+       * originals, and a file belonging to a record that matched one already
+       * here is never written — so reporting one number would make an honest
+       * outcome look like a fault, or a fault look like an outcome.
+       */
+      originals: {
+        available: originalsAvailable,
+        stored: applied?.originals.stored ?? null,
+        skipped: applied?.originals.skipped ?? null,
+      },
       totals: { ...plan.totals, ignored: ignoredCount },
       // Per table rather than per row: an account can hold two million records,
       // and a response that named each one would be larger than the upload it is

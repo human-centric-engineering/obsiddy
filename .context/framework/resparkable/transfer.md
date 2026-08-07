@@ -3,14 +3,15 @@
 Moving one person's data out of an account and into a different one — a new
 account, or the same account on a self-hosted install.
 
-**Status: Phases A–F shipped.** The model graph, the policy manifest, the
+**Status: Phases A–G shipped.** The model graph, the policy manifest, the
 coverage guards, a working export — `GET /api/v1/users/me/transfer/export`, plus
 the Your data tab in Settings — five formats to write it out in, and a working
 import: `POST /api/v1/users/me/transfer/import` says what a bundle would do, and
 with `apply=true` does it. Both conflict modes: `skip` leaves a record already
 here alone, `overwrite` writes the bundle's values into it — but only where the
-match came from a real unique constraint, never from a guessed key. See
-[Phases](#phases).
+match came from a real unique constraint, never from a guessed key. With
+`?originals=true` the files behind the rows travel too, rather than only the text
+taken out of them. See [Phases](#phases).
 
 ## What already existed, and why none of it was enough
 
@@ -74,6 +75,10 @@ lib/portability/import-account.ts          the three, joined
 app/api/v1/users/me/transfer/import/       the endpoint
 
 lib/portability/apply-import.ts            writes a plan (Phase E)
+
+lib/portability/originals.ts               the files, as vocabulary (Phase G)
+lib/portability/originals-io.ts            the half that touches storage
+lib/framework/resparkable/transfer/originals.ts   where a document's file goes
 ```
 
 The generic renderers live in **core** because nothing in them knows what a task
@@ -532,7 +537,10 @@ A half-applied import is the worst artefact this could produce: rows attached to
 parents that exist, beside rows whose parents never arrived, and nothing to say
 which is which. So it is one transaction, which bounds what it can carry —
 `APPLY_CAPS.maxRows` refuses above the limit rather than streaming. Importing an
-account too large for one request is Phase G.
+account too large for one request is Phase H.
+
+Blob uploads are the one thing deliberately outside the transaction — see
+[the files behind the rows](#uploaded-before-the-transaction-and-only-for-rows-being-created).
 
 ### What is never created
 
@@ -574,12 +582,102 @@ key is checked as each row lands, so a child written before its parent fails eve
 inside one statement. Those columns are held back and set afterwards, by id.
 Cycle-breaking deferred edges take the same route.
 
+## The files behind the rows
+
+A `ResparkableDocument` is stored twice: the file as it was uploaded, and the
+text pulled out of it. The row carries the text and a `storageKey` pointing at
+the file.
+
+**A storage key is the one column that cannot be copied.** Every other value
+means the same thing wherever it lands. A key addresses an object in a bucket the
+importing installation may have no credentials for, under a path built from
+somebody else's user id — so copying it produces a row that looks complete and
+resolves to nothing. That is worse than a document that honestly has no original,
+and it is indistinguishable from one until a download 404s months later.
+
+So the key is `reset` to null by default, and the only way a file survives is for
+its **bytes** to travel and the key to be re-issued at the far end.
+
+### `?originals=true`, and why it is not the default
+
+Originals are the only incompressible part of a bundle. The JSON half of a large
+account is a comfortable download; the same account's PDFs are not. Forcing them
+in would mean the people with the most to move are the ones least able to move
+it.
+
+The manifest records the choice either way — `originals.requested` — because
+"this export did not ask for files" and "this account has none" and "they were
+dropped" produce identical directory listings, and only one of them means
+something is missing. The README says which in plain English.
+
+Only the complete bundle carries them (`TransferFormatSpec.carriesOriginals`).
+Asking any other format is refused rather than quietly ignored, exactly as a
+`?groups=` a format cannot render is refused.
+
+### The far end refuses independently
+
+An installation whose operator set `documentOriginals: discard` has decided not
+to hold people's files, and an import must not be a way around that setting. The
+row still arrives with its extracted text — which is what every feature in the
+product actually reads.
+
+That decision is a settings row, so it cannot live in the transfer policy, which
+is deliberately data only. The split:
+
+| Half                                  | Where                                    | What it says                                          |
+| ------------------------------------- | ---------------------------------------- | ----------------------------------------------------- |
+| `OriginalsPolicy` (columns)           | the tier's `policy.ts`, pure data        | which column holds the key, which holds the MIME type |
+| `OriginalsStore` (`accepts`/`keyFor`) | `transfer/originals.ts`, reaches `repo/` | whether files are kept, and where one goes            |
+
+`originals-io.ts` imports the store statically, as `format.ts` imports the tier's
+renderers. The coverage guard requires a store for every policy declaring
+originals — the one drift that would otherwise be silent, since a policy claiming
+files travel with nothing to receive them exports the bytes and drops every one.
+
+### Uploaded before the transaction, and only for rows being created
+
+A blob upload has no business inside a database transaction: it is a network call
+to another system, it cannot be rolled back, and holding a connection open across
+one is how a large import becomes a timeout. Doing it first means the key is known
+when the row is inserted, so no row ever exists with a key that is missing or
+wrong, and there is no second pass to forget.
+
+The cost is an object left behind if the transaction then fails. That is the
+cheap direction — keys are content-addressed, so a retry writes the same object
+rather than a second copy.
+
+**Only for rows the plan is creating.** A record that matched one already here
+keeps whatever original it already had; writing a new key into it would strand
+the object the old key names, and would do that under `skip` as readily as under
+`overwrite`. `ResparkableDocument` merges on `[userId, fileHash]`, so the same
+bytes are already the same row.
+
+An upload that fails costs its own file and a warning, never the import.
+
+### The caps, and why they are not the archive's
+
+`ORIGINALS_CAPS.maxTotalBytes` (48 MB) sits deliberately **inside** the import
+route's 64 MB `MAX_ARCHIVE_BYTES`. Originals do not compress, so unlike the JSON
+they arrive at the far end at very nearly the size they left — and an export this
+installation is willing to write but not to read back would be a strange thing to
+hand somebody. An account with more than that is what Phase H is for; until then
+the manifest names every file that did not fit and why.
+
+On the way in the caps are enforced in the same `fflate` filter callback the
+table caps use, before any entry is inflated, and budgeted separately: no single
+uploaded file need be large for a thousand of them to add up.
+
+Entries are stored rather than deflated (`level: 0`). PDFs and DOCX are already
+compressed, so deflate spends real CPU for a percent or two and occasionally
+makes the entry larger.
+
 ## What never round-trips
 
 ids · owner columns · session and credential material · `inboxToken` ·
 embeddings and tsvectors · `indexedHash` · `priorityScore` / `priorityFactors` ·
-sweep cursors · `connectionStrengthFloor` · `storageKey` (rewritten) ·
-share links and tokens · `leaseToken`.
+sweep cursors · `connectionStrengthFloor` · `storageKey` (re-issued from where the
+file was actually stored, or null when none travelled) · share links and tokens ·
+`leaseToken`.
 
 `ResparkableTask.manualBoost` **does** transfer, despite the schema's "no agent
 may write this". That rule is about agents; the boost is the user's own override
@@ -595,7 +693,14 @@ of the prioritiser and precisely the thing they would be angriest to lose.
 | D   | Import, **dry-run only** — planner, id-map, orphan report                     | ✅ shipped |
 | E   | Import apply, `conflictMode: 'skip'` only                                     | ✅ shipped |
 | F   | `conflictMode: 'overwrite'` + the `ResparkableGoal` unique migration it needs | ✅ shipped |
-| G   | Document originals, background jobs, admin-initiated                          | planned    |
+| G   | Uploaded originals travel with the rows                                       | ✅ shipped |
+| H   | Background jobs, for an account too large for one request                     | planned    |
+| I   | Admin-initiated transfer, on another account's behalf                         | planned    |
+
+G was one row holding three unrelated projects. Splitting it is not tidying: the
+three share no code, and the ordering matters — originals change what a bundle
+_is_, and doing that after a background-job format existed would have meant
+changing the format twice.
 
 ### The two conflict modes
 

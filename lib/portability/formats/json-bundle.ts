@@ -21,10 +21,13 @@ export const jsonBundleFormat: TransferFormatSpec = {
   id: 'bundle',
   label: 'Complete bundle (JSON)',
   description:
-    'Everything, as one JSON file per table, with a written description of what is in it and what was left out. The only format that can be imported back.',
+    'Everything, as one JSON file per table, with a written description of what is in it and what was left out. The only format that can be imported back, and the only one that can carry the files you uploaded.',
+  // The only format an import reads back, so the only one for which carrying a
+  // file rather than a description of it means anything.
+  carriesOriginals: true,
   fileName: bundleFileName,
-  render: (collected, generatedAt) => ({
-    kind: 'archive',
-    files: buildTransferBundle(collected, generatedAt).files,
-  }),
+  render: (collected, generatedAt) => {
+    const bundle = buildTransferBundle(collected, generatedAt);
+    return { kind: 'archive', files: bundle.files, blobs: bundle.blobs };
+  },
 };

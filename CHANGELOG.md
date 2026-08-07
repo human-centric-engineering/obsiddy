@@ -18,6 +18,58 @@ release process.
 
 ### Added
 
+- **Uploaded files travel with an account export.** `GET
+  /api/v1/users/me/transfer/export?originals=true` now carries the documents
+  themselves, not only the text extracted from them, and `POST
+  /api/v1/users/me/transfer/import` stores them at the far end and writes the row's
+  storage key from where they actually landed.
+
+  A storage key is the one column that cannot simply be copied: it addresses an
+  object in a bucket the importing installation may have no credentials for, under
+  a path built from another account's user id. Copied across it yields a row that
+  looks complete and resolves to nothing, so the key stays `reset` to null and only
+  the **bytes** travel.
+
+  Opt-in on the way out — originals are the only incompressible part of a bundle,
+  and including them by default would make the ordinary export of a
+  document-heavy account a download that times out. The manifest records the
+  choice either way (`originals.requested`), because "not asked for", "none here"
+  and "dropped" otherwise produce identical directory listings and only one of
+  them means something is missing. Every file that was asked for and could not
+  travel is listed with its reason.
+
+  Refusable on the way in, independently: an installation whose operator set
+  `documentOriginals: discard` has decided not to hold people's files, and an
+  import is not a way around that. Files are written only for rows the plan is
+  **creating** — a record matching one already here keeps the original it already
+  had — and are uploaded **before** the transaction opens, so no row is ever
+  inserted with a key that is missing or wrong. A failed upload costs its own file
+  and a warning, never the import.
+
+  New public surface: `OriginalsPolicy` on `TransferPolicy` (`keyColumn`,
+  `contentTypeColumn`); `OriginalsStore` and the `ORIGINALS_STORES` registry in
+  `lib/portability/originals-io.ts`, which a fork implements to say where its own
+  model's files go; `ORIGINALS_CAPS`; `TransferFormatSpec.carriesOriginals` and
+  the matching field on `TransferFormatSummary`.
+
+  Changed public surface: `BundleManifest` gains `originals`; `TransferBundle`
+  gains `blobs`; `Rendering`'s archive variant gains an optional `blobs`;
+  `IncomingBundle` gains `originals`; `buildTransferArchive` takes a third `blobs`
+  argument; `ApplyImportParams` takes an optional `originals`; `ApplyResult` gains
+  `originals`; `AccountExport` gains `originals`; `AccountImportPlan` gains
+  `originalsAvailable`. The bundle format version is **unchanged at 1** — a
+  manifest without an `originals` block reads as "carried none", which is exactly
+  what every bundle written before this was.
+
+  Two new response headers on the export route: `X-Transfer-Originals` and
+  `X-Transfer-Originals-Omitted`, so a UI can report a partial answer as partial
+  without unzipping the download.
+
+  The coverage guard now fails for a model that declares `originals` without
+  resetting its key column to null, and for one that declares it with no
+  `OriginalsStore` registered — a policy claiming files travel with nothing at the
+  far end would export the bytes and drop every one of them, reporting nothing.
+
 - **`conflictMode: 'overwrite'` on account import.** `POST
   /api/v1/users/me/transfer/import` now honours both modes. `skip` remains the
   default and remains unchanged: a record matching one the account already has is

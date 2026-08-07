@@ -98,6 +98,7 @@ const defaultProps = {
       label: 'Complete bundle (JSON)',
       description: 'Everything, as one JSON file per table.',
       groups: null,
+      carriesOriginals: true,
     },
   ],
 };

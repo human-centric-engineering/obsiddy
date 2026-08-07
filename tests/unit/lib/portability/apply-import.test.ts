@@ -79,7 +79,25 @@ const { mockPrisma, delegateFor, resetDelegates, transactions } = vi.hoisted(() 
   return { mockPrisma: prisma, delegateFor, resetDelegates, transactions };
 });
 
+const { mockStorage, mockGetStorageClient, mockFindSettings } = vi.hoisted(() => ({
+  mockStorage: {
+    name: 'test-provider',
+    capabilities: { privateObjects: true, signedUrls: true, download: true },
+    upload: vi.fn(),
+    download: vi.fn(),
+    delete: vi.fn(),
+    deletePrefix: vi.fn(),
+    getSignedUrl: vi.fn(),
+  },
+  mockGetStorageClient: vi.fn(),
+  mockFindSettings: vi.fn(),
+}));
+
 vi.mock('@/lib/db/client', () => ({ prisma: mockPrisma }));
+vi.mock('@/lib/storage/client', () => ({ getStorageClient: mockGetStorageClient }));
+vi.mock('@/lib/framework/resparkable/repo/settings', () => ({
+  findResparkableSettings: mockFindSettings,
+}));
 vi.mock('@/lib/logging', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
@@ -93,6 +111,7 @@ import {
   type ConflictMode,
 } from '@/lib/portability/apply-import';
 import { buildImportPlan, mergeKeyOf, type ExistingLookup } from '@/lib/portability/import-plan';
+import type { ArrivingOriginal } from '@/lib/portability/originals';
 import { SCHEMA_FINGERPRINT } from '@/lib/portability/model-graph.generated';
 import type { IncomingBundle } from '@/lib/portability/read-bundle';
 
@@ -119,10 +138,12 @@ function bundleOf(tables: Rows): IncomingBundle {
         file: `data/${model}.json`,
         rows: rows.length,
       })),
+      originals: { requested: false, files: [], totalBytes: 0 },
     },
     tables: new Map(
       entries.map(([model, rows]) => [model, { model, file: `data/${model}.json`, rows }])
     ),
+    originals: new Map(),
     totalRows: entries.reduce((total, [, rows]) => total + rows.length, 0),
     ignoredCount: 0,
     discrepancies: [],
@@ -155,14 +176,15 @@ function lookupOver(existing: Rows = {}): ExistingLookup {
 async function planAndApply(
   tables: Rows,
   existing: Rows = {},
-  conflictMode: ConflictMode = 'skip'
+  conflictMode: ConflictMode = 'skip',
+  originals?: ReadonlyMap<string, ArrivingOriginal>
 ) {
   const plan = await buildImportPlan({
     bundle: bundleOf(tables),
     targetUserId: TARGET,
     lookup: lookupOver(existing),
   });
-  const result = await applyImportPlan({ plan, userId: TARGET, conflictMode });
+  const result = await applyImportPlan({ plan, userId: TARGET, conflictMode, originals });
   return { plan, result };
 }
 
@@ -186,6 +208,13 @@ beforeEach(() => {
   vi.clearAllMocks();
   resetDelegates();
   transactions.length = 0;
+  mockGetStorageClient.mockReturnValue(mockStorage);
+  mockStorage.upload.mockImplementation(async (_file: Buffer, options: { key: string }) => ({
+    key: options.key,
+    url: `https://example.test/${options.key}`,
+    size: 3,
+  }));
+  mockFindSettings.mockResolvedValue({ documentOriginals: 'retain' });
 });
 
 describe('applyImportPlan', () => {
@@ -810,6 +839,163 @@ describe('applyImportPlan', () => {
       });
       expect(result.models).toEqual([]);
       expect(result.warnings).toEqual([]);
+    });
+  });
+
+  describe('uploaded files', () => {
+    const HASH = 'a'.repeat(64);
+
+    const DOCUMENT = {
+      id: 'doc-1',
+      userId: SOURCE,
+      fileHash: HASH,
+      mimeType: 'application/pdf',
+      // The source account's key. It addresses a bucket that is not ours, and
+      // must never reach a column.
+      storageKey: `framework-resparkable/${SOURCE}/${HASH}.pdf`,
+      extractedText: 'The text pulled out of it.',
+    };
+
+    const arriving = (): Map<string, ArrivingOriginal> =>
+      new Map([
+        [
+          'doc-1',
+          {
+            model: 'ResparkableDocument',
+            row: 'doc-1',
+            bytes: new Uint8Array([1, 2, 3]),
+            contentType: 'application/pdf',
+          },
+        ],
+      ]);
+
+    it('writes the key it stored the file under, not the one the bundle carried', async () => {
+      const { result } = await planAndApply(
+        { ResparkableSpace: [SPACE], ResparkableDocument: [DOCUMENT] },
+        {},
+        'skip',
+        arriving()
+      );
+
+      const [row] = created('resparkableDocument');
+      expect(row.storageKey).toBe(`framework-resparkable/${TARGET}/${HASH}.pdf`);
+      expect(row.storageKey).not.toContain(SOURCE);
+      expect(result.originals).toEqual({ stored: 1, skipped: 0, bytes: 3 });
+    });
+
+    it('uploads before the transaction opens, never inside it', async () => {
+      // A blob upload inside the transaction would hold a database connection
+      // open across a call to another system, and could not be rolled back with
+      // the rows it belongs to. The order is the whole reason the key is known
+      // at insert time.
+      let openWhenUploaded = -1;
+      mockStorage.upload.mockImplementation(async (_file: Buffer, options: { key: string }) => {
+        openWhenUploaded = transactions.length;
+        return { key: options.key, url: 'https://example.test/x', size: 3 };
+      });
+
+      await planAndApply(
+        { ResparkableSpace: [SPACE], ResparkableDocument: [DOCUMENT] },
+        {},
+        'skip',
+        arriving()
+      );
+
+      // No transaction had been opened at the moment the file was written, and
+      // one was opened afterwards. Asserting the count rather than a call order
+      // is what makes this fail if the upload is ever moved inside.
+      expect(openWhenUploaded).toBe(0);
+      expect(transactions).toHaveLength(1);
+    });
+
+    it('nulls the key when no file travelled', async () => {
+      // The `reset` default, and what every bundle written without originals
+      // produces. A row pointing at the source account's bucket would look
+      // complete and resolve to nothing.
+      await planAndApply({ ResparkableSpace: [SPACE], ResparkableDocument: [DOCUMENT] });
+
+      const [row] = created('resparkableDocument');
+      expect(row.storageKey).toBeNull();
+      expect(mockStorage.upload).not.toHaveBeenCalled();
+    });
+
+    it('leaves a matched record’s original alone', async () => {
+      // The document merges on `[userId, fileHash]`, so the same bytes are the
+      // same row. Writing a new key into it would strand the object the existing
+      // key already names — and would do it under `skip`, which promises the
+      // existing row is untouched.
+      const { result } = await planAndApply(
+        { ResparkableSpace: [SPACE], ResparkableDocument: [DOCUMENT] },
+        { ResparkableDocument: [{ ...DOCUMENT, id: 'doc-here', userId: TARGET }] },
+        'skip',
+        arriving()
+      );
+
+      expect(mockStorage.upload).not.toHaveBeenCalled();
+      expect(created('resparkableDocument')).toEqual([]);
+      expect(result.originals.stored).toBe(0);
+    });
+
+    it('imports the record without its file when the installation discards originals', async () => {
+      mockFindSettings.mockResolvedValue({ documentOriginals: 'discard' });
+
+      const { result } = await planAndApply(
+        { ResparkableSpace: [SPACE], ResparkableDocument: [DOCUMENT] },
+        {},
+        'skip',
+        arriving()
+      );
+
+      const [row] = created('resparkableDocument');
+      expect(row.extractedText).toBe('The text pulled out of it.');
+      expect(row.storageKey).toBeNull();
+      expect(mockStorage.upload).not.toHaveBeenCalled();
+      expect(result.warnings.join(' ')).toMatch(/set to discard/i);
+    });
+
+    it('imports the record without its file when storage refuses the upload', async () => {
+      mockStorage.upload.mockRejectedValue(new Error('bucket on fire'));
+
+      const { result } = await planAndApply(
+        { ResparkableSpace: [SPACE], ResparkableDocument: [DOCUMENT] },
+        {},
+        'skip',
+        arriving()
+      );
+
+      const [row] = created('resparkableDocument');
+      expect(row.extractedText).toBe('The text pulled out of it.');
+      expect(row.storageKey).toBeNull();
+      expect(result.originals).toEqual({ stored: 0, skipped: 1, bytes: 0 });
+      expect(result.warnings.join(' ')).toMatch(/could not be stored/i);
+    });
+
+    it('ignores a file claiming a table that does not take files', async () => {
+      // The manifest is a claim like any other in an uploaded bundle.
+      const smuggled = new Map<string, ArrivingOriginal>([
+        [
+          'task-1',
+          {
+            model: 'ResparkableTask',
+            row: 'task-1',
+            bytes: new Uint8Array([1, 2, 3]),
+            contentType: 'application/pdf',
+          },
+        ],
+      ]);
+
+      const { result } = await planAndApply(
+        {
+          ResparkableSpace: [SPACE],
+          ResparkableTask: [{ id: 'task-1', userId: SOURCE, title: 'x' }],
+        },
+        {},
+        'skip',
+        smuggled
+      );
+
+      expect(mockStorage.upload).not.toHaveBeenCalled();
+      expect(result.originals.stored).toBe(0);
     });
   });
 });

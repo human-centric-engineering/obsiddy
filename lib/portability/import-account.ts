@@ -31,6 +31,7 @@ import {
 } from '@/lib/portability/apply-import';
 import { createExistingLookup } from '@/lib/portability/import-lookup';
 import { buildImportPlan, type ImportPlan } from '@/lib/portability/import-plan';
+import type { ArrivingOriginal } from '@/lib/portability/originals';
 import { readTransferBundle } from '@/lib/portability/read-bundle';
 
 export interface PlanAccountImportParams {
@@ -47,6 +48,17 @@ export interface AccountImportPlan {
   totalRows: number;
   /** Entries in the archive that are not part of the format. */
   ignoredCount: number;
+  /**
+   * Uploaded files the bundle carries.
+   *
+   * Reported by the dry run so somebody can see files are coming before
+   * agreeing to the import, and counted here rather than in {@link ImportPlan}
+   * because the planner is pure and a file is not a decision. How many of these
+   * are actually kept is the applier's answer — this installation may be set to
+   * discard originals, and a file whose record matches one already here is never
+   * written.
+   */
+  originalsAvailable: number;
 }
 
 /**
@@ -59,7 +71,7 @@ export interface AccountImportPlan {
  */
 export async function planAccountImport(
   params: PlanAccountImportParams
-): Promise<AccountImportPlan> {
+): Promise<PlannedAccountImport> {
   const bundle = readTransferBundle(params.archive);
 
   const plan = await buildImportPlan({
@@ -83,10 +95,26 @@ export async function planAccountImport(
     drops: plan.totals.drops,
     orphans: plan.orphans.total,
     canary: plan.canary.total,
+    originals: bundle.originals.size,
     warnings: plan.warnings.length,
   });
 
-  return { plan, totalRows: bundle.totalRows, ignoredCount: bundle.ignoredCount };
+  return {
+    plan,
+    totalRows: bundle.totalRows,
+    ignoredCount: bundle.ignoredCount,
+    originalsAvailable: bundle.originals.size,
+    // Kept on the internal shape rather than on {@link AccountImportPlan} so
+    // that applying does not have to unzip the archive a third time, and so
+    // that nothing describing a plan to a caller carries a few megabytes of
+    // somebody's PDFs alongside it.
+    originals: bundle.originals,
+  };
+}
+
+/** A plan, plus the bytes only the applier needs. */
+interface PlannedAccountImport extends AccountImportPlan {
+  originals: ReadonlyMap<string, ArrivingOriginal>;
 }
 
 export interface ApplyAccountImportParams extends PlanAccountImportParams {
@@ -114,12 +142,13 @@ export interface AccountImportOutcome extends AccountImportPlan {
 export async function applyAccountImport(
   params: ApplyAccountImportParams
 ): Promise<AccountImportOutcome> {
-  const planned = await planAccountImport(params);
+  const { originals, ...planned } = await planAccountImport(params);
 
   const applied = await applyImportPlan({
     plan: planned.plan,
     userId: params.userId,
     conflictMode: params.conflictMode,
+    originals,
   });
 
   logger.info('Account import written', {
@@ -128,6 +157,7 @@ export async function applyAccountImport(
     created: applied.totals.created,
     skipped: applied.totals.skipped,
     dropped: applied.totals.dropped,
+    originalsStored: applied.originals.stored,
   });
 
   return { ...planned, applied };

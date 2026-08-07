@@ -61,14 +61,19 @@ export const GET = withAuth(async (request, session) => {
   const rl = exportLimiter.check(`transfer:export:${session.user.id}`);
   if (!rl.success) return createRateLimitResponse(rl);
 
-  const { groups, format } = validateQueryParams(
+  const { groups, format, originals } = validateQueryParams(
     new URL(request.url).searchParams,
     accountExportQuerySchema
   );
 
   let exported;
   try {
-    exported = await exportAccount({ userId: session.user.id, groups, format });
+    exported = await exportAccount({
+      userId: session.user.id,
+      groups,
+      format,
+      includeOriginals: originals,
+    });
   } catch (error) {
     // An account too large for one archive, or a format that cannot cover the
     // sections asked for, is the caller's situation rather than a server fault
@@ -89,6 +94,8 @@ export const GET = withAuth(async (request, session) => {
     format: exported.format,
     rows: exported.totalRows,
     bytes: exported.bytes.byteLength,
+    originals: exported.originals.included,
+    originalsOmitted: exported.originals.omitted,
   });
 
   return new Response(new Uint8Array(exported.bytes), {
@@ -100,6 +107,13 @@ export const GET = withAuth(async (request, session) => {
       'Cache-Control': 'private, no-store',
       // Lets the UI report what landed without unzipping it.
       'X-Transfer-Rows': String(exported.totalRows),
+      // Two numbers rather than one: "12 files came" and "3 were asked for and
+      // did not" are separate facts, and a UI that could only show the first
+      // would report a partial answer as a complete one. The manifest carries
+      // the reason for each; these are what a download can say without being
+      // unzipped.
+      'X-Transfer-Originals': String(exported.originals.included),
+      'X-Transfer-Originals-Omitted': String(exported.originals.omitted),
     },
   });
 });

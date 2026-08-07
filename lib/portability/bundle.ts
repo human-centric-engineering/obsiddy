@@ -35,6 +35,12 @@
 
 import { SCHEMA_FINGERPRINT } from '@/lib/portability/model-graph.generated';
 import type { CollectedAccount, CollectedModel, UnreachableModel } from '@/lib/portability/collect';
+import {
+  BUNDLE_ORIGINALS_DIR,
+  noOriginals,
+  type BundleOriginal,
+  type OmittedOriginal,
+} from '@/lib/portability/originals';
 import type {
   CrossBoundaryEdge,
   Disposition,
@@ -63,6 +69,23 @@ export const BUNDLE_MANIFEST_PATH = 'manifest.json';
 export const BUNDLE_README_PATH = 'README.md';
 /** Directory holding one JSON file per model. */
 export const BUNDLE_DATA_DIR = 'data';
+
+/**
+ * What a bundle carries beside its rows, as the manifest records it.
+ *
+ * Present even when nothing travelled, and that is the point: `requested: false`
+ * says the export did not ask for files, which is a different fact from
+ * "this account has none" and a very different one from "they were dropped".
+ * A reader who cannot tell those apart cannot tell whether anything is missing.
+ */
+export interface BundleOriginals {
+  /** Whether the export asked for files at all. */
+  requested: boolean;
+  files: readonly BundleOriginal[];
+  /** Files that were asked for and did not come, each with the reason. */
+  omitted: readonly OmittedOriginal[];
+  totalBytes: number;
+}
 
 /** One table's entry in the manifest. */
 export interface BundleModelEntry {
@@ -101,6 +124,8 @@ export interface BundleManifest {
   groups: readonly TransferGroup[];
   totalRows: number;
   models: readonly BundleModelEntry[];
+  /** The uploaded files that travelled with these rows, and the ones that did not. */
+  originals: BundleOriginals;
   /** Tables in scope that no route reached, each with the reason. */
   unreachable: readonly UnreachableModel[];
   /** Tables that never leave an account at all, each with the reason. */
@@ -112,6 +137,8 @@ export interface BundleManifest {
 /** A bundle as a flat path → contents map, ready for any transport. */
 export interface TransferBundle {
   files: Record<string, string>;
+  /** The uploaded files, kept apart from the text because they are not compressed. */
+  blobs: Record<string, Uint8Array>;
   manifest: BundleManifest;
 }
 
@@ -156,6 +183,8 @@ export function buildBundleManifest(
     unsupported: entry.unsupported,
   }));
 
+  const originals = collected.originals ?? noOriginals();
+
   return {
     formatVersion: TRANSFER_BUNDLE_VERSION,
     generatedAt: generatedAt.toISOString(),
@@ -164,6 +193,12 @@ export function buildBundleManifest(
     groups: collected.groups,
     totalRows: collected.totalRows,
     models,
+    originals: {
+      requested: originals.requested,
+      files: originals.files,
+      omitted: originals.omitted,
+      totalBytes: originals.totalBytes,
+    },
     unreachable: collected.unreachable,
     excluded: TRANSFER_EXCLUDED,
     crossBoundaryEdges: CROSS_BOUNDARY_EDGES,
@@ -218,7 +253,10 @@ export function buildTransferBundle(
     reassurance: 'You do not need this app to read any of it. It is ordinary JSON.',
   });
 
-  return { files, manifest };
+  // Kept out of `files` all the way to the archive, because these are the only
+  // entries that are not text: they must not be UTF-8 encoded, and they must not
+  // be deflated. See `archive.ts`.
+  return { files, blobs: collected.originals?.blobs ?? {}, manifest };
 }
 
 /** `2026-08-07` — the date part of an ISO timestamp, for filenames. */
@@ -269,6 +307,14 @@ export function renderBundleReadme(manifest: BundleManifest, copy: BundleReadmeC
   lines.push(
     `- \`${BUNDLE_DATA_DIR}/\` — one ${copy.fileNoun} per table. Tables with no records have no file.`
   );
+  if (manifest.originals.files.length > 0) {
+    lines.push(
+      `- \`${BUNDLE_ORIGINALS_DIR}/\` — the ${manifest.originals.files.length} ` +
+        `${manifest.originals.files.length === 1 ? 'file you uploaded' : 'files you uploaded'}, ` +
+        'as you uploaded them. Named by record, not by their original file names — ' +
+        '`manifest.json` says which is which.'
+    );
+  }
   lines.push('');
   lines.push(copy.reassurance);
   lines.push('');
@@ -304,6 +350,39 @@ export function renderBundleReadme(manifest: BundleManifest, copy: BundleReadmeC
     lines.push('');
     for (const entry of redacted) {
       lines.push(`- **${entry.model}**: ${entry.redacted.join(', ')}`);
+    }
+    lines.push('');
+  }
+
+  // ── the files, and what a reader cannot otherwise tell about them ──
+  //
+  // Three states, and only one of them is visible from a directory listing. An
+  // export that did not ask for files and an export whose files were all dropped
+  // both produce a bundle with no `originals/` folder, and the difference
+  // between them is whether anything is missing.
+  const originals = manifest.originals;
+  if (!originals.requested) {
+    lines.push('## The files you uploaded');
+    lines.push('');
+    lines.push(
+      'This export did not include them. Where a record describes a document you uploaded, ' +
+        'the text pulled out of that document is here in full — the original file is not. ' +
+        'Export again with files included if you want them.'
+    );
+    lines.push('');
+  } else if (originals.omitted.length > 0) {
+    lines.push('## Files that were left out');
+    lines.push('');
+    lines.push(
+      `${originals.omitted.length} of your uploaded ${
+        originals.omitted.length === 1 ? 'files' : 'files'
+      } could not travel with this export. The records themselves are here, with the text ` +
+        'pulled out of each document — only the original file is missing. The reason is given ' +
+        'for each in `manifest.json`.'
+    );
+    lines.push('');
+    for (const reason of [...new Set(originals.omitted.map((entry) => entry.reason))]) {
+      lines.push(`- ${reason}`);
     }
     lines.push('');
   }

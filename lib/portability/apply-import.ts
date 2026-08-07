@@ -88,6 +88,8 @@ import { logger } from '@/lib/logging';
 import { isWritableScalar, type ImportPlan, type ResolvedRow } from '@/lib/portability/import-plan';
 import { MODEL_GRAPH } from '@/lib/portability/model-graph.generated';
 import type { FieldMeta, ModelNode } from '@/lib/portability/model-graph-types';
+import type { ArrivingOriginal, StoredOriginals } from '@/lib/portability/originals';
+import { storeOriginals } from '@/lib/portability/originals-io';
 import type { TransferPolicy } from '@/lib/portability/policy';
 import { policyFor } from '@/lib/portability/registry';
 
@@ -175,6 +177,8 @@ export interface ApplyResult {
    * that column empty and filled in afterwards.
    */
   secondPass: readonly string[];
+  /** Uploaded files the bundle carried: how many were kept, and how many were not. */
+  originals: { stored: number; skipped: number; bytes: number };
   warnings: string[];
 }
 
@@ -302,6 +306,8 @@ interface ShapeContext {
   policy: TransferPolicy;
   newIds: ReadonlyMap<string, string>;
   heldBack: ReadonlySet<string>;
+  /** Bundle row id → the storage key its file was written under, before any of this ran. */
+  originalKeys: ReadonlyMap<string, string>;
 }
 
 /**
@@ -378,6 +384,7 @@ interface ShapeModelParams {
   targetUserId: string;
   heldBack: ReadonlySet<string>;
   conflictMode: ConflictMode;
+  originalKeys: ReadonlyMap<string, string>;
   /**
    * A model that describes the importer rather than something they own.
    *
@@ -411,6 +418,7 @@ function shapeModel(params: ShapeModelParams): ShapedModel {
     policy,
     newIds,
     heldBack,
+    originalKeys: params.originalKeys,
   };
 
   const data: Record<string, unknown>[] = [];
@@ -467,6 +475,16 @@ function shapeModel(params: ShapeModelParams): ShapedModel {
       if (field && isWritableScalar(field)) write[column] = generate();
     }
 
+    // After `applyReset`, which nulls this column, and deliberately so: the
+    // reset is what makes "no file travelled" the default, and this is the
+    // narrow case that overrides it — a file that arrived and has already been
+    // written to storage under a key belonging to this account. The bundle's own
+    // key never reaches here; it addresses a bucket somewhere else.
+    if (policy.originals) {
+      const originalKey = ctx.originalKeys.get(row.sourceId);
+      if (originalKey) write[policy.originals.keyColumn] = originalKey;
+    }
+
     data.push(write);
     if (Object.keys(link).length > 0) links.push({ id, data: link });
   }
@@ -486,6 +504,52 @@ export interface ApplyImportParams {
   /** The account being written into. Must be the account the plan was built for. */
   userId: string;
   conflictMode: ConflictMode;
+  /**
+   * The uploaded files the bundle carried, by the bundle's id for their row.
+   *
+   * Absent for a bundle that carried none, which is every bundle written before
+   * Phase G and every export that did not ask for them.
+   */
+  originals?: ReadonlyMap<string, ArrivingOriginal>;
+}
+
+/**
+ * Store the files the bundle carried, and say where each one went.
+ *
+ * The eligibility rule is one line and it is the whole of the safety here: a
+ * file is written **only for a row the plan is creating**. A row that matched
+ * something already present keeps whatever original it already had — writing a
+ * new key into it would strand the object the old key names, and it would do
+ * that under `skip` as readily as under `overwrite`, which is exactly the
+ * distinction those two modes exist to preserve.
+ *
+ * A file whose model declares no `originals` policy is dropped here rather than
+ * later. The manifest is a claim like any other in an uploaded bundle, and
+ * "this file belongs to a table that does not take files" is a claim to refuse.
+ */
+async function writeOriginals(params: ApplyImportParams): Promise<StoredOriginals> {
+  const empty: StoredOriginals = {
+    keys: new Map(),
+    stored: 0,
+    skipped: 0,
+    bytes: 0,
+    warnings: [],
+  };
+  if (!params.originals || params.originals.size === 0) return empty;
+
+  const creating = new Map<string, Readonly<Record<string, unknown>>>();
+  for (const model of params.plan.order) {
+    if (!policyFor(model)?.originals) continue;
+    for (const row of params.plan.resolved.get(model) ?? []) {
+      if (row.outcome === 'create' && row.sourceId !== null) creating.set(row.sourceId, row.values);
+    }
+  }
+
+  const arriving = [...params.originals.values()].filter(
+    (item) => policyFor(item.model)?.originals !== undefined
+  );
+
+  return storeOriginals({ userId: params.userId, arriving, rows: creating });
 }
 
 /**
@@ -586,6 +650,15 @@ export async function applyImportPlan(params: ApplyImportParams): Promise<ApplyR
     );
   }
 
+  // ── write the files, still without touching the database ──
+  //
+  // Before the transaction rather than inside it. A blob upload is a network
+  // call to another system that cannot be rolled back, and holding a database
+  // connection open across one is how a large import becomes a timeout. Doing it
+  // here means every key is known by the time a row is shaped, so no row is ever
+  // inserted with a key that is missing or wrong. See `originals-io.ts`.
+  const stored = await writeOriginals(params);
+
   // ── shape everything, still without writing ──
 
   const heldBackByModel = new Map<string, Set<string>>();
@@ -619,6 +692,7 @@ export async function applyImportPlan(params: ApplyImportParams): Promise<ApplyR
         targetUserId: userId,
         heldBack: heldBackByModel.get(model) ?? new Set(),
         conflictMode,
+        originalKeys: stored.keys,
         isIdentityModel: identityModels.has(model),
       })
     );
@@ -723,7 +797,7 @@ export async function applyImportPlan(params: ApplyImportParams): Promise<ApplyR
     { created: 0, overwritten: 0, skipped: 0, dropped: 0, linked: 0 }
   );
 
-  const warnings: string[] = [];
+  const warnings: string[] = [...stored.warnings];
 
   if (totals.overwritten > 0) {
     warnings.push(
@@ -769,7 +843,15 @@ export async function applyImportPlan(params: ApplyImportParams): Promise<ApplyR
     conflictMode,
     models: models.length,
     ...totals,
+    originalsStored: stored.stored,
+    originalsSkipped: stored.skipped,
   });
 
-  return { models, totals, secondPass, warnings };
+  return {
+    models,
+    totals,
+    secondPass,
+    originals: { stored: stored.stored, skipped: stored.skipped, bytes: stored.bytes },
+    warnings,
+  };
 }

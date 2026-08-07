@@ -64,10 +64,19 @@ export function AccountExportPanel({ groups, formats }: AccountExportPanelProps)
     () => new Set(groups.map((group) => group.group))
   );
   const [formatId, setFormatId] = useState(() => formats[0]?.id ?? 'bundle');
+  // Off by default, unlike the sections. The uploaded files are the only part of
+  // an export that does not compress, so including them by default would turn an
+  // ordinary download into one that times out for exactly the people with the
+  // most to move. The bundle says either way, so an export without them does not
+  // resemble an account that has none.
+  const [includeOriginals, setIncludeOriginals] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const format = formats.find((candidate) => candidate.id === formatId);
+
+  /** Whether the chosen format could carry the files at all. */
+  const canCarryOriginals = format?.carriesOriginals === true;
 
   /** The sections this format can render, or `null` when it renders all of them. */
   const covered = useMemo(() => (format?.groups ? new Set<string>(format.groups) : null), [format]);
@@ -105,6 +114,11 @@ export function AccountExportPanel({ groups, formats }: AccountExportPanelProps)
       const all = effective.length === (covered ? covered.size : groups.length);
       const params = new URLSearchParams({ format: formatId });
       if (!all) params.set('groups', effective.join(','));
+      // Sent only where the format can carry them, for the same reason the
+      // sections are intersected: the endpoint refuses the combination, and
+      // being refused for a box that a format change disabled underneath you is
+      // a confusing way to find out.
+      if (includeOriginals && canCarryOriginals) params.set('originals', 'true');
 
       const response = await fetch(`/api/v1/users/me/transfer/export?${params.toString()}`);
 
@@ -134,7 +148,7 @@ export function AccountExportPanel({ groups, formats }: AccountExportPanelProps)
     } finally {
       setBusy(false);
     }
-  }, [covered, effective, formatId, groups.length]);
+  }, [canCarryOriginals, covered, effective, formatId, groups.length, includeOriginals]);
 
   return (
     <div className="space-y-6">
@@ -223,6 +237,50 @@ export function AccountExportPanel({ groups, formats }: AccountExportPanelProps)
             </div>
           );
         })}
+      </fieldset>
+
+      <fieldset className="space-y-3" disabled={busy}>
+        <legend className="sr-only">Uploaded files</legend>
+        <div className={`flex items-start gap-3 ${canCarryOriginals ? '' : 'opacity-50'}`}>
+          <Checkbox
+            id="export-originals"
+            checked={canCarryOriginals && includeOriginals}
+            disabled={!canCarryOriginals}
+            onCheckedChange={(next) => setIncludeOriginals(next === true)}
+            className="mt-1"
+          />
+          <div className="space-y-0.5">
+            <div className="flex items-center gap-1.5">
+              <Label htmlFor="export-originals" className="font-normal">
+                Include the files you uploaded
+              </Label>
+              <FieldHelp
+                title="Include the files you uploaded"
+                ariaLabel="What including your uploaded files means"
+              >
+                <p className="mb-2">
+                  Your documents are stored twice: the file as you uploaded it, and the text pulled
+                  out of it. The text always comes with an export. The files themselves only come if
+                  you ask.
+                </p>
+                <p className="mb-2">
+                  They are the only part of a download that cannot be compressed, so including them
+                  makes it much larger and slower to build. If a file is too big to travel, the
+                  export says which one and why rather than leaving it out quietly.
+                </p>
+                <p>
+                  Only the complete bundle can carry them — the other formats have nowhere to put a
+                  file.
+                </p>
+              </FieldHelp>
+            </div>
+            <p className="text-muted-foreground text-xs">
+              {canCarryOriginals
+                ? 'Larger and slower to build. The text from each document comes either way.'
+                : 'Only the complete bundle can carry them'}
+            </p>
+          </div>
+        </div>
       </fieldset>
 
       <div className="space-y-3">

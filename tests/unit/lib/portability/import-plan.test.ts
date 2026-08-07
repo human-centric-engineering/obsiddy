@@ -61,11 +61,13 @@ function bundleOf(
         file: `data/${model}.json`,
         rows: rows.length,
       })),
+      originals: { requested: false, files: [], totalBytes: 0 },
       ...overrides,
     },
     tables: new Map(
       entries.map(([model, rows]) => [model, { model, file: `data/${model}.json`, rows }])
     ),
+    originals: new Map(),
     totalRows: entries.reduce((total, [, rows]) => total + rows.length, 0),
     ignoredCount: 0,
     discrepancies: [],

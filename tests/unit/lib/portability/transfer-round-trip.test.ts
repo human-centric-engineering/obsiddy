@@ -103,11 +103,50 @@ const collected: CollectedAccount = {
 };
 
 /** Export the account, zip it, and read it back the way an upload would arrive. */
-function exportAndRead() {
-  const bundle = buildTransferBundle(collected, AT);
-  const archive = buildTransferArchive(bundle.files, AT);
+function exportAndRead(account: CollectedAccount = collected) {
+  const bundle = buildTransferBundle(account, AT);
+  const archive = buildTransferArchive(bundle.files, AT, bundle.blobs);
   return readTransferBundle(archive.bytes);
 }
+
+/** The same account, plus a document whose uploaded file travelled with it. */
+const PDF = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x37, 0x00, 0xff, 0xfe]);
+
+const withOriginals: CollectedAccount = {
+  ...collected,
+  totalRows: collected.totalRows + 1,
+  models: [
+    ...collected.models,
+    model({
+      model: 'ResparkableDocument',
+      rows: [
+        {
+          id: 'doc-1',
+          userId: SOURCE,
+          fileHash: 'a'.repeat(64),
+          mimeType: 'application/pdf',
+          storageKey: `framework-resparkable/${SOURCE}/${'a'.repeat(64)}.pdf`,
+          extractedText: 'The text pulled out of it.',
+        },
+      ],
+    }),
+  ],
+  originals: {
+    requested: true,
+    files: [
+      {
+        model: 'ResparkableDocument',
+        row: 'doc-1',
+        file: 'originals/doc-1.pdf',
+        bytes: PDF.byteLength,
+        contentType: 'application/pdf',
+      },
+    ],
+    omitted: [],
+    totalBytes: PDF.byteLength,
+    blobs: { 'originals/doc-1.pdf': PDF },
+  },
+};
 
 describe('export → import', () => {
   it('reads back a bundle the exporter wrote, with nothing to complain about', () => {
@@ -242,5 +281,70 @@ describe('export → import', () => {
       expect(seen.length).toBeGreaterThan(0);
       expect(seen.every((value) => value === TARGET)).toBe(true);
     });
+  });
+});
+
+describe('the files, through the same trip', () => {
+  it('recovers an uploaded file byte for byte', () => {
+    // The one thing about originals that a unit test either side of the zip
+    // cannot show: they are the only entries that are neither UTF-8 encoded nor
+    // deflated, and either mistake is invisible until the bytes come back
+    // corrupted. `0x00` and `0xff` in the fixture are there because a text round
+    // trip mangles both.
+    const incoming = exportAndRead(withOriginals);
+
+    const original = incoming.originals.get('doc-1');
+    expect(original).toBeDefined();
+    expect(Array.from(original?.bytes ?? [])).toEqual(Array.from(PDF));
+    expect(original?.model).toBe('ResparkableDocument');
+    expect(original?.contentType).toBe('application/pdf');
+    expect(incoming.discrepancies).toEqual([]);
+  });
+
+  it('says the export asked for files, and that none were dropped', () => {
+    const incoming = exportAndRead(withOriginals);
+
+    expect(incoming.manifest.originals.requested).toBe(true);
+    expect(incoming.manifest.originals.files).toHaveLength(1);
+    expect(incoming.manifest.originals.totalBytes).toBe(PDF.byteLength);
+  });
+
+  it('reads a bundle that carried no files without inventing any', () => {
+    // Every bundle written before this existed looks exactly like this one, and
+    // the reader has to treat a missing `originals` block as "carried none"
+    // rather than as a malformed manifest.
+    const incoming = exportAndRead();
+
+    expect(incoming.originals.size).toBe(0);
+    expect(incoming.manifest.originals.requested).toBe(false);
+    expect(incoming.discrepancies).toEqual([]);
+  });
+
+  it('ignores a file the manifest does not vouch for, and says so', () => {
+    // The "models opt in" rule, applied to bytes: an archive somebody added a
+    // file to would otherwise get it written into this installation's storage
+    // under a key derived from a row it was never attached to.
+    const bundle = buildTransferBundle(withOriginals, AT);
+    const archive = buildTransferArchive(bundle.files, AT, {
+      ...bundle.blobs,
+      'originals/smuggled.pdf': new Uint8Array([1, 2, 3]),
+    });
+
+    const incoming = readTransferBundle(archive.bytes);
+
+    expect(incoming.originals.size).toBe(1);
+    expect(incoming.originals.has('smuggled')).toBe(false);
+    expect(incoming.discrepancies.join(' ')).toContain('originals/smuggled.pdf');
+  });
+
+  it('reports a manifest entry whose file is not in the archive', () => {
+    const bundle = buildTransferBundle(withOriginals, AT);
+    // The manifest still promises the file; the archive no longer holds it.
+    const archive = buildTransferArchive(bundle.files, AT, {});
+
+    const incoming = readTransferBundle(archive.bytes);
+
+    expect(incoming.originals.size).toBe(0);
+    expect(incoming.discrepancies.join(' ')).toMatch(/originals\/doc-1\.pdf.*not in the archive/s);
   });
 });

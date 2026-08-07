@@ -268,6 +268,19 @@ describe('column classification', () => {
         ...(policy.softRefs ?? []).map((r): [string, string] => [r.idColumn, 'softRefs']),
         ...(policy.jsonRefs ?? []).map((r): [string, string] => [r.column, 'jsonRefs']),
         ...Object.keys(policy.mint ?? {}).map((c): [string, string] => [c, 'mint']),
+        ...(policy.originals
+          ? [
+              [policy.originals.keyColumn, 'originals.keyColumn'] as [string, string],
+              ...(policy.originals.contentTypeColumn
+                ? [
+                    [policy.originals.contentTypeColumn, 'originals.contentTypeColumn'] as [
+                      string,
+                      string,
+                    ],
+                  ]
+                : []),
+            ]
+          : []),
       ];
 
       for (const [column, where] of named) {
@@ -328,6 +341,32 @@ describe('column classification', () => {
             `has no value to write. Give it a \`mint\` generator in the policy that owns it.`
         ).toBe(true);
       }
+    }
+  });
+
+  it('resets the storage key of every model whose files travel', () => {
+    // The two failure modes of an originals policy, and only one of them is
+    // visible. A key column reset to null when no file travelled is a document
+    // that honestly lost its original. A key column *not* reset carries the
+    // source account's key verbatim — a row that looks complete and addresses an
+    // object in a bucket this installation may not even have credentials for.
+    // The second is worse and looks like the first from every angle except a
+    // download that 404s months later.
+    for (const policy of TRANSFER_POLICIES) {
+      if (!policy.originals) continue;
+
+      expect(
+        policy.disposition,
+        `${policy.model} declares \`originals\` but does not transfer, so nothing would ever ` +
+          `write the files it carries.`
+      ).toBe('transfer');
+
+      expect(
+        policy.reset?.[policy.originals.keyColumn],
+        `${policy.model}.${policy.originals.keyColumn} carries a storage key and must be reset ` +
+          `to null. Without that, an import writes the source account's key into this account — ` +
+          `a row that looks complete and points at a bucket that is not ours.`
+      ).toBeNull();
     }
   });
 
