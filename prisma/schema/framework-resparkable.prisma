@@ -31,6 +31,24 @@
 // `npm run db:drift-check` after EVERY `migrate dev`. Non-negotiable.
 // ─────────────────────────────────────────────────────────────────────────────
 
+// The model graph account transfer runs on, rebuilt on every `prisma generate`.
+//
+// It describes the WHOLE schema, not just this tier — a foreign key does not
+// stop at a tier boundary (`ResparkableReview.workflowExecutionId` already
+// points into the orchestration tables), so a graph that did would order
+// imports wrongly.
+//
+// It is declared HERE, in a framework-tier file, only because Resparkable must
+// not edit Sunrise-owned files and `base.prisma` is one. Upstream is the right
+// home for it — filed as ask #31 in
+// `.context/framework/resparkable/sunrise-asks.md`. If Sunrise adopts it,
+// DELETE this block in the same change: two generators sharing a name is a
+// hard `prisma generate` error.
+generator portability {
+  provider = "node ./prisma/generators/portability.mjs"
+  output   = "../../lib/portability/model-graph.generated.ts"
+}
+
 /// One row per user — the satellite table everything else hangs off (D1).
 ///
 /// ⚠️ PRISMA-SCHEMA DRIFT WARNING ⚠️

@@ -78,6 +78,7 @@ import { DEFAULT_PROTECTED_NAV } from '@/lib/protected-nav/types';
 import { RESPARKABLE_NAV_ITEM } from '@/lib/framework/resparkable/protected-nav';
 import { initAppUserCreatedHooks } from '@/lib/app/user-created';
 import { collectAppSubjectData } from '@/lib/app/data-export';
+import { appTransferPolicies } from '@/lib/app/data-transfer';
 import { getAppJobs, __resetAppJobsForTests } from '@/lib/orchestration/maintenance/app-jobs';
 import { getEffectiveRateLimitPolicy, RATE_LIMIT_POLICY } from '@/lib/security/rate-limit-policy';
 import { getRegisteredNavSections, __resetNavRegistryForTests } from '@/lib/admin-nav/registry';
@@ -278,6 +279,26 @@ const SEAM_DEFAULTS: SeamDefault[] = [
       });
 
       expect(Object.keys(bundle)).toEqual(['resparkable']);
+    },
+  },
+  {
+    seam: 'lib/app/data-transfer.ts',
+    risk: 'a stray policy would put app rows into every install’s account export, and write them back on import',
+    // This seam genuinely does ship empty here: `prisma/schema/app.prisma` has
+    // no models, so Resparkable has nothing to classify through it. The tier's
+    // own brain tables are declared one level down, in
+    // lib/framework/resparkable/transfer/policy.ts, and reach the registry from
+    // there rather than through this file.
+    //
+    // Completeness is enforced separately and more strongly than for the export
+    // seam above: tests/unit/lib/portability/policy-coverage.test.ts reads the
+    // generated model graph — which covers every schema file including
+    // app.prisma — and fails until every model is classified. So a fork cannot
+    // forget to fill this; it can only decide what goes in it.
+    assert: () => {
+      expect(appTransferPolicies.policies).toEqual([]);
+      expect(appTransferPolicies.excluded).toEqual([]);
+      expect(appTransferPolicies.crossBoundaryEdges).toEqual([]);
     },
   },
   {

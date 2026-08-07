@@ -18,6 +18,32 @@ release process.
 
 ### Added
 
+- **A generated model graph, and the transfer-policy vocabulary built on it.**
+  Groundwork for account export/import — moving one person's data into a
+  different account or a self-hosted install. New `generator portability` block
+  emits `lib/portability/model-graph.generated.ts` on every `prisma generate`: a
+  machine-readable description of all ~80 models — foreign keys, uniques,
+  nullability, `Json` columns, `Unsupported()` columns, and reference-shaped
+  columns with no foreign key behind them. It has to be generated rather than
+  read at runtime because Prisma 7's `Prisma.dmmf` is pruned to
+  `{name, kind, type, relationName}` and carries no foreign-key metadata at all.
+  New `lib/portability/policy.ts` declares the vocabulary (`transfer` /
+  `export-only` / `skip`, redactions, merge keys, soft references, `Json` id
+  paths); `core-policies.ts` and `lib/framework/resparkable/transfer/policy.ts`
+  classify every existing table. New fork seam `lib/app/data-transfer.ts` ships
+  empty and is wired through `lib/portability/registry.ts`. New dev dependency
+  `@prisma/generator-helper`, declared directly rather than relied on
+  transitively. No export or import route yet — see
+  `.context/framework/resparkable/transfer.md` for the phase plan.
+
+  The rule the whole thing runs on is deliberately asymmetric: **columns opt
+  out, models opt in.** A new column joins the bundle by default (the same
+  reason `export-sources.ts` uses Prisma `omit` and never `select`); a new model
+  fails `tests/unit/lib/portability/policy-coverage.test.ts` until somebody
+  classifies it, with the failure naming the exact file to edit. A second guard
+  fails on any `String` column whose name looks like credential material and
+  which has not been explicitly redacted, regenerated, or excused in writing.
+
 - **`PublicSection` and `LandingHero`: the marketing pages' own layout units.**
   New `components/marketing/resparkable/`, a fork-owned subfolder that upstream
   never writes to, so `components/marketing/` stays free to keep improving.
