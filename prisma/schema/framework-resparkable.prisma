@@ -193,7 +193,13 @@ model ResparkableGoal {
   id     String @id @default(cuid())
   userId String
 
-  title       String
+  title String
+  /// Unique per user, as for areas, projects and entities. A goal is an
+  /// addressable thing — the vault has always filed it at
+  /// `Goals/<horizon>/<slug>.md` — and until this column existed that address
+  /// was recomputed from the title on every write, so nothing could recognise
+  /// a goal it had already seen. Both importers now match on it.
+  slug        String
   description String? @db.Text
 
   /// life | year | quarter | month | week. Nearest horizon reached by the
@@ -229,6 +235,7 @@ model ResparkableGoal {
   /// removes every row here. Verified by scripts/smoke/resparkable-isolation.ts.
   space ResparkableSpace @relation(fields: [userId], references: [userId], onDelete: Cascade)
 
+  @@unique([userId, slug])
   @@index([userId, horizon, status])
   @@index([userId, archivedAt])
   @@index([userId, visibility])

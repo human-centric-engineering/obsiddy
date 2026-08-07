@@ -18,6 +18,56 @@ release process.
 
 ### Added
 
+- **`conflictMode: 'overwrite'` on account import.** `POST
+  /api/v1/users/me/transfer/import` now honours both modes. `skip` remains the
+  default and remains unchanged: a record matching one the account already has is
+  left exactly as it is. `overwrite` writes the bundle's values into the row it
+  matched — **but only where the match came from a real unique constraint.** A row
+  found through a `softMergeKey` is left alone exactly as `skip` leaves it,
+  because that key is a guess and the plan has no way yet to say yes to one
+  individually.
+
+  Three things a create writes that an overwrite does not. `mint` columns are
+  **not re-issued** — minting is how a redacted column gets a value at all, and
+  doing it to an existing row would rotate a live credential and silently move
+  where somebody's email capture arrives. The owner column is not written: the row
+  was found through an owner-scoped read, and where the owner column _is_ the
+  primary key (`User`) writing it would be an attempt to move the row. `reset`
+  columns _are_ still forced, so a row that was written into is re-indexed rather
+  than left with a digest of its old text. `regenerate` is excluded in both modes,
+  which is what keeps this from being a one-file privilege escalation.
+
+  Both modes share one column-mapping function, so "an overwrite writes the values
+  a create would" holds by construction rather than by two functions agreeing.
+  Overwrites count against the same `APPLY_CAPS.maxRows` as inserts — each is its
+  own round trip where inserts go a thousand at a time.
+
+  Changed public surface: `AppliedModel` and `ApplyResult.totals` gain
+  `overwritten`.
+
+- **`ResparkableGoal.slug`, with `@@unique([userId, slug])`.** Goals were the last
+  named type in the brain without one, and it was not cosmetic. `vault/`'s
+  importer excluded goals from `SLUG_IDENTITY_TYPES` for want of a constraint, so
+  a hand-written `Goals/…md` note created a **second** goal on every import, for
+  ever; and the account importer had to fall back to a guessed key, which is what
+  blocked `overwrite` above. The vault had always filed a goal at
+  `Goals/<horizon>/<slug>.md`, deriving that slug from the title on the way out and
+  discarding it — so the address existed and was simply not stored.
+
+  Migration `20260807220000_resparkable_goal_slug` backfills with the same rule
+  `services/slug.ts` mints by and de-duplicates the way `resolveUniqueSlug` does
+  (oldest keeps the bare slug, later ones take `-2`, `-3`), then adds the index.
+  Matching the other three named types: `createGoalSchema` accepts an optional
+  `slug`, `goalResource.create` resolves one from the title, a retitle does **not**
+  move it (`resolveSlugOnUpdate`), and the agent-facing
+  `resparkable_upsert_goal` does not accept one at all.
+
+  New public surface: `findGoalBySlug()` in
+  `lib/framework/resparkable/repo/goals.ts`. Changed: `ResparkableGoal` gains a
+  required `slug`; `GoalSource` in `vault/notes.ts` gains `slug`, and a goal note's
+  frontmatter now carries it; `ResparkableGoal`'s transfer policy trades its
+  `softMergeKey` for `mergeKeys: [['userId', 'slug']]`.
+
 - **Account import can now write.** `POST /api/v1/users/me/transfer/import`
   takes `apply=true` and `conflictMode`, and writes the plan it just produced.
   Dry run remains the default — an import is not reversible and the plan is

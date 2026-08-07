@@ -86,7 +86,12 @@ vi.mock('@/lib/logging', () => ({
 
 // ---------------------------------------------------------------------------
 
-import { applyImportPlan, APPLY_CAPS, TransferApplyError } from '@/lib/portability/apply-import';
+import {
+  applyImportPlan,
+  APPLY_CAPS,
+  TransferApplyError,
+  type ConflictMode,
+} from '@/lib/portability/apply-import';
 import { buildImportPlan, mergeKeyOf, type ExistingLookup } from '@/lib/portability/import-plan';
 import { SCHEMA_FINGERPRINT } from '@/lib/portability/model-graph.generated';
 import type { IncomingBundle } from '@/lib/portability/read-bundle';
@@ -147,13 +152,17 @@ function lookupOver(existing: Rows = {}): ExistingLookup {
 }
 
 /** Plan a bundle and write it, the way the route does. */
-async function planAndApply(tables: Rows, existing: Rows = {}) {
+async function planAndApply(
+  tables: Rows,
+  existing: Rows = {},
+  conflictMode: ConflictMode = 'skip'
+) {
   const plan = await buildImportPlan({
     bundle: bundleOf(tables),
     targetUserId: TARGET,
     lookup: lookupOver(existing),
   });
-  const result = await applyImportPlan({ plan, userId: TARGET, conflictMode: 'skip' });
+  const result = await applyImportPlan({ plan, userId: TARGET, conflictMode });
   return { plan, result };
 }
 
@@ -542,19 +551,6 @@ describe('applyImportPlan', () => {
   });
 
   describe('what it refuses', () => {
-    it('will not write into records you already have, yet', async () => {
-      const plan = await buildImportPlan({
-        bundle: bundleOf({ ResparkableSpace: [SPACE] }),
-        targetUserId: TARGET,
-        lookup: lookupOver(),
-      });
-
-      await expect(
-        applyImportPlan({ plan, userId: TARGET, conflictMode: 'overwrite' })
-      ).rejects.toThrow(expect.objectContaining({ reason: 'overwrite-not-supported' }));
-      expect(created('resparkableSpace')).toEqual([]);
-    });
-
     it('refuses an import larger than one transaction carries, before writing any of it', async () => {
       const areas = Array.from({ length: APPLY_CAPS.maxRows + 1 }, (_, i) => ({
         id: `a${i}`,
@@ -577,14 +573,211 @@ describe('applyImportPlan', () => {
 
     it('is a TransferApplyError, so the route can turn it into a 400', async () => {
       const plan = await buildImportPlan({
-        bundle: bundleOf({}),
+        bundle: bundleOf({ ResparkableSpace: [SPACE] }),
         targetUserId: TARGET,
         lookup: lookupOver(),
       });
 
       await expect(
-        applyImportPlan({ plan, userId: TARGET, conflictMode: 'overwrite' })
+        applyImportPlan({ plan, userId: 'somebody-else', conflictMode: 'skip' })
       ).rejects.toBeInstanceOf(TransferApplyError);
+    });
+
+    it('counts overwrites against the same row cap as inserts', async () => {
+      // The cap bounds how long one transaction holds a connection, and an
+      // overwrite is the more expensive of the two — each is its own round trip
+      // where inserts go a thousand at a time. A cap that only counted inserts
+      // would let the more expensive operation through unbounded.
+      const areas = Array.from({ length: APPLY_CAPS.maxRows + 1 }, (_, i) => ({
+        id: `a${i}`,
+        userId: SOURCE,
+        slug: `area-${i}`,
+        name: `Area ${i}`,
+      }));
+      const here = areas.map((area) => ({ ...area, id: `here-${area.id}`, userId: TARGET }));
+
+      const plan = await buildImportPlan({
+        bundle: bundleOf({ ResparkableSpace: [SPACE], ResparkableArea: areas }),
+        targetUserId: TARGET,
+        lookup: lookupOver({ ResparkableArea: here }),
+      });
+
+      // Every one of these is a match, so nothing would be inserted at all —
+      // only `overwriting` can push this over the limit.
+      expect(plan.totals.creates).toBe(1); // the space
+      await expect(
+        applyImportPlan({ plan, userId: TARGET, conflictMode: 'overwrite' })
+      ).rejects.toThrow(expect.objectContaining({ reason: 'too-many-rows' }));
+      expect(transactions).toHaveLength(0);
+      expect(updates('resparkableArea')).toEqual([]);
+    });
+  });
+
+  describe('conflictMode: overwrite', () => {
+    it('writes the bundle’s values into a row matched through a unique constraint', async () => {
+      const { result } = await planAndApply(
+        {
+          ResparkableSpace: [SPACE],
+          ResparkableArea: [
+            { id: 'area-old', userId: SOURCE, slug: 'health', name: 'Health, renamed' },
+          ],
+        },
+        { ResparkableArea: [{ id: 'area-here', userId: TARGET, slug: 'health', name: 'Health' }] },
+        'overwrite'
+      );
+
+      expect(created('resparkableArea')).toEqual([]);
+      expect(updates('resparkableArea')).toEqual([
+        { where: { id: 'area-here' }, data: expect.objectContaining({ name: 'Health, renamed' }) },
+      ]);
+      expect(result.totals).toMatchObject({ overwritten: 1, created: 1 });
+      expect(result.warnings.join('\n')).toMatch(/written into/);
+    });
+
+    it('leaves a row matched on a guessed key exactly as it is', async () => {
+      // The reason the `ResparkableGoal` unique constraint had to land first. A
+      // soft match is a considered opinion; under `skip` a wrong one costs a
+      // duplicate, and under `overwrite` it would cost the row it wrote over.
+      const { result } = await planAndApply(
+        {
+          ResparkableSpace: [SPACE],
+          ResparkableReview: [
+            {
+              id: 'review-old',
+              userId: SOURCE,
+              horizon: 'weekly',
+              title: 'Week 39',
+              body: 'The imported copy.',
+              generatedAt: '2026-09-30T06:00:00.000Z',
+            },
+          ],
+        },
+        {
+          ResparkableReview: [
+            {
+              id: 'review-here',
+              userId: TARGET,
+              horizon: 'weekly',
+              title: 'Week 39',
+              body: 'The copy already here.',
+              generatedAt: new Date('2026-09-30T18:00:00.000Z'),
+            },
+          ],
+        },
+        'overwrite'
+      );
+
+      expect(updates('resparkableReview')).toEqual([]);
+      expect(created('resparkableReview')).toEqual([]);
+      expect(result.totals.overwritten).toBe(0);
+      expect(result.warnings.join('\n')).toMatch(/guessed key/);
+    });
+
+    it('does not re-issue a minted column into a row that already has one', async () => {
+      // `inboxToken` is redacted on the way out and minted on the way in, so a
+      // create has to invent one. Doing that to an existing row would rotate a
+      // live bearer token and silently change where the user's email capture
+      // arrives.
+      await planAndApply(
+        { ResparkableSpace: [SPACE] },
+        { ResparkableSpace: [{ id: 'space-here', userId: TARGET }] },
+        'overwrite'
+      );
+
+      const [update] = updates('resparkableSpace');
+      expect(update?.where).toEqual({ id: 'space-here' });
+      expect(update?.data).not.toHaveProperty('inboxToken');
+    });
+
+    it('does not write the owner column, or the columns the target supplies itself', async () => {
+      // Without `regenerate` this mode would be a one-file privilege escalation:
+      // hand-edit `role`, import your own bundle, done.
+      await planAndApply(
+        {
+          User: [
+            {
+              id: 'user-old',
+              name: 'Imported Name',
+              email: 'attacker@example.com',
+              emailVerified: true,
+              role: 'ADMIN',
+              timezone: 'Europe/London',
+            },
+          ],
+        },
+        { User: [{ id: TARGET, name: 'Real Name', email: 'real@example.com', role: 'USER' }] },
+        'overwrite'
+      );
+
+      const [update] = updates('user');
+      expect(update?.data).toMatchObject({ name: 'Imported Name', timezone: 'Europe/London' });
+      expect(update?.data).not.toHaveProperty('role');
+      expect(update?.data).not.toHaveProperty('email');
+      expect(update?.data).not.toHaveProperty('emailVerified');
+      // The row was found through an owner-scoped read, and here the owner column
+      // *is* the primary key — writing it would be an attempt to move the row.
+      expect(update?.data).not.toHaveProperty('id');
+      expect(created('user')).toEqual([]);
+    });
+
+    it('still forces the reset columns, so a rewritten row is re-indexed', async () => {
+      await planAndApply(
+        {
+          ResparkableSpace: [SPACE],
+          ResparkableArea: [
+            {
+              id: 'area-old',
+              userId: SOURCE,
+              slug: 'health',
+              name: 'Health',
+              indexedHash: 'stale-digest',
+            },
+          ],
+        },
+        { ResparkableArea: [{ id: 'area-here', userId: TARGET, slug: 'health', name: 'Health' }] },
+        'overwrite'
+      );
+
+      expect(updates('resparkableArea')[0]?.data).toMatchObject({ indexedHash: null });
+    });
+
+    it('writes nothing into a matched row under skip, which is the default', async () => {
+      const { result } = await planAndApply(
+        {
+          ResparkableSpace: [SPACE],
+          ResparkableArea: [
+            { id: 'area-old', userId: SOURCE, slug: 'health', name: 'Health, renamed' },
+          ],
+        },
+        { ResparkableArea: [{ id: 'area-here', userId: TARGET, slug: 'health', name: 'Health' }] }
+      );
+
+      expect(updates('resparkableArea')).toEqual([]);
+      expect(result.totals).toMatchObject({ overwritten: 0, skipped: 1 });
+    });
+
+    it('points a created row at the matched row it was overwritten into', async () => {
+      // The property `skip` already has, and overwriting must not lose: the
+      // bundle's children attach to the row that is here, not to a second copy.
+      await planAndApply(
+        {
+          ResparkableSpace: [SPACE],
+          ResparkableArea: [{ id: 'area-old', userId: SOURCE, slug: 'health', name: 'Health' }],
+          ResparkableProject: [
+            {
+              id: 'project-old',
+              userId: SOURCE,
+              slug: 'run-a-marathon',
+              name: 'Run a marathon',
+              areaId: 'area-old',
+            },
+          ],
+        },
+        { ResparkableArea: [{ id: 'area-here', userId: TARGET, slug: 'health', name: 'Health' }] },
+        'overwrite'
+      );
+
+      expect(created('resparkableProject')[0]).toMatchObject({ areaId: 'area-here' });
     });
   });
 
@@ -608,7 +801,13 @@ describe('applyImportPlan', () => {
     it('writes nothing and says nothing alarming', async () => {
       const { result } = await planAndApply({});
 
-      expect(result.totals).toEqual({ created: 0, skipped: 0, dropped: 0, linked: 0 });
+      expect(result.totals).toEqual({
+        created: 0,
+        overwritten: 0,
+        skipped: 0,
+        dropped: 0,
+        linked: 0,
+      });
       expect(result.models).toEqual([]);
       expect(result.warnings).toEqual([]);
     });

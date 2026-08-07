@@ -46,6 +46,7 @@ vi.mock('@/lib/framework/resparkable/repo/entities', () => ({
 }));
 vi.mock('@/lib/framework/resparkable/repo/goals', () => ({
   createGoal: vi.fn(),
+  findGoalBySlug: vi.fn(),
   updateGoal: vi.fn(),
 }));
 vi.mock('@/lib/framework/resparkable/repo/links', () => ({ createSuggestedLinks: vi.fn() }));

@@ -245,9 +245,89 @@ describe('buildImportPlan', () => {
     });
 
     it('falls back to a guessed key, and names every match it makes', async () => {
-      // `ResparkableGoal` has no unique constraint, so identity is
-      // `horizon | title | target date` — a considered guess, listed
-      // individually so it can be rejected before anything is written.
+      // `ResparkableReview` has no unique constraint, so identity is
+      // `horizon | the day it was generated` — a considered guess, listed
+      // individually so it can be rejected before anything is written. The date
+      // is the part worth exercising: it arrives from a bundle as an ISO string
+      // and from Prisma as a `Date`, and a key that rendered those differently
+      // would miss every match while looking like it worked.
+      const plan = await buildImportPlan({
+        bundle: bundleOf({
+          ResparkableSpace: [SPACE],
+          ResparkableReview: [
+            {
+              id: 'review-old',
+              userId: SOURCE,
+              horizon: 'weekly',
+              title: 'Week 39',
+              body: 'A good week.',
+              generatedAt: '2026-09-30T06:00:00.000Z',
+            },
+          ],
+        }),
+        targetUserId: TARGET,
+        lookup: new FakeLookup({
+          ResparkableReview: [
+            {
+              id: 'review-here',
+              userId: TARGET,
+              horizon: 'weekly',
+              title: 'Week 39',
+              body: 'A good week.',
+              generatedAt: new Date('2026-09-30T23:15:00.000Z'),
+            },
+          ],
+        }),
+      });
+
+      expect(modelPlan(plan, 'ResparkableReview')).toMatchObject({ softMatches: 1, matches: 0 });
+      expect(plan.softMatches.shown).toEqual([
+        expect.objectContaining({
+          model: 'ResparkableReview',
+          sourceId: 'review-old',
+          targetId: 'review-here',
+        }),
+      ]);
+    });
+
+    it('warns out loud when anything matched on a guess', async () => {
+      const plan = await buildImportPlan({
+        bundle: bundleOf({
+          ResparkableSpace: [SPACE],
+          ResparkableReview: [
+            {
+              id: 'review-old',
+              userId: SOURCE,
+              horizon: 'monthly',
+              title: 'September',
+              body: 'Onwards.',
+              generatedAt: '2026-09-30T06:00:00.000Z',
+            },
+          ],
+        }),
+        targetUserId: TARGET,
+        lookup: new FakeLookup({
+          ResparkableReview: [
+            {
+              id: 'review-here',
+              userId: TARGET,
+              horizon: 'monthly',
+              title: 'September',
+              body: 'Onwards.',
+              generatedAt: new Date('2026-09-30T06:00:00.000Z'),
+            },
+          ],
+        }),
+      });
+
+      expect(plan.warnings.join('\n')).toMatch(/guess rather than on a unique constraint/);
+    });
+
+    it('matches a goal on its slug, through the constraint rather than a guess', async () => {
+      // Goals used to be the soft-key case in this file. They gained
+      // `@@unique([userId, slug])` because a guessed match is not something
+      // `conflictMode: 'overwrite'` may write into — so this is now a `match`,
+      // and nothing is listed for a human to veto.
       const plan = await buildImportPlan({
         bundle: bundleOf({
           ResparkableSpace: [SPACE],
@@ -257,7 +337,7 @@ describe('buildImportPlan', () => {
               userId: SOURCE,
               horizon: 'quarter',
               title: 'Ship the beta',
-              targetDate: '2026-09-30T00:00:00.000Z',
+              slug: 'ship-the-beta',
             },
           ],
         }),
@@ -268,40 +348,15 @@ describe('buildImportPlan', () => {
               id: 'goal-here',
               userId: TARGET,
               horizon: 'quarter',
-              title: 'ship the beta',
-              targetDate: new Date('2026-09-30T00:00:00.000Z'),
+              title: 'Ship the beta, eventually',
+              slug: 'ship-the-beta',
             },
           ],
         }),
       });
 
-      expect(modelPlan(plan, 'ResparkableGoal')).toMatchObject({ softMatches: 1, matches: 0 });
-      expect(plan.softMatches.shown).toEqual([
-        expect.objectContaining({
-          model: 'ResparkableGoal',
-          sourceId: 'goal-old',
-          targetId: 'goal-here',
-        }),
-      ]);
-    });
-
-    it('warns out loud when anything matched on a guess', async () => {
-      const plan = await buildImportPlan({
-        bundle: bundleOf({
-          ResparkableSpace: [SPACE],
-          ResparkableGoal: [
-            { id: 'goal-old', userId: SOURCE, horizon: 'year', title: 'Learn Welsh' },
-          ],
-        }),
-        targetUserId: TARGET,
-        lookup: new FakeLookup({
-          ResparkableGoal: [
-            { id: 'goal-here', userId: TARGET, horizon: 'year', title: 'Learn Welsh' },
-          ],
-        }),
-      });
-
-      expect(plan.warnings.join('\n')).toMatch(/guess rather than on a unique constraint/);
+      expect(modelPlan(plan, 'ResparkableGoal')).toMatchObject({ matches: 1, softMatches: 0 });
+      expect(plan.softMatches.shown).toEqual([]);
     });
 
     it('computes a merge key from remapped foreign keys, not from the bundle ids', async () => {
@@ -335,26 +390,49 @@ describe('buildImportPlan', () => {
 
     it('does not let two records claim one existing row', async () => {
       // Never merge both, never let the last one win. The second becomes a new
-      // row, which is recoverable; an overwrite is not.
+      // row, which is recoverable; an overwrite is not. Two reviews generated at
+      // different times on one day reduce to the same soft key, which is exactly
+      // the shape a guessed key produces collisions in.
       const plan = await buildImportPlan({
         bundle: bundleOf({
           ResparkableSpace: [SPACE],
-          ResparkableGoal: [
-            { id: 'goal-a', userId: SOURCE, horizon: 'year', title: 'Learn Welsh' },
-            { id: 'goal-b', userId: SOURCE, horizon: 'year', title: 'learn  welsh' },
+          ResparkableReview: [
+            {
+              id: 'review-a',
+              userId: SOURCE,
+              horizon: 'weekly',
+              title: 'Week 39',
+              body: 'The first attempt.',
+              generatedAt: '2026-09-30T06:00:00.000Z',
+            },
+            {
+              id: 'review-b',
+              userId: SOURCE,
+              horizon: 'weekly',
+              title: 'Week 39',
+              body: 'Regenerated later the same day.',
+              generatedAt: '2026-09-30T18:00:00.000Z',
+            },
           ],
         }),
         targetUserId: TARGET,
         lookup: new FakeLookup({
-          ResparkableGoal: [
-            { id: 'goal-here', userId: TARGET, horizon: 'year', title: 'Learn Welsh' },
+          ResparkableReview: [
+            {
+              id: 'review-here',
+              userId: TARGET,
+              horizon: 'weekly',
+              title: 'Week 39',
+              body: 'Already here.',
+              generatedAt: new Date('2026-09-30T09:00:00.000Z'),
+            },
           ],
         }),
       });
 
-      expect(modelPlan(plan, 'ResparkableGoal')).toMatchObject({ softMatches: 1, contested: 1 });
+      expect(modelPlan(plan, 'ResparkableReview')).toMatchObject({ softMatches: 1, contested: 1 });
       expect(plan.contested.shown).toEqual([
-        expect.objectContaining({ model: 'ResparkableGoal', targetId: 'goal-here' }),
+        expect.objectContaining({ model: 'ResparkableReview', targetId: 'review-here' }),
       ]);
       expect(plan.warnings.join('\n')).toMatch(/already claimed/);
     });

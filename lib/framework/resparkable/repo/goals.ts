@@ -95,6 +95,20 @@ export async function findGoal(scope: OwnerScope, id: string): Promise<Resparkab
   return prisma.resparkableGoal.findFirst({ where: { ...ownerWhere(scope), id } });
 }
 
+/**
+ * Slug lookup, for `resolveUniqueSlug` and for both importers.
+ *
+ * Unscoped by archive state on purpose, as for projects: an archived goal still
+ * holds its slug, so a new goal that reused it would collide with a row the user
+ * cannot see.
+ */
+export async function findGoalBySlug(
+  scope: OwnerScope,
+  slug: string
+): Promise<ResparkableGoal | null> {
+  return prisma.resparkableGoal.findFirst({ where: { ...ownerWhere(scope), slug } });
+}
+
 export async function createGoal(
   scope: OwnerScope,
   data: GoalCreateData

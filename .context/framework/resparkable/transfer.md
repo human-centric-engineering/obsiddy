@@ -3,12 +3,14 @@
 Moving one person's data out of an account and into a different one — a new
 account, or the same account on a self-hosted install.
 
-**Status: Phases A–E shipped.** The model graph, the policy manifest, the
+**Status: Phases A–F shipped.** The model graph, the policy manifest, the
 coverage guards, a working export — `GET /api/v1/users/me/transfer/export`, plus
 the Your data tab in Settings — five formats to write it out in, and a working
 import: `POST /api/v1/users/me/transfer/import` says what a bundle would do, and
-with `apply=true` does it. Only `conflictMode: 'skip'` so far — a record already
-here is left alone rather than written into. See [Phases](#phases).
+with `apply=true` does it. Both conflict modes: `skip` leaves a record already
+here alone, `overwrite` writes the bundle's values into it — but only where the
+match came from a real unique constraint, never from a guessed key. See
+[Phases](#phases).
 
 ## What already existed, and why none of it was enough
 
@@ -213,22 +215,40 @@ duplicates silently on every re-import.
 | Thought                           | `[userId, externalId]` when non-null, else a soft key         |
 | BoardCard, TaskTag, Link          | composite, evaluated **after** id remapping                   |
 | Task                              | none — title is not identity                                  |
-| **Goal**                          | **none exists**                                               |
+| Goal                              | `[userId, slug]` — see below                                  |
 
 `ResparkableTask` has no merge key deliberately. Two tasks with the same title
 are usually two tasks; a duplicate is a minor annoyance, a wrongly merged one
 loses notes and scheduling that cannot be recovered.
 
-### ResparkableGoal has no unique constraint
+### ResparkableGoal gained a slug in Phase F
 
-It has no `slug` and no `@@unique`, so identity is a soft key —
-`horizon | normalised title | target date` — and every match it makes is listed
-individually in the dry run so it can be vetoed.
+It used to have neither a `slug` nor a `@@unique`, so identity was a soft key —
+`horizon | normalised title | target date` — and every match it made was listed
+individually in the dry run so it could be vetoed.
 
-This is a real gap, not just a transfer inconvenience: `vault/import-plan.ts`
-excludes goals from `SLUG_IDENTITY_TYPES` for exactly the same reason, so a
-hand-written goal note already duplicates on every vault import today. Adding
-`@@unique([userId, slug])` fixes both surfaces. Scheduled for Phase F.
+That was never only a transfer inconvenience. `vault/import-plan.ts` excluded
+goals from `SLUG_IDENTITY_TYPES` for the same reason, so a hand-written goal note
+created a **second** goal on every vault import, for ever. And the vault had
+always filed a goal at `Goals/<horizon>/<slug>.md`, recomputing that slug from
+the title on the way out and throwing it away — so the address already existed
+and was simply not stored.
+
+`slug String` plus `@@unique([userId, slug])` fixed both surfaces at once
+(`20260807220000_resparkable_goal_slug`, which backfills with the same rule
+`services/slug.ts` mints by, de-duplicates the way `resolveUniqueSlug` does, and
+then adds the index). The soft key is **gone rather than kept as a fallback**, so
+there is exactly one answer to "is this the same goal?" and it is the same answer
+the vault importer gives.
+
+Two knock-on rules worth knowing, both matching what projects and entities
+already did: the agent-facing `resparkable_upsert_goal` does not accept a slug
+(the service derives it from the title), and a retitle does **not** move the slug
+— `resolveSlugOnUpdate` leaves it alone, because the slug is the address of a
+file in somebody's vault.
+
+This constraint is what made `conflictMode: 'overwrite'` possible; see
+[the two conflict modes](#the-two-conflict-modes).
 
 ## References the database does not enforce
 
@@ -380,8 +400,8 @@ rendering, and the refusal says so by name rather than failing on a missing file
 `import-plan.ts` reaches no database. It asks two questions through a port —
 _do you already have a row with this merge key_, and _give me your rows of this
 model_ — so the whole planner runs in unit tests against a hand-written lookup
-with no mocks. Phase E will apply a plan; it will not compute a second one, so
-"show me what this would do" and "do it" cannot disagree.
+with no mocks. `apply-import.ts` applies a plan; it does not compute a second one,
+so "show me what this would do" and "do it" cannot disagree.
 
 ### The rule that is a security property
 
@@ -452,9 +472,9 @@ otherwise pick between them on whatever order Postgres felt like. `collect.ts`
 exports `orderById` and the lookup uses it, so both halves of the subsystem order
 the same way.
 
-Determinism is what a plan being worth approving rests on. Phase E will apply a
-plan by re-running this planner rather than by stashing one — a two-million-row
-plan cannot be held between two requests — so anything that could resolve
+Determinism is what a plan being worth approving rests on. An apply re-runs this
+planner rather than stashing one — a two-million-row plan cannot be held between
+two requests — so anything that could resolve
 differently on the second run is a difference between what somebody agreed to and
 what happens.
 
@@ -574,7 +594,7 @@ of the prioritiser and precisely the thing they would be angriest to lose.
 | C   | Brain formats: Logseq, Notion, CSV, single-file digest                        | ✅ shipped |
 | D   | Import, **dry-run only** — planner, id-map, orphan report                     | ✅ shipped |
 | E   | Import apply, `conflictMode: 'skip'` only                                     | ✅ shipped |
-| F   | `conflictMode: 'overwrite'` + the `ResparkableGoal` unique migration it needs | planned    |
+| F   | `conflictMode: 'overwrite'` + the `ResparkableGoal` unique migration it needs | ✅ shipped |
 | G   | Document originals, background jobs, admin-initiated                          | planned    |
 
 ### The two conflict modes
@@ -582,10 +602,14 @@ of the prioritiser and precisely the thing they would be angriest to lose.
 `conflictMode` answers one question: **when a record in the bundle matches one
 the account already has, what happens to the record already here?**
 
-|             |                                                          |
-| ----------- | -------------------------------------------------------- |
-| `skip`      | It is left exactly as it is. Nothing is written into it. |
-| `overwrite` | The bundle's values are written into it.                 |
+|             |                                                                                |
+| ----------- | ------------------------------------------------------------------------------ |
+| `skip`      | It is left exactly as it is. Nothing is written into it. **The default.**      |
+| `overwrite` | The bundle's values are written into it — if the match came from a constraint. |
+
+`skip` is the default because the two are not symmetrical: the worst `skip`
+produces is a duplicate, and the worst `overwrite` produces is data that used to
+be there and now is not.
 
 Both are `lib/validations/orchestration.ts`'s words: the agent importer already
 takes a `conflictMode` with exactly these two values. Reusing them means one
@@ -615,17 +639,43 @@ per user — so a mode that could not resolve a collision to something usable co
 not import anything at all.
 
 Identity resolution runs the same way in both modes (`mergeKeys` → `softMergeKey`
-→ create); only the response differs. The dry run reports `matches` without a
-mode to act on them, which is why a plan is comparable across modes.
+→ create); only what is done with the result differs. The dry run reports
+`matches` without a mode to act on them, which is why a plan is comparable across
+modes.
 
-E and F ship separately on purpose. Under `skip` the worst bug is a duplicate —
+### What `overwrite` does with a collision
+
+The same remapping as `skip` — children still attach to the row that is here —
+and then it writes the bundle's values into that row. With three exceptions, and
+they are the whole of the mode's safety:
+
+| Not written on an overwrite | Why                                                                                                                                                                                       |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| a `soft-match`ed row        | The key that found it is a guess. Left exactly as `skip` leaves it, and still listed in the plan.                                                                                         |
+| `mint` columns              | Minting is how a redacted column gets a value at all; doing it to an existing row **rotates a live credential**. An import must not silently move where somebody's email capture arrives. |
+| the owner column            | The row was found through an owner-scoped read, so it already belongs here — and where the owner column _is_ the primary key (`User`), writing it would be an attempt to move the row.    |
+
+`regenerate` is excluded in both modes, and that is what keeps this from being a
+one-file privilege escalation: `role`, `email` and `emailVerified` belong to
+wherever the data lands. `reset` columns _are_ still forced, so a row that was
+written into is re-indexed rather than left with a digest describing its old text.
+
+E and F shipped separately on purpose. Under `skip` the worst bug is a duplicate —
 visible, and deletable. Under `overwrite` the worst bug writes somebody's data
 into the wrong existing row, which is neither, and is found a month later. It is
 the same trade `ResparkableTask` already makes by declaring no merge key at all.
 
-`overwrite` needs the `ResparkableGoal` unique constraint before it can ship,
-which is why the two are one phase: writing into a row matched by a key with no
-constraint behind it is writing into a guess.
+That is also why `overwrite` needed the
+[`ResparkableGoal` unique constraint](#resparkablegoal-gained-a-slug-in-phase-f)
+first, and why the two are one phase: writing into a row matched by a key with no
+constraint behind it is writing into a guess. Goals were the last table in the
+brain whose identity was a guess and whose contents somebody would miss.
+
+The applier counts the two apart: `ApplyResult` reports `created`, `overwritten`,
+`skipped` and `dropped` separately, because "how much arrived" and "how much of
+what was already here changed" are different questions. Overwrites count against
+the same `APPLY_CAPS.maxRows` as inserts — an overwrite is the more expensive of
+the two, being one round trip each where inserts go a thousand at a time.
 
 ## See also
 

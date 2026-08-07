@@ -35,6 +35,37 @@
  * itself, which is visible in the database and nowhere else — nothing in this
  * codebase parses or validates the shape of an id.
  *
+ * ## `overwrite` writes into a constraint, never into a guess
+ *
+ * The two modes share every line of column handling and differ only in which
+ * rows they act on. `skip` writes the rows that matched nothing; `overwrite`
+ * additionally writes the bundle's values into the rows that matched — but only
+ * those matched through a **real unique constraint**.
+ *
+ * A `soft-match` is left exactly as `skip` leaves it. That is the whole reason
+ * the `ResparkableGoal` unique constraint had to land before this mode could:
+ * every `mergeKeys` tuple is checked against the graph by the coverage guard, so
+ * a match is a fact, while a soft key is a considered opinion. Under `skip` the
+ * worst a wrong opinion produces is a duplicate — visible, and deletable. Under
+ * `overwrite` it would write somebody's data into the wrong existing row, which
+ * is neither, and would be found a month later if at all. The dry run lists
+ * every soft match individually so it can be judged; until there is a way to say
+ * yes to one, this says no to all of them.
+ *
+ * Two kinds of column are held back from an update that a create writes freely:
+ *
+ *   - {@link TransferPolicy.mint} values are **not re-issued**. Minting is how a
+ *     redacted column gets a value it could not carry; doing it to a row that
+ *     already exists would rotate a live credential — importing a bundle would
+ *     silently change the address the user's email capture arrives on.
+ *   - the owner column is not written. The row was found through an owner-scoped
+ *     read, so it already belongs here, and where the owner column *is* the
+ *     primary key (`User`) writing it would be an attempt to move the row.
+ *
+ * {@link TransferPolicy.regenerate} is excluded in both modes, which is what
+ * keeps this from being a one-file privilege escalation: `role`, `email` and
+ * `emailVerified` are the target's to decide, whatever a hand-edited bundle says.
+ *
  * ## One transaction, and a cap that refuses rather than half-writes
  *
  * A partially applied import is the worst artefact this system could produce:
@@ -72,7 +103,12 @@ import { policyFor } from '@/lib/portability/registry';
 export type ConflictMode =
   /** Leave the existing row exactly as it is. Records that match nothing are created. */
   | 'skip'
-  /** Write the bundle's values into the row it matched. Phase F. */
+  /**
+   * Write the bundle's values into the row it matched.
+   *
+   * Only where the match came from a real unique constraint — a row matched on a
+   * soft key is left alone, as under `skip`. See the file header.
+   */
   | 'overwrite';
 
 /** Limits on one apply. */
@@ -108,6 +144,14 @@ export class TransferApplyError extends Error {
 export interface AppliedModel {
   model: string;
   created: number;
+  /**
+   * Matched an existing row through a unique constraint, and was written into it.
+   *
+   * Always zero under `skip`. Counted apart from `created` because the two are
+   * the answers to different questions — how much arrived, and how much of what
+   * was already here changed.
+   */
+  overwritten: number;
   /** Matched an existing row and was left alone. */
   skipped: number;
   /** Not written, because something it could not do without did not arrive. */
@@ -121,6 +165,7 @@ export interface ApplyResult {
   models: AppliedModel[];
   totals: {
     created: number;
+    overwritten: number;
     skipped: number;
     dropped: number;
     linked: number;
@@ -230,102 +275,195 @@ function clamp(field: FieldMeta, value: unknown): unknown {
   return value.slice(0, field.maxLength);
 }
 
+/** One row addressed by its primary key, and the columns to set on it. */
+interface RowEdit {
+  id: string;
+  data: Record<string, unknown>;
+}
+
 /** What a model's rows are shaped into, and what has to wait. */
 interface ShapedModel {
   /** Rows ready for `createMany`. */
   data: Record<string, unknown>[];
   /** Rows whose self-referencing columns must be set after the table exists. */
-  links: { id: string; data: Record<string, unknown> }[];
+  links: RowEdit[];
+  /** Existing rows to write the bundle's values into. Empty under `skip`. */
+  updates: RowEdit[];
+}
+
+/** Everything about one table that the per-row mapping needs. */
+interface ShapeContext {
+  fields: Map<string, FieldMeta>;
+  idColumn: string;
+  regenerate: ReadonlySet<string>;
+  unsupported: ReadonlySet<string>;
+  /** Single-column foreign keys, whose values are ids needing substitution. */
+  references: ReadonlySet<string>;
+  policy: TransferPolicy;
+  newIds: ReadonlyMap<string, string>;
+  heldBack: ReadonlySet<string>;
 }
 
 /**
- * Turn one table's resolved rows into rows Prisma will accept.
+ * Map one bundle row's columns onto the columns Prisma will accept.
+ *
+ * Shared by both modes, which is what makes "overwrite writes the same values a
+ * create would" true by construction rather than by two functions agreeing. The
+ * differences are named in the two `forUpdate` branches and nowhere else.
+ */
+function shapeValues(
+  ctx: ShapeContext,
+  values: Readonly<Record<string, unknown>>,
+  forUpdate: boolean
+): { write: Record<string, unknown>; link: Record<string, unknown> } {
+  const write: Record<string, unknown> = {};
+  const link: Record<string, unknown> = {};
+
+  for (const [column, raw] of Object.entries(values)) {
+    const field = ctx.fields.get(column);
+    // A column this schema does not have. Already named in the plan; dropping
+    // it is what lets a bundle from an older version import at all.
+    if (!field || !isWritableScalar(field)) continue;
+    if (ctx.unsupported.has(column)) continue;
+    // The bundle's id is a claim, not an address — see the planner.
+    if (column === ctx.idColumn) continue;
+    // Belongs to wherever the data lands, not to wherever it came from.
+    if (ctx.regenerate.has(column)) continue;
+    // Handled by the caller, from the manifest rather than from the file.
+    if (ctx.policy.reset && column in ctx.policy.reset) continue;
+    // The row was found through an owner-scoped read, so it already belongs to
+    // this account. Where the owner column *is* the primary key, writing it
+    // would be an attempt to move the row rather than to edit it.
+    if (forUpdate && ctx.policy.ownerColumn === column) continue;
+
+    let value: unknown = raw;
+
+    // A reference to a row being created still holds the bundle's id, because
+    // no new id existed when the plan was made. Now one does.
+    if (ctx.references.has(column) && typeof value === 'string') {
+      value = ctx.newIds.get(value) ?? value;
+    }
+
+    value = clamp(field, coerceForWrite(field, value));
+
+    // Held back because the row it names is in this same table, or because the
+    // edge was opened to break a cycle. Written once the table exists — and only
+    // for a create: an update runs after every insert, so by then the row it
+    // names exists and there is nothing to wait for.
+    if (!forUpdate && ctx.heldBack.has(column)) {
+      if (value !== null && value !== undefined) link[column] = value;
+      continue;
+    }
+
+    write[column] = value;
+  }
+
+  return { write, link };
+}
+
+/** Force the manifest's fixed values. Applied in both modes. */
+function applyReset(ctx: ShapeContext, write: Record<string, unknown>): void {
+  for (const [column, value] of Object.entries(ctx.policy.reset ?? {})) {
+    const field = ctx.fields.get(column);
+    if (field && isWritableScalar(field)) write[column] = value;
+  }
+}
+
+interface ShapeModelParams {
+  model: string;
+  rows: readonly ResolvedRow[];
+  policy: TransferPolicy;
+  node: ModelNode;
+  newIds: ReadonlyMap<string, string>;
+  targetUserId: string;
+  heldBack: ReadonlySet<string>;
+  conflictMode: ConflictMode;
+  /**
+   * A model that describes the importer rather than something they own.
+   *
+   * Never created, whatever the plan says — but still written into under
+   * `overwrite`, because the row it matched is the importer's own.
+   */
+  isIdentityModel: boolean;
+}
+
+/**
+ * Turn one table's resolved rows into the writes Prisma will accept.
  *
  * Everything the policy said about a column is applied here and nowhere else:
  * the id is the minted one, the owner is the importing account, `regenerate`
  * columns are dropped, `reset` columns are forced, values are coerced to the
  * column's type and clamped to its width.
  */
-function shapeModel(
-  model: string,
-  rows: readonly ResolvedRow[],
-  policy: TransferPolicy,
-  node: ModelNode,
-  newIds: ReadonlyMap<string, string>,
-  targetUserId: string,
-  heldBack: ReadonlySet<string>
-): ShapedModel {
-  const fields = new Map(node.fields.map((field) => [field.name, field]));
-  const idColumn = node.idFields[0];
-  const regenerate = new Set(policy.regenerate ?? []);
-  const unsupported = new Set(node.unsupported);
-  const references = new Set(
-    node.relations
-      .filter((relation) => relation.fromFields.length === 1)
-      .map((relation) => relation.fromFields[0])
-  );
+function shapeModel(params: ShapeModelParams): ShapedModel {
+  const { model, rows, policy, node, newIds, targetUserId, heldBack, conflictMode } = params;
+
+  const ctx: ShapeContext = {
+    fields: new Map(node.fields.map((field) => [field.name, field])),
+    idColumn: node.idFields[0],
+    regenerate: new Set(policy.regenerate ?? []),
+    unsupported: new Set(node.unsupported),
+    references: new Set(
+      node.relations
+        .filter((relation) => relation.fromFields.length === 1)
+        .map((relation) => relation.fromFields[0])
+    ),
+    policy,
+    newIds,
+    heldBack,
+  };
 
   const data: Record<string, unknown>[] = [];
-  const links: { id: string; data: Record<string, unknown> }[] = [];
+  const links: RowEdit[] = [];
+  const updates: RowEdit[] = [];
 
   for (const row of rows) {
-    if (row.outcome !== 'create' || row.sourceId === null) continue;
+    if (row.sourceId === null) continue;
+
+    // ── an existing row the bundle is allowed to write into ──
+    //
+    // `match` only. A `soft-match` came from a guessed key and is left exactly
+    // as `skip` leaves it — see the file header.
+    if (row.outcome === 'match' && row.targetId) {
+      if (conflictMode !== 'overwrite') continue;
+
+      const { write } = shapeValues(ctx, row.values, true);
+      applyReset(ctx, write);
+      // `mint` is deliberately absent: re-issuing a minted value into a row that
+      // already has one rotates a live credential.
+
+      // Nothing writable came across for this row. An empty `update` is a round
+      // trip that changes only `updatedAt`, which reads as an edit that did not
+      // happen.
+      if (Object.keys(write).length > 0) updates.push({ id: row.targetId, data: write });
+      continue;
+    }
+
+    if (row.outcome !== 'create') continue;
+    // Never created. If the lookup somehow failed to match the importing user,
+    // an insert carrying their own id would collide with the row it failed to
+    // find and take the whole transaction down — a confusing way to be told the
+    // obvious.
+    if (params.isIdentityModel) continue;
 
     const id = newIds.get(row.sourceId);
     if (!id) continue;
 
-    const write: Record<string, unknown> = {};
-    const link: Record<string, unknown> = {};
+    const { write, link } = shapeValues(ctx, row.values, false);
 
-    for (const [column, raw] of Object.entries(row.values)) {
-      const field = fields.get(column);
-      // A column this schema does not have. Already named in the plan; dropping
-      // it is what lets a bundle from an older version import at all.
-      if (!field || !isWritableScalar(field)) continue;
-      if (unsupported.has(column)) continue;
-      // The bundle's id is a claim, not an address — see the planner.
-      if (column === idColumn) continue;
-      // Belongs to wherever the data lands, not to wherever it came from.
-      if (regenerate.has(column)) continue;
-      // Handled below, from the manifest rather than from the file.
-      if (policy.reset && column in policy.reset) continue;
-
-      let value: unknown = raw;
-
-      // A reference to a row being created still holds the bundle's id, because
-      // no new id existed when the plan was made. Now one does.
-      if (references.has(column) && typeof value === 'string') {
-        value = newIds.get(value) ?? value;
-      }
-
-      value = clamp(field, coerceForWrite(field, value));
-
-      // Held back because the row it names is in this same table, or because the
-      // edge was opened to break a cycle. Written once the table exists.
-      if (heldBack.has(column)) {
-        if (value !== null && value !== undefined) link[column] = value;
-        continue;
-      }
-
-      write[column] = value;
-    }
-
-    write[idColumn] = id;
-    // Last, and unconditionally: whatever the bundle said, this row belongs to
-    // the account doing the importing.
+    write[ctx.idColumn] = id;
+    // Whatever the bundle said, this row belongs to the account doing the
+    // importing.
     if (policy.ownerColumn) write[policy.ownerColumn] = targetUserId;
 
-    for (const [column, value] of Object.entries(policy.reset ?? {})) {
-      const field = fields.get(column);
-      if (field && isWritableScalar(field)) write[column] = value;
-    }
+    applyReset(ctx, write);
 
     // Issued here rather than carried. These are the columns `redact` drops on
     // the way out and the schema insists on on the way in — without this the
     // table simply could not be written. Called per row, because the whole
     // reason they are functions is that they must not repeat.
     for (const [column, generate] of Object.entries(policy.mint ?? {})) {
-      const field = fields.get(column);
+      const field = ctx.fields.get(column);
       if (field && isWritableScalar(field)) write[column] = generate();
     }
 
@@ -333,9 +471,14 @@ function shapeModel(
     if (Object.keys(link).length > 0) links.push({ id, data: link });
   }
 
-  logger.debug('Transfer import shaped a table', { model, rows: data.length, links: links.length });
+  logger.debug('Transfer import shaped a table', {
+    model,
+    rows: data.length,
+    links: links.length,
+    updates: updates.length,
+  });
 
-  return { data, links };
+  return { data, links, updates };
 }
 
 export interface ApplyImportParams {
@@ -353,14 +496,6 @@ export interface ApplyImportParams {
  */
 export async function applyImportPlan(params: ApplyImportParams): Promise<ApplyResult> {
   const { plan, userId, conflictMode } = params;
-
-  if (conflictMode === 'overwrite') {
-    throw new TransferApplyError(
-      'Writing into records you already have is not available yet. This import can only add ' +
-        'records that are not already here.',
-      'overwrite-not-supported'
-    );
-  }
 
   // The plan carries the account it was built for, and every owner column in it
   // was already overwritten with that id. Applying it as somebody else would
@@ -388,6 +523,7 @@ export async function applyImportPlan(params: ApplyImportParams): Promise<ApplyR
   /** Models that describe the importer rather than belonging to them. */
   const identityModels = new Set<string>();
   let creating = 0;
+  let overwriting = 0;
 
   for (const model of plan.order) {
     const policy = policyFor(model);
@@ -409,6 +545,13 @@ export async function applyImportPlan(params: ApplyImportParams): Promise<ApplyR
     for (const row of plan.resolved.get(model) ?? []) {
       if (row.sourceId === null || row.outcome === 'drop') continue;
 
+      // Counted ahead of the identity-model branch below: a `User` row matches
+      // like any other row and is written into like any other row. Soft matches
+      // are not counted, because no mode writes into them.
+      if (conflictMode === 'overwrite' && row.outcome === 'match' && row.targetId) {
+        overwriting += 1;
+      }
+
       if (identityModels.has(model)) {
         newIds.set(row.sourceId, userId);
         continue;
@@ -428,9 +571,15 @@ export async function applyImportPlan(params: ApplyImportParams): Promise<ApplyR
     }
   }
 
-  if (creating > APPLY_CAPS.maxRows) {
+  // Inserts and overwrites counted against one cap, because what the cap is
+  // really bounding is how long one transaction holds a connection open — and an
+  // overwrite is the more expensive of the two, since each one is its own round
+  // trip where inserts go a thousand at a time.
+  const writing = creating + overwriting;
+
+  if (writing > APPLY_CAPS.maxRows) {
     throw new TransferApplyError(
-      `This import would write ${creating.toLocaleString('en-GB')} records, and more than ` +
+      `This import would write ${writing.toLocaleString('en-GB')} records, and more than ` +
         `${APPLY_CAPS.maxRows.toLocaleString('en-GB')} cannot be written in one go. Import ` +
         'fewer sections at a time.',
       'too-many-rows'
@@ -461,17 +610,17 @@ export async function applyImportPlan(params: ApplyImportParams): Promise<ApplyR
 
     shaped.set(
       model,
-      identityModels.has(model)
-        ? { data: [], links: [] }
-        : shapeModel(
-            model,
-            plan.resolved.get(model) ?? [],
-            policy,
-            node,
-            newIds,
-            userId,
-            heldBackByModel.get(model) ?? new Set()
-          )
+      shapeModel({
+        model,
+        rows: plan.resolved.get(model) ?? [],
+        policy,
+        node,
+        newIds,
+        targetUserId: userId,
+        heldBack: heldBackByModel.get(model) ?? new Set(),
+        conflictMode,
+        isIdentityModel: identityModels.has(model),
+      })
     );
   }
 
@@ -480,15 +629,19 @@ export async function applyImportPlan(params: ApplyImportParams): Promise<ApplyR
   const applied = new Map<string, AppliedModel>();
   for (const model of plan.order) {
     const rows = plan.resolved.get(model) ?? [];
-    const created = shaped.get(model)?.data.length ?? 0;
+    const work = shaped.get(model);
+    const created = work?.data.length ?? 0;
+    const overwritten = work?.updates.length ?? 0;
     const dropped = rows.filter((row) => row.outcome === 'drop').length;
     applied.set(model, {
       model,
       created,
+      overwritten,
       // Derived rather than counted from outcomes, so a row left alone for any
-      // reason lands here — a match, or a row describing the importer, which is
-      // not a match and is still not written.
-      skipped: rows.length - dropped - created,
+      // reason lands here — a soft match, a match under `skip`, a match that
+      // carried nothing writable, or a row describing the importer, which is not
+      // a match and is still not created.
+      skipped: rows.length - dropped - created - overwritten,
       dropped,
       linked: 0,
     });
@@ -530,31 +683,65 @@ export async function applyImportPlan(params: ApplyImportParams): Promise<ApplyR
         const entry = applied.get(model);
         if (entry) entry.linked = work.links.length;
       }
+
+      // Then, last, the rows that were already here. Last because every insert
+      // has landed by now, so a matched row's references can be written in one
+      // statement whatever they point at — and because an edit to somebody's
+      // existing data is the one thing here worth doing against a database that
+      // is otherwise already consistent.
+      for (const model of plan.order) {
+        const node = MODEL_GRAPH[model];
+        const work = shaped.get(model);
+        if (!node || !work || work.updates.length === 0) continue;
+
+        const idColumn = node.idFields[0];
+        const delegate = delegateFor(client, node);
+
+        // One statement per row: the values differ per row, so there is no
+        // `updateMany` shape that would carry them. This is what the row cap is
+        // really bounding.
+        for (const update of work.updates) {
+          await delegate.update({ where: { [idColumn]: update.id }, data: update.data });
+        }
+      }
     },
     { timeout: APPLY_CAPS.timeoutMs, maxWait: APPLY_CAPS.maxWaitMs }
   );
 
   const models = [...applied.values()].filter(
-    (entry) => entry.created > 0 || entry.skipped > 0 || entry.dropped > 0
+    (entry) => entry.created > 0 || entry.overwritten > 0 || entry.skipped > 0 || entry.dropped > 0
   );
 
   const totals = models.reduce(
     (sum, entry) => ({
       created: sum.created + entry.created,
+      overwritten: sum.overwritten + entry.overwritten,
       skipped: sum.skipped + entry.skipped,
       dropped: sum.dropped + entry.dropped,
       linked: sum.linked + entry.linked,
     }),
-    { created: 0, skipped: 0, dropped: 0, linked: 0 }
+    { created: 0, overwritten: 0, skipped: 0, dropped: 0, linked: 0 }
   );
 
   const warnings: string[] = [];
+
+  if (totals.overwritten > 0) {
+    warnings.push(
+      `${totals.overwritten} ${totals.overwritten === 1 ? 'record' : 'records'} already here ` +
+        `${totals.overwritten === 1 ? 'was' : 'were'} written into, because you asked for the ` +
+        'imported copy to win. What was in them before is not recoverable from here.'
+    );
+  }
 
   if (totals.skipped > 0) {
     warnings.push(
       `${totals.skipped} ${totals.skipped === 1 ? 'record' : 'records'} matched something this ` +
         'account already has and were left exactly as they were. Anything that referred to them ' +
-        'now refers to the records already here.'
+        'now refers to the records already here.' +
+        (conflictMode === 'overwrite'
+          ? ' Records matched on a guessed key rather than on a unique constraint are always ' +
+            'left alone, whatever the mode — the plan lists every one of them.'
+          : '')
     );
   }
 

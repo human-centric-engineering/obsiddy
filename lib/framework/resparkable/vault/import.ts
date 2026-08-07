@@ -42,7 +42,7 @@ import {
   findEntityBySlug,
   updateEntity,
 } from '@/lib/framework/resparkable/repo/entities';
-import { createGoal, updateGoal } from '@/lib/framework/resparkable/repo/goals';
+import { createGoal, findGoalBySlug, updateGoal } from '@/lib/framework/resparkable/repo/goals';
 import { createSuggestedLinks, type LinkCreateData } from '@/lib/framework/resparkable/repo/links';
 import type { OwnerScope } from '@/lib/framework/resparkable/repo/owner-scope';
 import {
@@ -510,6 +510,11 @@ async function writeNote(
 
       const created = await createGoal(scope, {
         title: note.title,
+        slug: await resolveUniqueSlug(scope, {
+          preferred: str(note.fields, 'slug'),
+          fallbackFrom: note.title,
+          exists: findGoalBySlug,
+        }),
         // Every goal needs one. The planner fills it from the folder when the
         // frontmatter does not say, so this default is the last resort for a
         // note dropped straight into `Goals/`.

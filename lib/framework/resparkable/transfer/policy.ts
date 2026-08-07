@@ -154,17 +154,16 @@ export const resparkableTransferPolicies: TransferPolicySet = {
       disposition: 'transfer',
       note: 'Goals across every horizon, including which goal sits under which.',
       ownerColumn: 'userId',
+      // A real constraint, as for areas, projects and entities. This table used
+      // to carry a soft key instead — horizon, normalised title, target date —
+      // because it had no `@@unique` to point at, and that guess was the one
+      // thing blocking `conflictMode: 'overwrite'`: writing into a row matched
+      // on a guess is writing into a guess. The soft key is gone rather than
+      // kept as a fallback, so there is exactly one answer to "is this the same
+      // goal?" and it is the same answer the vault importer gives.
+      mergeKeys: [['userId', 'slug']],
       reset: { indexedHash: null },
       secretReviewed: { ...INDEXED_HASH_REVIEWED },
-      // There is no unique constraint on this table — see the note in
-      // `.context/framework/resparkable/transfer.md`. Until one exists, identity
-      // is a considered guess, and every match it makes is listed individually
-      // in the dry run so it can be vetoed before anything is written.
-      softMergeKey: (row: Readonly<Record<string, unknown>>): string | null => {
-        const title = typeof row.title === 'string' ? normaliseTitle(row.title) : '';
-        if (title === '') return null;
-        return `${text(row.horizon)}|${title}|${dayOf(row.targetDate)}`;
-      },
     },
 
     {

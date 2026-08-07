@@ -100,6 +100,7 @@ describe('encoding', () => {
       {
         id: 'clx1',
         title: 'Ship Resparkable',
+        slug: 'ship-resparkable',
         horizon: 'quarter',
         status: 'active',
         targetDate: new Date('2026-09-30T00:00:00.000Z'),

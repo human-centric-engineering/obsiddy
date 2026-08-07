@@ -92,11 +92,14 @@ export const accountImportSchema = z.object({
   /**
    * What to do about a record that matches one the account already has.
    *
-   * `skip` is the default and the only value this version honours — the existing
-   * row is left exactly as it is, and records matching nothing are created.
-   * `overwrite` is accepted by the schema so the refusal comes from the applier
-   * with a sentence about why, rather than from a validator with a list of
-   * permitted strings.
+   * `skip` is the default: the existing row is left exactly as it is, and records
+   * matching nothing are created. `overwrite` writes the bundle's values into the
+   * row it matched — but only where the match came from a real unique constraint,
+   * never from a guessed key.
+   *
+   * The default is `skip` rather than "whatever was asked for", because these two
+   * are not symmetrical: the worst `skip` produces is a duplicate, and the worst
+   * `overwrite` produces is data that used to be there and now is not.
    */
   conflictMode: z
     .union([z.literal('skip'), z.literal('overwrite'), z.undefined()])

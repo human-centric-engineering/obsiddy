@@ -12,16 +12,18 @@
  * reversible, so the safe reading of silence is "show me".
  *
  * `conflictMode` decides what happens to a record matching one the account
- * already has: `skip` (the default, and all this version honours) leaves the
- * existing row exactly as it is; `overwrite` is Phase F, and is refused by the
- * applier with a sentence saying why rather than by a validator listing
- * permitted strings.
+ * already has: `skip`, the default, leaves the existing row exactly as it is;
+ * `overwrite` writes the bundle's values into it, but only where the match came
+ * from a real unique constraint rather than from a guessed key.
  *
  * ## What this route does not do
  *
- * It never deletes, and in `skip` mode it never edits. The only write is an
- * insert: a record already here is left alone, and everything that referred to
- * the bundle's copy is pointed at the one already here instead.
+ * **It never deletes**, in either mode. Under `skip` it never edits either: the
+ * only write is an insert, a record already here is left alone, and everything
+ * that referred to the bundle's copy is pointed at the one already here instead.
+ * Under `overwrite` it also edits rows that matched — which is the one
+ * irreversible thing this endpoint can do, and why it is neither the default nor
+ * reachable without `apply=true`.
  *
  * ## Guard order
  *
