@@ -39,6 +39,11 @@ import { cn } from '@/lib/utils';
  * Lowercase throughout: this is a tool that sits beside your notes all day, and
  * a shouting wordmark wears out. Martian Mono can afford full width here because
  * this is the one string in the app that is a name rather than a sentence.
+ *
+ * The lowercasing is CSS, not the text nodes — the first syllable is `Re`, so
+ * the three spans still concatenate to `Resparkable`. That string is the
+ * accessible name of the link this sits inside, and a screen reader should read
+ * the product's name, not a stylistic choice about it.
  */
 export function SparkWordmark({ className }: { className?: string }): React.ReactNode {
   const base = cn('font-display tracking-[-0.02em] lowercase', className);
@@ -49,7 +54,7 @@ export function SparkWordmark({ className }: { className?: string }): React.Reac
 
   return (
     <span className={base}>
-      <span className="text-muted-foreground font-normal">re</span>
+      <span className="text-muted-foreground font-normal">Re</span>
       <span className="spark-lit font-semibold">spark</span>
       <span className="text-foreground font-normal">able</span>
     </span>
