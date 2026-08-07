@@ -11,7 +11,7 @@ export const metadata: Metadata = {
     default: BRAND.name,
   },
   description:
-    'A personal system for notes, tasks, projects and goals — capture an idea in one line and let the background jobs rank it, index it by meaning, and look for what it connects to.',
+    'Never lose a good idea. Capture it in one line, and get it back when it matters, with your notes, tasks, projects and goals in the same place.',
 };
 
 /**

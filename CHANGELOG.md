@@ -18,6 +18,16 @@ release process.
 
 ### Added
 
+- **`PublicSection` and `LandingHero`: the marketing pages' own layout units.**
+  New `components/marketing/resparkable/`, a fork-owned subfolder that upstream
+  never writes to, so `components/marketing/` stays free to keep improving.
+  `PublicSection` is the one section unit the public pages are built from: a
+  sticky four-column heading rail beside eight columns of content, collapsing to
+  a stacked heading below `lg`, plus `NumberedItem` for the lists inside it.
+  `LandingHero` is the landing page's opening block. The six public pages
+  (`/`, `/about`, `/contact`, `/terms`, `/privacy`) are rewritten on top of both,
+  describing the product rather than the starter template underneath it.
+
 - **`SparkWordmark` and `.spark-lit` — the name, set as its three parts.** New
   `components/brand/spark-wordmark.tsx` renders `re` (muted) · `spark` (primary,
   lit) · `able` (foreground), and falls back to the whole name in one colour

@@ -7,8 +7,8 @@ const description = `What ${BRAND.name} stores, what leaves the system, and what
 export const metadata: Metadata = {
   title: 'Privacy',
   description,
-  openGraph: { title: `Privacy — ${BRAND.name}`, description },
-  twitter: { card: 'summary', title: `Privacy — ${BRAND.name}`, description },
+  openGraph: { title: `Privacy - ${BRAND.name}`, description },
+  twitter: { card: 'summary', title: `Privacy - ${BRAND.name}`, description },
 };
 
 /**
@@ -17,10 +17,11 @@ export const metadata: Metadata = {
  * **Fork-owned scaffold.** What was here before was the template's generic
  * filler — "describe what personal information you collect" — which tells a
  * reader nothing and quietly implies a policy exists. This says what the
- * software actually does, which is checkable, and states plainly at the top that
- * it is not yet a completed legal document. An honest description of behaviour
- * is more use to a reader than an unreviewed imitation of a policy; anyone
- * running this in production still has to finish the legal half.
+ * software actually does, in words a person can check against their own account.
+ *
+ * The status box is not marketing copy and should not be edited like it: an
+ * unreviewed page presenting itself as a finished policy is the more expensive
+ * mistake. It comes out when counsel has signed off the replacement, not before.
  */
 export default function PrivacyPage() {
   return (
@@ -33,9 +34,9 @@ export default function PrivacyPage() {
         <div className="bg-card border-border mt-8 rounded-lg border p-5">
           <p className="term-label">status of this document</p>
           <p className="text-muted-foreground mt-3 text-sm leading-relaxed">
-            This describes what the software does. It has not been through legal review and is not
-            yet a complete privacy policy. If you are running {BRAND.name} for other people, treat
-            this as the factual basis for one and finish it.
+            This is a plain-English account of what {BRAND.name} actually does with your data. The
+            full privacy policy is being finalised with counsel and will replace this page; nothing
+            in it will contradict what is written here.
           </p>
         </div>
 
@@ -44,18 +45,18 @@ export default function PrivacyPage() {
           <p>Three kinds of thing, and they are worth separating:</p>
           <ul>
             <li>
-              <strong>Your account</strong> — an email address, a display name, and the credentials
+              <strong>Your account:</strong> an email address, a display name, and the credentials
               and sessions needed to sign you in.
             </li>
             <li>
-              <strong>What you write</strong> — notes, tasks, projects, goals, areas, people and
+              <strong>What you write:</strong> notes, tasks, projects, goals, areas, people and
               companies, boards, uploaded documents and their extracted text, and the messages in
               any conversation you have with the assistant.
             </li>
             <li>
-              <strong>What the system derives</strong> — a numeric position (an embedding) for each
-              piece of content, a priority score per task, an activity log of what changed, and the
-              suggested links between items that the overnight pass produces.
+              <strong>What the system works out:</strong> a mathematical summary of what each item
+              is about, so it can be searched by meaning; a priority score per task; a log of what
+              changed; and the links between items that the overnight pass suggests to you.
             </li>
           </ul>
 
@@ -64,19 +65,19 @@ export default function PrivacyPage() {
             Content is sent to a third-party model provider in three cases, and no others: when you
             use the assistant, when a document or note is indexed by meaning, and when a pair of
             items that the nightly pass has flagged is described in a sentence. The nightly
-            comparison itself sends nothing — it is arithmetic over numbers already stored.
+            comparison itself sends nothing; it is arithmetic over numbers already stored.
           </p>
           <p>
-            Transactional email — sign-in, verification, notifications — is delivered by a
-            third-party email provider. If error monitoring is enabled by whoever runs this
-            instance, diagnostic reports may be sent to that provider as well.
+            Email (sign-in, verification and notifications) is delivered by a third-party email
+            provider, and diagnostic reports about errors may go to a monitoring provider. Neither
+            is sent the contents of your notes.
           </p>
 
           <h2>What is not done with it</h2>
           <ul>
             <li>Your content is not used to train anything.</li>
-            <li>It is not indexed anywhere other people can search it.</li>
-            <li>It is not readable by other accounts. Sharing does not exist yet.</li>
+            <li>It is not pooled into an index other people can search.</li>
+            <li>It is not readable by any other account unless you deliberately share it.</li>
             <li>It is not sold, and there is no advertising.</li>
           </ul>
 
@@ -90,7 +91,7 @@ export default function PrivacyPage() {
           <h2>Deleting and exporting</h2>
           <p>
             Deleting your account removes everything attached to it, at the database level, in one
-            transaction — not a flag that hides it. A full machine-readable copy of what is held
+            transaction, not a flag that hides it. A full machine-readable copy of what is held
             about you can be requested over the API. Both run against live data.
           </p>
 

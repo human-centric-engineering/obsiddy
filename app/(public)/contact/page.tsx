@@ -7,21 +7,23 @@ const description = `Ask a question about ${BRAND.name}, report something broken
 export const metadata: Metadata = {
   title: 'Contact',
   description,
-  openGraph: { title: `Contact — ${BRAND.name}`, description },
-  twitter: { card: 'summary_large_image', title: `Contact — ${BRAND.name}`, description },
+  openGraph: { title: `Contact - ${BRAND.name}`, description },
+  twitter: { card: 'summary_large_image', title: `Contact - ${BRAND.name}`, description },
 };
 
 /**
  * Contact page.
  *
- * **Fork-owned scaffold.** Two channels, both real: the form, which writes a
- * `ContactSubmission` row and sends a notification, and the issue tracker.
+ * **Fork-owned scaffold.** One channel, and it is real: the form writes a
+ * `ContactSubmission` row and sends a notification.
  *
  * What was here before and is deliberately gone: a support tier linking to
  * invented pricing, a promised response time nobody had committed to, and a
  * `hello@example.com` address that would have bounced. A contact page whose
  * details are placeholders is worse than one channel that works — the reader
- * cannot tell which of them are real, so they trust none.
+ * cannot tell which of them are real, so they trust none. A public issue
+ * tracker went the same way: the repository is private, so the link would have
+ * been a door that does not open.
  */
 export default function ContactPage() {
   return (
@@ -33,15 +35,15 @@ export default function ContactPage() {
             className="obsidian-reveal mt-5 text-4xl sm:text-5xl"
             style={{ animationDelay: '70ms' }}
           >
-            Say what is missing.
+            Tell us what you need.
           </h1>
           <p
             className="text-muted-foreground obsidian-reveal mt-6 text-lg leading-relaxed"
             style={{ animationDelay: '140ms' }}
           >
-            Questions, things that are broken, and the feature you expected to find and did not are
-            all equally useful. There is no support desk behind this — it reaches the people
-            building it.
+            Ask a question, tell us something went wrong, or say what would make this worth using
+            for you. There is no support desk in the way: messages reach the people building it, and
+            get a real answer back.
           </p>
         </div>
 
@@ -58,29 +60,20 @@ export default function ContactPage() {
 
           <div className="lg:col-span-5">
             <div className="bg-card border-border rounded-lg border p-6">
-              <p className="term-label">issue tracker</p>
+              <p className="term-label">what to send</p>
               <p className="text-muted-foreground mt-3 text-sm leading-relaxed">
-                Bug reports and feature requests are better in the open, where they can be linked to
-                the commit that closes them. The roadmap on the front page is kept in the same
-                repository.
+                The feature you went looking for and did not find is the most useful message we get.
+                So is the thing that behaved oddly, and the sentence somewhere on this site that did
+                not make sense. All of it goes to the people building it.
               </p>
-              <a
-                href="https://github.com/human-centric-engineering/resparkable/issues"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary mt-4 inline-block font-mono text-sm hover:underline"
-              >
-                github.com/human-centric-engineering/resparkable
-              </a>
             </div>
 
             <div className="bg-card border-border mt-6 rounded-lg border p-6">
               <p className="term-label">your data</p>
               <p className="text-muted-foreground mt-3 text-sm leading-relaxed">
-                A message sent here is stored so that it can be answered. If you have an account,
-                deleting it from settings removes everything attached to it, and a full copy of what
-                is held about you can be requested over the API — both run against the live database
-                rather than a report someone assembles by hand.
+                A message sent here is stored so that it can be answered, and nothing more. Deleting
+                your account removes everything attached to it, and you can ask for a full copy of
+                what is held about you at any time.
               </p>
             </div>
           </div>

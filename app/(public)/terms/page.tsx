@@ -2,22 +2,24 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { BRAND } from '@/lib/brand';
 
-const description = `The terms under which ${BRAND.name} is provided: what it is, what it is not, and who owns what.`;
+const description = `The terms under which ${BRAND.name} is provided, and who owns what.`;
 
 export const metadata: Metadata = {
   title: 'Terms',
   description,
-  openGraph: { title: `Terms — ${BRAND.name}`, description },
-  twitter: { card: 'summary', title: `Terms — ${BRAND.name}`, description },
+  openGraph: { title: `Terms - ${BRAND.name}`, description },
+  twitter: { card: 'summary', title: `Terms - ${BRAND.name}`, description },
 };
 
 /**
  * Terms page.
  *
  * **Fork-owned scaffold.** Replaces the template's placeholder — which included
- * a Payment Terms section for a product that does not charge — with what is
- * actually true, and says at the top that the legal half is unfinished. Better a
- * short accurate document than a long imitation of one.
+ * a Payment Terms section for a product that does not yet charge — with what is
+ * actually true. The status box at the top is not marketing copy and should not
+ * be read as one: it is there because an unreviewed document that presents
+ * itself as a finished contract is the more expensive mistake. Delete it when a
+ * lawyer has signed the rest off, not before.
  */
 export default function TermsPage() {
   return (
@@ -30,32 +32,26 @@ export default function TermsPage() {
         <div className="bg-card border-border mt-8 rounded-lg border p-5">
           <p className="term-label">status of this document</p>
           <p className="text-muted-foreground mt-3 text-sm leading-relaxed">
-            This states the arrangement in plain terms. It has not been through legal review and is
-            not a complete set of terms of service. If you are running {BRAND.name} for other
-            people, have a lawyer finish it.
+            This states the arrangement in plain terms. The full terms of service are being
+            finalised with counsel and will replace this page; nothing in them will contradict what
+            is written here.
           </p>
         </div>
 
         <div className="prose prose-neutral dark:prose-invert mt-10 max-w-none">
           <h2>What this is</h2>
           <p>
-            {BRAND.name} is a personal system for notes, tasks, projects and goals. It is a work in
-            progress: parts of it are finished and running, and parts of it are on a roadmap and
-            labelled as such on the <Link href="/">front page</Link>. Features may change.
+            {BRAND.name} is a system for capturing ideas and keeping them alongside your notes,
+            tasks, projects and goals. It is actively developed, and features are added and improved
+            over time.
           </p>
 
           <h2>What you keep</h2>
           <p>
             Everything you write stays yours. Nothing here transfers ownership of your content, and
             nothing gives anyone permission to use it for any purpose other than running the service
-            for you. You can take it all out as a folder of markdown at any time, and you can delete
-            it.
-          </p>
-
-          <h2>The software</h2>
-          <p>
-            The source is MIT licensed and can be read, forked, self-hosted and modified on those
-            terms. The licence covers the code, not the contents of anyone&apos;s account.
+            for you. Your content is not used to train models and is not sold. You can take it all
+            out as a folder of markdown at any time, and you can delete it.
           </p>
 
           <h2>Using it sensibly</h2>
@@ -79,7 +75,7 @@ export default function TermsPage() {
           <p>
             The service is provided as it stands, without warranty of any kind. It may be
             unavailable, it may lose data, and it may change. Keep your own copy of anything you
-            cannot afford to lose — the markdown export exists for exactly this.
+            cannot afford to lose. The markdown export exists for exactly this.
           </p>
 
           <h2>Ending it</h2>
