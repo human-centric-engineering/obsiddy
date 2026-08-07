@@ -475,18 +475,47 @@ of the prioritiser and precisely the thing they would be angriest to lose.
 
 ## Phases
 
-|     |                                                           | Status     |
-| --- | --------------------------------------------------------- | ---------- |
-| A   | Model graph, policy manifest, coverage guards             | ✅ shipped |
-| B   | Export: collector, bundle writer, zip, route, UI          | ✅ shipped |
-| C   | Brain formats: Logseq, Notion, CSV, single-file digest    | ✅ shipped |
-| D   | Import, **dry-run only** — planner, id-map, orphan report | ✅ shipped |
-| E   | Import apply, fresh mode only                             | planned    |
-| F   | Merge mode + the `ResparkableGoal` unique migration       | planned    |
-| G   | Document originals, background jobs, admin-initiated      | planned    |
+|     |                                                                           | Status     |
+| --- | ------------------------------------------------------------------------- | ---------- |
+| A   | Model graph, policy manifest, coverage guards                             | ✅ shipped |
+| B   | Export: collector, bundle writer, zip, route, UI                          | ✅ shipped |
+| C   | Brain formats: Logseq, Notion, CSV, single-file digest                    | ✅ shipped |
+| D   | Import, **dry-run only** — planner, id-map, orphan report                 | ✅ shipped |
+| E   | Import apply, `conflictMode: 'create'` only                               | planned    |
+| F   | `conflictMode: 'merge'` + the `ResparkableGoal` unique migration it needs | planned    |
+| G   | Document originals, background jobs, admin-initiated                      | planned    |
 
-E and F ship separately on purpose. Fresh-mode bugs are visible; merge-mode bugs
-quietly attach data to the wrong parent and are found a month later.
+### The two conflict modes
+
+`conflictMode` answers one question: **when a record in the bundle looks like one
+the account already has, what happens?**
+
+|          |                                                                     |
+| -------- | ------------------------------------------------------------------- |
+| `create` | Nothing already here is touched. Every record arrives as a new one. |
+| `merge`  | The record is written into the row it matched.                      |
+
+The name is the one this codebase already uses for the question —
+`lib/validations/orchestration.ts` takes a `conflictMode` on the agent importer,
+though its values are `skip` and `overwrite`, because that importer decides per
+agent and this one decides per row across 57 tables. The values are the words the
+planner already reports in: a plan's `creates` count is what
+`conflictMode: 'create'` acts on, and `merge` is the manifest's own word —
+`mergeKeys`, `softMergeKey`.
+
+Identity resolution will run the same way in both (`mergeKeys` → `softMergeKey` →
+create) — the mode decides only what is _done_ with a match, not how one is
+found. Phase D's planner already resolves them, which is why the dry run reports
+`matches` today with no mode to act on them.
+
+E and F ship separately on purpose. In `create` mode the worst bug is a duplicate
+— visible, and deletable. In `merge` mode the worst bug writes somebody's data
+into the wrong existing row, which is neither, and is found a month later. It is
+the same trade `ResparkableTask` already makes by declaring no merge key at all.
+
+`merge` needs the `ResparkableGoal` unique constraint before it can ship, which
+is why the two are one phase: merging on a key with no constraint behind it is
+merging on a guess.
 
 ## See also
 
