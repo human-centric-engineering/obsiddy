@@ -27,6 +27,7 @@ import { AvatarUpload } from '@/components/forms/avatar-upload';
 import { PasswordForm } from '@/components/forms/password-form';
 import { PreferencesForm } from '@/components/forms/preferences-form';
 import { DeleteAccountForm } from '@/components/forms/delete-account-form';
+import { AccountExportPanel } from '@/components/settings/account-export-panel';
 import { useTrackedUrlTabs } from '@/lib/hooks/use-tracked-url-tabs';
 import { EVENTS } from '@/lib/analytics/events/constants';
 import {
@@ -36,6 +37,7 @@ import {
   DEFAULT_SETTINGS_TAB,
   type SettingsTab,
 } from '@/lib/constants/settings';
+import type { TransferGroupSummary } from '@/lib/portability/registry';
 import type { UserPreferences } from '@/types';
 
 /**
@@ -68,6 +70,14 @@ interface SettingsTabsProps {
   oauthProviders: string[];
   /** User initials for avatar fallback */
   initials: string;
+  /**
+   * The sections the export offers, computed on the server.
+   *
+   * Passed in rather than imported here: the policy manifest is ~1,300 lines of
+   * prose describing every table in the schema, and a client component
+   * importing it would ship all of it to the browser to render five checkboxes.
+   */
+  transferGroups: readonly TransferGroupSummary[];
 }
 
 /**
@@ -85,6 +95,7 @@ export function SettingsTabs({
   hasPasswordAccount,
   oauthProviders,
   initials,
+  transferGroups,
 }: SettingsTabsProps) {
   const { activeTab, setActiveTab } = useTrackedUrlTabs<SettingsTab>({
     defaultTab: DEFAULT_SETTINGS_TAB,
@@ -100,10 +111,11 @@ export function SettingsTabs({
 
   return (
     <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
-      <TabsList className="grid w-full grid-cols-4">
+      <TabsList className="grid w-full grid-cols-5">
         <TabsTrigger value={SETTINGS_TABS.PROFILE}>Profile</TabsTrigger>
         <TabsTrigger value={SETTINGS_TABS.SECURITY}>Security</TabsTrigger>
         <TabsTrigger value={SETTINGS_TABS.NOTIFICATIONS}>Notifications</TabsTrigger>
+        <TabsTrigger value={SETTINGS_TABS.DATA}>Your data</TabsTrigger>
         <TabsTrigger value={SETTINGS_TABS.ACCOUNT}>Account</TabsTrigger>
       </TabsList>
 
@@ -178,6 +190,19 @@ export function SettingsTabs({
             <Suspense fallback={<div>Loading...</div>}>
               <PreferencesForm preferences={preferences} />
             </Suspense>
+          </CardContent>
+        </Card>
+      </TabsContent>
+
+      {/* Your Data Tab */}
+      <TabsContent value={SETTINGS_TABS.DATA}>
+        <Card>
+          <CardHeader>
+            <CardTitle>Your data</CardTitle>
+            <CardDescription>Take a copy of your account with you</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <AccountExportPanel groups={transferGroups} />
           </CardContent>
         </Card>
       </TabsContent>

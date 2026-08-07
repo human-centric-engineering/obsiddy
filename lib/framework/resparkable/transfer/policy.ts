@@ -105,9 +105,13 @@ export const resparkableTransferPolicies: TransferPolicySet = {
       ownerColumn: 'userId',
       mergeKeys: [['userId']],
       // A live bearer token: anyone holding it can post into this person's
-      // inbox. It is also globally unique, so copying it would collide. The
-      // target mints its own from the column default.
-      regenerate: ['inboxToken'],
+      // inbox, on the installation this bundle was taken FROM. So it is dropped
+      // rather than merely not-written — `repo/subject-export.ts` omits it from
+      // the Art. 15 export for exactly this reason, and a transfer bundle is
+      // more of "a file that gets emailed, synced and forgotten", not less.
+      // Being absent also makes the import unambiguous: the column is unique,
+      // so the target has to mint its own regardless.
+      redact: ['inboxToken'],
       reset: {
         // Where the weekly connection sweep got to. Points at this
         // installation's clock, not at anything the user owns.

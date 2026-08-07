@@ -3,8 +3,9 @@
 Moving one person's data out of an account and into a different one — a new
 account, or the same account on a self-hosted install.
 
-**Status: Phase A shipped.** The model graph, the policy manifest and the
-coverage guards are in place. There is no export or import route yet; see
+**Status: Phases A and B shipped.** The model graph, the policy manifest, the
+coverage guards, and a working export — `GET /api/v1/users/me/transfer/export`,
+plus the Your data tab in Settings. There is no import yet; see
 [Phases](#phases).
 
 ## What already existed, and why none of it was enough
@@ -44,6 +45,13 @@ lib/portability/core-policies.ts           core + orchestration tables
 lib/portability/registry.ts                assembles the three tiers
 lib/framework/resparkable/transfer/policy.ts   the brain (data only, no imports)
 lib/app/data-transfer.ts                   fork seam, ships empty
+
+lib/portability/collect.ts                 finds the rows (Phase B)
+lib/portability/bundle.ts                  manifest + README, pure
+lib/portability/archive.ts                 the zip
+lib/portability/export-account.ts          the three, joined
+app/api/v1/users/me/transfer/export/       the endpoint
+components/settings/account-export-panel.tsx   Settings → Your data
 ```
 
 The engine lives in **core**, not in the framework tier, and treats the brain as
@@ -86,6 +94,83 @@ real ones and indistinguishable from them.
 stores its raw trigger payload verbatim — sender addresses, message bodies,
 attachments — so writing one into a _different_ environment would move
 third-party data nobody asked to move.
+
+## What comes out
+
+```
+account-export-2026-08-07.zip
+├── manifest.json         every table gathered and how, every one that was not and why,
+│                         every column dropped, every column that will be reissued
+├── README.md             the same thing in prose, for a reader with no session to log into
+└── data/<Model>.json     one file per table with rows. A table with no rows gets a
+                          manifest line and no file
+```
+
+One file per table rather than one document: a single large JSON file cannot be
+opened by tools a person already has, cannot be diffed between two exports, and
+forces an importer to parse all of it before it can report on any of it.
+
+Archives are **reproducible** — one `mtime` across every entry, rather than
+fflate's per-entry default of "now" — so two exports of an unchanged account
+differ only where the account differs. Being able to diff two exports is how
+anybody would ever notice this system quietly dropping a table.
+
+## How the export finds the rows
+
+Only 39 of the 57 exportable models carry an owner column. The rest are
+somebody's only by way of something else that is, so `collect.ts` runs two
+passes in two directions — and the asymmetry between them is the safety
+property, not an implementation detail.
+
+| Pass                | What it does                                                                              | Example                                  |
+| ------------------- | ----------------------------------------------------------------------------------------- | ---------------------------------------- |
+| **Down** (repeated) | Start at owner columns, then pull anything holding an FK into something already collected | `AiMessage` via its conversation         |
+| **Up** (once)       | Pull the rows collected data _points at_                                                  | `AiCapability` behind a capability grant |
+
+The up pass is **terminal**. It pulls shared, ownerless rows in and does not walk
+back down from them, because one step down from `AiCapability` is every other
+account's grants. A rule that simply alternated the two to a fixpoint would reach
+them, and would look exactly as reasonable while doing it.
+
+That is also why `ownerColumn` is authoritative rather than advisory: **a model
+that declares an owner is only ever collected by asking for that owner's rows.**
+`AiKnowledgeDocument.uploadedBy` is the case that makes this concrete — it is a
+shared table holding many people's uploads, so without the rule, one of your
+agents being granted somebody else's document would drag that person's row into
+your bundle.
+
+Anything neither pass reaches is **named in the manifest with a reason**. A
+missing table and an empty table look identical in a file listing, and only one
+of them is fine. Today that list is `AiCapability`, `AiKnowledgeBase`,
+`KnowledgeTag` (nothing of yours names one), `McpServerConfig`,
+`McpExposedResource`, `McpAuditLog` (its only route runs through `McpApiKey`,
+which is `skip`), and `McpExposedTool` (reachable only by descending from a
+shared row).
+
+## `redact` and `regenerate` answer different questions
+
+They were briefly conflated, and the export is what made the difference matter.
+
+|              | Axis       | Meaning                                                  |
+| ------------ | ---------- | -------------------------------------------------------- |
+| `redact`     | disclosure | Dropped from the bundle. Not in the file at all          |
+| `regenerate` | write      | In the file, never written — the target supplies its own |
+
+A live credential needs `redact`. `regenerate` only stops a value being written
+on the way _in_, and a secret's problem is on the way _out_: a bundle is a file
+that gets emailed, synced and forgotten, and the value keeps working against the
+installation it came **from** whatever an importer later does with it. This is
+the same call `repo/subject-export.ts` already made when it omitted `inboxToken`
+from the Art. 15 export "even though the subject owns it".
+
+So `inboxToken`, `AiWorkflowTrigger.signingSecret`, `AiEventHook.secret` and
+`AiWebhookSubscription.secret` are `redact`. `User.email`, `role`, `accountType`
+and `image` stay `regenerate` — identity that belongs to wherever the data lands,
+but not secret, and part of the record the user is owed.
+
+The coverage guard enforces the split: it no longer accepts `regenerate` as an
+answer for a secret-shaped column, and a second assertion fails on any policy
+that tries.
 
 ## Merge keys
 
@@ -188,7 +273,7 @@ of the prioritiser and precisely the thing they would be angriest to lose.
 |     |                                                           | Status     |
 | --- | --------------------------------------------------------- | ---------- |
 | A   | Model graph, policy manifest, coverage guards             | ✅ shipped |
-| B   | Export: collector, bundle writer, zip, route, UI          | planned    |
+| B   | Export: collector, bundle writer, zip, route, UI          | ✅ shipped |
 | C   | Brain formats: Logseq, Notion, CSV, single-file digest    | planned    |
 | D   | Import, **dry-run only** — planner, id-map, orphan report | planned    |
 | E   | Import apply, fresh mode only                             | planned    |

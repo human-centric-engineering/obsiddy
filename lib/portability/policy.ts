@@ -149,9 +149,29 @@ export interface TransferPolicy {
    */
   ownerColumn?: string;
 
-  /** Dropped from the bundle entirely. Credential material. */
+  /**
+   * Dropped from the bundle entirely. Credential material.
+   *
+   * This is the **disclosure** axis, and it is the one that matters for
+   * anything live. A bundle is a file that gets emailed, synced and forgotten,
+   * and a secret left inside it keeps working against the installation the
+   * bundle came *from*, whatever an importer later decides to do with it. Every
+   * secret-shaped column on a model that leaves must be here or in
+   * {@link secretReviewed}; the coverage guard does not accept
+   * {@link regenerate} as an answer, because it answers a different question.
+   */
   redact?: readonly string[];
-  /** Present in the bundle, never written — the target mints its own. */
+  /**
+   * Present in the bundle, never written — the target supplies its own.
+   *
+   * This is the **write** axis: identity and privilege that belong to wherever
+   * the data lands, not to wherever it came from. `email`, `role`,
+   * `accountType`. Without it an "overwrite on conflict" import would be a
+   * one-file privilege escalation.
+   *
+   * Not a way to handle a secret. A value listed only here is still in the
+   * file.
+   */
   regenerate?: readonly string[];
   /** Forced to a fixed value on import. Derived or environment-bound state. */
   reset?: Readonly<Record<string, null | number | boolean | string>>;

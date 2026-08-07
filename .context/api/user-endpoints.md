@@ -245,6 +245,65 @@ withheld and why. Volume is unbounded by design. What the bundle contains is
 decided by the manifest, not this route — see
 [Subject Access Export](../privacy/data-export.md).
 
+## Export Current User's Account (Transfer Bundle)
+
+✅ **Implemented in:** `app/api/v1/users/me/transfer/export/route.ts` (GET handler)
+
+**Purpose**: Give the user a copy of their account built to be _moved_ — into a
+different account, or a self-hosted install.
+
+```
+GET /api/v1/users/me/transfer/export
+GET /api/v1/users/me/transfer/export?groups=brain,conversations
+```
+
+**Not a duplicate of the endpoint above.** That one answers "what is held about
+me" and returns a JSON document to read; this one answers "what can I take with
+me" and returns a **zip built to be imported** — every table classified, every
+omission written down, every id intact so a later import can rewire them. The two
+manifests deliberately disagree; the table of where and why is in
+[Subject Access Export](../privacy/data-export.md#there-are-now-two-manifests-and-they-disagree-on-purpose).
+
+**Authentication**: Required — **browser session only**, same 403 refusal for API
+keys and the same reasoning.
+
+**Rate limit**: `exportLimiter` sub-cap keyed `transfer:export:${userId}`.
+
+**Query parameters**:
+
+| Param    | Type   | Notes                                                                         |
+| -------- | ------ | ----------------------------------------------------------------------------- |
+| `groups` | string | Comma-separated sections. Omit for all. An unknown name is a 400, not ignored |
+
+Valid sections: `account`, `brain`, `conversations`, `automation`, `history`.
+
+**Response** (200 OK): `application/zip`, with `Content-Disposition:
+attachment; filename="account-export-YYYY-MM-DD.zip"`, `Cache-Control: private,
+no-store`, and an `X-Transfer-Rows` count so a client can report what landed
+without unzipping it.
+
+The archive holds:
+
+```
+manifest.json              every table gathered, every one that was not, and why
+README.md                  the same thing in plain English
+data/<Model>.json          one file per table with rows; none for an empty table
+```
+
+**Error Responses**:
+
+- **400 Validation Error**: unknown section; or the account is too large to build
+  in one archive (the message names the limit and says to export fewer sections)
+- **401 Unauthorized**: No valid session
+- **403 Forbidden**: Authenticated with an API key rather than a browser session
+- **429 Too Many Requests**: Export sub-cap exhausted
+
+**Note**: Live credentials are **dropped**, not merely left unwritten —
+`inboxToken`, workflow-trigger signing secrets, event-hook and webhook secrets.
+They still authenticate traffic against the installation the bundle came _from_,
+and a bundle is a file that gets emailed and synced. See
+[Account transfer](../framework/resparkable/transfer.md).
+
 ## Get User Preferences
 
 ✅ **Implemented in:** `app/api/v1/users/me/preferences/route.ts` (GET handler)

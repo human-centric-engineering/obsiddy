@@ -96,10 +96,12 @@ their message text _are_ present) stop the sweep from passing on an empty export
 
 ## There Are Now Two Manifests, and They Disagree on Purpose
 
-This manifest answers **"what is this person owed?"** (Art. 15). A second one,
+This manifest answers **"what is this person owed?"** (Art. 15), and
+`GET /api/v1/users/me/export` serves it as JSON. A second one,
 `lib/portability/` + `lib/framework/resparkable/transfer/policy.ts`, answers
-**"what moves?"** for account transfer. Those are different questions and the
-answers legitimately differ:
+**"what moves?"** for account transfer, and
+`GET /api/v1/users/me/transfer/export` serves it as a zip built to be imported.
+Those are different questions and the answers legitimately differ:
 
 |                       | Art. 15 export                                                      | Account transfer                                                               |
 | --------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------ |

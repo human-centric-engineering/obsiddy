@@ -89,6 +89,9 @@ const defaultProps = {
   hasPasswordAccount: true,
   oauthProviders: [] as string[],
   initials: 'TU',
+  transferGroups: [
+    { group: 'brain' as const, label: 'Your brain', models: 3, notes: ['Tasks and notes.'] },
+  ],
 };
 
 /**
@@ -125,7 +128,7 @@ describe('components/settings/settings-tabs', () => {
   });
 
   describe('rendering', () => {
-    it('should render all four tab triggers', () => {
+    it('should render all five tab triggers', () => {
       // Arrange & Act
       render(<SettingsTabs {...defaultProps} />);
 
@@ -133,7 +136,8 @@ describe('components/settings/settings-tabs', () => {
       expect(screen.getByRole('tab', { name: /profile/i })).toBeInTheDocument();
       expect(screen.getByRole('tab', { name: /security/i })).toBeInTheDocument();
       expect(screen.getByRole('tab', { name: /notifications/i })).toBeInTheDocument();
-      expect(screen.getByRole('tab', { name: /account/i })).toBeInTheDocument();
+      expect(screen.getByRole('tab', { name: /your data/i })).toBeInTheDocument();
+      expect(screen.getByRole('tab', { name: /^account$/i })).toBeInTheDocument();
     });
 
     it('should render profile tab content by default', () => {

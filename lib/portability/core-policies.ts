@@ -312,7 +312,10 @@ export const corePolicies: TransferPolicySet = {
       note: 'Inbound triggers for your workflows. They arrive switched off, without their signing secret.',
       ownerColumn: 'createdBy',
       mergeKeys: [['channel', 'workflowId']],
-      regenerate: ['signingSecret'],
+      // Dropped, not merely unwritten: this value still authenticates live
+      // traffic on the installation the bundle came FROM, and the bundle is a
+      // file that leaves. See `redact` vs `regenerate` in `policy.ts`.
+      redact: ['signingSecret'],
       reset: { isEnabled: false, lastFiredAt: null },
       jsonOpaque: {
         metadata: 'Channel configuration — allowed senders, parsing options.',
@@ -325,7 +328,10 @@ export const corePolicies: TransferPolicySet = {
       disposition: 'transfer',
       note: 'Event handlers you configured. They arrive disabled, without their secret.',
       ownerColumn: 'createdBy',
-      regenerate: ['secret'],
+      // Dropped, not merely unwritten: this value still authenticates live
+      // traffic on the installation the bundle came FROM, and the bundle is a
+      // file that leaves. See `redact` vs `regenerate` in `policy.ts`.
+      redact: ['secret'],
       reset: { isEnabled: false },
       jsonOpaque: {
         action: 'What to do when the event fires — a URL or an internal handler name.',
@@ -338,7 +344,10 @@ export const corePolicies: TransferPolicySet = {
       disposition: 'transfer',
       note: 'Outbound webhooks you configured. They arrive inactive, without their secret.',
       ownerColumn: 'createdBy',
-      regenerate: ['secret'],
+      // Dropped, not merely unwritten: this value still authenticates live
+      // traffic on the installation the bundle came FROM, and the bundle is a
+      // file that leaves. See `redact` vs `regenerate` in `policy.ts`.
+      redact: ['secret'],
       reset: { isActive: false },
     },
     {

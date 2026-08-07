@@ -18,6 +18,29 @@ release process.
 
 ### Added
 
+- **Account export: take your data with you.** New
+  `GET /api/v1/users/me/transfer/export` returns the calling account as a zip —
+  `manifest.json`, a plain-English `README.md`, and one `data/<Model>.json` per
+  table. `?groups=brain,conversations` narrows it; a new **Your data** tab in
+  Settings offers the same choice as checkboxes. Browser sessions only (an API
+  key of any scope gets a 403, matching the Art. 15 endpoint), with an
+  `exportLimiter` sub-cap. Archives are reproducible — one `mtime` across every
+  entry — so two exports of an unchanged account differ only where the account
+  differs.
+
+  New `lib/portability/collect.ts` finds the rows, which is the hard half: only
+  39 of the 57 exportable models carry an owner column. It runs a repeated
+  **down** pass from the owner columns along foreign keys, then a single
+  terminal **up** pass that pulls in the shared rows collected data points at.
+  The up pass does not walk back down, because one step down from a shared row
+  is other accounts' data — and for the same reason a model that declares an
+  `ownerColumn` is only ever collected by asking for that owner's rows, never
+  reached by an edge. Anything neither pass reaches is named in the manifest
+  with a reason, because a missing table and an empty table look identical in a
+  file listing. Also new: `bundle.ts` (pure — manifest and README),
+  `archive.ts` (zip, fails before allocating when over cap),
+  `export-account.ts`, and `transferGroupSummaries()` on the registry.
+
 - **A generated model graph, and the transfer-policy vocabulary built on it.**
   Groundwork for account export/import — moving one person's data into a
   different account or a self-hosted install. New `generator portability` block
@@ -630,6 +653,20 @@ release process.
   proved.
 
 ### Security
+
+- **Live credentials are now dropped from transfer bundles, not merely left
+  unwritten.** `ResparkableSpace.inboxToken`,
+  `AiWorkflowTrigger.signingSecret`, `AiEventHook.secret` and
+  `AiWebhookSubscription.secret` moved from `regenerate` to `redact`. The two
+  fields answer different questions — `regenerate` stops a value being written
+  on the way *in*, while a secret's problem is on the way *out*: these still
+  authenticate traffic against the installation the bundle came **from**, and a
+  bundle is a file that gets emailed, synced and forgotten. This is the call
+  `repo/subject-export.ts` already made when it omitted `inboxToken` from the
+  Art. 15 export "even though the subject owns it". The coverage guard no longer
+  accepts `regenerate` as an answer for a secret-shaped column, and a second
+  assertion fails any policy that tries. No release has shipped an export route,
+  so no bundle containing these values was ever produced.
 
 - **Resparkable schedules are deleted when their owner is erased.**
   `AiWorkflowSchedule.createdBy` is `onDelete: SetNull`, so per-user schedules would

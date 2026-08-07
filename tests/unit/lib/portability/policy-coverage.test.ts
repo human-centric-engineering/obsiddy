@@ -144,10 +144,11 @@ describe('guard on the guard', () => {
   it('catches a real secret on a model that leaves', () => {
     // The end-to-end proof that the guard would bite: this column exists, is a
     // String, matches the pattern, and lives on a model that is in the bundle —
-    // so the only reason it passes is the explicit `regenerate` declaration.
+    // so the only reason it passes is the explicit `redact` declaration, which
+    // keeps it out of the exported file entirely.
     const space = MODEL_GRAPH.ResparkableSpace.fields.find((f) => f.name === 'inboxToken');
     expect(space && couldHoldASecret(space)).toBe(true);
-    expect(policyFor('ResparkableSpace')?.regenerate).toContain('inboxToken');
+    expect(policyFor('ResparkableSpace')?.redact).toContain('inboxToken');
   });
 
   it('has policies to check', () => {
@@ -355,9 +356,15 @@ describe('merge keys', () => {
 describe('the secret guard', () => {
   it('accounts for every secret-shaped column on a model that leaves', () => {
     for (const policy of inBundle) {
+      // `regenerate` deliberately does NOT count. It answers a different
+      // question — "is this written on the way in?" — and a secret's problem is
+      // on the way out: the bundle is a file that gets emailed, synced and
+      // forgotten, and a value left in it keeps working against the
+      // installation the bundle came FROM no matter what an importer does with
+      // it. Only dropping it (`redact`) or establishing that it is not a secret
+      // (`secretReviewed`) answers that.
       const accounted = new Set([
         ...(policy.redact ?? []),
-        ...(policy.regenerate ?? []),
         ...Object.keys(policy.secretReviewed ?? {}),
       ]);
 
@@ -369,8 +376,31 @@ describe('the secret guard', () => {
       expect(
         unaccounted,
         `${policy.model} has secret-shaped column(s) ${unaccounted.join(', ')} and is in the ` +
-          `bundle. Add each to \`redact\` (drop it), \`regenerate\` (never written), or ` +
-          `\`secretReviewed\` with a one-line reason it is not a secret.`
+          `bundle. Add each to \`redact\` (drop it from the bundle) or \`secretReviewed\` ` +
+          `with a one-line reason it is not a secret. \`regenerate\` is not enough: it ` +
+          `only stops the value being written on import, and leaves it in the file.`
+      ).toEqual([]);
+    }
+  });
+
+  it('does not let regenerate excuse a secret', () => {
+    // The loophole this guard used to have, pinned shut. A column may be in
+    // both lists, but `regenerate` alone must never satisfy the check.
+    for (const policy of inBundle) {
+      const redacted = new Set(policy.redact ?? []);
+      const reviewed = new Set(Object.keys(policy.secretReviewed ?? {}));
+
+      const secretish = MODEL_GRAPH[policy.model].fields
+        .filter(couldHoldASecret)
+        .map((f) => f.name);
+      const excusedOnlyByRegenerate = (policy.regenerate ?? []).filter(
+        (column) => secretish.includes(column) && !redacted.has(column) && !reviewed.has(column)
+      );
+
+      expect(
+        excusedOnlyByRegenerate,
+        `${policy.model} relies on \`regenerate\` alone for ${excusedOnlyByRegenerate.join(', ')}, ` +
+          `which leaves the value in the exported file.`
       ).toEqual([]);
     }
   });

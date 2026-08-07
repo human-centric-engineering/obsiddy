@@ -104,3 +104,38 @@ export const TRANSFER_GROUP_LABELS: Readonly<Record<TransferGroup, string>> = {
 export function modelsInGroup(group: TransferGroup): TransferPolicy[] {
   return exportableModels().filter((policy) => policy.group === group);
 }
+
+/** One group, described well enough for somebody to decide whether to tick it. */
+export interface TransferGroupSummary {
+  group: TransferGroup;
+  label: string;
+  /** How many tables would be considered. */
+  models: number;
+  /**
+   * The tables' own plain-English notes.
+   *
+   * Carried through rather than re-written for the UI, so the sentence a user
+   * reads in the export dialog is the same sentence that governs the table —
+   * there is no second description to drift.
+   */
+  notes: readonly string[];
+}
+
+/**
+ * The groups, ready for the export UI.
+ *
+ * Computed here rather than in a component because the policy files are large
+ * and server-only in spirit: a client component importing them would ship every
+ * table's prose to the browser.
+ */
+export function transferGroupSummaries(): TransferGroupSummary[] {
+  return TRANSFER_GROUP_ORDER.map((group) => {
+    const models = modelsInGroup(group);
+    return {
+      group,
+      label: TRANSFER_GROUP_LABELS[group],
+      models: models.length,
+      notes: models.map((policy) => policy.note),
+    };
+  });
+}
