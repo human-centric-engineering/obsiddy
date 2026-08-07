@@ -11,7 +11,7 @@ export const metadata: Metadata = {
     default: BRAND.name,
   },
   description:
-    'A production-ready Next.js starter template designed for rapid application development',
+    'Never lose a good idea. Capture it in one line, and get it back when it matters, with your notes, tasks, projects and goals in the same place.',
 };
 
 /**

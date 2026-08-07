@@ -490,6 +490,27 @@
     box-shadow: 0 0 12px -1px var(--color-primary);
   }
 
+  /* ── `.spark-lit` — the lit syllable ─────────────────────────────────
+     The middle of `re·spark·able`, and the only part of the wordmark carrying
+     the accent. Colour plus a two-stop halo, so the syllable reads as a source
+     of light rather than as coloured text.
+
+     The halo draws in `--obs-bloom` — the same wash `.obsidian-field` puts in
+     the corner of the page — rather than a literal amber, which is what makes
+     it mode-correct without a `.dark` variant. On glass that token is the ember
+     at 9% and the glow is visible; on paper it is indigo at 4.5% and the glow is
+     effectively absent. That asymmetry is deliberate: a halo on a white page
+     does not read as light, it reads as a printing fault.
+
+     It is not `.live-edge` and does not compete with it — a wordmark is not a
+     claim that something is current, so the scarcity rule is untouched. */
+  .spark-lit {
+    color: var(--color-primary);
+    text-shadow:
+      0 0 14px var(--obs-bloom),
+      0 0 34px var(--obs-bloom);
+  }
+
   /* ── Focus: a fracture, not a halo ────────────────────────────────────
      Square-cornered, offset, in the ring colour. The platform default was a
      soft 1px inset that vanishes on a dark background against a bright border.

@@ -72,7 +72,7 @@ better-auth derives its trusted origin from `BETTER_AUTH_URL`, so the proxied
 hostname needs no separate allow-listing. `ALLOWED_ORIGINS` stays unset unless
 a _different_ origin calls the API.
 
-**Resparkable ships `PORT=3010` in a committed `.env.development`.** A fork should
+**Sunrise ships `PORT=3010` in a committed `.env.development`.** A fork should
 change it — two Resparkable-derived apps that both keep the default collide the
 moment they run together. See
 [`CUSTOMIZATION.md`](../../CUSTOMIZATION.md#claiming-your-own-dev-port).

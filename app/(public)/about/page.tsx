@@ -1,205 +1,168 @@
 import type { Metadata } from 'next';
-import {
-  Rocket,
-  Brain,
-  Package,
-  BookOpen,
-  Shield,
-  Database,
-  Mail,
-  Paintbrush,
-  Code,
-  CheckCircle2,
-  Bot,
-  Network,
-  Search,
-} from 'lucide-react';
-import { Hero, Section, Features, CTA } from '@/components/marketing';
-import { Card, CardContent } from '@/components/ui/card';
+import Link from 'next/link';
+import { Button } from '@/components/ui/button';
+import { PublicSection, NumberedItem } from '@/components/marketing/resparkable/public-section';
+import { SparkWordmark } from '@/components/brand/spark-wordmark';
 
-const aboutDescription =
-  'Learn about Resparkable, a production-ready Next.js starter template designed for rapid application development with AI assistance — including a complete AI agent orchestration layer.';
+const description =
+  'Why Resparkable exists, how it works, and the promises it makes about the things you write down.';
 
 export const metadata: Metadata = {
   title: 'About',
-  description: aboutDescription,
-  openGraph: {
-    title: 'About - Resparkable',
-    description: aboutDescription,
-  },
-  twitter: {
-    card: 'summary_large_image',
-    title: 'About - Resparkable',
-    description: aboutDescription,
-  },
+  description,
+  openGraph: { title: 'About - Resparkable', description },
+  twitter: { card: 'summary_large_image', title: 'About - Resparkable', description },
 };
 
-const principles = [
+/**
+ * How it works, in the order it happens to you.
+ *
+ * Four steps, no internals. Anyone reading this page is deciding whether to
+ * trust it with their thinking, not reviewing its architecture.
+ */
+const HOW = [
   {
-    icon: Rocket,
-    title: 'Production-Ready',
-    description: 'Every feature is battle-tested and ready for production deployment from day one.',
+    term: 'You write one line.',
+    body: 'From the web, your phone, your voice or an assistant you already talk to. There is nothing to fill in and nothing to decide. The moment you have an idea is the worst possible moment to be asked which folder it goes in.',
   },
   {
-    icon: Brain,
-    title: 'AI-Optimized',
-    description:
-      'Comprehensive documentation and clear patterns enable AI assistants to generate high-quality code.',
+    term: 'It works out what you meant.',
+    body: 'The line is read for what it is about and put where it belongs: an idea, a task, something for a project already under way, or a person you keep meaning to speak to.',
   },
   {
-    icon: Bot,
-    title: 'Agent-Ready',
-    description:
-      'Full agent orchestration built in: providers, agents, capabilities, workflows, knowledge bases.',
+    term: 'It looks for what it connects to.',
+    body: 'Overnight, everything you have kept is read back over and compared. Things that belong together are brought to you with a reason, and you decide.',
   },
   {
-    icon: Network,
-    title: 'API-First',
-    description:
-      'Every action is accessible via versioned APIs, an MCP server, and agent capabilities — ready for integrations.',
+    term: 'It gives it back when it matters.',
+    body: 'In the morning briefing, at the top of the right list, beside the project it belongs to, or in an answer when you ask. Then you pass it on to whoever needs it.',
   },
-  {
-    icon: Package,
-    title: 'Docker-First',
-    description:
-      'Multi-stage Docker builds ensure consistent, portable deployments across any environment.',
-  },
-  {
-    icon: BookOpen,
-    title: 'Well-Documented',
-    description:
-      'Detailed guides for every domain help developers and AI assistants understand the codebase.',
-  },
-];
-
-const techStack = [
-  { name: 'Next.js 16', category: 'Framework', icon: Code },
-  { name: 'TypeScript', category: 'Language', icon: Code },
-  { name: 'PostgreSQL', category: 'Database', icon: Database },
-  { name: 'Prisma', category: 'ORM', icon: Database },
-  { name: 'pgvector', category: 'Vector Search', icon: Search },
-  { name: 'better-auth', category: 'Authentication', icon: Shield },
-  { name: 'Tailwind CSS', category: 'Styling', icon: Paintbrush },
-  { name: 'shadcn/ui', category: 'Components', icon: Paintbrush },
-  { name: 'React Email', category: 'Email', icon: Mail },
-  { name: 'Agent Orchestration', category: 'AI', icon: Brain },
-  { name: 'MCP Server', category: 'AI', icon: Network },
-  { name: 'Docker', category: 'Deployment', icon: Package },
-  { name: 'Sentry', category: 'Monitoring', icon: Shield },
 ];
 
 /**
- * About Page
+ * The promises.
  *
- * Tells the story of Resparkable: mission, values, and technology stack.
+ * Deliberately about the reader's content rather than the codebase — each one is
+ * something a person can hold us to, not an implementation note.
+ */
+const PROMISES = [
+  {
+    term: 'What you write is yours.',
+    body: 'Your ideas, notes and documents belong to you. You can take all of it out at any time as plain markdown that opens in any editor, and you can delete it for good.',
+  },
+  {
+    term: 'It is private unless you share it.',
+    body: 'Your account is yours alone. Nothing you keep is visible to anyone else until you deliberately hand it over, and you can take that back.',
+  },
+  {
+    term: 'It is not used to train anything.',
+    body: 'Your content is never fed into training, never pooled into a shared index, and never sold. There is no advertising here and there is not going to be.',
+  },
+  {
+    term: 'Nothing you wrote is deleted by a clock.',
+    body: 'Anything you archive stays recoverable. The system prunes its own working data; it does not tidy away things a person took the trouble to write.',
+  },
+  {
+    term: 'You are always the one who decides.',
+    body: 'Suggested links, priorities and summaries are offered, never imposed. Everything the system proposes is something you can accept, change or wave off.',
+  },
+];
+
+/**
+ * About page.
  *
- * Phase 3.5: Landing Page & Marketing
+ * **Fork-owned scaffold.** The argument first, then how it works, then what we
+ * promise about your content. No stack, no engineering rules, no self-assessment
+ * of what is finished — a reader is here to decide whether to trust it with
+ * their thinking.
  */
 export default function AboutPage() {
   return (
     <>
-      {/* Hero Section */}
-      <Hero
-        title="About Resparkable"
-        description="A production-ready Next.js starter template built to help developers ship faster while maintaining high standards for code quality, security, and maintainability — including a complete AI agent orchestration layer."
-        variant="centered"
-        className="py-12 md:py-16"
-      />
-
-      {/* Mission Section */}
-      <Section variant="muted">
-        <div className="mx-auto max-w-3xl text-center">
-          <h2 className="mb-6 text-3xl font-bold tracking-tight">Our Mission</h2>
-          <p className="text-muted-foreground mb-6 text-lg leading-relaxed">
-            Modern web development involves countless decisions — frameworks, authentication,
-            databases, deployment, testing, and more. Each choice requires research, implementation,
-            and debugging. This takes time away from building the features that matter most.
-          </p>
-          <p className="text-muted-foreground mb-6 text-lg leading-relaxed">
-            <strong className="text-foreground">Resparkable solves this problem</strong> by
-            providing a complete, production-ready foundation. We&apos;ve made the hard decisions,
-            implemented best practices, and documented everything thoroughly. You get a head start
-            measured in weeks, not hours.
-          </p>
-          <p className="text-muted-foreground text-lg leading-relaxed">
-            And because modern apps increasingly include AI agents, Resparkable ships with a
-            complete orchestration layer too: providers, agents, capabilities, workflows, knowledge
-            bases, and observability. The boring stuff done well — plus the modern agentic
-            primitives so your app can include AI agents from day one.
+      <section className="container mx-auto px-4 pt-14 pb-12 md:pt-20 md:pb-16">
+        <div className="max-w-2xl">
+          <p className="term-label obsidian-reveal">about</p>
+          <h1
+            className="obsidian-reveal mt-5 text-4xl sm:text-5xl"
+            style={{ animationDelay: '70ms' }}
+          >
+            Ideas are perishable.
+          </h1>
+          <p
+            className="text-muted-foreground obsidian-reveal mt-6 text-lg leading-relaxed"
+            style={{ animationDelay: '140ms' }}
+          >
+            <SparkWordmark className="text-foreground text-[0.95em]" /> exists for the thought that
+            arrives while you are doing something else. Write it down in one line, and get it back
+            when it counts, with everything it turned out to be connected to, and the people it
+            should reach.
           </p>
         </div>
-      </Section>
+      </section>
 
-      {/* Principles Section */}
-      <Section
-        title="Design Principles"
-        description="The guiding principles that shape every decision in Resparkable."
+      <PublicSection
+        label="the reason"
+        title="The good ones arrive unannounced."
+        lede="The one thing everything else here is built on."
       >
-        <Features features={principles} columns={3} variant="card" />
-      </Section>
-
-      {/* Tech Stack Section */}
-      <Section
-        title="Technology Stack"
-        description="Built with modern, proven technologies that scale."
-        variant="muted"
-      >
-        <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
-          {techStack.map((tech) => {
-            const Icon = tech.icon;
-            return (
-              <Card key={tech.name} className="text-center">
-                <CardContent className="pt-6">
-                  <div className="bg-primary/10 text-primary mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-lg">
-                    <Icon className="h-5 w-5" />
-                  </div>
-                  <div className="font-medium">{tech.name}</div>
-                  <div className="text-muted-foreground text-sm">{tech.category}</div>
-                </CardContent>
-              </Card>
-            );
-          })}
+        <div className="max-w-2xl space-y-5 text-lg leading-relaxed">
+          <p>
+            An idea does not give you notice. It turns up in a queue, mid-sentence, half awake, and
+            if nothing happens in the next few seconds, it is gone, usually for good. Nobody has a
+            convincing account of where they come from. What is not in doubt is that they matter and
+            that they do not wait.
+          </p>
+          <p>
+            Most software for this asks you to file the thought at the exact moment you have it:
+            pick a project, set a date, choose a list. That is a request to decide what an idea is
+            before you know, and it is why so many of these tools end up empty. Here, writing it
+            down takes one line and asks for nothing else. Everything after that happens on your
+            behalf.
+          </p>
+          <p className="text-foreground">
+            And that is the real bet. One idea is worth something. Two that turn out to have been
+            the same idea, written weeks apart in different words, are worth more than either, and
+            nobody is in a position to notice that from memory.
+          </p>
         </div>
-      </Section>
+      </PublicSection>
 
-      {/* Why Resparkable Section */}
-      <Section title="Why Choose Resparkable?" description="What makes Resparkable different.">
-        <div className="mx-auto max-w-2xl space-y-4">
-          {[
-            'Complete authentication system with email/password and OAuth support',
-            'Database schema and migrations ready for user management',
-            'Transactional email with beautiful React templates',
-            'Docker configuration for development and production',
-            'Comprehensive security: rate limiting, CORS, CSP, input sanitization',
-            'Structured logging with environment-aware output',
-            'Error monitoring with Sentry integration',
-            'AI-friendly documentation in CLAUDE.md and .context/ substrate',
-            'AI agent orchestration: providers, agents, capabilities, workflows',
-            'Knowledge base with document ingestion and pgvector semantic search',
-            'MCP server for Claude Code integration and AI-assisted development',
-            'MIT licensed for commercial and personal use',
-          ].map((item) => (
-            <div key={item} className="flex items-start gap-3">
-              <CheckCircle2 className="text-primary mt-0.5 h-5 w-5 shrink-0" />
-              <span>{item}</span>
-            </div>
+      <PublicSection
+        label="how it works"
+        title="Four steps, three of them ours."
+        lede="You do the first one. The rest happens whether you are watching or not."
+      >
+        <div>
+          {HOW.map((step, index) => (
+            <NumberedItem key={step.term} index={index + 1} term={step.term}>
+              {step.body}
+            </NumberedItem>
           ))}
         </div>
-      </Section>
+      </PublicSection>
 
-      {/* CTA Section */}
-      <CTA
-        title="Ready to Get Started?"
-        description="Join developers building production applications faster with Resparkable."
-        primaryAction={{ label: 'Start Building', href: '/signup' }}
-        secondaryAction={{
-          label: 'View Source',
-          href: 'https://github.com/human-centric-engineering/sunrise',
-          variant: 'outline',
-        }}
-        variant="gradient"
-        className="border-t"
-      />
+      <PublicSection
+        label="our promises"
+        title="What we will not do with it."
+        lede="You are handing over the things you think about. These are the terms we hold ourselves to."
+      >
+        <div>
+          {PROMISES.map((promise, index) => (
+            <NumberedItem key={promise.term} index={index + 1} term={promise.term}>
+              {promise.body}
+            </NumberedItem>
+          ))}
+        </div>
+
+        <div className="mt-8 flex flex-wrap gap-3">
+          <Button asChild>
+            <Link href="/signup">Create an account</Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link href="/contact">Ask something</Link>
+          </Button>
+        </div>
+      </PublicSection>
     </>
   );
 }

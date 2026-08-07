@@ -1,264 +1,212 @@
 import type { Metadata } from 'next';
-import {
-  Zap,
-  Shield,
-  Mail,
-  Database,
-  Settings,
-  Code,
-  Package,
-  Rocket,
-  FileCode,
-  Brain,
-  Search,
-} from 'lucide-react';
-import { Hero, Section, Features, Pricing, FAQ, CTA } from '@/components/marketing';
+import Link from 'next/link';
+import { Button } from '@/components/ui/button';
+import { LandingHero } from '@/components/marketing/resparkable/landing-hero';
+import { PublicSection, NumberedItem } from '@/components/marketing/resparkable/public-section';
 
-const heroDescription =
-  'Build production-ready applications faster with Resparkable. A Next.js 16 starter template with authentication, database, email, Docker — plus a complete AI agent orchestration layer for building agents, workflows, and knowledge bases.';
+const description =
+  'Capture an idea in one line and get it back when it matters. Resparkable keeps your ideas, notes, tasks, projects and goals in one place, connects them for you, and lets you share them with the people who should see them.';
 
 export const metadata: Metadata = {
-  title: 'Resparkable - Production-Ready Next.js Starter Template',
-  description: heroDescription,
-  openGraph: {
-    title: 'Resparkable - Production-Ready Next.js Starter Template',
-    description: heroDescription,
-    type: 'website',
-  },
-  twitter: {
-    card: 'summary_large_image',
-    title: 'Resparkable - Production-Ready Next.js Starter Template',
-    description: heroDescription,
-  },
+  title: 'Resparkable: never lose a good idea',
+  description,
+  openGraph: { title: 'Resparkable', description, type: 'website' },
+  twitter: { card: 'summary_large_image', title: 'Resparkable', description },
 };
 
-const features = [
+/**
+ * The whole product in three verbs.
+ *
+ * The order is the order a reader meets it in: you write something down, it
+ * comes back to you, you pass it on. Nothing here is a metaphor for anything —
+ * if a line cannot be read aloud to someone who has never used the app, it does
+ * not belong on the front page.
+ */
+const CORE = [
   {
-    icon: Zap,
-    title: 'Next.js 16',
-    description:
-      'Built with the latest App Router and React Server Components for optimal performance.',
+    term: 'Catch it.',
+    body: 'An idea takes one line. No project to choose, no date to set, no folder to pick. Write it and get on with your day. The filing happens without you.',
   },
   {
-    icon: FileCode,
-    title: 'TypeScript',
-    description: 'Full type safety with strict mode enabled throughout the entire codebase.',
+    term: 'Keep it.',
+    body: 'It comes back when it is useful: in your morning briefing, beside the project it turns out to belong to, or next to something you wrote weeks ago about the same thing and had forgotten.',
   },
   {
-    icon: Shield,
-    title: 'Authentication',
-    description:
-      'Secure authentication with better-auth, supporting email/password and OAuth providers.',
-  },
-  {
-    icon: Database,
-    title: 'PostgreSQL + Prisma',
-    description: 'Production-ready database setup with Prisma ORM for type-safe data access.',
-  },
-  {
-    icon: Mail,
-    title: 'Email System',
-    description: 'Transactional email support with React Email templates and Resend integration.',
-  },
-  {
-    icon: Package,
-    title: 'Docker-Ready',
-    description: 'Multi-stage Docker builds for optimized production deployments anywhere.',
-  },
-  {
-    icon: Brain,
-    title: 'Agent Orchestration',
-    description:
-      'Design, deploy, and monitor AI agents with capabilities, workflows, and provider fallback — all admin-configured.',
-  },
-  {
-    icon: Search,
-    title: 'Knowledge Base & RAG',
-    description:
-      'Upload documents, chunk, embed (pgvector), and let agents answer grounded questions via semantic search.',
+    term: 'Share it.',
+    body: 'Send an idea, a project or a whole board to the people who should see it, with a link that stays yours to withdraw.',
   },
 ];
 
-const howItWorks = [
+/** What you get, said plainly. One line each, no internals. */
+const FEATURES = [
   {
-    icon: Code,
-    title: 'Fork & Clone',
-    description: 'Start by forking the repository and cloning it to your local machine.',
+    term: 'Capture from anywhere',
+    body: 'Type it, speak it, send it from your phone, or hand it to an assistant. One line is enough, and the same idea sent twice stays one idea.',
   },
   {
-    icon: Settings,
-    title: 'Configure',
-    description: 'Set up your environment variables and customize to your needs.',
+    term: 'A morning briefing',
+    body: 'A short read waiting for you each morning: what you finished, what deserves today, and one thing you had stopped thinking about.',
   },
   {
-    icon: Rocket,
-    title: 'Deploy',
-    description: 'Deploy with Docker, Vercel, or your preferred platform.',
-  },
-];
-
-const pricingTiers = [
-  {
-    name: 'Open Source',
-    description: 'Free forever for everyone',
-    price: '$0',
-    priceDetail: 'forever',
-    features: [
-      'Full source code access',
-      'All core features included',
-      'MIT License',
-      'Community support via GitHub',
-      'Regular updates',
-    ],
-    ctaText: 'Get Started',
-    ctaHref: 'https://github.com/human-centric-engineering/resparkable',
+    term: 'Priorities you did not have to set',
+    body: 'Your tasks arrive in a sensible order: what is due, what is blocking something, what actually serves a goal you care about. Move anything up yourself and it stays there.',
   },
   {
-    name: 'Pro Support',
-    description: 'For teams that need extra help',
-    price: '$499',
-    priceDetail: 'one-time',
-    features: [
-      'Everything in Open Source',
-      '3 months email support',
-      'Priority bug fixes',
-      'Architecture review session',
-      'Custom feature guidance',
-    ],
-    ctaText: 'Contact Us',
-    ctaHref: '/contact',
-    featured: true,
-    badge: 'Popular',
+    term: 'Search that understands you',
+    body: 'Find things by what they were about rather than the exact words you happened to use, across your notes, projects, goals, people and documents at once.',
   },
   {
-    name: 'Enterprise',
-    description: 'For large-scale deployments',
-    price: 'Custom',
-    features: [
-      'Everything in Pro Support',
-      'Dedicated support channel',
-      'Custom feature development',
-      'On-boarding assistance',
-      'SLA guarantee',
-    ],
-    ctaText: 'Contact Sales',
-    ctaHref: '/contact',
-  },
-];
-
-const faqItems = [
-  {
-    question: 'What is Resparkable?',
-    answer:
-      'Resparkable is a production-ready Next.js starter template designed for rapid application development. It includes authentication, database setup, email integration, Docker deployment, and follows best practices for AI-assisted development.',
+    term: 'Connections you would have missed',
+    body: 'Overnight it reads back over what you have kept and offers the links: two notes that were the same thought, a task that belongs to a goal, a person who keeps coming up. You take the ones that are right.',
   },
   {
-    question: 'Is Resparkable really free?',
-    answer:
-      'Yes! Resparkable is open source under the MIT License. You can use it for personal and commercial projects without any restrictions. We offer paid support packages for teams that want additional assistance.',
+    term: 'Goals from this week to this lifetime',
+    body: 'Goals nest inside each other, and the areas of your life carry a weekly target, so the one you have been neglecting comes back into view on its own.',
   },
   {
-    question: 'What technologies does Resparkable use?',
-    answer:
-      'Resparkable is built with Next.js 16, TypeScript, PostgreSQL with Prisma ORM, better-auth for authentication, Tailwind CSS with shadcn/ui components, React Email with Resend, and Docker for deployment.',
+    term: 'Boards for the work in flight',
+    body: 'Columns, tags, checklists and limits over the same tasks you already have. Drag a card, and everywhere else it appears agrees.',
   },
   {
-    question: 'How is Resparkable optimized for AI development?',
-    answer:
-      'Two ways. First, AI-assisted development: comprehensive documentation in CLAUDE.md and the .context/ substrate helps AI assistants understand the codebase and follow established patterns when generating code. Second, AI agent capabilities for the apps you build: a complete orchestration layer for designing, deploying, and monitoring AI agents.',
+    term: 'The people behind the work',
+    body: 'Clients, contacts and companies are first-class, attached to the projects and notes that involve them, so preparing for a conversation takes one screen.',
   },
   {
-    question: 'Can I build AI agents with Resparkable?',
-    answer:
-      'Yes. Resparkable ships with a full agent orchestration layer at /admin/orchestration: configure LLM providers, define agents with system instructions and budgets, create custom capabilities (tools), build multi-step workflows as DAGs, ingest documents into pgvector-backed knowledge bases for RAG, expose agents via an MCP server or embed widget, and monitor everything with execution tracing, evaluations, and an audit log. Built on the 21 agentic design patterns from Antonio Gullí.',
+    term: 'Your documents, in with your notes',
+    body: 'Drop in a PDF, a contract, a spreadsheet or a book and it becomes searchable alongside everything you have written yourself.',
   },
   {
-    question: 'Can I use Resparkable for commercial projects?',
-    answer:
-      'Absolutely! Resparkable is released under the MIT License, which allows commercial use, modification, and distribution. You just need to include the original license in any copies of the software.',
+    term: 'Ask about your own work',
+    body: 'A conversation that already knows your goals, your live projects and what is on top of the pile, and it tells you what it looked at before answering.',
   },
   {
-    question: 'How do I get support?',
-    answer:
-      'For free support, you can open issues on GitHub or participate in community discussions. For priority support, architecture reviews, or custom development, check out our Pro Support and Enterprise packages.',
+    term: 'Yours to take with you',
+    body: 'Everything exports as plain markdown that opens in Obsidian or any editor, edits included. Nothing is locked in, and nothing you wrote is ever deleted on a timer.',
   },
 ];
 
 /**
- * Landing Page
+ * The vision, written as the product it is becoming.
  *
- * Public landing page showcasing Resparkable features and encouraging adoption.
- * Uses reusable marketing components for consistent styling.
+ * Not a roadmap and deliberately not dated: a public page is the wrong place to
+ * grade your own progress, and a reader wants to know what this is for, not
+ * which sprint a feature is in.
+ */
+const AHEAD = [
+  {
+    term: 'Everything in step',
+    body: 'A folder of markdown on your own machine kept in step with your account, both directions, continuously, so the same idea is in your editor, on your phone and in the briefing without you moving it.',
+  },
+  {
+    term: 'Work with other people',
+    body: 'Shared projects, shared boards and shared reviews, with each person keeping their own private inbox. You choose exactly what leaves your side, and can take it back.',
+  },
+  {
+    term: 'Ideas that travel',
+    body: 'With your say-so, one idea at a time, compared against what other people are willing to share. What comes back is a framing you would not have reached on your own.',
+  },
+];
+
+/**
+ * Landing page.
  *
- * Phase 3.5: Landing Page & Marketing
+ * **Fork-owned scaffold** — CUSTOMIZATION.md treats this file as a starting
+ * point, and this is the fork having started. The copy rules are short: plain
+ * English a stranger can read at speed, no invented numbers, no stack, no
+ * pricing, and nothing framed by what is missing. It describes the product,
+ * including where it is going, in the voice of someone showing you round rather
+ * than someone auditing themselves.
  */
 export default function LandingPage() {
   return (
     <>
-      {/* Hero Section */}
-      <Hero
-        badge="Next.js 16 Ready"
-        title="Build Production Apps Faster"
-        description="Resparkable is a production-ready Next.js starter template designed for rapid application development. Authentication, database, email, Docker — all pre-configured and ready to go, plus a production AI agent orchestration layer for building agents, workflows, and knowledge bases."
-        primaryAction={{ label: 'Get Started', href: '/signup' }}
-        secondaryAction={{
-          label: 'View on GitHub',
-          href: 'https://github.com/human-centric-engineering/resparkable',
-          variant: 'outline',
-        }}
-      />
+      <LandingHero />
 
-      {/* Features Section */}
-      <Section
-        id="features"
-        title="Everything You Need"
-        description="Resparkable comes with all the essential features pre-configured so you can focus on building your application."
-        variant="muted"
+      <PublicSection
+        label="what it is"
+        title="Catch it. Keep it. Share it."
+        lede="Three things. Together they are the whole idea."
       >
-        <Features features={features} columns={3} variant="card" />
-      </Section>
+        <div className="space-y-8">
+          {CORE.map(({ term, body }) => (
+            <div key={term}>
+              <h3 className="text-xl">{term}</h3>
+              <p className="text-muted-foreground mt-2 max-w-2xl text-lg leading-relaxed">{body}</p>
+            </div>
+          ))}
+        </div>
+      </PublicSection>
 
-      {/* How It Works Section */}
-      <Section
-        id="how-it-works"
-        title="Get Started in Minutes"
-        description="Three simple steps to go from zero to production-ready."
+      <PublicSection
+        id="built"
+        label="what you get"
+        title="Everything in one place."
+        lede="Your ideas, your work and the people it involves, all in the same system rather than in five."
       >
-        <Features features={howItWorks} columns={3} variant="icon-top" />
-      </Section>
+        <div>
+          {FEATURES.map((item, index) => (
+            <NumberedItem key={item.term} index={index + 1} term={item.term}>
+              {item.body}
+            </NumberedItem>
+          ))}
+        </div>
+      </PublicSection>
 
-      {/* Pricing Section */}
-      <Section
-        id="pricing"
-        title="Simple, Transparent Pricing"
-        description="Start for free with open source. Upgrade for priority support and custom development."
-        variant="muted"
+      <PublicSection
+        label="while you are away"
+        title="Two notes, weeks apart."
+        lede="The part that works when you are not looking."
       >
-        <Pricing tiers={pricingTiers} />
-      </Section>
+        <div className="max-w-2xl space-y-5 text-lg leading-relaxed">
+          <p>
+            Everything you keep is stored twice: as the words you wrote, and as a sense of what it
+            is about. Once a night, while you are doing something else, Resparkable reads back over
+            all of it and looks for things that belong together and are not yet joined up.
+          </p>
+          <p>
+            What it finds, it brings you with a sentence on why. You keep the ones that are right
+            and wave off the ones that are not. It does not ask you about the same pair twice.
+          </p>
+          <p className="text-foreground">
+            Most of it you already knew. Then two fragments written six weeks apart turn out to have
+            been the same idea, and neither of them said so at the time. That is the whole reason it
+            runs.
+          </p>
+        </div>
+      </PublicSection>
 
-      {/* FAQ Section */}
-      <Section
-        id="faq"
-        title="Frequently Asked Questions"
-        description="Got questions? We have answers."
+      <PublicSection
+        label="where this goes"
+        title="Ideas worth more together."
+        lede="What we are building towards, and why the pieces are shaped the way they are."
       >
-        <FAQ items={faqItems} />
-      </Section>
+        <div className="space-y-8">
+          {AHEAD.map(({ term, body }) => (
+            <div key={term}>
+              <h3 className="text-xl">{term}</h3>
+              <p className="text-muted-foreground mt-2 max-w-2xl leading-relaxed">{body}</p>
+            </div>
+          ))}
+        </div>
+      </PublicSection>
 
-      {/* CTA Section */}
-      <CTA
-        title="Ready to Build Something Great?"
-        description="Join developers who are building production applications faster with Resparkable."
-        primaryAction={{ label: 'Get Started Free', href: '/signup' }}
-        secondaryAction={{
-          label: 'View Documentation',
-          href: 'https://github.com/human-centric-engineering/resparkable',
-          variant: 'outline',
-        }}
-        variant="gradient"
-        className="border-t"
-      />
+      <section className="border-border/70 border-t">
+        <div className="container mx-auto px-4 py-16 text-center md:py-24">
+          <h2 className="text-2xl sm:text-3xl">Start with one idea.</h2>
+          <p className="text-muted-foreground mx-auto mt-4 max-w-lg leading-relaxed">
+            Write down the thing you would otherwise have lost by Thursday. What happens to it after
+            that is the part you do not have to do.
+          </p>
+          <div className="mt-8 flex flex-wrap justify-center gap-3">
+            <Button asChild size="lg">
+              <Link href="/signup">Create an account</Link>
+            </Button>
+            <Button asChild size="lg" variant="outline">
+              <Link href="/about">Why we built it</Link>
+            </Button>
+          </div>
+        </div>
+      </section>
     </>
   );
 }

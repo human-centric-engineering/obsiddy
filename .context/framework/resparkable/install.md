@@ -580,7 +580,7 @@ npm install -D @types/d3-force
 coordinates); the two `@dnd-kit` packages drive the board and are the reason the
 board is operable by keyboard at all.
 
-### 2.15 Subject-access export — `lib/app/data-export.ts` _(**required**, Resparkable ≥ 0.8.0)_
+### 2.15 Subject-access export — `lib/app/data-export.ts` _(**required**, Sunrise ≥ 0.8.0)_
 
 The sibling of §2.13's erasure hook, and the half that is **not** automatic.
 Sunrise 0.8.0 added the seam ([#467]); Resparkable supplies the collector, the host

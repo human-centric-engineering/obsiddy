@@ -18,6 +18,27 @@ release process.
 
 ### Added
 
+- **`PublicSection` and `LandingHero`: the marketing pages' own layout units.**
+  New `components/marketing/resparkable/`, a fork-owned subfolder that upstream
+  never writes to, so `components/marketing/` stays free to keep improving.
+  `PublicSection` is the one section unit the public pages are built from: a
+  sticky four-column heading rail beside eight columns of content, collapsing to
+  a stacked heading below `lg`, plus `NumberedItem` for the lists inside it.
+  `LandingHero` is the landing page's opening block. The six public pages
+  (`/`, `/about`, `/contact`, `/terms`, `/privacy`) are rewritten on top of both,
+  describing the product rather than the starter template underneath it.
+
+- **`SparkWordmark` and `.spark-lit` — the name, set as its three parts.** New
+  `components/brand/spark-wordmark.tsx` renders `re` (muted) · `spark` (primary,
+  lit) · `able` (foreground), and falls back to the whole name in one colour
+  when `NEXT_PUBLIC_APP_NAME` is set to something else — splitting is a property
+  of *this* name. `.spark-lit` (in `app/brand-theme.css`, documented in
+  [`.context/ui/design-language.md`](./.context/ui/design-language.md)) is the
+  accompanying halo; it draws in `--obs-bloom`, so it is visible on glass and
+  absent on paper without a `.dark` variant. `BrandMark` now composes it, and its
+  mark is a **split** shard with light in the seam. Both files are fork-owned
+  scaffold — the stable contract is the export, not the syllables.
+
 - **Resparkable: your brain as a folder of markdown, out and back in.** The Obsidian
   on-ramp from plan §14, without a live sync engine — phase 15 plus the zip half
   of 17. New `lib/framework/resparkable/vault/**`:
