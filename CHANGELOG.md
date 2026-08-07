@@ -18,6 +18,47 @@ release process.
 
 ### Added
 
+- **Account import, dry run: what would this bundle do?** New
+  `POST /api/v1/users/me/transfer/import` takes a bundle produced by the export
+  endpoint and returns a plan. **Nothing is written** — an `apply` field is
+  refused rather than ignored, because a caller who sends it believes rows are
+  being written. Browser sessions only (an API key of any scope gets a 403,
+  matching the export endpoint), with an `uploadLimiter` sub-cap and a 64 MB
+  upload ceiling checked before the body is read.
+
+  A bundle's **owner column is overwritten, never read**, so every row lands on
+  the account doing the importing whatever the file says; ids in a bundle are
+  claims resolved through an owner-scoped read, never addresses. Identity goes
+  `mergeKeys` → `softMergeKey` → create, and a match made on a guessed key is
+  named individually in the plan so it can be vetoed. Two records never merge
+  onto one existing row — the second becomes a new row and is reported.
+
+  Tables are visited in a topological order over the generated model graph in
+  which **soft and `Json` references count as dependencies**, so a row dropped
+  for want of a reference it cannot do without takes its dependents with it
+  without a second pass. References into a row's own table, edges deferred to
+  break a cycle, and whole-value `Json` references are resolved in a final
+  read-only sweep, alongside the **cuid canary** — which reports ids sitting in
+  `Json` positions the policy manifest does not declare, and never rewrites
+  them. Every capped detail list carries its true total.
+
+  Reading is defended where the cost lands: caps run inside the fflate filter
+  callback before any entry is inflated, only `manifest.json` and `data/*.json`
+  are ever decompressed, and a cap breach rejects the whole archive rather than
+  truncating it. A data file the manifest does not vouch for is ignored and
+  reported, so "models opt in" survives somebody editing the zip.
+
+  New public surface: `lib/portability/read-bundle.ts`
+  (`readTransferBundle()`, `TransferBundleError`, `BUNDLE_READ_CAPS`),
+  `lib/portability/write-order.ts` (`writeOrder()`, `WriteOrder`,
+  `DependencyEdge`), `lib/portability/json-paths.ts` (`walkJsonStrings()`,
+  `jsonStringsAt()`, `jsonPathCovers()`, `canaryScan()`, `JSON_WALK_CAPS`),
+  `lib/portability/import-plan.ts` (`buildImportPlan()`, `ImportPlan`,
+  `ExistingLookup`, `mergeKeyOf()`, `PLAN_CAPS`),
+  `lib/portability/import-lookup.ts` (`createExistingLookup()`,
+  `TransferLookupError`, `LOOKUP_CAPS`) and
+  `lib/portability/import-account.ts` (`planAccountImport()`).
+
 - **Export formats: Logseq, Notion, CSV and a one-page digest.**
   `GET /api/v1/users/me/transfer/export` takes a new `?format=` — `bundle`
   (default, unchanged), `logseq`, `notion`, `csv` or `digest` — and the **Your

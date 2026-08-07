@@ -3,10 +3,11 @@
 Moving one person's data out of an account and into a different one — a new
 account, or the same account on a self-hosted install.
 
-**Status: Phases A, B and C shipped.** The model graph, the policy manifest, the
+**Status: Phases A–D shipped.** The model graph, the policy manifest, the
 coverage guards, a working export — `GET /api/v1/users/me/transfer/export`, plus
-the Your data tab in Settings — and five formats to write it out in. There is no
-import yet; see [Phases](#phases).
+the Your data tab in Settings — five formats to write it out in, and an import
+that says what a bundle **would** do: `POST /api/v1/users/me/transfer/import`.
+Nothing writes yet; see [Phases](#phases).
 
 ## What already existed, and why none of it was enough
 
@@ -60,6 +61,14 @@ lib/portability/formats/digest.ts          one Markdown document
 lib/framework/resparkable/transfer/brain-view.ts       collected rows → typed brain
 lib/framework/resparkable/transfer/formats/logseq.ts   a Logseq graph
 lib/framework/resparkable/transfer/formats/notion.ts   a Notion import
+
+lib/portability/read-bundle.ts             an uploaded zip → rows (Phase D)
+lib/portability/write-order.ts             what has to exist before what
+lib/portability/json-paths.ts              the path walker and the cuid canary
+lib/portability/import-plan.ts             the planner. Pure — no DB
+lib/portability/import-lookup.ts           the owner-scoped reads it asks for
+lib/portability/import-account.ts          the three, joined
+app/api/v1/users/me/transfer/import/       the endpoint
 ```
 
 The generic renderers live in **core** because nothing in them knows what a task
@@ -282,7 +291,7 @@ rather than a privacy one.
 
 | `format` | Covers     | Reads back? | For                                      |
 | -------- | ---------- | ----------- | ---------------------------------------- |
-| `bundle` | everything | ✅ Phase D  | the record, and the only importable copy |
+| `bundle` | everything | ✅          | the record, and the only importable copy |
 | `logseq` | brain      | ❌          | leaving for Logseq                       |
 | `notion` | brain      | ❌          | leaving for Notion                       |
 | `csv`    | everything | ❌          | opening in a spreadsheet                 |
@@ -351,6 +360,108 @@ has looked at and a `rejected` one is a tombstone that exists to stop the guess
 coming back — neither is the user's own thinking, and a fresh graph full of both
 would be our unfinished business wearing their notes' clothes.
 
+## Reading a bundle back
+
+`POST /api/v1/users/me/transfer/import` takes a bundle and returns **what it
+would do**. Nothing is written. That is Phase D's whole scope and it is a
+stopping point rather than an unfinished one: the plan is the artefact somebody
+reads before agreeing to anything, and it is the only way to find out what a
+bundle from a different installation would do to this one without finding out
+the expensive way.
+
+Only the `bundle` format can be read. A Logseq graph or a digest is a one-way
+rendering, and the refusal says so by name rather than failing on a missing file.
+
+### The plan is the thing that gets applied
+
+`import-plan.ts` reaches no database. It asks two questions through a port —
+_do you already have a row with this merge key_, and _give me your rows of this
+model_ — so the whole planner runs in unit tests against a hand-written lookup
+with no mocks. Phase E will apply a plan; it will not compute a second one, so
+"show me what this would do" and "do it" cannot disagree.
+
+### The rule that is a security property
+
+**A bundle's owner column is overwritten, never read.** Every row lands on the
+account doing the importing, whatever the file says. Ids are treated the same
+way — a row's `id` is only a key into this run's id-map, and whether anything
+lands on an existing row is decided by a merge key looked up through an
+owner-scoped read.
+
+`import-lookup.ts` is where that scoping is enforced, and it refuses to query a
+model that has neither an owner column nor a merge key made of already-remapped
+foreign keys. Without that refusal, a hand-edited bundle could probe for another
+account's rows by guessing keys and be told which ones exist.
+
+### One pass, then one read-only sweep
+
+Tables are visited in dependency order, and **soft and `Json` references count as
+dependencies** — not just real foreign keys. So by the time a model is reached,
+every id it could name has already been decided, and identity, remapping and the
+drop cascade all fall out of the single walk: a dropped row never enters the
+id-map, so its children find nothing when their turn comes.
+
+The order is a topological sort over the generated graph, not a hand-maintained
+list. A hand-maintained list would not notice a new relation, and the failure
+would be an import attaching somebody's tasks to nothing.
+
+Three things cannot be known during that walk, and they are exactly the three
+that act on nothing — a reference into a row's own table (`parentGoalId`), an
+edge deferred to break a cycle, and a `'**'` `Json` reference. All three are
+nullable or `keep`, so resolving them in a final sweep can change a value but
+cannot change whether a row exists. The canary runs there too, because it needs
+the finished id-map to know what an id looks like.
+
+The owner column is followed for **ordering** even though it is exempt from
+remapping: every brain table's `userId` is a real foreign key into
+`ResparkableSpace`, so dropping that edge would order the space after everything
+hanging off it.
+
+### What the plan reports
+
+|                           |                                                                         |
+| ------------------------- | ----------------------------------------------------------------------- |
+| per table                 | creates, matches, soft matches, drops, columns that will not be written |
+| **soft matches**          | named individually — a guess must be vetoable                           |
+| **orphans**               | every reference that went nowhere, with what happens to it              |
+| **canary**                | ids found in `Json` positions the manifest does not declare             |
+| **contested**             | two records wanting one existing row                                    |
+| **unknown / not written** | tables with no policy here, and tables classified as never written back |
+
+Detail lists are capped at 200 and **every one carries its true total**. A plan
+that quietly showed the first two hundred orphans would read as a plan with two
+hundred orphans, which is the same failure the digest format guards against and
+worse on the way in: on the way out it costs somebody data, on the way in it
+silently changes what they agreed to.
+
+### Two records never merge onto one row
+
+The second becomes a new row and is reported. Never merge both, never let the
+last one win: a duplicate is recoverable and an overwrite is not.
+
+### The canary reports; it never rewrites
+
+A finding says the manifest needs an edit, not that the planner should guess. The
+path it reports is relative to the column, which is the form a `jsonRefs`
+declaration takes — so `{ column: 'columns', path: '[].projectId' }` can be
+pasted straight into the policy.
+
+### Reading untrusted bytes
+
+`read-bundle.ts` is the first thing in this subsystem whose input it did not
+write. The realistic attack is expansion rather than traversal — fflate has no
+filesystem contact, so zip-slip is structurally impossible — so the caps run
+**inside the filter callback**, which fflate calls with each entry's declared
+size before decompressing it. Only `manifest.json` and `data/*.json` are ever
+inflated, and every cap breach rejects the whole archive rather than truncating
+it.
+
+A bundle is a zip somebody can edit, and the two edits that matter both produce
+an archive that looks entirely normal in a listing: adding a data file the
+manifest does not vouch for, and deleting one it does. Both are **reported**, and
+a file the manifest never mentions is ignored — otherwise "models opt in" would
+mean "models opt in unless you unzip the bundle first".
+
 ## What never round-trips
 
 ids · owner columns · session and credential material · `inboxToken` ·
@@ -369,7 +480,7 @@ of the prioritiser and precisely the thing they would be angriest to lose.
 | A   | Model graph, policy manifest, coverage guards             | ✅ shipped |
 | B   | Export: collector, bundle writer, zip, route, UI          | ✅ shipped |
 | C   | Brain formats: Logseq, Notion, CSV, single-file digest    | ✅ shipped |
-| D   | Import, **dry-run only** — planner, id-map, orphan report | planned    |
+| D   | Import, **dry-run only** — planner, id-map, orphan report | ✅ shipped |
 | E   | Import apply, fresh mode only                             | planned    |
 | F   | Merge mode + the `ResparkableGoal` unique migration       | planned    |
 | G   | Document originals, background jobs, admin-initiated      | planned    |

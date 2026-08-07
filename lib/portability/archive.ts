@@ -6,14 +6,14 @@
  * than a transitive one that an `npm update` could take away.
  *
  * Two differences from the vault's zip, both because the traffic runs the other
- * way. This module only ever *writes* — reading a bundle back is Phase D's
- * problem and will need the whole decompression-bomb defence the vault reader
- * has, which is precisely why it is not being half-written here. And the entries
+ * way. This module only ever *writes*; reading a bundle back lives in
+ * `read-bundle.ts`, which carries the decompression-bomb defence separately
+ * because it is the half that handles input it did not produce. And the entries
  * are JSON rather than prose, so they compress hard; a bundle that is
  * uncomfortably large uncompressed is usually a comfortable download.
  *
  * @see lib/portability/bundle.ts — what goes in
- * @see lib/framework/resparkable/vault/zip.ts — the reader that Phase D will follow
+ * @see lib/portability/read-bundle.ts — the reader
  */
 
 import { zipSync } from 'fflate';
