@@ -1,41 +1,54 @@
-import { BRAND } from '@/lib/brand';
+import { SparkWordmark } from '@/components/brand/spark-wordmark';
 import { cn } from '@/lib/utils';
 
 /**
  * BrandMark — the header/footer brand slot.
  *
- * **Fork-owned scaffold** — Resparkable ships this rendering `BRAND.name` as plain
- * text and does NOT change it after release, so edits here merge cleanly on
- * upgrade (the stable contract is this file's export, not its body). Treat it
- * like the landing page: a starting point you're expected to modify. Full guide:
- * CUSTOMIZATION.md §2.
+ * **Fork-owned scaffold** — Sunrise ships this and does NOT change it after
+ * release, so edits here merge cleanly on upgrade (the stable contract is this
+ * file's export, not its body). Treat it like the landing page: a starting point
+ * you're expected to modify. Full guide: CUSTOMIZATION.md §2.
  *
  * Lives in `components/` rather than `lib/app/` because the `lib/app/**` ESLint
  * boundary bans runtime `next/*` imports and a logo commonly needs `next/image`.
  *
- * ## The shard
+ * ## The strike
  *
  * Obsidian fractures *conchoidally* — it breaks along curved shells into edges
  * with no grain, which is why it made the sharpest blades in the ancient world
- * and why a broken piece is asymmetric in a way a cut gem never is. The mark is
- * that: four points, no two angles alike, no rotational symmetry. It should look
- * like it was struck off something rather than drawn on a grid.
+ * and why a broken piece is asymmetric in a way a cut gem never is. Four points,
+ * no two angles alike, no rotational symmetry: struck off something rather than
+ * drawn on a grid.
  *
- * The bright facet is the whole reason it reads as glass instead of as a black
- * triangle. It is `currentColor` at low alpha rather than a second fill, so the
- * mark inherits whatever the header is doing — including the cyan the /admin
- * surface swaps in (see brand-theme.css §3b) — with no variant logic here.
+ * The shard is then **split**, and that is the whole mark: one fracture running
+ * corner to corner, the lower half slid a little way down it, and light along
+ * the upper face. The moment of the strike rather than the object — the same
+ * event the name describes, so the mark and the wordmark are not two ideas
+ * sitting next to each other.
  *
- * ## Why the name is set in the display font and not the heading font
+ * Three things this went through before it worked, each worth not repeating:
  *
- * The wordmark is the one string in the app that is a *name* rather than a
- * sentence, so it can afford Martian Mono at full width and positive tracking,
- * where anything longer would sprawl. Lowercase: this is a tool that sits beside
- * your notes all day, and a shouting wordmark wears out.
+ * - **A line drawn across the mark reads as an object lying on it**, not as a
+ *   crack. The light had to become a *face* of the upper half — a tapered band
+ *   along its fracture edge — before it read as the stone catching it.
+ * - **Two opacities of the accent over a near-black field go muddy**, and amber
+ *   at 55% on `#0a0b0f` lands on brown. Both halves are the full colour; the
+ *   silhouette does the separating.
+ * - **A large facet triangle turns the shard into an envelope.** Any highlight
+ *   whose apex points back into the shape reads as a fold. Keep it to an edge.
+ *
+ * Everything but the lit face is `currentColor`, so the mark inherits whatever
+ * the header is doing — including the teal the `/admin` surface swaps in
+ * (brand-theme.css §3b) — with no variant logic here. Only that face is fixed
+ * white, because light in a crack is not the colour of the stone. Checked at
+ * 20px and on all three surfaces; the gap is 0.9 units wide because anything
+ * narrower closes up at header size.
  *
  * SVG rather than an image file so it is one paint with the rest of the header —
  * no second request, no flash of a differently-coloured logo, and it survives a
  * theme toggle without a `<picture>` element.
+ *
+ * The wordmark's own reasoning lives in `spark-wordmark.tsx`.
  */
 export function BrandMark({ className }: { className?: string }): React.ReactNode {
   return (
@@ -46,16 +59,16 @@ export function BrandMark({ className }: { className?: string }): React.ReactNod
         aria-hidden="true"
         focusable="false"
       >
-        {/* The struck shard. */}
-        <path d="M12.6 1.4 22 9.1l-3.6 12.3-9.9 1.2L2 12.4Z" fill="currentColor" />
-        {/* The facet that caught the light — the fracture plane, offset so it
-            doesn't halve the shape symmetrically. */}
-        <path d="M12.6 1.4 22 9.1l-8.1 3.6Z" fill="#fff" fillOpacity="0.55" />
-        <path d="m13.9 12.7 4.5 8.7-9.9 1.2Z" fill="#000" fillOpacity="0.22" />
+        {/* Upper half. */}
+        <path d="M7.01 7.07 12.6 1.4 22 9.1 20.26 15.49Z" fill="currentColor" />
+        {/* Lower half, slid a little down the fracture — so the left edge steps
+            rather than meeting, and the two read as one stone that moved. */}
+        <path d="M6.07 7.54 1.54 12.11 8.04 22.31 17.94 21.11 19.32 15.96Z" fill="currentColor" />
+        {/* The lit edge: a band along the upper half's fracture face, not a line
+            laid across the mark. Drawn last so it sits on the stone. */}
+        <path d="M7.01 7.07 20.26 15.49 20.61 14.94 7.36 6.52Z" fill="#fff" fillOpacity="0.6" />
       </svg>
-      <span className="font-display text-[0.95em] font-semibold tracking-[-0.02em] lowercase">
-        {BRAND.name}
-      </span>
+      <SparkWordmark className="text-[0.95em]" />
     </span>
   );
 }

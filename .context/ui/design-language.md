@@ -239,16 +239,17 @@ room.
 
 All in `@layer components`, so a Tailwind utility on the same element still wins.
 
-| Class               | Use for                                                                           |
-| ------------------- | --------------------------------------------------------------------------------- |
-| `.term-label`       | Naming a region without spending a heading on it — nav groups, column heads       |
-| `.term-meta`        | The same job in a quieter voice, for labels that repeat once per row              |
-| `.term-rule`        | A dashed divider _within_ a panel, where a solid border would imply false nesting |
-| `.obsidian-field`   | The page background. Replaces `bg-background` on layout roots                     |
-| `.obsidian-chrome`  | Sticky header / rail glass — blur + saturation + a 1px top highlight              |
-| `.live-edge`        | **"This one is live."** A 2px lit bar hard against the left edge                  |
-| `.obsidian-reveal`  | One 12px rise-and-fade, on first paint only                                       |
-| `.terminal-surface` | **Where the machine talks** — chat, capture box, briefing. Mono for the subtree   |
+| Class               | Use for                                                                            |
+| ------------------- | ---------------------------------------------------------------------------------- |
+| `.term-label`       | Naming a region without spending a heading on it — nav groups, column heads        |
+| `.term-meta`        | The same job in a quieter voice, for labels that repeat once per row               |
+| `.term-rule`        | A dashed divider _within_ a panel, where a solid border would imply false nesting  |
+| `.obsidian-field`   | The page background. Replaces `bg-background` on layout roots                      |
+| `.obsidian-chrome`  | Sticky header / rail glass — blur + saturation + a 1px top highlight               |
+| `.live-edge`        | **"This one is live."** A 2px lit bar hard against the left edge                   |
+| `.obsidian-reveal`  | One 12px rise-and-fade, on first paint only                                        |
+| `.terminal-surface` | **Where the machine talks** — chat, capture box, briefing. Mono for the subtree    |
+| `.spark-lit`        | The lit syllable of the wordmark — the accent plus a halo that only shows on glass |
 
 ### `.terminal-surface`
 
@@ -293,6 +294,24 @@ It draws in `--color-primary`, whatever that currently is — so it is amber in
 dark, indigo in light, teal on `/admin`, with no variant logic at the call site.
 That is also why it is no longer called `.ember-edge`: the name was describing a
 colour the class only has in half the app.
+
+### `.spark-lit` — the one exception to "no glow"
+
+The middle syllable of `re·spark·able`, and the only part of the wordmark
+carrying the accent — `re` and `able` are the quiet field it sits in, which is
+what keeps a three-colour logo inside the one-accent rule.
+
+The halo draws in **`--obs-bloom`**, the same wash `.obsidian-field` puts in the
+corner of the page, rather than a literal amber. That is what makes it
+mode-correct without a `.dark` variant: on glass the token is the ember at 9% and
+the glow reads; on paper it is indigo at 4.5% and the glow is effectively absent.
+**The asymmetry is the point** — a halo on a white page does not read as light,
+it reads as a printing fault, which is the same reason light mode has no accent
+glow anywhere else.
+
+It is not `.live-edge` and does not spend its scarcity: a wordmark is not a claim
+that something is current. If you need a second glowing thing on a screen that
+already has a `.live-edge`, this is still not it.
 
 ---
 
