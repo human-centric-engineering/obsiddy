@@ -12,6 +12,8 @@ Nothing productivity-shaped exists in the repo yet — `prisma/schema/app.prisma
 
 **Delivery:** four releases (§15). **Release 1 is a complete no-Obsidian build** — the whole second brain, no vault, no new dependencies, no credential storage. Obsidian arrives in Releases 3 and 4. Sections 12 and 13 below therefore describe work that is designed now but built later; read them for the constraints they place on Release 1's schema, not as immediate scope.
 
+> **On hold, 2026-08-08: ongoing vault sync.** The one-time zip export/import (phase 15 + the zip half of 17, at `/resparkable/vault`) shipped and stays. Everything that makes it a standing _sync_ rather than a download/upload — the reconciler (phase 16), the Managed transport and tick sweep (rest of 17), and all of Release 4's live folder transports (git, Dropbox, Google Drive) — is paused. Not dropped: still fully specified below, just not being built right now. See §15 for the exact boundary.
+
 ### The Obsidian question, answered
 
 **Postgres + pgvector is the store. Obsidian is a co-equal editing surface synced against it.** Not either/or.
@@ -898,6 +900,8 @@ One `registerErasureCleanupHook({ name: 'resparkable' })` from `lib/app/bootstra
 
 ## 14. Obsidian vault sync
 
+> **On hold, 2026-08-08.** This section specifies the full two-way sync engine — reconciler, identity/conflict rules, transports. The one-time zip export/import already built (phase 15 + zip half of 17) implements only the "canonical markdown" and "identity" shape below, not the reconciliation loop. The rest is designed, not scheduled. See §15.
+
 ### Canonical markdown
 
 Syncable: `area | goal | project | task | thought | review | entity`. Not time blocks (calendar-shaped, high-churn), not events (append-only log), not links-as-files. **Reviews sync one-way DB → vault** — they're generated artefacts, and letting vault edits flow back into something that will be regenerated is a guaranteed data-loss complaint. **Documents are export-only too** — the vault gets a stub note per document (title, frontmatter, extracted-text preview) rather than the original binary; round-tripping a 40 MB PDF through every sync is pure cost, and Obsidian can't meaningfully edit it anyway.
@@ -1064,17 +1068,21 @@ Note `visibility` and the `OwnerScope` repo boundary land in Release 1 phases 1�
 
 The Obsidian on-ramp, without owning a live sync engine.
 
-| #   | Deliverable                                                                                                                    | Verifiable by                                     |
-| --- | ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------- |
-| 15  | **Markdown codec, pure** (new dep `yaml`)                                                                                      | round-trip property tests                         |
-| 16  | Vault schema + reconciler + merge, **pure**                                                                                    | full conflict matrix as a table test              |
-| 17  | Transport interface + **Zip + Managed + `generateStarterVault`** (new dep `fflate`) + runner + dry-run + snapshot + tick sweep | import a real vault; export; re-import is a no-op |
+**Phase 15 and the zip transport half of 17 are done and stay** — one-time export to a zip and import from one, live at `/resparkable/vault`. **Phase 16 and the rest of 17 are on hold, 2026-08-08** — this is the boundary where a download/upload feature turns into a standing sync engine (recurring reconciliation against a stored base, a Managed transport that persists vault state server-side, a tick sweep running unattended). Resuming Release 3 means picking this row back up, not starting over.
+
+| #   | Deliverable                                                                                                                                             | Verifiable by                                     | Status                           |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- | -------------------------------- |
+| 15  | **Markdown codec, pure** (new dep `yaml`)                                                                                                               | round-trip property tests                         | done                             |
+| 16  | Vault schema + reconciler + merge, **pure**                                                                                                             | full conflict matrix as a table test              | **on hold**                      |
+| 17  | Transport interface + **Zip** (done) **+ Managed + `generateStarterVault`** (new dep `fflate`) **+ runner + dry-run + snapshot + tick sweep** (on hold) | import a real vault; export; re-import is a no-op | zip transport done, rest on hold |
 
 **Phase 15 is independently shippable and worth doing even if Release 3 stops there.** It's 2–3 days, pure, and gives you "download my entire brain as a folder of markdown" — the honest answer to _"what happens to my data if I stop using this?"_, which for a product other people use will get asked. Someone can drop that export into Obsidian themselves without you owning any sync.
 
 The full release is ~70% of what people mean by "Obsidian support" for ~15% of the cost of Release 4. No credentials, no OAuth, no live-folder conflict cases — because there is no live folder.
 
 ### Release 4 — live folder sync
+
+> **On hold, 2026-08-08 — none of this is built.** This is the "regular updates from wherever the vault is hosted" release: credentials at rest, outbound calls to user-supplied hosts (git remotes, Dropbox, Google Drive), a background job writing into someone else's storage. Paused as a whole, and depends on Release 3's reconciler (phase 16), which is also on hold — so this release can't resume before that one does.
 
 | #   | Deliverable                                                                                                 | Verifiable by                                                              |
 | --- | ----------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
@@ -1085,6 +1093,8 @@ The full release is ~70% of what people mean by "Obsidian support" for ~15% of t
 | 21  | Dropbox. Google Drive only if demanded                                                                      |                                                                            |
 
 Phase 19 is 5–7 days and is the first thing in the whole plan that can fail in production for reasons outside your code. Google Drive is ~8 days of code plus unbounded calendar risk from Google's consent-screen verification — the `drive` scope is restricted and triggers a CASA assessment.
+
+19b (live Trello push) is unrelated to Obsidian and not part of this hold — it's sequenced here only because it reuses `secret-box` from phase 18. If Trello push is wanted before the sync engine resumes, it can be pulled forward once phase 18 is judged worth building for it alone.
 
 **Stopping after Release 1 or 3 is a legitimate end state**, not a half-built feature. Two releases add standing operational risk rather than just code: Release 4 (credentials at rest, outbound calls to user-supplied hosts, a background job writing to someone else's storage) and Release 5 (a moderation surface, and strangers' text reaching users). Neither is a thing you ship and forget.
 
