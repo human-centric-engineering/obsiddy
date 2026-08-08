@@ -18,6 +18,54 @@ release process.
 
 ### Added
 
+- **Account transfers can be prepared in the background.** `POST
+  /api/v1/users/me/transfer/jobs` queues an export (JSON body) or an import
+  (multipart body with a `file` field); `GET` lists your own; `GET …/[id]` polls
+  one and, for a finished export, returns a short-lived signed download link;
+  `DELETE …/[id]` drops the stored archive early.
+
+  Both synchronous endpoints have a ceiling set by how long a request may stay
+  open rather than by anything about the data, which means a large account cannot
+  move at all — failing exactly the people with the most to move. The worker runs
+  **the same functions** those routes run, with the same arguments; the only
+  difference is `BACKGROUND_APPLY_CAPS` (500,000 rows and a ten-minute
+  transaction, against 50,000 and one minute).
+
+  **The single transaction is unchanged.** A background import still refuses
+  rather than half-writing. Chunking it into a resumable job would trade away the
+  guarantee that makes this safe to point at a real account, in exchange for a
+  ceiling almost nobody reaches.
+
+  The archive lives in private blob storage, never in the job row — a `Bytes`
+  column would put every export into Postgres, its backups and every replica. The
+  download link is signed and minted per poll (15 minutes), never stored. The
+  object is deleted after 7 days and the job marked `expired`; an import's
+  uploaded bundle is deleted as soon as its job is terminal. `eraseUser()` now
+  drops the whole `transfer-jobs/<userId>/` prefix, because the rows cascade and
+  the archives would not.
+
+  Refusals happen at enqueue rather than at run: an installation without private,
+  signable blob storage is told immediately, and one transfer per person at a
+  time.
+
+  New model: `TransferJob` (`transfer_job`), `onDelete: Cascade`, `skip` in the
+  transfer manifest (importing one would resurrect a job pointing at another
+  installation's bucket) and `export` in the Art. 15 manifest with `storageKey`
+  omitted.
+
+  Two new maintenance-tick tasks, appended to `PLATFORM_JOB_NAMES` and therefore
+  to the tick route's published `backgroundTasks`: `transferJobs` (every tick —
+  one job per tick, so cadence is throughput) and `transferArchiveExpiry`
+  (hourly). A job whose lease goes stale is **failed, not re-claimed** — unlike
+  the evaluation-run worker, there is no cursor to resume an apply from, and
+  re-running one could duplicate an account.
+
+  New public surface: `BACKGROUND_APPLY_CAPS` and the `ApplyCaps` type;
+  `ApplyImportParams.caps` and `ApplyAccountImportParams.caps`;
+  `enqueueExportJob`, `enqueueImportJob`, `TransferJobError`;
+  `processTransferJobs`, `expireTransferArchives`; the `archive-store` helpers;
+  `transferExportJobSchema` and `transferImportJobSchema`.
+
 - **Uploaded files travel with an account export.** `GET
   /api/v1/users/me/transfer/export?originals=true` now carries the documents
   themselves, not only the text extracted from them, and `POST

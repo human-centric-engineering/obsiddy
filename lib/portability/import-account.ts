@@ -26,6 +26,7 @@
 import { logger } from '@/lib/logging';
 import {
   applyImportPlan,
+  type ApplyCaps,
   type ApplyResult,
   type ConflictMode,
 } from '@/lib/portability/apply-import';
@@ -120,6 +121,13 @@ interface PlannedAccountImport extends AccountImportPlan {
 export interface ApplyAccountImportParams extends PlanAccountImportParams {
   /** What to do about a record that matches one the account already has. */
   conflictMode: ConflictMode;
+  /**
+   * Which limits to write under. Defaults to the interactive ones.
+   *
+   * The background worker passes `BACKGROUND_APPLY_CAPS`, which is a larger row
+   * ceiling and a longer transaction timeout — and the same single transaction.
+   */
+  caps?: ApplyCaps;
 }
 
 /** A plan, and what happened when it was written. */
@@ -149,6 +157,7 @@ export async function applyAccountImport(
     userId: params.userId,
     conflictMode: params.conflictMode,
     originals,
+    caps: params.caps,
   });
 
   logger.info('Account import written', {

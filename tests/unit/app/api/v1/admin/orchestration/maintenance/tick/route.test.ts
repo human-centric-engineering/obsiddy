@@ -72,6 +72,8 @@ vi.mock('@/lib/orchestration/retention', () => ({
 vi.mock('@/lib/orchestration/evaluations/run-worker', () => ({
   processPendingEvaluationRuns: vi.fn(),
 }));
+vi.mock('@/lib/portability/jobs/worker', () => ({ processTransferJobs: vi.fn() }));
+vi.mock('@/lib/portability/jobs/expiry', () => ({ expireTransferArchives: vi.fn() }));
 
 // The fork seam (#469). Left unmocked, the real empty registry always resolves
 // `undefined`, so neither the "a fork registered jobs" nor the rejection arm of
@@ -99,8 +101,13 @@ import { reapZombieExecutions } from '@/lib/orchestration/engine/execution-reape
 import { backfillMissingEmbeddings } from '@/lib/orchestration/chat/message-embedder';
 import { enforceRetentionPolicies } from '@/lib/orchestration/retention';
 import { processPendingEvaluationRuns } from '@/lib/orchestration/evaluations/run-worker';
+import { processTransferJobs } from '@/lib/portability/jobs/worker';
+import { expireTransferArchives } from '@/lib/portability/jobs/expiry';
 import { runDueAppJobs } from '@/lib/orchestration/maintenance/app-jobs';
-import { __resetPlatformJobsForTests } from '@/lib/orchestration/maintenance/platform-jobs';
+import {
+  __resetPlatformJobsForTests,
+  PLATFORM_JOB_NAMES,
+} from '@/lib/orchestration/maintenance/platform-jobs';
 import { __resetIdleGateForTests } from '@/lib/orchestration/maintenance/idle-gate';
 import { mockAdminUser, mockUnauthenticatedUser } from '@/tests/helpers/auth';
 import {
@@ -186,6 +193,13 @@ describe('POST /api/v1/admin/orchestration/maintenance/tick', () => {
     vi.mocked(processPendingExecutions).mockResolvedValue(DEFAULT_PENDING_RECOVERY_RESULT);
     vi.mocked(processOrphanedExecutions).mockResolvedValue(DEFAULT_ORPHAN_RESULT);
     vi.mocked(processPendingEvaluationRuns).mockResolvedValue(DEFAULT_EVAL_RUN_RESULT);
+    vi.mocked(processTransferJobs).mockResolvedValue({
+      jobId: null,
+      kind: null,
+      status: null,
+      orphaned: 0,
+    });
+    vi.mocked(expireTransferArchives).mockResolvedValue({ expired: 0, failed: 0 });
     // Vanilla default: no fork jobs registered.
     vi.mocked(runDueAppJobs).mockResolvedValue(undefined);
     // No schedule on the horizon unless a test says otherwise.
@@ -226,6 +240,13 @@ describe('POST /api/v1/admin/orchestration/maintenance/tick', () => {
       errors: [],
     });
     vi.mocked(processPendingEvaluationRuns).mockResolvedValue(DEFAULT_EVAL_RUN_RESULT);
+    vi.mocked(processTransferJobs).mockResolvedValue({
+      jobId: null,
+      kind: null,
+      status: null,
+      orphaned: 0,
+    });
+    vi.mocked(expireTransferArchives).mockResolvedValue({ expired: 0, failed: 0 });
   }
 
   /** Run one tick and let its background chain settle. */
@@ -282,6 +303,8 @@ describe('POST /api/v1/admin/orchestration/maintenance/tick', () => {
       'retention',
       'pendingExecutionRecovery',
       'evaluationRuns',
+      'transferJobs',
+      'transferArchiveExpiry',
     ]);
     expect(typeof body.data.durationMs).toBe('number');
     expect(body.data.durationMs).toBeGreaterThanOrEqual(0);
@@ -396,9 +419,11 @@ describe('POST /api/v1/admin/orchestration/maintenance/tick', () => {
 
     expect(response.status).toBe(202);
     expect(body.data.schedules).toEqual({ error: 'schedules DB down' });
-    // Background tasks still kick off even when schedules fail
-    // (8 tasks since evaluationRuns added in Phase 1).
-    expect(body.data.backgroundTasks).toHaveLength(8);
+    // Background tasks still kick off even when schedules fail. Counted against
+    // the registry rather than a literal, so adding a task does not need this
+    // number editing — the *order* is pinned by `platform-jobs.test.ts`, which
+    // is where a change to the published list should have to be justified.
+    expect(body.data.backgroundTasks).toHaveLength(PLATFORM_JOB_NAMES.length);
   });
 
   it('returns a readable schedules.error when processDueSchedules rejects a non-Error', async () => {

@@ -36,6 +36,8 @@ import { reapZombieExecutions } from '@/lib/orchestration/engine/execution-reape
 import { backfillMissingEmbeddings } from '@/lib/orchestration/chat/message-embedder';
 import { enforceRetentionPolicies } from '@/lib/orchestration/retention';
 import { processPendingEvaluationRuns } from '@/lib/orchestration/evaluations/run-worker';
+import { expireTransferArchives } from '@/lib/portability/jobs/expiry';
+import { processTransferJobs } from '@/lib/portability/jobs/worker';
 
 const MINUTE = 60 * 1000;
 const HOUR = 60 * MINUTE;
@@ -99,6 +101,8 @@ function job<T>(spec: {
  * | `retention`               | 1 hour   | windows are measured in days                                        |
  * | `pendingExecutionRecovery`| 2 min    | its own stale-pending threshold is 2 min                            |
  * | `evaluationRuns`          | every    | the worker drives one time-slice per tick, so cadence is throughput |
+ * | `transferJobs`            | every    | one job per tick, so cadence *is* throughput for a queued transfer  |
+ * | `transferArchiveExpiry`   | 1 hour   | the archive TTL is measured in days                                 |
  */
 export const PLATFORM_JOBS: readonly PlatformJob[] = [
   job({
@@ -158,6 +162,27 @@ export const PLATFORM_JOBS: readonly PlatformJob[] = [
     // so this is the predicate that keeps the gate from stalling a batch eval.
     run: () => processPendingEvaluationRuns(),
     foundWork: (r) => r.claimed > 0,
+  }),
+  job({
+    name: 'transferJobs',
+    intervalMs: 0,
+    // One job per tick by design — each is a full read or a full write of
+    // somebody's whole account — so the tick cadence *is* the queue's
+    // throughput, and throttling this would throttle the feature.
+    run: () => processTransferJobs(),
+    // A job that ran means there may be another queued behind it. An orphan
+    // that was failed counts too: the sweep found something, so the deployment
+    // is not idle.
+    foundWork: (r) => r.jobId !== null || r.orphaned > 0,
+  }),
+  job({
+    name: 'transferArchiveExpiry',
+    intervalMs: HOUR,
+    // Batch-capped at 50, so any hit may mean more behind it — and a failed
+    // delete is a reason to come back rather than to go to sleep, since the
+    // object is still sitting in a bucket holding somebody's whole account.
+    run: () => expireTransferArchives(),
+    foundWork: (r) => r.expired > 0 || r.failed > 0,
   }),
 ];
 

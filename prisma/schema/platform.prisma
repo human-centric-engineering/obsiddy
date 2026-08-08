@@ -82,3 +82,79 @@ model DataErasureReceipt {
   @@index([erasedAt])
   @@map("data_erasure_receipt")
 }
+
+/// One asked-for account transfer, run away from the request that asked for it.
+///
+/// Everything `lib/portability/**` does synchronously has a ceiling set by how
+/// long somebody will hold a request open, not by anything about the data: an
+/// export builds the whole archive in memory before the first byte is sent, and
+/// an import runs in one transaction. Both are correct and both mean a large
+/// account cannot move at all. This row is the handle on doing the same work
+/// with nobody waiting.
+///
+/// The archive lives in blob storage, never in this row. An export bundle is a
+/// copy of somebody's entire account, so it is written privately, fetched
+/// through a short-lived signed URL, and deleted at `expiresAt` — a job table is
+/// no place to accumulate them, and neither is a bucket.
+///
+/// Claimed with the lease/orphan pattern the evaluation-run worker established
+/// (`lockedBy` + `lockedAt`), so two instances of the maintenance tick cannot
+/// run one person's import twice.
+///
+/// @see lib/portability/jobs/worker.ts
+/// @see .context/framework/resparkable/transfer.md
+model TransferJob {
+  id     String @id @default(cuid())
+  userId String
+  /// Personal data: this describes one person's own account moving. Erased with
+  /// them — and `eraseUser()` drops the stored archive before the row goes, or
+  /// the bucket would keep a full copy of an account that was just erased.
+  user   User   @relation("TransferJobUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  /// "export" | "import"
+  kind   String
+  /// "queued" | "running" | "completed" | "failed" | "expired"
+  status String @default("queued")
+
+  // ── what was asked for ──
+  /// Export only. Null on an import, which reads whatever the bundle holds.
+  format           String?
+  /// Sections. Empty means every one the format covers.
+  groups           String[]
+  includeOriginals Boolean  @default(false)
+  /// Import only. "skip" | "overwrite".
+  conflictMode     String?
+  /// Import only. False plans and writes nothing, as the synchronous route does.
+  apply            Boolean  @default(false)
+
+  // ── the archive, in blob storage ──
+  /// Uploaded bundle on an import, produced bundle on an export. Null until built.
+  storageKey String?
+  fileName   String?
+  bytes      Int?
+
+  // ── what came of it ──
+  /// The plan, or the outcome, as the synchronous routes return it.
+  result      Json?
+  /// Shown to the user verbatim — these errors are written to be readable.
+  error       String? @db.Text
+  /// The machine-readable half, matching the synchronous routes' `reason`.
+  errorReason String?
+
+  // ── the lease ──
+  lockedBy String?
+  lockedAt DateTime?
+  attempts Int       @default(0)
+
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  startedAt  DateTime?
+  finishedAt DateTime?
+  /// When the stored archive is deleted. Set once there is one to delete.
+  expiresAt  DateTime?
+
+  @@index([status, createdAt])
+  @@index([userId, createdAt])
+  @@index([expiresAt])
+  @@map("transfer_job")
+}

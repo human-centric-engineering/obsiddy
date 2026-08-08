@@ -793,5 +793,17 @@ export const corePolicies: TransferPolicySet = {
         'Which seed units have been applied to this database. Migration ' +
         'bookkeeping; importing it would make the target skip seeds it never ran.',
     },
+    {
+      model: 'TransferJob',
+      owner: 'core',
+      reason:
+        'The machinery of transfer itself: requests to build or apply a bundle, ' +
+        'each holding a lease and a path into this installation’s own blob ' +
+        'storage. Importing one would resurrect a job the worker would then try ' +
+        'to run, against an archive in a bucket that is not the target’s. The ' +
+        'Art. 15 export does include these — a person is owed the record that ' +
+        'they asked for their data on a date — and that divergence is pinned by ' +
+        'the coverage guard.',
+    },
   ],
 };

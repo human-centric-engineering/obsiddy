@@ -123,3 +123,45 @@ export const accountImportSchema = z.object({
 });
 
 export type AccountImportRequest = z.infer<typeof accountImportSchema>;
+
+/**
+ * Asking for an export to be prepared in the background.
+ *
+ * JSON rather than query params, because this one creates something. The fields
+ * are the export route's, re-validated here rather than shared: the synchronous
+ * route parses a query string where everything is a string, and this parses a
+ * body where `originals` is a boolean. Coercing one into the other would be a
+ * layer of translation whose only purpose is to let two different shapes claim
+ * to be the same shape.
+ */
+export const transferExportJobSchema = z.object({
+  groups: z
+    .array(z.string())
+    .optional()
+    .default([])
+    .refine((values) => values.every(isTransferGroup), {
+      message: `Unknown section. Valid sections are: ${TRANSFER_GROUP_ORDER.join(', ')}`,
+    })
+    .transform((values) => values.filter(isTransferGroup)),
+
+  format: z
+    .string()
+    .optional()
+    .default(DEFAULT_TRANSFER_FORMAT)
+    .refine((value) => TRANSFER_FORMAT_IDS.includes(value), {
+      message: `Unknown format. Valid formats are: ${TRANSFER_FORMAT_IDS.join(', ')}`,
+    }),
+
+  originals: z.boolean().optional().default(false),
+});
+
+export type TransferExportJobRequest = z.infer<typeof transferExportJobSchema>;
+
+/**
+ * The flags on an import prepared in the background.
+ *
+ * The same two the synchronous route takes, with the same defaults and for the
+ * same reasons — a dry run unless told otherwise, and `skip` unless told
+ * otherwise. Arriving from a multipart form, so still strings.
+ */
+export const transferImportJobSchema = accountImportSchema;

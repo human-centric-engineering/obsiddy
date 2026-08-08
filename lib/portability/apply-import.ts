@@ -74,8 +74,11 @@
  * transaction. That bounds how much it can carry, which is why
  * {@link APPLY_CAPS} refuses an import above the limit instead of streaming it —
  * the same call `collect.ts` and `archive.ts` already make on the way out.
- * Importing an account too large for one request is what Phase G's background
- * jobs are for.
+ *
+ * An import nobody is waiting on runs under {@link BACKGROUND_APPLY_CAPS}, which
+ * is a bigger number and **the same transaction**. The interactive cap was never
+ * about what the database can carry; it was about how long somebody will hold a
+ * request open. Removing the person changes that and nothing else.
  *
  * @see lib/portability/import-plan.ts — where every decision here was made
  * @see .context/framework/resparkable/transfer.md
@@ -130,6 +133,48 @@ export const APPLY_CAPS = {
   /** How long to wait for a connection from the pool. */
   maxWaitMs: 15_000,
 } as const;
+
+/**
+ * The same limits, for an import nobody is waiting on.
+ *
+ * The interactive caps were never about what the database can carry — the
+ * comment above says so plainly. Take the person out of the loop and the binding
+ * constraint changes, so the numbers do too.
+ *
+ * **What has not changed is the transaction.** A background import is still one,
+ * and still refuses rather than half-writing. That is deliberate and it is the
+ * whole reason this phase is a bigger cap and a worker rather than a resumable
+ * chunked applier: chunking would trade away the one guarantee that makes this
+ * subsystem safe to point at somebody's real account, in exchange for a ceiling
+ * that almost nobody reaches. Rows attached to parents that exist, beside rows
+ * whose parents never arrived, with nothing to say which is which, is worse than
+ * a refusal at any size.
+ *
+ * So what remains is bounded by memory — the plan and the shaped rows are held
+ * at once — and by how long one transaction may hold a connection. Ten times the
+ * rows and ten times the clock, which is comfortably inside what Postgres
+ * tolerates and comfortably outside what any personal account reaches.
+ */
+export const BACKGROUND_APPLY_CAPS = {
+  ...APPLY_CAPS,
+  maxRows: 500_000,
+  timeoutMs: 10 * 60_000,
+  maxWaitMs: 30_000,
+} as const;
+
+/**
+ * Which set of limits an apply runs under.
+ *
+ * Written out rather than `typeof APPLY_CAPS`, which would be literal-typed by
+ * `as const` and therefore accept only the interactive numbers — a type that
+ * describes one value rather than the shape both values share.
+ */
+export interface ApplyCaps {
+  maxRows: number;
+  batchSize: number;
+  timeoutMs: number;
+  maxWaitMs: number;
+}
 
 /** An import we refuse to write, with a reason the UI can show verbatim. */
 export class TransferApplyError extends Error {
@@ -511,6 +556,13 @@ export interface ApplyImportParams {
    * Phase G and every export that did not ask for them.
    */
   originals?: ReadonlyMap<string, ArrivingOriginal>;
+  /**
+   * Which limits to run under. Defaults to the interactive ones.
+   *
+   * A parameter rather than a lookup on some ambient "am I in a worker?" flag,
+   * so the caller that knows nobody is waiting is the one that says so.
+   */
+  caps?: ApplyCaps;
 }
 
 /**
@@ -560,6 +612,7 @@ async function writeOriginals(params: ApplyImportParams): Promise<StoredOriginal
  */
 export async function applyImportPlan(params: ApplyImportParams): Promise<ApplyResult> {
   const { plan, userId, conflictMode } = params;
+  const caps = params.caps ?? APPLY_CAPS;
 
   // The plan carries the account it was built for, and every owner column in it
   // was already overwritten with that id. Applying it as somebody else would
@@ -641,11 +694,14 @@ export async function applyImportPlan(params: ApplyImportParams): Promise<ApplyR
   // trip where inserts go a thousand at a time.
   const writing = creating + overwriting;
 
-  if (writing > APPLY_CAPS.maxRows) {
+  if (writing > caps.maxRows) {
     throw new TransferApplyError(
       `This import would write ${writing.toLocaleString('en-GB')} records, and more than ` +
-        `${APPLY_CAPS.maxRows.toLocaleString('en-GB')} cannot be written in one go. Import ` +
-        'fewer sections at a time.',
+        `${caps.maxRows.toLocaleString('en-GB')} cannot be written in one go. ` +
+        (caps.maxRows === APPLY_CAPS.maxRows
+          ? 'Prepare the import in the background instead, which carries far more, or import ' +
+            'fewer sections at a time.'
+          : 'Import fewer sections at a time.'),
       'too-many-rows'
     );
   }
@@ -733,7 +789,7 @@ export async function applyImportPlan(params: ApplyImportParams): Promise<ApplyR
         const work = shaped.get(model);
         if (!node || !work || work.data.length === 0) continue;
 
-        for (const chunk of batch(work.data, APPLY_CAPS.batchSize)) {
+        for (const chunk of batch(work.data, caps.batchSize)) {
           await delegateFor(client, node).createMany({ data: chunk });
         }
       }
@@ -779,7 +835,7 @@ export async function applyImportPlan(params: ApplyImportParams): Promise<ApplyR
         }
       }
     },
-    { timeout: APPLY_CAPS.timeoutMs, maxWait: APPLY_CAPS.maxWaitMs }
+    { timeout: caps.timeoutMs, maxWait: caps.maxWaitMs }
   );
 
   const models = [...applied.values()].filter(

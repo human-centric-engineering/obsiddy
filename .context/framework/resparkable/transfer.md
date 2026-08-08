@@ -79,6 +79,13 @@ lib/portability/apply-import.ts            writes a plan (Phase E)
 lib/portability/originals.ts               the files, as vocabulary (Phase G)
 lib/portability/originals-io.ts            the half that touches storage
 lib/framework/resparkable/transfer/originals.ts   where a document's file goes
+
+lib/portability/jobs/enqueue.ts            asking for one, and every refusal (Phase H)
+lib/portability/jobs/claim.ts              the lease
+lib/portability/jobs/worker.ts             one job per maintenance tick
+lib/portability/jobs/archive-store.ts      where the bytes wait
+lib/portability/jobs/expiry.ts             and when they stop waiting
+app/api/v1/users/me/transfer/jobs/         queue, list, poll, delete
 ```
 
 The generic renderers live in **core** because nothing in them knows what a task
@@ -671,6 +678,83 @@ Entries are stored rather than deflated (`level: 0`). PDFs and DOCX are already
 compressed, so deflate spends real CPU for a percent or two and occasionally
 makes the entry larger.
 
+## Transfers nobody waits for
+
+Everything above has a ceiling set by how long a request may stay open rather
+than by anything about the data. An export builds the whole archive in memory
+before the first byte is sent. An import runs in one transaction inside one POST,
+and `APPLY_CAPS.maxRows` was set "well below what Postgres would tolerate,
+because the ceiling that actually binds is how long a person will hold a request
+open."
+
+Both are the right call for a request, and together they mean a large account
+cannot move at all — failing exactly the people with the most to move.
+
+`POST /api/v1/users/me/transfer/jobs` queues the same work with nobody waiting. A
+JSON body queues an export; a multipart body with a `file` field queues an
+import. `GET` lists your own; `GET …/[id]` polls one and, for a finished export,
+mints a signed download link; `DELETE …/[id]` drops the archive early.
+
+### The same code, a bigger number
+
+The worker calls `exportAccount` and `applyAccountImport` — the same functions
+the synchronous routes call, with the same arguments. A second implementation
+would drift, and the first anybody would know is a background export that differs
+from the interactive one in a way nobody can reproduce.
+
+The only difference is `BACKGROUND_APPLY_CAPS`: 500,000 rows and a ten-minute
+transaction, against 50,000 and one minute.
+
+**The transaction is unchanged.** A background import is still one, and still
+refuses rather than half-writing. Chunking it into a resumable job would trade
+away the one guarantee that makes this subsystem safe to point at a real account
+— rows attached to parents that exist beside rows whose parents never arrived —
+in exchange for a ceiling almost nobody reaches. What binds now is memory and how
+long one transaction may hold a connection, not HTTP.
+
+### The archive is in a bucket, on a clock
+
+Not in the job row. A `Bytes` column would put every byte of every export into
+Postgres, into its backups and into every replica — turning a feature about
+_moving_ somebody's data into one that quietly makes three more copies of it.
+
+It is written privately and fetched through a signed URL minted per poll, never
+stored: a URL on a row ends up in a log or a screenshot, and what it addresses is
+a whole account. Fifteen minutes for the link, seven days for the object, then
+`expiry.ts` deletes it and marks the job `expired` — the row outlives the archive,
+because "you asked for this on the 3rd and it is gone" is a useful answer and a
+missing row is not. An import's uploaded bundle is deleted the moment its job is
+terminal; there is no second thing to do with one.
+
+`eraseUser()` drops the whole `transfer-jobs/<userId>/` prefix. The rows cascade;
+the archives would not, and each is the most concentrated copy of the account
+being erased.
+
+### Refused at enqueue, not at run
+
+An installation with no private, signable blob storage cannot deliver a prepared
+export however long it is given. A queued job is a promise, and failing it a
+minute later on something knowable up front is worse than not accepting it. Same
+for a second concurrent job: one per person, because each is a full read or a
+full write of their whole account and two at once is a double-click, not an
+intention.
+
+### One job per tick, and an orphan is failed
+
+Registered on the maintenance tick as `transferJobs` (every tick) and
+`transferArchiveExpiry` (hourly). One job per tick rather than a drain loop:
+draining would hold a database connection for as long as the queue was long.
+
+The lease is `lockedBy` / `lockedAt`, as the evaluation-run worker's is — but
+here it is load-bearing rather than an optimisation, because every other task on
+that tick is idempotent and an apply is not.
+
+A stale lease is **failed, not re-claimed**, which is the deliberate divergence
+from the evaluation worker. That one resumes from a case cursor; there is no
+cursor here, and a crashed apply either committed its one transaction or did not,
+with no way for the next process to tell which. Re-running it could duplicate an
+account. The stored message says so and says to try again.
+
 ## What never round-trips
 
 ids · owner columns · session and credential material · `inboxToken` ·
@@ -694,7 +778,7 @@ of the prioritiser and precisely the thing they would be angriest to lose.
 | E   | Import apply, `conflictMode: 'skip'` only                                     | ✅ shipped |
 | F   | `conflictMode: 'overwrite'` + the `ResparkableGoal` unique migration it needs | ✅ shipped |
 | G   | Uploaded originals travel with the rows                                       | ✅ shipped |
-| H   | Background jobs, for an account too large for one request                     | planned    |
+| H   | Background jobs, for an account too large for one request                     | ✅ shipped |
 | I   | Admin-initiated transfer, on another account's behalf                         | planned    |
 
 G was one row holding three unrelated projects. Splitting it is not tidying: the
