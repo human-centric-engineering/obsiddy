@@ -161,6 +161,19 @@ describe('enqueueExportJob', () => {
     expect(job.id).toBe('job-1');
     expect(mocks.storage.upload).not.toHaveBeenCalled();
   });
+
+  it('leaves the initiator null for a self-service export', async () => {
+    // What makes the column mean "an administrator did this" rather than
+    // "somebody did this". A value on every row would say nothing.
+    await enqueueExportJob({
+      userId: USER,
+      format: 'bundle',
+      groups: [],
+      includeOriginals: false,
+    });
+
+    expect(mocks.job.create.mock.calls[0][0].data.initiatedBy).toBeNull();
+  });
 });
 
 describe('enqueueImportJob', () => {
@@ -202,6 +215,22 @@ describe('enqueueImportJob', () => {
     ).rejects.toMatchObject({ reason: 'upload-failed' });
 
     expect(mocks.job.delete).toHaveBeenCalledWith({ where: { id: 'job-1' } });
+  });
+
+  it('records who asked, when it was not the subject', async () => {
+    // On the row rather than only in the audit log. The subject's own list reads
+    // this, so "an administrator imported into your account" is visible to the
+    // person it happened to without anybody choosing to tell them.
+    await enqueueImportJob({
+      userId: USER,
+      archive,
+      fileName: 'bundle.zip',
+      conflictMode: 'skip',
+      apply: true,
+      initiatedBy: 'admin-1',
+    });
+
+    expect(mocks.job.create.mock.calls[0][0].data.initiatedBy).toBe('admin-1');
   });
 
   it('carries the flags through unchanged', async () => {

@@ -79,6 +79,21 @@ export const POST = withAuth(async (request, session) => {
   const contentType = request.headers.get('content-type') ?? '';
   const isUpload = contentType.includes('multipart/form-data');
 
+  // BEFORE formData(), which materialises the whole body in memory — the same
+  // ordering the synchronous import route documents at length. Checked here
+  // rather than inside the helper below so the guard's own 413 is what the
+  // caller gets: re-raising it as a validation error would turn "too large" into
+  // a generic 400 and lose the `FILE_TOO_LARGE` code the UI switches on.
+  if (isUpload) {
+    const tooLarge = enforceContentLengthCap(request, {
+      maxBytes: MAX_ARCHIVE_BYTES,
+      errorCode: 'FILE_TOO_LARGE',
+      errorMessage: `The bundle exceeds the ${MAX_ARCHIVE_BYTES / (1024 * 1024)} MB limit`,
+      details: { maxBytes: MAX_ARCHIVE_BYTES },
+    });
+    if (tooLarge) return tooLarge;
+  }
+
   try {
     const job = isUpload
       ? await queueImport(request, session.user.id)
@@ -126,18 +141,8 @@ async function queueExport(request: Request, userId: string) {
   });
 }
 
-/** Queue an import from a multipart body. */
+/** Queue an import from a multipart body. The size cap ran in the handler. */
 async function queueImport(request: Request, userId: string) {
-  // BEFORE formData(), which materialises the whole body in memory — the same
-  // ordering the synchronous import route documents at length.
-  const tooLarge = enforceContentLengthCap(request, {
-    maxBytes: MAX_ARCHIVE_BYTES,
-    errorCode: 'FILE_TOO_LARGE',
-    errorMessage: `The bundle exceeds the ${MAX_ARCHIVE_BYTES / (1024 * 1024)} MB limit`,
-    details: { maxBytes: MAX_ARCHIVE_BYTES },
-  });
-  if (tooLarge) throw new ValidationError('The bundle is too large', { file: ['file-too-large'] });
-
   const form = await request.formData();
   const file = form.get('file');
 
@@ -191,6 +196,11 @@ export const GET = withAuth(async (_request, session) => {
       bytes: true,
       error: true,
       errorReason: true,
+      // Present when an administrator started this rather than you. Returned to
+      // the subject on purpose: an audit log answers to the operator and is not
+      // visible here, so this is the only place the person whose account it is
+      // can see that somebody else read or wrote it.
+      initiatedBy: true,
       createdAt: true,
       startedAt: true,
       finishedAt: true,

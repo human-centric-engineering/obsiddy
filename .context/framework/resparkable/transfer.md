@@ -86,6 +86,9 @@ lib/portability/jobs/worker.ts             one job per maintenance tick
 lib/portability/jobs/archive-store.ts      where the bytes wait
 lib/portability/jobs/expiry.ts             and when they stop waiting
 app/api/v1/users/me/transfer/jobs/         queue, list, poll, delete
+
+app/api/v1/admin/users/[id]/transfer/      on somebody else's behalf (Phase I)
+app/api/v1/admin/transfer/jobs/[id]/       poll and download what you started
 ```
 
 The generic renderers live in **core** because nothing in them knows what a task
@@ -755,6 +758,71 @@ cursor here, and a crashed apply either committed its one transaction or did not
 with no way for the next process to tell which. Re-running it could duplicate an
 account. The stored message says so and says to try again.
 
+## When an administrator does it
+
+`POST /api/v1/admin/users/[id]/transfer` queues an export or an import for
+somebody else. `GET` lists that account's transfers;
+`GET /api/v1/admin/transfer/jobs/[id]` polls one and mints the download;
+`DELETE` drops the archive early.
+
+This is the most sensitive thing in the subsystem. A full export is the most
+concentrated copy of a person's data that exists, and an import writes into an
+account that is not the caller's. Both are legitimate operator work — fulfilling
+a subject access request, moving an account to a new install, rescuing a botched
+import — and neither should be possible without a trace.
+
+### Three controls, none optional
+
+**No API keys.** `withAdminAuth` accepts an admin-scoped key for headless use;
+these routes refuse one anyway. Keys are self-service and long-lived, and "read
+out any user's entire account" is not a capability that should be reachable from
+one sitting in a CI config. Same refusal the two self-service routes make.
+
+**An audit entry per request**, written before the response and for the _request_
+rather than its outcome — what needs recording is that an administrator asked,
+which is true whether or not the worker later succeeds. Four actions:
+`transfer.export`, `transfer.import`, `transfer.download`, `transfer.discard`.
+
+`transfer.download` is separate from `transfer.export` on purpose. Queueing an
+export and never fetching it is a different fact from taking it away, and only
+the second one moved anybody's data — so the signed link is audited each time it
+is minted.
+
+**`initiatedBy` on the job row**, which is the control the other two cannot
+provide. `AiAdminAuditLog` answers to the operator and the subject cannot see it.
+The column is what puts "an administrator exported your account on the 3rd" into
+the _subject's own list_, without anybody having to choose to tell them. It is
+`SetNull`, so erasing the administrator de-attributes the record rather than
+destroying the subject's evidence that it happened — and `DELETE` marks the job
+`expired` rather than removing the row, so an administrator cannot tidy it away.
+
+`npm run smoke:erasure` proves both directions on this one model against a real
+database: the subject's own transfer cascades away with them, and one they
+started for somebody else survives with its link nulled.
+
+### Scoped to jobs you started
+
+`GET /api/v1/admin/transfer/jobs/[id]` filters on `initiatedBy`, not on "is an
+admin". An admin who queued an export can follow it; an admin who queued nothing
+cannot use the route to reach into somebody's finished self-service export and
+pull the archive out with no record of having asked. Reading another account's
+data stays something you have to **start**, and starting it is what gets
+recorded.
+
+### It queues, and there is no synchronous version
+
+An admin acting on somebody's behalf is exactly the case where nobody is sitting
+waiting, so this reuses Phase H whole — same worker, same caps, same signed
+short-lived download, same seven-day expiry.
+
+There is deliberately no admin route that streams an account down to a browser.
+That shape is the one with no expiry, no audit of the _download_ as distinct from
+the request, and nothing to point at afterwards.
+
+The one-in-flight limit is scoped by **subject**, not by whoever asked, so an
+administrator cannot queue a second full read of an account alongside the one it
+already has running.
+
 ## What never round-trips
 
 ids · owner columns · session and credential material · `inboxToken` ·
@@ -779,12 +847,13 @@ of the prioritiser and precisely the thing they would be angriest to lose.
 | F   | `conflictMode: 'overwrite'` + the `ResparkableGoal` unique migration it needs | ✅ shipped |
 | G   | Uploaded originals travel with the rows                                       | ✅ shipped |
 | H   | Background jobs, for an account too large for one request                     | ✅ shipped |
-| I   | Admin-initiated transfer, on another account's behalf                         | planned    |
+| I   | Admin-initiated transfer, on another account's behalf                         | ✅ shipped |
 
 G was one row holding three unrelated projects. Splitting it is not tidying: the
 three share no code, and the ordering matters — originals change what a bundle
 _is_, and doing that after a background-job format existed would have meant
-changing the format twice.
+changing the format twice; I is a thin layer over H and would have had nothing to
+sit on if H had not landed first.
 
 ### The two conflict modes
 

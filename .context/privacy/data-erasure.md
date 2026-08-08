@@ -42,10 +42,10 @@ Deletion leans on Postgres referential actions (`prisma.user.delete` triggers
 them atomically and unbypassably). Relations to `User` fall into two policies —
 see the `account_deletion_erasure_cascade` migration for the full per-table list.
 
-| Policy                            | `onDelete` | What                                                                                                                                                                                                   |
-| --------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Personal data → erased**        | `Cascade`  | Sessions, accounts, conversations (+messages, embeddings, shares), workflow executions (+steps), user memory, evaluation sessions, API keys, webhook subscriptions                                     |
-| **Org config + audit → retained** | `SetNull`  | Agents, profiles, versions, invite/embed tokens, workflows (+versions, schedules, triggers), event hooks, knowledge documents, provider configs/models, experiments, admin audit log, MCP prompts/keys |
+| Policy                            | `onDelete` | What                                                                                                                                                                                                                                  |
+| --------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Personal data → erased**        | `Cascade`  | Sessions, accounts, conversations (+messages, embeddings, shares), workflow executions (+steps), user memory, evaluation sessions, API keys, webhook subscriptions, transfer jobs (`userId`)                                          |
+| **Org config + audit → retained** | `SetNull`  | Agents, profiles, versions, invite/embed tokens, workflows (+versions, schedules, triggers), event hooks, knowledge documents, provider configs/models, experiments, admin audit log, MCP prompts/keys, transfer jobs (`initiatedBy`) |
 
 **Why retain config?** `createdBy` is attribution, not ownership — any admin can
 already manage any agent/workflow/provider regardless of who created it. So a
@@ -145,6 +145,12 @@ side effect first, since object storage can't enlist in a DB transaction):
    A provider that stored objects in more than one place and swept only one
    would make this step a partial delete that still reported success — see
    [`.context/storage/overview.md`](../storage/overview.md#local-provider).
+4. **Remove prepared transfer archives** — `deleteByPrefix('transfer-jobs/{userId}/')`.
+   The `TransferJob` rows cascade; the archives they name do not, and each one is
+   a complete copy of the account being erased. Skipping this would leave the
+   most concentrated version of somebody's data sitting in a bucket with nothing
+   left pointing at it — unreachable through the app, and entirely present. See
+   [`.context/framework/resparkable/transfer.md`](../framework/resparkable/transfer.md).
 
 Apps and forks extend these same two reach-limits (residual-PII scrub, external
 resource cleanup) via registered hooks — see
@@ -259,13 +265,13 @@ demoted or deleted). See
 
 ## GDPR Mapping
 
-| Requirement                           | Status                                                                  |
-| ------------------------------------- | ----------------------------------------------------------------------- |
-| **Art. 17 — Right to erasure**        | ✅ Personal data cascaded, residual PII scrubbed, avatar blobs removed. |
-| **Art. 5(2) — Accountability**        | ✅ Append-only `DataErasureReceipt`.                                    |
-| **Art. 15 — Right of access**         | ✅ `exportUserData()` — see [Subject Access Export](./data-export.md).  |
-| **Art. 20 — Portability/export**      | ✅ Same path; the bundle is structured, machine-readable JSON.          |
-| **Art. 5(1)(e) — Storage limitation** | ⏳ Retention purge is a separate feature (see roadmap).                 |
+| Requirement                           | Status                                                                                        |
+| ------------------------------------- | --------------------------------------------------------------------------------------------- |
+| **Art. 17 — Right to erasure**        | ✅ Personal data cascaded, residual PII scrubbed, avatar and prepared-transfer blobs removed. |
+| **Art. 5(2) — Accountability**        | ✅ Append-only `DataErasureReceipt`.                                                          |
+| **Art. 15 — Right of access**         | ✅ `exportUserData()` — see [Subject Access Export](./data-export.md).                        |
+| **Art. 20 — Portability/export**      | ✅ Same path; the bundle is structured, machine-readable JSON.                                |
+| **Art. 5(1)(e) — Storage limitation** | ⏳ Retention purge is a separate feature (see roadmap).                                       |
 
 ## Related Documentation
 

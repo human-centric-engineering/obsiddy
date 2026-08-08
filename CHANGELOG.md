@@ -18,6 +18,50 @@ release process.
 
 ### Added
 
+- **Administrators can transfer an account on its owner's behalf.** `POST
+  /api/v1/admin/users/[id]/transfer` queues an export (JSON body) or an import
+  (multipart with `file`) for the named user; `GET` lists that account's
+  transfers; `GET /api/v1/admin/transfer/jobs/[id]` polls one and mints the
+  signed download; `DELETE` drops the archive early.
+
+  Legitimate operator work — fulfilling a subject access request, moving an
+  account to a new install, rescuing a botched import — and the most sensitive
+  thing this subsystem can do. Three controls, none optional:
+
+  **API keys are refused**, even though `withAdminAuth` accepts an admin-scoped
+  one for headless use. Keys are self-service and long-lived, and "read out any
+  user's entire account" should not be reachable from one left in a CI config.
+
+  **Every request writes an audit entry**, before the response and for the
+  request rather than its outcome: `transfer.export`, `transfer.import`,
+  `transfer.download`, `transfer.discard`. The download is audited separately
+  from the export that produced it, because queueing one and never fetching it is
+  a different fact from taking it away — and only the second moved anybody's
+  data.
+
+  **`TransferJob.initiatedBy`** (new column, `SetNull`) is returned on the
+  *subject's* own transfer list. An audit log answers to the operator and the
+  subject cannot see it; this is what makes "an administrator exported your
+  account on the 3rd" visible to the person it happened to. `DELETE` marks the
+  job `expired` rather than removing the row, so that evidence cannot be tidied
+  away, and `SetNull` means erasing the administrator de-attributes it rather
+  than destroying it.
+
+  The poll route is scoped to jobs **this administrator started**, not to "any
+  job, because you are an admin" — so reading another account's data stays
+  something you have to start, and starting it is what gets recorded. There is
+  deliberately no synchronous admin export: that shape has no expiry, no audit of
+  the download as distinct from the request, and nothing to point at afterwards.
+  The one-in-flight limit is scoped by subject rather than by caller.
+
+  Changed public surface: `TransferJob` gains `initiatedBy` and a
+  `TransferJobInitiator` relation on `User`; `EnqueueExportParams` and
+  `EnqueueImportParams` gain an optional `initiatedBy` (the new `OnBehalfOf`
+  interface); the self-service job list and single-job routes now return
+  `initiatedBy`. `scripts/smoke/erasure.ts` covers both policies on the model —
+  a subject's own transfer cascades, one they started for somebody else is
+  retained and de-attributed.
+
 - **Account transfers can be prepared in the background.** `POST
   /api/v1/users/me/transfer/jobs` queues an export (JSON body) or an import
   (multipart body with a `file` field); `GET` lists your own; `GET …/[id]` polls

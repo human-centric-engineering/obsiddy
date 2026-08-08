@@ -57,6 +57,9 @@ async function main(): Promise<void> {
   let receiptId: string | null = null;
   let datasetId: string | null = null;
   let runId: string | null = null;
+  let ownTransferId: string | null = null;
+  let startedTransferId: string | null = null;
+  let otherSubjectId: string | null = null;
   let inboundConversationId: string | null = null;
   let inboundExecutionId: string | null = null;
   let workflowId: string | null = null;
@@ -173,6 +176,37 @@ async function main(): Promise<void> {
     });
     runId = run.id;
 
+    // Two transfer jobs, because this one model carries both policies. The
+    // subject's own transfer is personal data and cascades; the one they started
+    // *for somebody else* as an administrator is attribution on another person's
+    // row and must survive with its link nulled — otherwise erasing an admin
+    // would destroy their subjects' evidence that an administrator read their
+    // accounts.
+    const ownTransfer = await prisma.transferJob.create({
+      data: { userId: subject.id, kind: 'export', format: 'bundle', groups: [] },
+    });
+    ownTransferId = ownTransfer.id;
+
+    const otherSubject = await prisma.user.create({
+      data: {
+        name: `${PREFIX} other`,
+        email: `${PREFIX}-other-${Date.now()}@smoke.local`,
+        role: 'USER',
+      },
+    });
+    otherSubjectId = otherSubject.id;
+
+    const startedTransfer = await prisma.transferJob.create({
+      data: {
+        userId: otherSubject.id,
+        initiatedBy: subject.id,
+        kind: 'export',
+        format: 'bundle',
+        groups: [],
+      },
+    });
+    startedTransferId = startedTransfer.id;
+
     // Erase.
     const result = await eraseUser({
       userId: subject.id,
@@ -206,6 +240,21 @@ async function main(): Promise<void> {
     check(auditAfter !== null, 'audit row retained');
     check(auditAfter?.userId === null, 'audit.userId nulled (SetNull)');
     check(auditAfter?.clientIp === null, 'audit.clientIp scrubbed (residual PII)');
+
+    // Transfers: the subject's own goes; the one they started for somebody else
+    // stays, de-attributed.
+    check(
+      (await prisma.transferJob.findUnique({ where: { id: ownTransfer.id } })) === null,
+      'own transfer job cascade-deleted'
+    );
+    const startedAfter = await prisma.transferJob.findUnique({
+      where: { id: startedTransfer.id },
+    });
+    check(startedAfter !== null, 'transfer started for another account retained');
+    check(
+      startedAfter?.initiatedBy === null,
+      'transfer.initiatedBy nulled (SetNull) — the subject keeps the record, the admin link goes'
+    );
 
     // Evaluations: dataset retained + de-attributed; run cascade-deleted.
     const datasetAfter = await prisma.aiDataset.findUnique({ where: { id: dataset.id } });
@@ -256,6 +305,13 @@ async function main(): Promise<void> {
       await prisma.aiAdminAuditLog.deleteMany({ where: { id: auditId } }).catch(() => undefined);
     if (subjectUserId)
       await prisma.user.deleteMany({ where: { id: subjectUserId } }).catch(() => undefined);
+    // Both transfer jobs, then the second subject. The retained one survived the
+    // erasure on purpose, so nothing else is going to take it away.
+    for (const id of [ownTransferId, startedTransferId]) {
+      if (id) await prisma.transferJob.deleteMany({ where: { id } }).catch(() => undefined);
+    }
+    if (otherSubjectId)
+      await prisma.user.deleteMany({ where: { id: otherSubjectId } }).catch(() => undefined);
     if (runId)
       await prisma.aiEvaluationRun.deleteMany({ where: { id: runId } }).catch(() => undefined);
     if (datasetId)

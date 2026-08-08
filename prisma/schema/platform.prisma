@@ -111,6 +111,23 @@ model TransferJob {
   /// the bucket would keep a full copy of an account that was just erased.
   user   User   @relation("TransferJobUser", fields: [userId], references: [id], onDelete: Cascade)
 
+  /// Who asked for it, when that is not the subject.
+  ///
+  /// Null for a self-service transfer, which is the ordinary case. Set when an
+  /// administrator acted on somebody's behalf — fulfilling a data request,
+  /// moving an account to a new install, helping with an import.
+  ///
+  /// Deliberately on the row rather than only in the audit log. The subject's
+  /// own list reads from here, so "an administrator exported your account on
+  /// the 3rd" is something the person it happened to can see without anybody
+  /// choosing to tell them. An audit log answers to the operator; this answers
+  /// to the subject.
+  ///
+  /// `SetNull`: retained attribution, so erasing the admin later de-attributes
+  /// the record rather than destroying the subject's evidence that it happened.
+  initiatedBy String?
+  initiator   User?   @relation("TransferJobInitiator", fields: [initiatedBy], references: [id], onDelete: SetNull)
+
   /// "export" | "import"
   kind   String
   /// "queued" | "running" | "completed" | "failed" | "expired"
@@ -156,5 +173,6 @@ model TransferJob {
   @@index([status, createdAt])
   @@index([userId, createdAt])
   @@index([expiresAt])
+  @@index([initiatedBy, createdAt])
   @@map("transfer_job")
 }

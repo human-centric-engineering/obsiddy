@@ -55,6 +55,7 @@ const JOB_SELECT = {
   result: true,
   error: true,
   errorReason: true,
+  initiatedBy: true,
   createdAt: true,
   startedAt: true,
   finishedAt: true,

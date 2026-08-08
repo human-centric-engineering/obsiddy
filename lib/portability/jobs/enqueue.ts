@@ -45,14 +45,26 @@ export const MAX_JOBS_IN_FLIGHT = 1;
 /** Statuses that mean the worker has not finished with it. */
 const IN_FLIGHT = ['queued', 'running'];
 
-export interface EnqueueExportParams {
+/**
+ * Who asked, when it was not the person whose account it is.
+ *
+ * Absent for a self-service transfer, which is the ordinary case. Set to an
+ * administrator's id when they act on somebody's behalf — and then recorded on
+ * the row, so the *subject's* own list shows it. An audit log answers to the
+ * operator; this answers to the person it happened to.
+ */
+export interface OnBehalfOf {
+  initiatedBy?: string;
+}
+
+export interface EnqueueExportParams extends OnBehalfOf {
   userId: string;
   format: string;
   groups: readonly string[];
   includeOriginals: boolean;
 }
 
-export interface EnqueueImportParams {
+export interface EnqueueImportParams extends OnBehalfOf {
   userId: string;
   /** The uploaded bundle. Stored before the job exists — see below. */
   archive: Uint8Array;
@@ -70,23 +82,30 @@ export interface EnqueuedJob {
   createdAt: Date;
 }
 
-/** Refuse now if the installation could never deliver, or the person already has one running. */
-async function guard(userId: string): Promise<void> {
+/** Refuse now if the installation could never deliver, or the account already has one running. */
+async function guard(userId: string, onBehalf: boolean): Promise<void> {
   const unavailable = blobStorageUnavailable();
   if (unavailable) {
     throw new TransferJobError(unavailable, 'storage-unavailable');
   }
 
   const existing = await prisma.transferJob.findFirst({
+    // Scoped by subject, not by whoever asked. The limit is on the account being
+    // read or written, so an administrator cannot queue a second full read of
+    // somebody's data alongside the one that account already has running.
     where: { userId, status: { in: IN_FLIGHT } },
     orderBy: { createdAt: 'desc' },
     select: { id: true, kind: true },
   });
 
   if (existing) {
+    const what = existing.kind === 'export' ? 'an export' : 'an import';
     throw new TransferJobError(
-      `You already have ${existing.kind === 'export' ? 'an export' : 'an import'} being prepared. ` +
-        'Wait for it to finish before starting another — each one reads or writes your whole account.',
+      onBehalf
+        ? `This account already has ${what} being prepared. Wait for it to finish — each one ` +
+            'reads or writes the whole account.'
+        : `You already have ${what} being prepared. Wait for it to finish before starting ` +
+            'another — each one reads or writes your whole account.',
       'already-running'
     );
   }
@@ -94,11 +113,14 @@ async function guard(userId: string): Promise<void> {
 
 /** Queue an export. The worker builds the archive and stores it. */
 export async function enqueueExportJob(params: EnqueueExportParams): Promise<EnqueuedJob> {
-  await guard(params.userId);
+  await guard(params.userId, params.initiatedBy !== undefined);
 
   const job = await prisma.transferJob.create({
     data: {
       userId: params.userId,
+      // Null when somebody exports their own account, which is what makes the
+      // column mean "an administrator did this" rather than "somebody did this".
+      initiatedBy: params.initiatedBy ?? null,
       kind: 'export',
       format: params.format,
       groups: [...params.groups],
@@ -109,6 +131,7 @@ export async function enqueueExportJob(params: EnqueueExportParams): Promise<Enq
 
   logger.info('Transfer export job queued', {
     userId: params.userId,
+    initiatedBy: params.initiatedBy ?? null,
     jobId: job.id,
     format: params.format,
     groups: params.groups,
@@ -132,11 +155,12 @@ export async function enqueueExportJob(params: EnqueueExportParams): Promise<Enq
  * because `storageKey` is null and the worker refuses those.
  */
 export async function enqueueImportJob(params: EnqueueImportParams): Promise<EnqueuedJob> {
-  await guard(params.userId);
+  await guard(params.userId, params.initiatedBy !== undefined);
 
   const job = await prisma.transferJob.create({
     data: {
       userId: params.userId,
+      initiatedBy: params.initiatedBy ?? null,
       kind: 'import',
       // Not queued yet. The worker only takes a job whose archive is there, so a
       // failure between here and the update below leaves nothing to pick up.
@@ -173,6 +197,7 @@ export async function enqueueImportJob(params: EnqueueImportParams): Promise<Enq
 
     logger.info('Transfer import job queued', {
       userId: params.userId,
+      initiatedBy: params.initiatedBy ?? null,
       jobId: job.id,
       conflictMode: params.conflictMode,
       apply: params.apply,
