@@ -122,8 +122,16 @@ function cell(value: unknown): string {
 
   // Newlines and pipes both end a Markdown table row early, taking the rest of
   // the record with them and leaving a table that looks complete.
+  //
+  // Backslashes are escaped first, and must be: a value already containing a
+  // literal `\|` would otherwise become `\\|` after the pipe replacement below
+  // — which Markdown reads as an escaped backslash followed by an *unescaped*
+  // pipe, exactly the row-ending character this is meant to neutralise. Escape
+  // the backslash first and the later `\|` can never combine with one that was
+  // already there.
   const flat = text
     .replace(/\s*\n\s*/g, ' ')
+    .replace(/\\/g, '\\\\')
     .replace(/\|/g, '\\|')
     .trim();
 

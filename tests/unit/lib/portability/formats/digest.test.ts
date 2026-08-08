@@ -172,6 +172,31 @@ describe('renderDigest', () => {
     expect(digest).toContain('Ship A \\| then B');
   });
 
+  it('escapes a pre-existing backslash before escaping a pipe, so the two cannot combine into an unescaped one', () => {
+    // Escaping the pipe alone is not enough: a value already containing a
+    // literal `\|` would become `\\|` if the backslash were left alone —
+    // which Markdown reads as an escaped backslash followed by a real,
+    // row-ending pipe. The backslash must be doubled first.
+    const digest = renderDigest(
+      collected({
+        models: [
+          model({
+            model: 'ResparkableTask',
+            rows: [{ id: 't1', userId: 'user-1', title: 'Ship A \\| then B', status: 'todo' }],
+          }),
+        ],
+        totalRows: 1,
+      }),
+      AT
+    );
+
+    expect(digest).toContain('Ship A \\\\\\| then B');
+    // The row must not have been split by an unescaped pipe: exactly one
+    // table row for this record, not two.
+    const rowLines = digest.split('\n').filter((line) => line.includes('Ship A'));
+    expect(rowLines).toHaveLength(1);
+  });
+
   it('flattens a newline so a multi-line note cannot split the row in two', () => {
     const digest = renderDigest(
       collected({
