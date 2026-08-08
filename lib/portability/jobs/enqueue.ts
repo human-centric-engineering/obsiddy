@@ -42,8 +42,16 @@ export class TransferJobError extends Error {
  */
 export const MAX_JOBS_IN_FLIGHT = 1;
 
-/** Statuses that mean the worker has not finished with it. */
-const IN_FLIGHT = ['queued', 'running'];
+/**
+ * Statuses that mean the worker has not finished with it.
+ *
+ * Includes `preparing`: an import job is created in that status *before* its
+ * archive upload completes, and the guard below runs on every enqueue — a
+ * second request arriving mid-upload must see the first one too, or both reach
+ * `queued` and the worker applies the same import twice. See `claim.ts`'s
+ * header for what running an apply twice does to a table with no merge key.
+ */
+const IN_FLIGHT = ['preparing', 'queued', 'running'];
 
 /**
  * Who asked, when it was not the person whose account it is.

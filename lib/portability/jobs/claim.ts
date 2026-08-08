@@ -128,6 +128,8 @@ const asJsonValue: (text: string) => Prisma.InputJsonValue = JSON.parse;
 /** Record a job that finished, with whatever it produced. */
 export async function completeTransferJob(params: {
   jobId: string;
+  /** Whoever holds the lease. Must still hold it, or the write is refused. */
+  workerId: string;
   /** The plan or the outcome, as the synchronous routes return it. */
   result?: unknown;
   storageKey?: string | null;
@@ -135,8 +137,11 @@ export async function completeTransferJob(params: {
   bytes?: number | null;
   expiresAt?: Date | null;
 }): Promise<void> {
-  await prisma.transferJob.update({
-    where: { id: params.jobId },
+  const written = await prisma.transferJob.updateMany({
+    // Fenced the same way the claim itself is: a lease the watchdog reaped
+    // while this worker was still running must not have its outcome overwritten
+    // by the worker that no longer holds it. See `failOrphanedTransferJobs`.
+    where: { id: params.jobId, lockedBy: params.workerId },
     data: {
       status: 'completed',
       finishedAt: new Date(),
@@ -152,6 +157,13 @@ export async function completeTransferJob(params: {
       expiresAt: params.expiresAt,
     },
   });
+
+  if (written.count === 0) {
+    logger.warn('Transfer job completion lost its lease', {
+      jobId: params.jobId,
+      workerId: params.workerId,
+    });
+  }
 }
 
 /**
@@ -163,11 +175,14 @@ export async function completeTransferJob(params: {
  */
 export async function failTransferJob(params: {
   jobId: string;
+  /** Whoever holds the lease. Must still hold it, or the write is refused. */
+  workerId: string;
   message: string;
   reason: string;
 }): Promise<void> {
-  await prisma.transferJob.update({
-    where: { id: params.jobId },
+  const written = await prisma.transferJob.updateMany({
+    // See `completeTransferJob`: the same lease fence, for the same reason.
+    where: { id: params.jobId, lockedBy: params.workerId },
     data: {
       status: 'failed',
       finishedAt: new Date(),
@@ -177,6 +192,13 @@ export async function failTransferJob(params: {
       errorReason: params.reason,
     },
   });
+
+  if (written.count === 0) {
+    logger.warn('Transfer job failure lost its lease', {
+      jobId: params.jobId,
+      workerId: params.workerId,
+    });
+  }
 }
 
 /**

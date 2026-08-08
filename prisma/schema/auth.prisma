@@ -71,8 +71,8 @@ model User {
   mcpExposedPrompts McpExposedPrompt[] @relation("McpPromptCreator")
 
   // Account transfer
-  transferJobs         TransferJob[] @relation("TransferJobUser")
-  transferJobsStarted  TransferJob[] @relation("TransferJobInitiator")
+  transferJobs        TransferJob[] @relation("TransferJobUser")
+  transferJobsStarted TransferJob[] @relation("TransferJobInitiator")
 
   @@unique([email])
   @@index([role])

@@ -57,7 +57,7 @@ import {
   VAULT_EXPORT_MAX_PER_TYPE,
   VaultExportError,
 } from '@/lib/framework/resparkable/vault/export';
-import { VAULT_MANIFEST_PATH } from '@/lib/framework/resparkable/vault/layout';
+import { VAULT_MANIFEST_PATH, type VaultNoteType } from '@/lib/framework/resparkable/vault/layout';
 
 const SCOPE = { userId: 'user_a' } as unknown as OwnerScope;
 
@@ -245,5 +245,306 @@ describe('buildVaultArchive', () => {
     );
 
     await expect(buildVaultArchive(SCOPE)).rejects.toBeInstanceOf(VaultExportError);
+  });
+});
+
+// ─── Added: the cross-referencing collectVaultNotes does before encoding ─────
+//
+// Every test above keeps every list empty (or, for the tag/checklist batching
+// test, populated with bare `{id, title}` tasks). That is correct for what
+// those tests check, but it means the index-building in the middle of
+// `collectVaultNotes` — areaNameById, projectNameById, goalTitleById,
+// tagsByTask, checklistByTask, tasksByProject, and the two-directional
+// `titleByRef`/`linksByRef` a link is resolved through — has never run over
+// anything with a second row to cross-reference. `round-trip.test.ts` covers
+// the same territory but starts from hand-encoded `CollectedNote[]`, which
+// skips this exact wiring; this is the one place that wiring is exercised
+// against raw repo rows.
+describe('collectVaultNotes — cross-references resolved from raw rows', () => {
+  const AREA = {
+    id: 'area_1',
+    name: 'The business',
+    slug: 'the-business',
+    description: null,
+    targetWeeklyMinutes: null,
+  };
+  const GOAL = {
+    id: 'goal_1',
+    title: 'Ship it',
+    slug: 'ship-it',
+    horizon: 'quarter',
+    status: 'active',
+    targetDate: null,
+    description: null,
+    areaId: 'area_1',
+    parentGoalId: null,
+  };
+  // A child goal, so `goalTitleById.get(goal.parentGoalId)` resolves through a
+  // real second row rather than always taking the `parentGoalId` falsy branch.
+  const GOAL_CHILD = {
+    id: 'goal_2',
+    title: 'Beta first',
+    slug: 'beta-first',
+    horizon: 'month',
+    status: 'active',
+    targetDate: null,
+    description: null,
+    areaId: null,
+    parentGoalId: 'goal_1',
+  };
+  const PROJECT = {
+    id: 'project_1',
+    name: 'Website rebuild',
+    slug: 'website-rebuild',
+    status: 'active',
+    description: null,
+    areaId: 'area_1',
+  };
+  // A second project purely to be the other end of `LINK` — `encodeProject`
+  // is the only encoder that renders a `## Links` block at all (see
+  // `notes.ts`: `links` is not a parameter of `encodeTask` or any of the
+  // others), so exercising both the forward and backward halves of
+  // `linksByRef` with an assertion that can actually see the result means
+  // linking two projects rather than a project and a task.
+  const PROJECT_2 = {
+    id: 'project_2',
+    name: 'Marketing site',
+    slug: 'marketing-site',
+    status: 'active',
+    description: null,
+    areaId: null,
+  };
+  // Linked to nothing, so `linksByRef.get('project:project_3')` misses and the
+  // `?? []` fallback in the project's `links:` line actually runs.
+  const PROJECT_3 = {
+    id: 'project_3',
+    name: 'Internal tools',
+    slug: 'internal-tools',
+    status: 'active',
+    description: null,
+    areaId: null,
+  };
+  const TASK = {
+    id: 'task_1',
+    title: 'Ship the beta',
+    status: 'todo',
+    notes: null,
+    dueAt: null,
+    deferUntil: null,
+    estimateMinutes: null,
+    energy: null,
+    contextTag: null,
+    projectId: 'project_1',
+  };
+  const THOUGHT = {
+    id: 'thought_1',
+    content: 'What if capture worked from the lock screen',
+    status: 'inbox',
+    createdAt: new Date('2026-07-01T08:00:00.000Z'),
+  };
+  const ENTITY = {
+    id: 'entity_1',
+    name: 'Dana',
+    slug: 'dana',
+    kind: 'person',
+    status: 'active',
+    website: null,
+    description: null,
+  };
+  const REVIEW = {
+    id: 'review_1',
+    title: 'Week 31',
+    horizon: 'weekly',
+    body: 'A generated weekly review.',
+    generatedAt: new Date('2026-08-03T06:00:00.000Z'),
+  };
+  const DOCUMENT = {
+    id: 'document_1',
+    title: 'Contract',
+    fileName: 'contract.pdf',
+    mimeType: 'application/pdf',
+    byteSize: 240_000,
+    extractedText: 'The parties agree…',
+  };
+  // project_1 → project_2, so both the forward and backward halves of the
+  // bidirectional link index get exercised, each landing on a note type that
+  // actually renders a Links block.
+  const LINK = {
+    sourceType: 'project',
+    sourceId: 'project_1',
+    targetType: 'project',
+    targetId: 'project_2',
+    kind: 'supports',
+    strength: 0.71,
+    rationale: 'Same push',
+  };
+  // Neither end names anything this export collected — a link into a section
+  // that never travelled, or a stale row a later edit removed. Both
+  // `if (forward)` and `if (backward)` must independently take their false
+  // branch, and not throw doing it.
+  const LINK_ORPHAN = {
+    sourceType: 'task',
+    sourceId: 'task_missing',
+    targetType: 'project',
+    targetId: 'project_missing',
+    kind: 'relates-to',
+    strength: null,
+    rationale: null,
+  };
+
+  beforeEach(() => {
+    vi.mocked(listAreas).mockResolvedValue([AREA] as never);
+    vi.mocked(listGoals).mockResolvedValue([GOAL, GOAL_CHILD] as never);
+    vi.mocked(listProjects).mockResolvedValue([PROJECT, PROJECT_2, PROJECT_3] as never);
+    vi.mocked(listTasks).mockResolvedValue([TASK] as never);
+    vi.mocked(listThoughts).mockResolvedValue([THOUGHT] as never);
+    vi.mocked(listEntities).mockResolvedValue([ENTITY] as never);
+    vi.mocked(listReviews).mockResolvedValue([REVIEW] as never);
+    vi.mocked(listDocuments).mockResolvedValue([DOCUMENT] as never);
+    vi.mocked(listLinks).mockResolvedValue([LINK, LINK_ORPHAN] as never);
+    vi.mocked(listTagsForTasks).mockResolvedValue([
+      { taskId: 'task_1', tag: { name: 'deep-work' } },
+    ] as never);
+    // Deliberately out of position order — the collector sorts by `position`,
+    // and rows arriving pre-sorted from the repo would leave that comparator
+    // never actually invoked.
+    vi.mocked(listChecklistForTasks).mockResolvedValue([
+      { taskId: 'task_1', text: 'Tag the release', isDone: false, position: 1 },
+      { taskId: 'task_1', text: 'Write the changelog', isDone: true, position: 0 },
+    ] as never);
+  });
+
+  function collectedFor(items: Awaited<ReturnType<typeof collectVaultNotes>>, type: VaultNoteType) {
+    const found = items.find((item) => item.type === type);
+    if (!found) throw new Error(`No collected note of type ${type}`);
+    return found;
+  }
+
+  function collectedById(items: Awaited<ReturnType<typeof collectVaultNotes>>, id: string) {
+    const found = items.find((item) => item.id === id);
+    if (!found) throw new Error(`No collected note with id ${id}`);
+    return found;
+  }
+
+  it('produces one collected note per row for every type, not just the ones already tested', async () => {
+    const collected = await collectVaultNotes(SCOPE);
+
+    expect(new Set(collected.map((item) => item.type))).toEqual(
+      new Set(['area', 'document', 'entity', 'goal', 'project', 'review', 'task', 'thought'])
+    );
+    // Multiple rows of the same type — proves this counts rows, not just types seen.
+    expect(collected.filter((item) => item.type === 'project')).toHaveLength(3);
+    expect(collected.filter((item) => item.type === 'goal')).toHaveLength(2);
+    expect(collected).toHaveLength(11);
+  });
+
+  it("resolves a goal's area id to the area's name", async () => {
+    const collected = await collectVaultNotes(SCOPE);
+
+    expect(collectedById(collected, 'goal_1').note.frontmatter.area).toBe('[[The business]]');
+  });
+
+  it("resolves a child goal's parentGoalId to the parent's title", async () => {
+    const collected = await collectVaultNotes(SCOPE);
+
+    expect(collectedById(collected, 'goal_2').note.frontmatter.parent).toBe('[[Ship it]]');
+  });
+
+  it("resolves a project's area and embeds its tasks as a generated checkbox block", async () => {
+    const collected = await collectVaultNotes(SCOPE);
+
+    const project = collectedFor(collected, 'project');
+    expect(project.note.frontmatter.area).toBe('[[The business]]');
+    expect(project.note.body).toContain('- [ ] Ship the beta ^bt-task_1');
+  });
+
+  it("resolves a task's project, tags and checklist, keyed off its own id", async () => {
+    const collected = await collectVaultNotes(SCOPE);
+
+    const task = collectedFor(collected, 'task');
+    expect(task.note.frontmatter.project).toBe('[[Website rebuild]]');
+    expect(task.note.frontmatter.tags).toEqual(['deep-work']);
+    expect(task.note.body).toContain('- [ ] Tag the release');
+  });
+
+  it('orders a task’s checklist by position, not by the order the repo returned it in', async () => {
+    const collected = await collectVaultNotes(SCOPE);
+
+    const task = collectedFor(collected, 'task');
+    const changelogLine = task.note.body.indexOf('Write the changelog');
+    const tagReleaseLine = task.note.body.indexOf('Tag the release');
+
+    expect(changelogLine).toBeGreaterThan(-1);
+    expect(changelogLine).toBeLessThan(tagReleaseLine);
+    // position 0 is done; position 1 is not.
+    expect(task.note.body).toContain('- [x] Write the changelog');
+    expect(task.note.body).toContain('- [ ] Tag the release');
+  });
+
+  it('resolves an accepted link on both the source and the target note', async () => {
+    // The header comment on `linksByRef` says a link is symmetric to a reader —
+    // asserted here on both ends, not just the one a single-direction test
+    // would happen to check.
+    const collected = await collectVaultNotes(SCOPE);
+
+    const source = collectedById(collected, 'project_1');
+    const target = collectedById(collected, 'project_2');
+
+    // Forward: the source names the target it supports.
+    expect(source.note.body).toContain('- supports: [[Marketing site]] (0.71) — Same push');
+    // Backward: the target is shown as supported by the source.
+    expect(target.note.body).toContain('- supports: [[Website rebuild]] (0.71) — Same push');
+  });
+
+  it('never renders a Links block for a type encodeTask (and friends) cannot carry one on', async () => {
+    // `renderLinkBlock` is only ever passed to `encodeProject` — the other six
+    // encoders have no `links` parameter at all. `linksByRef` is still built
+    // generically for every type, so this is the one place that gap would show
+    // up if a future edit wired one of them up incompletely.
+    const collected = await collectVaultNotes(SCOPE);
+
+    expect(collectedFor(collected, 'task').note.body).not.toContain('## Links');
+  });
+
+  it('does not draw a link on a row neither end of it refers to', async () => {
+    // Only project_1 and project_2 appear in `LINK`; nothing else should
+    // mention the area, goal, entity, review, document or thought.
+    const collected = await collectVaultNotes(SCOPE);
+
+    for (const type of ['area', 'goal', 'entity', 'review', 'document', 'thought'] as const) {
+      expect(collectedFor(collected, type).note.body).not.toContain('## Links');
+    }
+  });
+
+  it('falls back to no links for a project that neither end of any link names', async () => {
+    // `linksByRef.get('project:project_3')` misses entirely — the `?? []`
+    // fallback on the `links:` line, not an empty array `linksByRef` happened
+    // to store. Every test in this block also carries `LINK_ORPHAN` — a link
+    // naming a task id and a project id this export never collected — which is
+    // what exercises the `if (forward)` / `if (backward)` false branches: both
+    // `titleByRef` lookups miss and the collector produces no entry for it
+    // anywhere, this project included, rather than throwing.
+    const collected = await collectVaultNotes(SCOPE);
+
+    expect(collectedById(collected, 'project_3').note.body).not.toContain('## Links');
+  });
+
+  it('titles a thought from the first line of its content, truncated for the file name', async () => {
+    const collected = await collectVaultNotes(SCOPE);
+
+    expect(collectedFor(collected, 'thought').title).toBe(
+      'What if capture worked from the lock screen'
+    );
+  });
+
+  it('encodes an entity, a review and a document with their own type-specific fields', async () => {
+    const collected = await collectVaultNotes(SCOPE);
+
+    expect(collectedFor(collected, 'entity').note.frontmatter).toMatchObject({
+      title: 'Dana',
+      kind: 'person',
+    });
+    expect(collectedFor(collected, 'review').note.frontmatter).toMatchObject({ title: 'Week 31' });
+    expect(collectedFor(collected, 'document').note.body).toContain('contract.pdf');
   });
 });

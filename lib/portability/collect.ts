@@ -44,7 +44,7 @@
  * @see .context/framework/resparkable/transfer.md
  */
 
-import { prisma } from '@/lib/db/client';
+import { executeTransaction } from '@/lib/db/utils';
 import { logger } from '@/lib/logging';
 import { MODEL_GRAPH } from '@/lib/portability/model-graph.generated';
 import type { ModelNode } from '@/lib/portability/model-graph-types';
@@ -68,6 +68,27 @@ export const COLLECT_CAPS = {
   chunkSize: 1_000,
   /** Down-pass rounds. The real depth is about six; this only catches a cycle. */
   maxRounds: 32,
+  /**
+   * How long the whole gather may hold one transaction open.
+   *
+   * Every query the collector makes — owner pass, down pass, up pass — now runs
+   * inside a single `$transaction`, so that a hard foreign key between two
+   * owner-column models (`ResparkableBoardCard.taskId → ResparkableTask`,
+   * `AiWorkflowVersion.workflowId → AiWorkflow`) cannot outrun a write that lands
+   * between the two queries. Prisma's own default for an interactive
+   * transaction is 5 seconds, which is sized for a handful of writes, not for
+   * roughly fifty sequential reads that may together return up to `maxRows`.
+   * Ten minutes matches {@link BACKGROUND_APPLY_CAPS.timeoutMs} in
+   * `apply-import.ts` — not because this is slower than a write-heavy import,
+   * but because `maxRows` here (2,000,000) is four times that import's
+   * background cap, and this timeout has no separate interactive/background
+   * split the way the applier's does: the synchronous route and the background
+   * worker call the same `collectAccount` under the same cap, so the number has
+   * to cover the worst case either can reach.
+   */
+  transactionTimeoutMs: 600_000,
+  /** How long to wait for a connection from the pool before giving up. */
+  transactionMaxWaitMs: 30_000,
 } as const;
 
 /** An export we refuse to build, with a reason the UI can show verbatim. */
@@ -155,15 +176,24 @@ function isDelegate(value: unknown): value is GenericDelegate {
   );
 }
 
+/** A Prisma client or transaction client, indexed by delegate name. */
+type ClientLike = Record<string, unknown>;
+
 /**
  * The Prisma delegate for a model name.
+ *
+ * Takes the client explicitly — the transaction client (`tx`), never the
+ * ambient `prisma` — so every read this engine makes goes through the one
+ * snapshot the transaction opened. A model queried against the ambient client
+ * by mistake would not fail loudly; it would just see a different, later
+ * version of the database than everything queried through `tx`, which is the
+ * exact inconsistency the transaction exists to rule out.
  *
  * @throws {TransferCollectError} if the generated graph names a delegate the
  *   client does not have — which means the graph is stale, and continuing would
  *   silently omit a table rather than fail.
  */
-function delegateFor(node: ModelNode): GenericDelegate {
-  const client: Record<string, unknown> = prisma as unknown as Record<string, unknown>;
+function delegateFor(client: ClientLike, node: ModelNode): GenericDelegate {
   const delegate = client[node.delegate];
   if (!isDelegate(delegate)) {
     throw new TransferCollectError(
@@ -270,6 +300,29 @@ export interface CollectAccountParams {
  * may leave — that is entirely the manifest's job — and nothing is best-effort:
  * a query that throws fails the export.
  *
+ * ## One transaction, one snapshot
+ *
+ * The down pass and the up pass are internally race-safe: each queries children
+ * against a parent-id set already fixed earlier in the same call, so nothing
+ * later in the function can move the ground out from under them. The owner pass
+ * has no such protection on its own — it queries each owner-column model
+ * independently, and several owner-column models carry real, hard foreign keys
+ * into other owner-column models queried earlier in the same loop
+ * (`ResparkableBoardCard.taskId → ResparkableTask`,
+ * `AiWorkflowVersion.workflowId → AiWorkflow`). A write landing between two of
+ * those queries — the user's own concurrent request, or an agent acting on
+ * their behalf — could leave the bundle holding a card that names a task the
+ * export never captured. Unlike a declared `softRef`, a real Prisma relation
+ * has no `onUnresolved` degradation path for that.
+ *
+ * So every query below — owner pass, down pass, up pass alike — runs inside one
+ * `$transaction` at `RepeatableRead`. Postgres fixes that isolation level's
+ * snapshot at the first statement, so every read in this function sees one
+ * consistent point in time. `Serializable` was considered and rejected: this
+ * function only reads, so there are no write conflicts for it to detect, and
+ * its extra predicate-locking cost buys nothing a read-only snapshot doesn't
+ * already give.
+ *
  * @throws {TransferCollectError} on a stale model graph or a cap breach
  */
 export async function collectAccount(params: CollectAccountParams): Promise<CollectedAccount> {
@@ -311,111 +364,129 @@ export async function collectAccount(params: CollectAccountParams): Promise<Coll
     });
   };
 
-  // ───────────────────── pass one: the models that name an owner ────────────
+  // Everything that reads the database — all three passes — runs inside one
+  // transaction, so a write landing between two queries here (the account's own
+  // concurrent request, or an agent acting on its behalf) cannot leave the
+  // bundle holding a row whose parent this call already queried and missed. See
+  // the "One transaction, one snapshot" section above.
+  await executeTransaction(
+    async (tx) => {
+      const client = tx as unknown as ClientLike;
 
-  for (const policy of policies) {
-    if (!policy.ownerColumn) continue;
-    const node = MODEL_GRAPH[policy.model];
-    const rows = await delegateFor(node).findMany({
-      where: { [policy.ownerColumn]: userId },
-      omit: omitClause(policy),
-      orderBy: orderById(node),
-    });
-    record(policy, node, 'owner', rows);
-  }
+      // ───────────────────── pass one: the models that name an owner ────────
 
-  // ───────────────────── pass two: down the foreign keys ────────────────────
-  //
-  // A model joins on the round after the first parent that can reach it, so the
-  // loop runs until a round adds nothing. `maxRounds` is not a depth limit in
-  // any real schema — it is there so a relation cycle fails loudly instead of
-  // spinning.
+      for (const policy of policies) {
+        if (!policy.ownerColumn) continue;
+        const node = MODEL_GRAPH[policy.model];
+        const rows = await delegateFor(client, node).findMany({
+          where: { [policy.ownerColumn]: userId },
+          omit: omitClause(policy),
+          orderBy: orderById(node),
+        });
+        record(policy, node, 'owner', rows);
+      }
 
-  const pending = policies.filter((policy) => !policy.ownerColumn);
+      // ───────────────────── pass two: down the foreign keys ────────────────
+      //
+      // A model joins on the round after the first parent that can reach it, so
+      // the loop runs until a round adds nothing. `maxRounds` is not a depth
+      // limit in any real schema — it is there so a relation cycle fails loudly
+      // instead of spinning.
 
-  for (let round = 0; round < COLLECT_CAPS.maxRounds; round += 1) {
-    let progressed = false;
+      const pending = policies.filter((policy) => !policy.ownerColumn);
 
-    for (const policy of pending) {
-      if (collected.has(policy.model)) continue;
-      const node = MODEL_GRAPH[policy.model];
+      for (let round = 0; round < COLLECT_CAPS.maxRounds; round += 1) {
+        let progressed = false;
 
-      // Only edges into something already gathered. An edge into a model that
-      // is still pending is not a dead end — it just means this model's turn
-      // has not come round yet.
-      const usable = outgoingEdges(node, inScope).filter((edge) => collected.has(edge.toModel));
-      if (usable.length === 0) continue;
+        for (const policy of pending) {
+          if (collected.has(policy.model)) continue;
+          const node = MODEL_GRAPH[policy.model];
 
-      const rows = new Map<string, Record<string, unknown>>();
+          // Only edges into something already gathered. An edge into a model
+          // that is still pending is not a dead end — it just means this
+          // model's turn has not come round yet.
+          const usable = outgoingEdges(node, inScope).filter((edge) => collected.has(edge.toModel));
+          if (usable.length === 0) continue;
 
-      for (const edge of usable) {
-        const parent = collected.get(edge.toModel);
-        if (!parent) continue;
-        const parentValues = valuesAt(parent.rows, edge.toColumn);
-        if (parentValues.length === 0) continue;
+          const rows = new Map<string, Record<string, unknown>>();
 
-        for (const batch of chunk(parentValues, COLLECT_CAPS.chunkSize)) {
-          const found = await delegateFor(node).findMany({
-            where: { [edge.column]: { in: batch } },
+          for (const edge of usable) {
+            const parent = collected.get(edge.toModel);
+            if (!parent) continue;
+            const parentValues = valuesAt(parent.rows, edge.toColumn);
+            if (parentValues.length === 0) continue;
+
+            for (const batch of chunk(parentValues, COLLECT_CAPS.chunkSize)) {
+              const found = await delegateFor(client, node).findMany({
+                where: { [edge.column]: { in: batch } },
+                omit: omitClause(policy),
+                orderBy: orderById(node),
+              });
+              // Two edges can reach the same row — a cost log naming both the
+              // agent and the conversation. Keyed insert rather than concat,
+              // so it appears once.
+              for (const row of found) rows.set(rowKey(node, row), row);
+            }
+          }
+
+          record(policy, node, 'descendant', [...rows.values()]);
+          progressed = true;
+        }
+
+        if (!progressed) break;
+      }
+
+      // ───────────────────── pass three: what the rows point at ─────────────
+      //
+      // Terminal, and only for models nothing owns. See the header: walking
+      // back down from a shared row is how an export reaches other people's
+      // data.
+
+      const referenced = policies.filter(
+        (policy) => !policy.ownerColumn && !collected.has(policy.model)
+      );
+
+      for (const policy of referenced) {
+        const node = MODEL_GRAPH[policy.model];
+
+        // Which collected rows hold an id for this model, and in which column.
+        const ids = new Set<string>();
+        for (const source of collected.values()) {
+          const sourceNode = MODEL_GRAPH[source.model];
+          for (const edge of outgoingEdges(sourceNode, inScope)) {
+            if (edge.toModel !== policy.model) continue;
+            for (const value of valuesAt(source.rows, edge.column)) ids.add(value);
+          }
+        }
+
+        if (ids.size === 0) continue;
+
+        // The FK targets checked above are all `id` in practice; the one
+        // family that points elsewhere (`Resparkable*.userId →
+        // ResparkableSpace.userId`) is owned and so never arrives here.
+        // Matching on the id column keeps this a single lookup rather than one
+        // query per target column.
+        const idColumn = node.idFields[0];
+        const rows = new Map<string, Record<string, unknown>>();
+
+        for (const batch of chunk([...ids], COLLECT_CAPS.chunkSize)) {
+          const found = await delegateFor(client, node).findMany({
+            where: { [idColumn]: { in: batch } },
             omit: omitClause(policy),
             orderBy: orderById(node),
           });
-          // Two edges can reach the same row — a cost log naming both the agent
-          // and the conversation. Keyed insert rather than concat, so it
-          // appears once.
           for (const row of found) rows.set(rowKey(node, row), row);
         }
+
+        record(policy, node, 'referenced', [...rows.values()]);
       }
-
-      record(policy, node, 'descendant', [...rows.values()]);
-      progressed = true;
+    },
+    {
+      isolationLevel: 'RepeatableRead',
+      timeout: COLLECT_CAPS.transactionTimeoutMs,
+      maxWait: COLLECT_CAPS.transactionMaxWaitMs,
     }
-
-    if (!progressed) break;
-  }
-
-  // ───────────────────── pass three: what the rows point at ─────────────────
-  //
-  // Terminal, and only for models nothing owns. See the header: walking back
-  // down from a shared row is how an export reaches other people's data.
-
-  const referenced = policies.filter(
-    (policy) => !policy.ownerColumn && !collected.has(policy.model)
   );
-
-  for (const policy of referenced) {
-    const node = MODEL_GRAPH[policy.model];
-
-    // Which collected rows hold an id for this model, and in which column.
-    const ids = new Set<string>();
-    for (const source of collected.values()) {
-      const sourceNode = MODEL_GRAPH[source.model];
-      for (const edge of outgoingEdges(sourceNode, inScope)) {
-        if (edge.toModel !== policy.model) continue;
-        for (const value of valuesAt(source.rows, edge.column)) ids.add(value);
-      }
-    }
-
-    if (ids.size === 0) continue;
-
-    // The FK targets checked above are all `id` in practice; the one family that
-    // points elsewhere (`Resparkable*.userId → ResparkableSpace.userId`) is
-    // owned and so never arrives here. Matching on the id column keeps this a
-    // single lookup rather than one query per target column.
-    const idColumn = node.idFields[0];
-    const rows = new Map<string, Record<string, unknown>>();
-
-    for (const batch of chunk([...ids], COLLECT_CAPS.chunkSize)) {
-      const found = await delegateFor(node).findMany({
-        where: { [idColumn]: { in: batch } },
-        omit: omitClause(policy),
-        orderBy: orderById(node),
-      });
-      for (const row of found) rows.set(rowKey(node, row), row);
-    }
-
-    record(policy, node, 'referenced', [...rows.values()]);
-  }
 
   // ───────────────────────── whatever is left over ──────────────────────────
 

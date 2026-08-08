@@ -164,6 +164,170 @@ export function jsonStringsAt(value: unknown, declaredPath: string): JsonWalk {
   };
 }
 
+// ───────────────────────── apply-time rewriting ─────────────────────────
+
+/** What `JsonRef.onUnresolved` may say (see `policy.ts`). Repeated here rather than imported, so this module stays loadable without pulling in the policy vocabulary. */
+export type JsonRefUnresolvedEffect = 'drop-entry' | 'null' | 'keep';
+
+/** What rewriting one `Json` value produced. */
+export interface JsonRemapResult {
+  /** The value to write, with every resolvable id at the declared path substituted. */
+  value: unknown;
+  /** Whether every id found at the declared path resolved. */
+  fullyResolved: boolean;
+  /** The first id that did not resolve, for a caller that wants to say so. `null` when `fullyResolved`. */
+  firstUnresolved: string | null;
+  /** A cap was reached; anything past it was left exactly as it arrived. */
+  truncated: boolean;
+}
+
+/** Threaded through one rewrite so the caps and the first miss are shared across recursive calls. */
+interface RemapState {
+  nodes: number;
+  truncated: boolean;
+  firstUnresolved: string | null;
+}
+
+/** One node's rewritten form, and whether the *parent* should discard it entirely. */
+interface RemapNodeResult {
+  value: unknown;
+  /** `true` means: I am what `onUnresolved: 'drop-entry'` names — remove me. */
+  drop: boolean;
+}
+
+/**
+ * Walk one node, substituting ids at the declared path and applying
+ * `onUnresolved` to the ones that do not resolve.
+ *
+ * `withinArrayElement` is what makes `'drop-entry'` mean "the array element",
+ * per the path convention `jsonPathCovers` already uses: because a declared
+ * path matches *exactly* (never as a prefix), the shape a match sits in is
+ * fixed by the path string itself — `staleItems[].id` can only be reached by
+ * descending into the `staleItems` array, so every match under that path is
+ * inside one of its elements. A plain object frame therefore has two possible
+ * jobs when a child reports `drop`: if it is itself inside an array element,
+ * it is not the thing to remove — the array is — so it propagates the drop
+ * outward instead of acting on it; a plain object with no enclosing array has
+ * nothing to hand the drop to, so it removes just the one key.
+ */
+function remapNode(
+  node: unknown,
+  path: string,
+  depth: number,
+  withinArrayElement: boolean,
+  declaredPath: string,
+  resolve: (candidate: string) => string | undefined,
+  onUnresolved: JsonRefUnresolvedEffect,
+  state: RemapState
+): RemapNodeResult {
+  state.nodes += 1;
+  if (state.nodes > JSON_WALK_CAPS.maxNodes) {
+    state.truncated = true;
+    return { value: node, drop: false };
+  }
+
+  if (typeof node === 'string') {
+    if (!jsonPathCovers(declaredPath, path)) return { value: node, drop: false };
+
+    const mapped = resolve(node);
+    if (mapped !== undefined) return { value: mapped, drop: false };
+
+    if (state.firstUnresolved === null) state.firstUnresolved = node;
+
+    if (onUnresolved === 'keep') return { value: node, drop: false };
+    if (onUnresolved === 'null') return { value: null, drop: false };
+    return { value: node, drop: true }; // 'drop-entry'
+  }
+
+  if (node === null || typeof node !== 'object') return { value: node, drop: false };
+
+  if (depth >= JSON_WALK_CAPS.maxDepth) {
+    state.truncated = true;
+    return { value: node, drop: false };
+  }
+
+  if (Array.isArray(node)) {
+    const out: unknown[] = [];
+    for (const element of node) {
+      const result = remapNode(
+        element,
+        `${path}[]`,
+        depth + 1,
+        true,
+        declaredPath,
+        resolve,
+        onUnresolved,
+        state
+      );
+      // An array is always where a `drop-entry` bubble stops: the element it
+      // just produced is exactly "the entry" the id was found in.
+      if (result.drop) continue;
+      out.push(result.value);
+    }
+    return { value: out, drop: false };
+  }
+
+  const out: Record<string, unknown> = {};
+  let bubble = false;
+  for (const [key, entry] of Object.entries(node as Record<string, unknown>)) {
+    const result = remapNode(
+      entry,
+      child(path, key),
+      depth + 1,
+      withinArrayElement,
+      declaredPath,
+      resolve,
+      onUnresolved,
+      state
+    );
+    if (result.drop) {
+      if (withinArrayElement) bubble = true;
+      continue;
+    }
+    out[key] = result.value;
+  }
+
+  return bubble ? { value: undefined, drop: true } : { value: out, drop: false };
+}
+
+/**
+ * Rewrite the ids at a declared path inside one `Json` value.
+ *
+ * The apply-time counterpart to `remapJson` in `import-plan.ts`: that
+ * function only ever reports whether a `Json` reference would resolve,
+ * deliberately never touching the value it inspects (see its docstring).
+ * This is what actually substitutes the target account's ids, once they
+ * exist — see `apply-import.ts`.
+ *
+ * `resolve` is a lookup rather than the id-map itself, so this module does
+ * not need to know what the map's type looks like — a caller passes
+ * `(id) => ctx.newIds.get(id)`.
+ *
+ * Same path semantics as `jsonStringsAt` (`jsonPathCovers`, including
+ * `'**'`) and the same caps as `walkJsonStrings`: a value too large to plan
+ * against is exactly the same value too large to rewrite, and `truncated`
+ * says so rather than silently doing part of the job.
+ */
+export function remapJsonValue(
+  value: unknown,
+  declaredPath: string,
+  resolve: (candidate: string) => string | undefined,
+  onUnresolved: JsonRefUnresolvedEffect
+): JsonRemapResult {
+  const state: RemapState = { nodes: 0, truncated: false, firstUnresolved: null };
+  const result = remapNode(value, '', 0, false, declaredPath, resolve, onUnresolved, state);
+
+  return {
+    // A `drop-entry` bubble that reaches all the way back here means the
+    // whole column's value was what needed dropping, and there is no
+    // container left to remove it from — so the column is nulled instead.
+    value: result.drop ? null : result.value,
+    fullyResolved: state.firstUnresolved === null,
+    firstUnresolved: state.firstUnresolved,
+    truncated: state.truncated,
+  };
+}
+
 /** An id found somewhere no declaration covers. */
 export interface CanaryFinding {
   /** The collapsed path within the column. */

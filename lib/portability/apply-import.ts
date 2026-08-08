@@ -89,6 +89,7 @@ import { randomUUID } from 'node:crypto';
 import { executeTransaction } from '@/lib/db/utils';
 import { logger } from '@/lib/logging';
 import { isWritableScalar, type ImportPlan, type ResolvedRow } from '@/lib/portability/import-plan';
+import { remapJsonValue } from '@/lib/portability/json-paths';
 import { MODEL_GRAPH } from '@/lib/portability/model-graph.generated';
 import type { FieldMeta, ModelNode } from '@/lib/portability/model-graph-types';
 import type { ArrivingOriginal, StoredOriginals } from '@/lib/portability/originals';
@@ -409,6 +410,8 @@ function shapeValues(
     write[column] = value;
   }
 
+  applyJsonRefs(ctx, write);
+
   return { write, link };
 }
 
@@ -417,6 +420,48 @@ function applyReset(ctx: ShapeContext, write: Record<string, unknown>): void {
   for (const [column, value] of Object.entries(ctx.policy.reset ?? {})) {
     const field = ctx.fields.get(column);
     if (field && isWritableScalar(field)) write[column] = value;
+  }
+}
+
+/**
+ * Rewrite every `Json` column the policy declares a {@link JsonRef} for,
+ * against the completed id-map.
+ *
+ * Deliberately not routed through `ctx.heldBack` the way a real foreign key
+ * is. Deferral exists because Postgres checks a foreign key at insert time —
+ * a row cannot name a parent that is not in the table yet. A `Json` column
+ * carries no such constraint, and by the time any row reaches this function
+ * `ctx.newIds` already holds every id in the plan: minting runs to
+ * completion, across every model, before shaping begins — see
+ * `applyImportPlan`. There is nothing here to wait for.
+ *
+ * Mirrors `import-plan.ts`'s `remapJson` in what counts as resolved — the
+ * same "is this id a key in the map" test — but where that function only
+ * reports, this one writes. A plan that said a reference would resolve and
+ * an apply that then disagreed would be worse than either being wrong alone.
+ */
+function applyJsonRefs(ctx: ShapeContext, write: Record<string, unknown>): void {
+  for (const ref of ctx.policy.jsonRefs ?? []) {
+    if (!(ref.column in write)) continue;
+
+    const current = write[ref.column];
+    if (current === null || current === undefined) continue;
+
+    const result = remapJsonValue(
+      current,
+      ref.path,
+      (candidate) => ctx.newIds.get(candidate),
+      ref.onUnresolved
+    );
+    write[ref.column] = result.value;
+
+    if (result.truncated) {
+      logger.warn('Transfer import could not fully scan a Json column for ids to remap', {
+        model: ctx.policy.model,
+        column: ref.column,
+        path: ref.path,
+      });
+    }
   }
 }
 
@@ -726,7 +771,13 @@ export async function applyImportPlan(params: ApplyImportParams): Promise<ApplyR
         .map((relation) => relation.fromFields[0])
     );
     for (const edge of plan.deferred) {
-      if (edge.from === model) held.add(edge.column);
+      // A deferred `json-ref` edge exists only so the *planner* can order
+      // identity resolution — see `write-order.ts`. It is not a real foreign
+      // key, so Postgres enforces nothing about it, and `applyJsonRefs`
+      // rewrites every `Json` column against the completed id-map regardless
+      // of where in `plan.order` its row lands. Holding it back here would
+      // defer a column nothing is actually waiting on.
+      if (edge.from === model && edge.kind !== 'json-ref') held.add(edge.column);
     }
     heldBackByModel.set(model, held);
   }

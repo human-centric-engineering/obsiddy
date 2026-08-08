@@ -24,11 +24,15 @@ import { describe, expect, it } from 'vitest';
 import { buildBrainView } from '@/lib/framework/resparkable/transfer/brain-view';
 import {
   buildLogseqGraph,
+  escapeLogseqInline,
   logseqDate,
   logseqFormat,
   logseqPageName,
 } from '@/lib/framework/resparkable/transfer/formats/logseq';
 import type { CollectedAccount, CollectedModel } from '@/lib/portability/collect';
+
+/** Zero-width space — the invisible character `escapeLogseqInline` inserts. */
+const ZWSP = '\u200b';
 
 const AT = new Date('2026-08-07T09:30:00.000Z');
 
@@ -74,6 +78,53 @@ describe('logseqPageName', () => {
 describe('logseqDate', () => {
   it('writes the org-mode timestamp Logseq agenda reads', () => {
     expect(logseqDate(new Date('2026-08-01T00:00:00.000Z'))).toBe('<2026-08-01 Sat>');
+  });
+});
+
+describe('escapeLogseqInline', () => {
+  it('breaks a [[ ]] pair with an invisible character so it cannot be read as a page link', () => {
+    expect(escapeLogseqInline('Review [[Q3 Planning]] doc')).toBe(
+      `Review [${ZWSP}[Q3 Planning]${ZWSP}] doc`
+    );
+  });
+
+  it('breaks a (( )) pair with an invisible character so it cannot be read as a block reference', () => {
+    expect(escapeLogseqInline('See ((ref-uuid-1)) for detail')).toBe(
+      `See (${ZWSP}(ref-uuid-1)${ZWSP}) for detail`
+    );
+  });
+
+  it('wraps a #hashtag-shaped run in a code span so it cannot be read as a tag', () => {
+    // Logseq has no working backslash escape for `#` (mldoc keeps the
+    // backslash visible, and logseq/logseq#4298 tracks escapes going
+    // unhonoured), and an invisible character does not stop mldoc's
+    // byte-by-byte tag scan the way it stops the `[[`/`((` literal-string
+    // match — a code span is the one mechanism the grammar confirms works.
+    expect(escapeLogseqInline('fix #142 before release')).toBe('fix `#142` before release');
+  });
+
+  it('stops the hashtag wrap before trailing punctuation, not inside it', () => {
+    expect(escapeLogseqInline('fix #142.')).toBe('fix `#142`.');
+  });
+
+  it('escapes all three patterns in one string, changing only syntax markers', () => {
+    const original = 'Review [[Q3 Planning]] doc, see ((ref-1)) re: #urgent';
+    const escaped = escapeLogseqInline(original);
+
+    expect(escaped).not.toContain('[[');
+    expect(escaped).not.toContain(']]');
+    expect(escaped).not.toContain('((');
+    expect(escaped).not.toContain('))');
+    // Stripping the invisible characters and the code-span backticks
+    // reconstructs the original text exactly — nothing the reader typed is
+    // gone or reordered, only Logseq's own tokens are defused.
+    expect(escaped.split(ZWSP).join('').split('`').join('')).toBe(original);
+  });
+
+  it('leaves text with none of Logseq’s inline syntax untouched', () => {
+    expect(escapeLogseqInline('Plain title, nothing special.')).toBe(
+      'Plain title, nothing special.'
+    );
   });
 });
 
@@ -192,6 +243,53 @@ describe('buildLogseqGraph', () => {
 
       expect(files['pages/Inbox.md']).toContain('- TODO Loose end');
     });
+
+    it('escapes a [[ ]] pair typed into a task title so it does not become a page link', () => {
+      // The title is plain text someone typed — "Review [[Q3 Planning]] doc" —
+      // not an intentional link. Left unescaped, Logseq would read it as one,
+      // creating a phantom page or linking to an unrelated existing one.
+      const files = withTask({ title: 'Review [[Q3 Planning]] doc' });
+
+      expect(files['pages/Rebuild.md']).toContain(
+        `- TODO Review [${ZWSP}[Q3 Planning]${ZWSP}] doc`
+      );
+      expect(files['pages/Rebuild.md']).not.toContain('[[Q3 Planning]]');
+    });
+
+    it('escapes a #hashtag-shaped title so it does not become a tag', () => {
+      const files = withTask({ title: 'fix #142 before release' });
+
+      expect(files['pages/Rebuild.md']).toContain('- TODO fix `#142` before release');
+    });
+
+    it('escapes a (( )) pair typed into a task title so it does not become a block reference', () => {
+      const files = withTask({ title: 'See ((ref-uuid-1)) for context' });
+
+      expect(files['pages/Rebuild.md']).toContain(
+        `- TODO See (${ZWSP}(ref-uuid-1)${ZWSP}) for context`
+      );
+      expect(files['pages/Rebuild.md']).not.toContain('((ref-uuid-1))');
+    });
+
+    it('escapes Logseq syntax typed into a checklist item, not only the task title', () => {
+      const files = graph([
+        model('ResparkableProject', [{ id: 'p1', name: 'Rebuild', slug: 'rebuild' }]),
+        model('ResparkableTask', [{ id: 't1', title: 'Ship it', projectId: 'p1' }]),
+        model('ResparkableChecklistItem', [
+          {
+            id: 'c1',
+            taskId: 't1',
+            text: 'confirm [[Q3 Planning]] is #done',
+            isDone: false,
+            position: 1,
+          },
+        ]),
+      ]);
+
+      const page = files['pages/Rebuild.md'];
+      expect(page).toContain(`- TODO confirm [${ZWSP}[Q3 Planning]${ZWSP}] is \`#done\``);
+      expect(page).not.toContain('[[Q3 Planning]]');
+    });
   });
 
   describe('links between pages', () => {
@@ -203,6 +301,22 @@ describe('buildLogseqGraph', () => {
 
       expect(files['pages/Rebuild.md']).toContain('area:: [[Work]]');
       expect(files['pages/Work.md']).toContain('- [[Rebuild]]');
+      // The area/project relation is a link this file built on purpose, not
+      // free-form text — escapeLogseqInline must never run on it, or a link
+      // this file generates would stop working.
+      expect(files['pages/Rebuild.md']).not.toContain(ZWSP);
+    });
+
+    it('does not escape a real tag built from a tag name, only free-form body text', () => {
+      const files = graph([
+        model('ResparkableProject', [{ id: 'p1', name: 'Rebuild', slug: 'rebuild' }]),
+        model('ResparkableTask', [{ id: 't1', title: 'Ship it', projectId: 'p1' }]),
+        model('ResparkableTag', [{ id: 'g1', name: 'urgent', slug: 'urgent' }]),
+        model('ResparkableTaskTag', [{ taskId: 't1', tagId: 'g1' }]),
+      ]);
+
+      expect(files['pages/Rebuild.md']).toContain('- TODO Ship it #urgent');
+      expect(files['pages/Rebuild.md']).not.toContain('`#urgent`');
     });
 
     it('resolves a link to the page a collided name was actually filed under', () => {
@@ -242,6 +356,28 @@ describe('buildLogseqGraph', () => {
       expect(files['pages/Rebuild.md']).toContain(
         '- relates_to: [[Acme]] (0.82) — Both mention the rebuild'
       );
+    });
+  });
+
+  describe('prose bullets', () => {
+    it('escapes Logseq syntax typed into free prose, e.g. an area description', () => {
+      const files = graph([
+        model('ResparkableArea', [
+          {
+            id: 'a1',
+            name: 'Health',
+            slug: 'health',
+            description: 'Written like [[a diary]], tagged #private, refs ((old-note))',
+          },
+        ]),
+      ]);
+
+      const page = files['pages/Health.md'];
+      expect(page).toContain(
+        `Written like [${ZWSP}[a diary]${ZWSP}], tagged \`#private\`, refs (${ZWSP}(old-note)${ZWSP})`
+      );
+      expect(page).not.toContain('[[a diary]]');
+      expect(page).not.toContain('((old-note))');
     });
   });
 

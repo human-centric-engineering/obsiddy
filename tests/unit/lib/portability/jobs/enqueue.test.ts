@@ -132,7 +132,32 @@ describe('refusing before a row exists', () => {
     expect((failure as TransferJobError).reason).toBe('already-running');
     expect(mocks.job.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { userId: USER, status: { in: ['queued', 'running'] } },
+        where: { userId: USER, status: { in: ['preparing', 'queued', 'running'] } },
+      })
+    );
+  });
+
+  it('refuses a second import while the first is still uploading its archive', async () => {
+    // `enqueueImportJob` creates its row as `preparing` before the upload
+    // finishes and only reaches `queued` after — the exact window a second
+    // request must not slip through, or both eventually run and the same
+    // account gets applied twice. See `claim.ts`'s header for what that does
+    // to a table with no merge key.
+    mocks.job.findFirst.mockResolvedValue({ id: 'job-0', kind: 'import' });
+
+    const failure = await enqueueImportJob({
+      userId: USER,
+      archive: new Uint8Array([1, 2, 3]),
+      conflictMode: 'skip',
+      apply: false,
+      fileName: 'bundle.zip',
+    }).catch((error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(TransferJobError);
+    expect((failure as TransferJobError).reason).toBe('already-running');
+    expect(mocks.job.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId: USER, status: { in: ['preparing', 'queued', 'running'] } },
       })
     );
   });

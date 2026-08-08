@@ -40,7 +40,7 @@
 //
 // It is declared HERE, in a framework-tier file, only because Resparkable must
 // not edit Sunrise-owned files and `base.prisma` is one. Upstream is the right
-// home for it — filed as ask #31 in
+// home for it — filed as ask #37 in
 // `.context/framework/resparkable/sunrise-asks.md`. If Sunrise adopts it,
 // DELETE this block in the same change: two generators sharing a name is a
 // hard `prisma generate` error.
@@ -193,7 +193,7 @@ model ResparkableGoal {
   id     String @id @default(cuid())
   userId String
 
-  title String
+  title       String
   /// Unique per user, as for areas, projects and entities. A goal is an
   /// addressable thing — the vault has always filed it at
   /// `Goals/<horizon>/<slug>.md` — and until this column existed that address

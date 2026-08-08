@@ -25,7 +25,7 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockPrisma, delegateFor, resetDelegates, mockLogger } = vi.hoisted(() => {
+const { mockPrisma, delegateFor, resetDelegates, mockLogger, transactions } = vi.hoisted(() => {
   interface Delegate {
     findMany: ReturnType<typeof vi.fn>;
   }
@@ -52,21 +52,42 @@ const { mockPrisma, delegateFor, resetDelegates, mockLogger } = vi.hoisted(() =>
     }
   };
 
+  // Every option `$transaction` was called with, across the whole test run —
+  // reset per test in `beforeEach`. What matters for the bug this collector had
+  // is not that a transaction merely happened, but that it is the *only* thing
+  // that touched a delegate: see "runs every query inside the one transaction"
+  // below.
+  const transactions: { options: unknown }[] = [];
+
   const prisma = new Proxy(
-    {},
     {
-      get(_target, property) {
+      // The transaction client the collector reads through is this same proxy,
+      // so a delegate call made through `tx` and one made through the ambient
+      // client would be indistinguishable to a test that only checked the
+      // delegate — which is exactly why the test below instead asserts that
+      // `$transaction` itself was invoked, and only once.
+      $transaction: vi.fn(async (callback: (tx: unknown) => Promise<unknown>, options: unknown) => {
+        transactions.push({ options });
+        return callback(prismaRef.value);
+      }),
+    },
+    {
+      get(target: Record<string, unknown>, property) {
         if (typeof property !== 'string') return undefined;
+        if (property in target) return target[property];
         return delegateFor(property);
       },
     }
   );
+
+  const prismaRef = { value: prisma };
 
   return {
     mockPrisma: prisma,
     delegateFor,
     resetDelegates,
     mockLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+    transactions,
   };
 });
 
@@ -104,9 +125,50 @@ function entryFor(
 beforeEach(() => {
   vi.clearAllMocks();
   resetDelegates();
+  transactions.length = 0;
 });
 
 describe('collectAccount', () => {
+  describe('transaction isolation', () => {
+    // The owner pass queries each owner-column model independently, and some of
+    // those models carry a real foreign key into another owner-column model
+    // queried earlier in the same pass (ResparkableBoardCard.taskId →
+    // ResparkableTask, AiWorkflowVersion.workflowId → AiWorkflow). Without a
+    // shared snapshot, a write landing between two of those queries — the
+    // account's own concurrent request — can leave the bundle holding a row
+    // whose parent this call already queried and missed. This is the one thing
+    // a mock-heavy suite could let regress silently if collect.ts were ever
+    // "simplified" back to reading through the ambient client: every findMany
+    // mock would still resolve and every other test here would still pass, so
+    // the only test that catches it is one that inspects `$transaction` itself.
+    it('runs every read inside exactly one transaction, not against the ambient client', async () => {
+      await collectAccount({ userId: USER_ID });
+
+      expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1);
+      expect(transactions).toHaveLength(1);
+    });
+
+    it('opens that transaction at RepeatableRead, with a timeout sized for the row cap', async () => {
+      await collectAccount({ userId: USER_ID });
+
+      expect(transactions[0]?.options).toMatchObject({
+        isolationLevel: 'RepeatableRead',
+        timeout: COLLECT_CAPS.transactionTimeoutMs,
+        maxWait: COLLECT_CAPS.transactionMaxWaitMs,
+      });
+    });
+
+    it('still reaches Prisma for every read — the transaction wraps the same queries, not fewer', async () => {
+      await collectAccount({ userId: USER_ID });
+
+      // A regression that made the transaction callback a no-op would also pass
+      // the two tests above; this confirms the actual owner-pass reads still
+      // happened through it.
+      expect(callsTo('user')).toHaveLength(1);
+      expect(callsTo('aiConversation')).toHaveLength(1);
+    });
+  });
+
   describe('the owner pass', () => {
     it('queries each owned model by its own owner column, not a shared assumption', async () => {
       await collectAccount({ userId: USER_ID });

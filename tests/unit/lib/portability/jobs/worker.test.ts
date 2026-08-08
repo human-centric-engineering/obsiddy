@@ -246,6 +246,18 @@ describe('an import job', () => {
     );
   });
 
+  it('leaves the key in place when the delete fails, so the expiry sweep can retry it', async () => {
+    // The same reason `expiry.ts`'s sweep checks `deleteArchive`'s return value:
+    // clearing the key on a failed delete orphans the object — nothing is left
+    // pointing at a copy of somebody's whole account.
+    mocks.deleteArchive.mockResolvedValue(false);
+
+    await processTransferJobs();
+
+    expect(mocks.deleteArchive).toHaveBeenCalledWith('k/user-1/job-1/bundle.zip');
+    expect(mocks.update).not.toHaveBeenCalled();
+  });
+
   it('fails cleanly when the uploaded bundle is no longer readable', async () => {
     mocks.getArchive.mockResolvedValue(null);
 
@@ -288,11 +300,14 @@ describe('failure', () => {
 
     await processTransferJobs();
 
-    expect(mocks.failTransferJob).toHaveBeenCalledWith({
-      jobId: 'job-1',
-      message: 'This import would write too many records.',
-      reason: 'too-many-rows',
-    });
+    expect(mocks.failTransferJob).toHaveBeenCalledWith(
+      expect.objectContaining({
+        jobId: 'job-1',
+        workerId: expect.any(String),
+        message: 'This import would write too many records.',
+        reason: 'too-many-rows',
+      })
+    );
     // A refusal is the request being wrong, not us. It does not need a stack.
     expect(mocks.logger.error).not.toHaveBeenCalled();
   });

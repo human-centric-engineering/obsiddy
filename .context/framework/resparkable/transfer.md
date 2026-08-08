@@ -3,7 +3,7 @@
 Moving one person's data out of an account and into a different one — a new
 account, or the same account on a self-hosted install.
 
-**Status: Phases A–G shipped.** The model graph, the policy manifest, the
+**Status: Phases A–I shipped.** The model graph, the policy manifest, the
 coverage guards, a working export — `GET /api/v1/users/me/transfer/export`, plus
 the Your data tab in Settings — five formats to write it out in, and a working
 import: `POST /api/v1/users/me/transfer/import` says what a bundle would do, and

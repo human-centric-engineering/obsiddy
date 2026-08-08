@@ -111,7 +111,7 @@ function groupsOf(stored: readonly string[]): TransferGroup[] {
 }
 
 /** Build the archive and store it. */
-async function runExport(job: ClaimedTransferJob): Promise<void> {
+async function runExport(job: ClaimedTransferJob, workerId: string): Promise<void> {
   const exported = await exportAccount({
     userId: job.userId,
     groups: groupsOf(job.groups),
@@ -128,6 +128,7 @@ async function runExport(job: ClaimedTransferJob): Promise<void> {
 
   await completeTransferJob({
     jobId: job.id,
+    workerId,
     storageKey: stored,
     fileName: exported.fileName,
     bytes: exported.bytes.byteLength,
@@ -142,7 +143,7 @@ async function runExport(job: ClaimedTransferJob): Promise<void> {
 }
 
 /** Read the uploaded bundle back and run it. */
-async function runImport(job: ClaimedTransferJob): Promise<void> {
+async function runImport(job: ClaimedTransferJob, workerId: string): Promise<void> {
   // Thrown rather than recorded here. Everything that can go wrong with a job
   // goes through the one handler in `processTransferJobs`, so there is a single
   // place that decides what a failure looks like — and so the status this
@@ -182,6 +183,7 @@ async function runImport(job: ClaimedTransferJob): Promise<void> {
 
   await completeTransferJob({
     jobId: job.id,
+    workerId,
     result: {
       applied: applied !== null,
       outcome: applied,
@@ -209,8 +211,14 @@ async function runImport(job: ClaimedTransferJob): Promise<void> {
   // The uploaded bundle has done its job. Keeping it would leave a copy of
   // somebody's whole account in a bucket for a week with nothing left to do with
   // it — they still have the file they uploaded.
-  await deleteArchive(job.storageKey);
-  await clearImportArchive(job.id);
+  //
+  // Only forgotten on a real delete. A transient storage error must leave the
+  // key in place — the same reason `expiry.ts`'s sweep checks the same return
+  // value — or nothing is left pointing at the object and it outlives the row
+  // that named it.
+  if (await deleteArchive(job.storageKey)) {
+    await clearImportArchive(job.id);
+  }
 }
 
 /** Forget the key of a bundle that has just been deleted, so nothing points at a gap. */
@@ -243,11 +251,12 @@ export async function processTransferJobs(): Promise<TransferWorkerResult> {
   });
 
   try {
-    if (job.kind === 'export') await runExport(job);
-    else if (job.kind === 'import') await runImport(job);
+    if (job.kind === 'export') await runExport(job, workerId);
+    else if (job.kind === 'import') await runImport(job, workerId);
     else {
       await failTransferJob({
         jobId: job.id,
+        workerId,
         message: 'This job asks for something this version does not know how to do.',
         reason: 'unknown-kind',
       });
@@ -279,6 +288,7 @@ export async function processTransferJobs(): Promise<TransferWorkerResult> {
 
     await failTransferJob({
       jobId: job.id,
+      workerId,
       message:
         explained?.message ??
         'Something went wrong preparing this transfer. Nothing was left half-written. Try again.',

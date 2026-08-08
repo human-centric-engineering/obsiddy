@@ -158,35 +158,77 @@ describe('failOrphanedTransferJobs', () => {
 
 describe('terminal transitions', () => {
   it('releases the lease when a job completes', async () => {
-    await completeTransferJob({ jobId: 'job-1', result: { totalRows: 3 } });
+    await completeTransferJob({ jobId: 'job-1', workerId: 'worker-a', result: { totalRows: 3 } });
 
-    const [{ data }] = mockJob.update.mock.calls[0];
+    const [{ data }] = mockJob.updateMany.mock.calls[0];
     expect(data.status).toBe('completed');
     expect(data.lockedBy).toBeNull();
     expect(data.lockedAt).toBeNull();
     expect(data.finishedAt).toBeInstanceOf(Date);
   });
 
+  it('fences the write on the worker that still holds the lease', async () => {
+    // The same safety property as the claim itself: a worker whose lease was
+    // reaped by `failOrphanedTransferJobs` while it was still running must not
+    // be able to overwrite the `failed` status with its own late `completed`.
+    await completeTransferJob({ jobId: 'job-1', workerId: 'worker-a', result: {} });
+
+    expect(mockJob.updateMany).toHaveBeenCalledWith({
+      where: { id: 'job-1', lockedBy: 'worker-a' },
+      data: expect.objectContaining({ status: 'completed' }),
+    });
+  });
+
   it('leaves an unmentioned archive alone rather than clearing it', async () => {
     // Prisma reads `undefined` as "leave alone" and `null` as "write null", and
     // the difference matters: an import completes without producing an archive
     // and must not blank the key of the one it read from.
-    await completeTransferJob({ jobId: 'job-1', result: {} });
+    await completeTransferJob({ jobId: 'job-1', workerId: 'worker-a', result: {} });
 
-    const [{ data }] = mockJob.update.mock.calls[0];
+    const [{ data }] = mockJob.updateMany.mock.calls[0];
     expect(data.storageKey).toBeUndefined();
   });
 
-  it('releases the lease when a job fails, and keeps the reason', async () => {
-    await failTransferJob({ jobId: 'job-1', message: 'Too many records', reason: 'too-many-rows' });
+  it('warns rather than throwing when the lease was lost before completion could be recorded', async () => {
+    mockJob.updateMany.mockResolvedValue({ count: 0 });
 
-    const [{ data }] = mockJob.update.mock.calls[0];
+    await completeTransferJob({ jobId: 'job-1', workerId: 'worker-a', result: {} });
+
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      expect.stringMatching(/lost its lease/i),
+      expect.objectContaining({ jobId: 'job-1', workerId: 'worker-a' })
+    );
+  });
+
+  it('releases the lease when a job fails, and keeps the reason', async () => {
+    await failTransferJob({
+      jobId: 'job-1',
+      workerId: 'worker-a',
+      message: 'Too many records',
+      reason: 'too-many-rows',
+    });
+
+    const [{ data }] = mockJob.updateMany.mock.calls[0];
     expect(data).toMatchObject({
       status: 'failed',
       lockedBy: null,
       lockedAt: null,
       error: 'Too many records',
       errorReason: 'too-many-rows',
+    });
+  });
+
+  it('fences the failure write the same way', async () => {
+    await failTransferJob({
+      jobId: 'job-1',
+      workerId: 'worker-a',
+      message: 'Too many records',
+      reason: 'too-many-rows',
+    });
+
+    expect(mockJob.updateMany).toHaveBeenCalledWith({
+      where: { id: 'job-1', lockedBy: 'worker-a' },
+      data: expect.objectContaining({ status: 'failed' }),
     });
   });
 });

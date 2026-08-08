@@ -810,6 +810,169 @@ describe('applyImportPlan', () => {
     });
   });
 
+  describe('ids inside Json columns', () => {
+    // `ResparkableBoard.filter.projectId` is a single declared path,
+    // `onUnresolved: 'null'`. `ResparkableReview.payload` is a whole-value
+    // `'**'` scan, `onUnresolved: 'keep'`. These are the two live policies —
+    // see lib/framework/resparkable/transfer/policy.ts.
+
+    it('rewrites a resolvable id at a declared path to the target account’s minted id', async () => {
+      await planAndApply({
+        ResparkableSpace: [SPACE],
+        ResparkableProject: [{ id: 'proj-old', userId: SOURCE, slug: 'rebuild', name: 'Rebuild' }],
+        ResparkableBoard: [
+          {
+            id: 'board-1',
+            userId: SOURCE,
+            slug: 'work',
+            name: 'Work',
+            columns: [{ name: 'Doing', status: 'in-progress' }],
+            filter: { projectId: 'proj-old' },
+          },
+        ],
+      });
+
+      const project = created('resparkableProject')[0];
+      const board = created('resparkableBoard')[0];
+
+      // Anti-green-bar: this asserts the value the code computed by rewriting
+      // the Json column, not the id `filter.projectId` arrived with — the bug
+      // this fixes is exactly a test that would have passed on the literal
+      // bundle value `'proj-old'`, which names nothing in the target account.
+      expect(project.id).toBeDefined();
+      expect(project.id).not.toBe('proj-old');
+      expect(board.filter).toEqual({ projectId: project.id });
+    });
+
+    it('nulls an unresolvable id at a declared path, per its onUnresolved: null', async () => {
+      await planAndApply({
+        ResparkableSpace: [SPACE],
+        // No ResparkableProject in the bundle at all — 'proj-missing' cannot
+        // resolve, in the plan or after it.
+        ResparkableBoard: [
+          {
+            id: 'board-1',
+            userId: SOURCE,
+            slug: 'work',
+            name: 'Work',
+            columns: [{ name: 'Doing', status: 'in-progress' }],
+            filter: { projectId: 'proj-missing' },
+          },
+        ],
+      });
+
+      const board = created('resparkableBoard')[0];
+
+      expect(board.filter).toEqual({ projectId: null });
+    });
+
+    it('leaves a matched project’s id resolving to the row already in the target account', async () => {
+      // The board's filter should follow the same identity the rest of the
+      // import follows: a project that matched something already here points
+      // at the existing row's id, not at a newly minted one.
+      await planAndApply(
+        {
+          ResparkableSpace: [SPACE],
+          ResparkableProject: [
+            { id: 'proj-old', userId: SOURCE, slug: 'rebuild', name: 'Rebuild' },
+          ],
+          ResparkableBoard: [
+            {
+              id: 'board-1',
+              userId: SOURCE,
+              slug: 'work',
+              name: 'Work',
+              columns: [{ name: 'Doing', status: 'in-progress' }],
+              filter: { projectId: 'proj-old' },
+            },
+          ],
+        },
+        {
+          ResparkableProject: [
+            { id: 'proj-here', userId: TARGET, slug: 'rebuild', name: 'Rebuild' },
+          ],
+        }
+      );
+
+      expect(created('resparkableProject')).toEqual([]);
+      const board = created('resparkableBoard')[0];
+      expect(board.filter).toEqual({ projectId: 'proj-here' });
+    });
+
+    it('rewrites a resolvable id found anywhere in a whole-value `**` scan', async () => {
+      // ResparkableReview.payload is typed `unknown` and scanned in full
+      // rather than at a fixed path, because its shape varies by horizon.
+      await planAndApply({
+        ResparkableSpace: [SPACE],
+        ResparkableTask: [{ id: 'task-old', userId: SOURCE, title: 'Ship it' }],
+        ResparkableReview: [
+          {
+            id: 'review-1',
+            userId: SOURCE,
+            horizon: 'weekly',
+            title: 'Week 39',
+            body: 'Body text.',
+            payload: { staleItems: [{ taskId: 'task-old', label: 'Ship it' }], count: 1 },
+          },
+        ],
+      });
+
+      const task = created('resparkableTask')[0];
+      const review = created('resparkableReview')[0];
+
+      expect(task.id).toBeDefined();
+      expect(review.payload).toEqual({
+        staleItems: [{ taskId: task.id, label: 'Ship it' }],
+        count: 1,
+      });
+    });
+
+    it('keeps an unresolvable id in a `**` scan exactly as it arrived, per onUnresolved: keep', async () => {
+      // No ResparkableTask in the bundle — 'task-missing' cannot resolve. The
+      // review's payload is typed `unknown` and writable by an agent, so the
+      // policy declares 'keep' rather than nulling or dropping content out of
+      // a column the product renders directly.
+      await planAndApply({
+        ResparkableSpace: [SPACE],
+        ResparkableReview: [
+          {
+            id: 'review-1',
+            userId: SOURCE,
+            horizon: 'weekly',
+            title: 'Week 39',
+            body: 'Body text.',
+            payload: { staleItems: [{ taskId: 'task-missing', label: 'Ship it' }], count: 1 },
+          },
+        ],
+      });
+
+      const review = created('resparkableReview')[0];
+
+      expect(review.payload).toEqual({
+        staleItems: [{ taskId: 'task-missing', label: 'Ship it' }],
+        count: 1,
+      });
+    });
+
+    it('leaves a Json column with nothing to remap untouched', async () => {
+      await planAndApply({
+        ResparkableSpace: [SPACE],
+        ResparkableBoard: [
+          {
+            id: 'board-1',
+            userId: SOURCE,
+            slug: 'work',
+            name: 'Work',
+            columns: [{ name: 'Doing', status: 'in-progress' }],
+            filter: null,
+          },
+        ],
+      });
+
+      expect(created('resparkableBoard')[0].filter).toBeNull();
+    });
+  });
+
   describe('rows the plan dropped', () => {
     it('does not write them, and says how many', async () => {
       const { result } = await planAndApply({

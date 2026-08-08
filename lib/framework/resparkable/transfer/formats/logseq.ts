@@ -92,6 +92,61 @@ function link(name: string): string {
   return `[[${logseqPageName(name)}]]`;
 }
 
+/** Zero-width space. Chromium — what Logseq's desktop app embeds — gives it no width. */
+const ZWSP = '\u200b';
+
+/**
+ * `#` immediately followed by a tag-eligible character, matching just enough
+ * of mldoc's own `tag_delims` (github.com/logseq/mldoc,
+ * `lib/syntax/extended/hash_tag.ml`) to stop before trailing punctuation a
+ * person actually typed, e.g. the period in "fix #142.".
+ */
+const HASHTAG = /#[^\s,;.!?'":#[\]()]+/g;
+
+/**
+ * Break Logseq's own inline syntax inside free-form body text — a task title,
+ * a checklist step, a prose paragraph — so a line someone typed as plain text
+ * (`Review [[Q3 Planning]] doc`, `fix #142`, `((see below))`) cannot be read
+ * back by Logseq as a page link, tag, or block reference. Do not run this on
+ * a *page name* — that is `logseqPageName()`'s job, which makes a name
+ * filesystem-safe rather than syntax-inert — or on syntax this file
+ * generates on purpose, like `link()`'s own `[[...]]` or the `#tag` this file
+ * builds from a real tag name; either would stop working.
+ *
+ * Two different fixes for two different parsers in Logseq's mldoc grammar,
+ * read from the grammar rather than guessed:
+ *
+ * - `[[`, `]]`, `((`, `))` are each matched as a literal two-character string
+ *   (`nested_link.ml`'s `match_brackets`, `block_reference.ml`'s
+ *   `between_string "((" "))"`). Putting a zero-width space between the pair
+ *   breaks that literal match while rendering as nothing, so the words
+ *   around it look the same as before the character was inserted.
+ * - `#tag` is not a literal-string match — `hash_tag.ml` scans forward one
+ *   *byte* at a time, and a zero-width space's UTF-8 bytes (`e2 80 8b`) pass
+ *   every one of its stop conditions (`non_space_eol` and `tag_delims` are
+ *   ASCII-only checks), so the scan would run straight through it and the
+ *   tag would still form — just with an invisible character folded into its
+ *   name instead of not forming at all. A backtick code span is dispatched
+ *   before Logseq ever looks at what follows a `#` (`inline.ml`'s
+ *   `` '`' -> code `` case is checked ahead of `'#' -> hash_tag` in the same
+ *   match), so wrapping the run in backticks is the one mechanism the
+ *   grammar itself confirms stops it. It is a visible change — the run
+ *   renders in code style — chosen deliberately over the alternative:
+ *   Logseq has no backslash escape that survives rendering (mldoc's `plain`
+ *   keeps the backslash — its escape branch returns `Plain ("\\" ^ s)` — and
+ *   logseq/logseq#4298 tracks backslash escapes going unhonoured more
+ *   generally), so every other option either still creates the tag or leaves
+ *   a stray `\` nobody typed.
+ */
+export function escapeLogseqInline(text: string): string {
+  return text
+    .replace(/\[\[/g, `[${ZWSP}[`)
+    .replace(/\]\]/g, `]${ZWSP}]`)
+    .replace(/\(\(/g, `(${ZWSP}(`)
+    .replace(/\)\)/g, `)${ZWSP})`)
+    .replace(HASHTAG, (tag) => `\`${tag}\``);
+}
+
 /** `<2026-08-01 Sat>` — the org-mode timestamp Logseq's agenda reads. */
 export function logseqDate(date: Date): string {
   const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -130,7 +185,7 @@ function proseBullets(prose: string | null, depth = 0): string[] {
     .split(/\n{2,}/)
     .map((paragraph) => paragraph.trim())
     .filter((paragraph) => paragraph.length > 0)
-    .map((paragraph) => bullet(paragraph.replace(/\n/g, ' '), depth));
+    .map((paragraph) => bullet(escapeLogseqInline(paragraph.replace(/\n/g, ' ')), depth));
 }
 
 /** The accepted links out of one row, as a small block of its own. */
@@ -174,7 +229,7 @@ function taskBlock(task: BrainTask, view: BrainView, depth: number): string[] {
     .map((tag) => (/\s/.test(tag) ? `#[[${logseqPageName(tag)}]]` : `#${logseqPageName(tag)}`))
     .join(' ');
 
-  const title = task.title.replace(/\s*\n\s*/g, ' ').trim() || 'Untitled task';
+  const title = escapeLogseqInline(task.title.replace(/\s*\n\s*/g, ' ').trim() || 'Untitled task');
   const lines = [
     bullet(`${taskMarker(task.status)} ${title}${inlineTags ? ` ${inlineTags}` : ''}`, depth),
   ];
@@ -198,7 +253,10 @@ function taskBlock(task: BrainTask, view: BrainView, depth: number): string[] {
 
   for (const step of view.checklistByTask.get(task.id) ?? []) {
     lines.push(
-      bullet(`${step.isDone ? 'DONE' : 'TODO'} ${step.text.replace(/\n/g, ' ')}`, depth + 1)
+      bullet(
+        `${step.isDone ? 'DONE' : 'TODO'} ${escapeLogseqInline(step.text.replace(/\n/g, ' '))}`,
+        depth + 1
+      )
     );
   }
 
