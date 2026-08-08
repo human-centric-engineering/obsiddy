@@ -1,0 +1,327 @@
+/**
+ * Emits `lib/portability/model-graph.generated.ts` — the machine-readable
+ * description of the datamodel that account transfer runs on.
+ *
+ * ## Why this is a generator and not a script
+ *
+ * It runs as part of `prisma generate`, which is already both `postinstall` and
+ * `npm run db:generate`. That makes staleness unreachable rather than merely
+ * unlikely: you cannot regenerate the Prisma Client without regenerating this,
+ * so there is no window in which the graph describes a schema that no longer
+ * exists. A `scripts/` equivalent would need to be remembered, and `prisma
+ * migrate dev` would not run it.
+ *
+ * ## Constraints this file works under
+ *
+ * - **No dependencies beyond `@prisma/generator-helper`.** It executes during
+ *   `postinstall`, when the project's own toolchain may not be built yet.
+ * - **`@prisma/generator-helper` is CommonJS**, so it is imported through the
+ *   default export rather than as a named import.
+ * - **Pure apart from one write.** No database, no network, and no filesystem
+ *   read beyond the schema files Prisma itself points at.
+ * - **Deterministic.** Models and their contents are emitted in sorted order so
+ *   that regenerating an unchanged schema produces a byte-identical file, which
+ *   is what lets CI use `git diff --exit-code` as the drift check.
+ *
+ * ## The one thing Prisma will not tell us
+ *
+ * Columns declared `Unsupported(...)` — the pgvector `vector` and Postgres
+ * `tsvector` columns — are absent from the datamodel entirely, not flagged
+ * within it. They are recovered from the schema text instead. They can never be
+ * read or written through the client, so the engine could not touch them by
+ * accident; they are recorded so an export can state that it left them behind
+ * and an import can queue the work that rebuilds them.
+ *
+ * @see lib/portability/model-graph-types.ts — the shape of what this emits
+ * @see .context/database/model-graph.md
+ */
+
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname } from 'node:path';
+
+import pkg from '@prisma/generator-helper';
+
+import { fingerprintSchema, schemaFiles } from './schema-fingerprint.mjs';
+
+const { generatorHandler } = pkg;
+
+const GENERATOR_PATH = 'prisma/generators/portability.mjs';
+
+/**
+ * Reference-shaped column names that carry no `Id` suffix.
+ *
+ * The same set the privacy coverage guard watches
+ * (`tests/unit/lib/privacy/export-sources.test.ts`), reused so the two guards
+ * agree about what counts as pointing at a user.
+ */
+const OWNERISH_NAMES = new Set([
+  'createdBy',
+  'uploadedBy',
+  'ownerId',
+  'actorUserId',
+  'subjectUserId',
+]);
+
+/**
+ * The Prisma Client property for a model — `ResparkableTask` → `resparkableTask`.
+ *
+ * Prisma lowercases the first character and nothing else. This is asserted
+ * against the real client in the coverage guard rather than trusted here, so a
+ * future change to that convention fails a test instead of producing an engine
+ * that silently skips a table.
+ *
+ * @param {string} modelName
+ */
+function delegateFor(modelName) {
+  return modelName.charAt(0).toLowerCase() + modelName.slice(1);
+}
+
+/**
+ * Character limit from a Prisma native type — `@db.VarChar(16)` → `16`.
+ *
+ * @param {unknown} nativeType Prisma hands this over as `[name, args]`.
+ * @returns {number | null}
+ */
+function maxLengthOf(nativeType) {
+  if (!Array.isArray(nativeType)) return null;
+  const [name, args] = nativeType;
+  if (name !== 'VarChar' && name !== 'Char') return null;
+  const length = Number(Array.isArray(args) ? args[0] : undefined);
+  return Number.isFinite(length) ? length : null;
+}
+
+/**
+ * Map model name → `Unsupported(...)` column names, read from the schema text.
+ *
+ * A deliberately small scanner rather than a schema parser: it tracks the
+ * enclosing `model` block and matches field lines whose type begins
+ * `Unsupported(`. Model bodies contain no nested braces — attributes use `(` and
+ * `[` — so a `}` in the first column reliably ends one.
+ *
+ * @param {string} datamodel The concatenated schema source.
+ * @returns {Map<string, string[]>}
+ */
+function scanUnsupportedColumns(datamodel) {
+  const found = new Map();
+  let model = null;
+
+  for (const line of datamodel.split('\n')) {
+    if (model === null) {
+      const opening = /^model\s+(\w+)\s*\{/.exec(line);
+      if (opening) model = opening[1];
+      continue;
+    }
+
+    if (/^\}/.test(line)) {
+      model = null;
+      continue;
+    }
+
+    const field = /^\s*(\w+)\s+Unsupported\(/.exec(line);
+    if (field) {
+      const columns = found.get(model) ?? [];
+      columns.push(field[1]);
+      found.set(model, columns);
+    }
+  }
+
+  return found;
+}
+
+/**
+ * Map model name → the schema file it is declared in.
+ *
+ * Prisma merges every `*.prisma` in the schema folder before a generator sees
+ * it, so this is the one fact the datamodel cannot answer and the files can.
+ *
+ * @param {string} schemaPath
+ * @returns {Map<string, string>}
+ */
+function scanModelSources(schemaPath) {
+  const sources = new Map();
+
+  for (const file of schemaFiles(schemaPath)) {
+    const name = file.slice(file.lastIndexOf('/') + 1);
+    for (const line of readFileSync(file, 'utf8').split('\n')) {
+      const opening = /^model\s+(\w+)\s*\{/.exec(line);
+      if (opening) sources.set(opening[1], name);
+    }
+  }
+
+  return sources;
+}
+
+/**
+ * Deduplicate unique-constraint tuples while preserving declaration order.
+ *
+ * @param {string[][]} tuples
+ * @returns {string[][]}
+ */
+function dedupeTuples(tuples) {
+  const seen = new Set();
+  const out = [];
+  for (const tuple of tuples) {
+    const key = tuple.join('\u0000');
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(tuple);
+  }
+  return out;
+}
+
+/**
+ * Turn one DMMF model into a {@link ModelNode}.
+ *
+ * @param {any} model
+ * @param {Map<string, string[]>} unsupportedByModel
+ * @param {Map<string, string>} modelSources
+ */
+function buildNode(model, unsupportedByModel, modelSources) {
+  const scalars = model.fields.filter((f) => f.kind === 'scalar' || f.kind === 'enum');
+  const scalarByName = new Map(scalars.map((f) => [f.name, f]));
+
+  const relations = model.fields
+    .filter((f) => f.kind === 'object' && Array.isArray(f.relationFromFields))
+    // A back-relation (`Project.tasks`) names no columns. Only the side holding
+    // the foreign key is a dependency edge.
+    .filter((f) => f.relationFromFields.length > 0)
+    .map((f) => ({
+      relationName: f.relationName ?? '',
+      fromFields: [...f.relationFromFields],
+      toFields: [...(f.relationToFields ?? [])],
+      toModel: f.type,
+      onDelete: f.relationOnDelete ?? null,
+      // Nullability is read from the underlying columns rather than the
+      // relation field, because those are what a deferred second pass writes.
+      optional: f.relationFromFields.every((name) => scalarByName.get(name)?.isRequired === false),
+      isSelfReference: f.type === model.name,
+    }))
+    .sort((a, b) => a.fromFields.join().localeCompare(b.fromFields.join()));
+
+  const claimedByRelation = new Set(relations.flatMap((r) => r.fromFields));
+
+  const idFields = Array.isArray(model.primaryKey?.fields)
+    ? [...model.primaryKey.fields]
+    : scalars.filter((f) => f.isId).map((f) => f.name);
+
+  const uniques = dedupeTuples([
+    ...(idFields.length > 0 ? [idFields] : []),
+    ...(model.uniqueFields ?? []).map((tuple) => [...tuple]),
+    ...scalars.filter((f) => f.isUnique).map((f) => [f.name]),
+  ]);
+
+  const suspectedSoftRefs = scalars
+    .filter((f) => f.type === 'String' && !f.isId)
+    .filter((f) => f.name.endsWith('Id') || OWNERISH_NAMES.has(f.name))
+    .filter((f) => !claimedByRelation.has(f.name))
+    .map((f) => f.name);
+
+  return {
+    name: model.name,
+    delegate: delegateFor(model.name),
+    table: model.dbName ?? null,
+    sourceFile: modelSources.get(model.name) ?? 'unknown',
+    idFields,
+    fields: scalars.map((f) => ({
+      name: f.name,
+      type: f.type,
+      kind: f.kind,
+      isRequired: Boolean(f.isRequired),
+      isList: Boolean(f.isList),
+      isId: Boolean(f.isId),
+      isUnique: Boolean(f.isUnique),
+      isUpdatedAt: Boolean(f.isUpdatedAt),
+      hasDefault: Boolean(f.hasDefaultValue),
+      isGenerated: Boolean(f.isGenerated),
+      dbName: f.dbName ?? null,
+      maxLength: maxLengthOf(f.nativeType),
+      documentation: f.documentation ?? null,
+    })),
+    relations,
+    uniques,
+    unsupported: [...(unsupportedByModel.get(model.name) ?? [])].sort(),
+    jsonColumns: scalars.filter((f) => f.type === 'Json').map((f) => f.name),
+    suspectedSoftRefs,
+  };
+}
+
+/**
+ * @param {Record<string, unknown>} graph
+ * @param {string} fingerprint
+ */
+function render(graph, fingerprint) {
+  return `/**
+ * The datamodel, as account transfer understands it.
+ *
+ * @generated by ${GENERATOR_PATH} on every \`prisma generate\`.
+ * DO NOT EDIT — regenerate with \`npm run db:generate\`.
+ *
+ * Schema fingerprint: ${fingerprint}
+ *
+ * @see lib/portability/model-graph-types.ts — what these shapes mean
+ * @see .context/database/model-graph.md — why this is generated
+ */
+
+import type { ModelNode } from '@/lib/portability/model-graph-types';
+
+/**
+ * Digest of the schema files this was built from.
+ *
+ * Recomputed from disk by \`tests/unit/lib/portability/model-graph.test.ts\`; a
+ * mismatch there means this file is stale. Also stamped into transfer bundles,
+ * where a mismatch is a compatibility warning rather than a refusal.
+ */
+export const SCHEMA_FINGERPRINT = '${fingerprint}';
+
+/** Every model in the schema, keyed by Prisma model name. */
+export const MODEL_GRAPH: Readonly<Record<string, ModelNode>> = ${JSON.stringify(graph, null, 2)};
+
+/** Model names in sorted order. Derived, so it cannot disagree with the graph. */
+export const MODEL_NAMES: readonly string[] = Object.keys(MODEL_GRAPH);
+`;
+}
+
+generatorHandler({
+  onManifest() {
+    return {
+      prettyName: 'portability model graph',
+      defaultOutput: '../../lib/portability/model-graph.generated.ts',
+      version: '1.0.0',
+    };
+  },
+
+  onGenerate(options) {
+    const output = options.generator?.output?.value;
+    if (!output) {
+      throw new Error(
+        `[portability] No output path. The \`generator portability\` block needs an ` +
+          `\`output = "…/lib/portability/model-graph.generated.ts"\` entry.`
+      );
+    }
+
+    const unsupportedByModel = scanUnsupportedColumns(options.datamodel ?? '');
+    const modelSources = scanModelSources(options.schemaPath);
+
+    const models = [...options.dmmf.datamodel.models].sort((a, b) => a.name.localeCompare(b.name));
+
+    /** @type {Record<string, unknown>} */
+    const graph = {};
+    for (const model of models) {
+      try {
+        graph[model.name] = buildNode(model, unsupportedByModel, modelSources);
+      } catch (cause) {
+        // Without the model name this surfaces as an opaque `prisma generate`
+        // failure during `npm install`, which is a bad half-hour.
+        throw new Error(
+          `[portability] Failed to describe model \`${model.name}\`. ` +
+            `Fix ${GENERATOR_PATH} or the schema. Cause: ${String(cause)}`
+        );
+      }
+    }
+
+    const fingerprint = fingerprintSchema(options.schemaPath);
+
+    mkdirSync(dirname(output), { recursive: true });
+    writeFileSync(output, render(graph, fingerprint), 'utf8');
+  },
+});

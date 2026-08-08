@@ -112,6 +112,7 @@ export function encodeArea(area: AreaSource): ParsedNote {
 export interface GoalSource {
   id: string;
   title: string;
+  slug: string;
   description?: string | null;
   horizon: string;
   status?: string;
@@ -128,6 +129,7 @@ export function encodeGoal(
       'resparkable-id': goal.id,
       'resparkable-type': 'goal',
       title: goal.title,
+      slug: goal.slug,
       horizon: goal.horizon,
       status: goal.status,
       'target-date': iso(goal.targetDate),

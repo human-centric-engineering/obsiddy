@@ -28,6 +28,8 @@ vi.mock('@/lib/orchestration/retention', () => ({ enforceRetentionPolicies: vi.f
 vi.mock('@/lib/orchestration/evaluations/run-worker', () => ({
   processPendingEvaluationRuns: vi.fn(),
 }));
+vi.mock('@/lib/portability/jobs/worker', () => ({ processTransferJobs: vi.fn() }));
+vi.mock('@/lib/portability/jobs/expiry', () => ({ expireTransferArchives: vi.fn() }));
 
 import { logger } from '@/lib/logging';
 import {
@@ -40,6 +42,8 @@ import { reapZombieExecutions } from '@/lib/orchestration/engine/execution-reape
 import { backfillMissingEmbeddings } from '@/lib/orchestration/chat/message-embedder';
 import { enforceRetentionPolicies } from '@/lib/orchestration/retention';
 import { processPendingEvaluationRuns } from '@/lib/orchestration/evaluations/run-worker';
+import { processTransferJobs } from '@/lib/portability/jobs/worker';
+import { expireTransferArchives } from '@/lib/portability/jobs/expiry';
 import {
   PLATFORM_JOBS,
   PLATFORM_JOB_NAMES,
@@ -60,6 +64,8 @@ const ALL_TASKS = [
   enforceRetentionPolicies,
   processPendingExecutions,
   processPendingEvaluationRuns,
+  processTransferJobs,
+  expireTransferArchives,
 ];
 
 const RETENTION_IDLE = {
@@ -99,6 +105,13 @@ function mockIdleTasks(): void {
     failed: 0,
     cancelled: 0,
   });
+  vi.mocked(processTransferJobs).mockResolvedValue({
+    jobId: null,
+    kind: null,
+    status: null,
+    orphaned: 0,
+  });
+  vi.mocked(expireTransferArchives).mockResolvedValue({ expired: 0, failed: 0 });
 }
 
 beforeEach(() => {
@@ -120,6 +133,8 @@ describe('PLATFORM_JOB_NAMES', () => {
       'retention',
       'pendingExecutionRecovery',
       'evaluationRuns',
+      'transferJobs',
+      'transferArchiveExpiry',
     ]);
   });
 
@@ -128,7 +143,10 @@ describe('PLATFORM_JOB_NAMES', () => {
     // set is behavioural, not stylistic.
     const responsive = PLATFORM_JOBS.filter((job) => job.intervalMs === 0).map((job) => job.name);
 
-    expect(responsive).toEqual(['webhookRetries', 'hookRetries', 'evaluationRuns']);
+    // `transferJobs` is here for a different reason from the retry drains: it
+    // runs one job per tick by design, so the cadence *is* the queue's
+    // throughput and throttling it would throttle the feature.
+    expect(responsive).toEqual(['webhookRetries', 'hookRetries', 'evaluationRuns', 'transferJobs']);
   });
 });
 

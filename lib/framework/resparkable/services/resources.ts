@@ -350,7 +350,12 @@ const goalResourceOps: ResparkableResource<
   get: (scope, id) => goals.findGoal(scope, id),
 
   async create(scope, input) {
-    const goal = await goals.createGoal(scope, definedOnly(input));
+    const slug = await resolveUniqueSlug(scope, {
+      preferred: input.slug,
+      fallbackFrom: input.title,
+      exists: goals.findGoalBySlug,
+    });
+    const goal = await goals.createGoal(scope, { ...definedOnly(input), slug });
     await recordResparkableEvent(scope, { kind: 'created', entityType: 'goal', entityId: goal.id });
     return goal;
   },
@@ -358,8 +363,19 @@ const goalResourceOps: ResparkableResource<
   async update(scope, id, input) {
     const before = await goals.findGoal(scope, id);
     if (!before) return null;
+
+    // A rename leaves the slug alone — see `resolveSlugOnUpdate`. The vault
+    // files a goal at `Goals/<horizon>/<slug>.md`, so moving the slug on every
+    // retitle would rename the user's file underneath them.
+    const slug = await resolveSlugOnUpdate(scope, {
+      current: before.slug,
+      requested: input.slug,
+      exists: goals.findGoalBySlug,
+    });
+
     const goal = await goals.updateGoal(scope, id, {
       ...definedOnly(input),
+      slug,
       lastActivityAt: new Date(),
     });
     if (!goal) return null;

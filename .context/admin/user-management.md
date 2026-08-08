@@ -132,12 +132,14 @@ const userEditSchema = z.object({
 
 ## API Endpoints
 
-| Endpoint             | Method | Purpose                    |
-| -------------------- | ------ | -------------------------- |
-| `/api/v1/users`      | GET    | List users with pagination |
-| `/api/v1/users/[id]` | GET    | Get single user details    |
-| `/api/v1/users/[id]` | PATCH  | Update user (admin only)   |
-| `/api/v1/users/[id]` | DELETE | Delete user (admin only)   |
+| Endpoint                            | Method | Purpose                                                |
+| ----------------------------------- | ------ | ------------------------------------------------------ |
+| `/api/v1/users`                     | GET    | List users with pagination                             |
+| `/api/v1/users/[id]`                | GET    | Get single user details                                |
+| `/api/v1/users/[id]`                | PATCH  | Update user (admin only)                               |
+| `/api/v1/users/[id]`                | DELETE | Delete user (admin only)                               |
+| `/api/v1/admin/users/[id]/transfer` | POST   | Move a user's account to a target address (admin only) |
+| `/api/v1/admin/transfer/jobs/[id]`  | GET    | Poll an admin-initiated transfer job                   |
 
 ### Query Parameters (GET /api/v1/users)
 
@@ -181,3 +183,4 @@ export interface AdminUserUpdateInput {
 - [Overview](./overview.md) - Admin dashboard architecture
 - [Authentication](../auth/overview.md) - User roles and permissions
 - [API Endpoints](../api/endpoints.md) - Full API reference
+- [Account Transfer](../framework/resparkable/transfer.md) - Moving a user's account to a target address

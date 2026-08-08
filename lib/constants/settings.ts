@@ -11,6 +11,7 @@ export const SETTINGS_TABS = {
   PROFILE: 'profile',
   SECURITY: 'security',
   NOTIFICATIONS: 'notifications',
+  DATA: 'data',
   ACCOUNT: 'account',
 } as const;
 
@@ -34,5 +35,6 @@ export const SETTINGS_TAB_TITLES: Record<SettingsTab, string> = {
   [SETTINGS_TABS.PROFILE]: `Profile - Settings - ${BRAND.name}`,
   [SETTINGS_TABS.SECURITY]: `Security - Settings - ${BRAND.name}`,
   [SETTINGS_TABS.NOTIFICATIONS]: `Notifications - Settings - ${BRAND.name}`,
+  [SETTINGS_TABS.DATA]: `Your data - Settings - ${BRAND.name}`,
   [SETTINGS_TABS.ACCOUNT]: `Account - Settings - ${BRAND.name}`,
 };

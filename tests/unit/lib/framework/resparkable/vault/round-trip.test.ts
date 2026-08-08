@@ -56,11 +56,13 @@ const collected: CollectedNote[] = [
     type: 'goal',
     id: 'goal-1',
     title: 'Ship Resparkable',
+    slug: 'ship-resparkable',
     horizon: 'quarter',
     note: encodeGoal(
       {
         id: 'goal-1',
         title: 'Ship Resparkable',
+        slug: 'ship-resparkable',
         horizon: 'quarter',
         status: 'active',
         targetDate: new Date('2026-09-30T00:00:00.000Z'),

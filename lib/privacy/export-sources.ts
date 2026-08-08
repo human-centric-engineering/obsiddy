@@ -528,6 +528,32 @@ export const SUBJECT_DATA_SOURCES: SubjectDataSource[] = [
         })
       ),
   },
+  {
+    model: 'TransferJob',
+    section: 'transferJobs',
+    disposition: 'export',
+    description:
+      'Requests you made to take a copy of your account away, or to bring one in, and what came of each.',
+    // `result` is included: it is the plan or the outcome of the subject's own
+    // transfer, which is a record about them and one they cannot reconstruct.
+    // `storageKey` is not — it addresses a private object that has usually been
+    // deleted by the time anybody reads this, and a path into a bucket is
+    // infrastructure rather than a fact about the subject.
+    //
+    // Scoped on `userId` only, never on `initiatedBy`. A row where the subject
+    // is the *administrator* who started a transfer is a row about somebody
+    // else's account — their plan, their record counts, their id — and handing
+    // it to the admin as "their data" would disclose the person they were
+    // helping. That an administrator did this is already exported to them
+    // through `AiAdminAuditLog` above, which is where an action they took
+    // belongs.
+    fetch: ({ userId }) =>
+      prisma.transferJob.findMany({
+        where: { userId },
+        omit: { storageKey: true },
+        orderBy: byCreatedAt,
+      }),
+  },
 ];
 
 /**

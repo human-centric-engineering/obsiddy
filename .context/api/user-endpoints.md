@@ -245,6 +245,158 @@ withheld and why. Volume is unbounded by design. What the bundle contains is
 decided by the manifest, not this route — see
 [Subject Access Export](../privacy/data-export.md).
 
+## Export Current User's Account (Transfer Bundle)
+
+✅ **Implemented in:** `app/api/v1/users/me/transfer/export/route.ts` (GET handler)
+
+**Purpose**: Give the user a copy of their account built to be _moved_ — into a
+different account, or a self-hosted install.
+
+```
+GET /api/v1/users/me/transfer/export
+GET /api/v1/users/me/transfer/export?groups=brain,conversations
+GET /api/v1/users/me/transfer/export?format=logseq
+GET /api/v1/users/me/transfer/export?originals=true
+```
+
+**Not a duplicate of the endpoint above.** That one answers "what is held about
+me" and returns a JSON document to read; this one answers "what can I take with
+me" and returns a **zip built to be imported** — every table classified, every
+omission written down, every id intact so a later import can rewire them. The two
+manifests deliberately disagree; the table of where and why is in
+[Subject Access Export](../privacy/data-export.md#there-are-now-two-manifests-and-they-disagree-on-purpose).
+
+**Authentication**: Required — **browser session only**, same 403 refusal for API
+keys and the same reasoning.
+
+**Rate limit**: `exportLimiter` sub-cap keyed `transfer:export:${userId}`.
+
+**Query parameters**:
+
+| Param       | Type   | Notes                                                                                                                                                                                                        |
+| ----------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `groups`    | string | Comma-separated sections. Omit for all. An unknown name is a 400, not ignored                                                                                                                                |
+| `format`    | string | How to write it out. Omit for the complete JSON bundle. Unknown name is a 400                                                                                                                                |
+| `originals` | `true` | Carry the uploaded files themselves, not only the text taken out of them. Off by default — they are the only incompressible part of a bundle. Only `bundle` can carry them; asking any other format is a 400 |
+
+Valid sections: `account`, `brain`, `conversations`, `automation`, `history`.
+
+**Formats**:
+
+| `format` | Covers     | Response                                           |
+| -------- | ---------- | -------------------------------------------------- |
+| `bundle` | everything | `application/zip` — the JSON bundle below. Default |
+| `logseq` | `brain`    | `application/zip` — a Logseq graph                 |
+| `notion` | `brain`    | `application/zip` — CSV databases + markdown pages |
+| `csv`    | everything | `application/zip` — one CSV per table              |
+| `digest` | everything | `text/markdown` — one document, sent as itself     |
+
+`bundle` is the **only** format an import can read back. The rest are one-way
+renderings for other tools, and each says so in its own README.
+
+A format that covers only part of an account **refuses** a `?groups=` asking for
+the rest (400) rather than quietly narrowing it — an export that silently answers
+a narrower question than the one asked is indistinguishable from one where those
+tables were empty.
+
+**Response** (200 OK): the format's content type, with `Content-Disposition:
+attachment; filename="…"`, `Cache-Control: private, no-store`, and an
+`X-Transfer-Rows` count so a client can report what landed without unzipping it.
+`X-Transfer-Originals` and `X-Transfer-Originals-Omitted` report the uploaded
+files — two numbers rather than one, because "12 came" and "3 were asked for and
+did not" are separate facts and a client that could only show the first would
+report a partial answer as a complete one.
+
+The default archive holds:
+
+```
+manifest.json              every table gathered, every one that was not, and why
+README.md                  the same thing in plain English
+data/<Model>.json          one file per table with rows; none for an empty table
+originals/<row><ext>       the uploaded files, when asked for. Named by record
+```
+
+**Error Responses**:
+
+- **400 Validation Error**: unknown section or format; a format asked for a
+  section it cannot render; or the account is too large to build in one archive
+  (the message names the limit and says to export fewer sections)
+- **401 Unauthorized**: No valid session
+- **403 Forbidden**: Authenticated with an API key rather than a browser session
+- **429 Too Many Requests**: Export sub-cap exhausted
+
+**Note**: Live credentials are **dropped**, not merely left unwritten —
+`inboxToken`, workflow-trigger signing secrets, event-hook and webhook secrets.
+They still authenticate traffic against the installation the bundle came _from_,
+and a bundle is a file that gets emailed and synced. See
+[Account transfer](../framework/resparkable/transfer.md).
+
+## Prepare a Transfer in the Background
+
+✅ **Implemented in:** `app/api/v1/users/me/transfer/jobs/route.ts` and
+`app/api/v1/users/me/transfer/jobs/[id]/route.ts`
+
+**Purpose**: The same work as the two synchronous transfer endpoints, for an
+account too large to move inside one request.
+
+```
+POST   /api/v1/users/me/transfer/jobs      JSON body → export; multipart `file` → import
+GET    /api/v1/users/me/transfer/jobs      your own, newest first
+GET    /api/v1/users/me/transfer/jobs/{id} poll one; a finished export carries a download link
+DELETE /api/v1/users/me/transfer/jobs/{id} drop the stored archive early
+```
+
+**Why**: both synchronous endpoints have a ceiling set by how long a request may
+stay open rather than by anything about the data — an export builds the whole
+archive before the first byte is sent, and an import runs in one transaction
+inside one POST. Correct for a request, and together they mean a large account
+cannot move at all.
+
+The worker runs **the same functions** those routes run. The only difference is
+`BACKGROUND_APPLY_CAPS` — 500,000 rows and a ten-minute transaction, against
+50,000 and one minute. **The single transaction is unchanged**: a background
+import still refuses rather than half-writing.
+
+**Authentication**: Required — browser session only, same 403 for API keys.
+
+**Rate limit**: `uploadLimiter` sub-cap keyed `transfer:jobs:${userId}`.
+
+**Body** — export (`application/json`):
+
+| Field       | Type     | Notes                 |
+| ----------- | -------- | --------------------- |
+| `format`    | string   | Default `bundle`      |
+| `groups`    | string[] | Omit or empty for all |
+| `originals` | boolean  | Default `false`       |
+
+**Body** — import (`multipart/form-data`): `file` (the .zip), plus `apply`
+(`"true"` to write; a dry run otherwise) and `conflictMode` (`skip` default, or
+`overwrite`).
+
+**Response** (202 Accepted): `{ job: { id, kind, status, createdAt }, message }`.
+
+`GET …/{id}` returns the job plus the full plan or outcome under `result`, and
+for a completed export a `download` object holding a **signed URL good for 15
+minutes**. The link is minted per request and never stored — a URL on a row ends
+up in a log or a screenshot, and what it addresses is a whole account. The
+archive itself is deleted after 7 days and the job marked `expired`; an import's
+uploaded bundle goes as soon as its job is terminal.
+
+`initiatedBy` is present when an **administrator** started the transfer rather
+than you. It is returned here on purpose: the admin audit log answers to the
+operator and you cannot see it, so this is where "an administrator exported your
+account on the 3rd" reaches the person it happened to.
+
+**Error Responses**:
+
+- **400 Validation Error**: this installation has no private, signable file
+  storage (a prepared export could never be handed back safely); or you already
+  have a transfer being prepared — one at a time, because each is a full read or
+  write of your whole account
+- **403 Forbidden**: API key rather than a browser session
+- **409 Conflict**: `DELETE` on a job the worker is still holding
+- **413 Payload Too Large**: the uploaded bundle exceeds 64 MB
+
 ## Get User Preferences
 
 ✅ **Implemented in:** `app/api/v1/users/me/preferences/route.ts` (GET handler)

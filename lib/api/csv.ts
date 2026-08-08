@@ -32,3 +32,28 @@ export function csvEscape(value: string): string {
   }
   return neutralised;
 }
+
+/**
+ * A whole CSV document — a header row, then one row per record.
+ *
+ * Line endings are CRLF, which is what RFC 4180 specifies and what Excel on
+ * Windows expects. Every reader that accepts LF accepts CRLF too, so this is the
+ * strictly wider choice rather than a preference.
+ *
+ * Rows are padded to the header width rather than trusted to match it. A short
+ * row shifts every value after the gap into the wrong column, which produces a
+ * file that opens cleanly and is wrong — the worst available failure.
+ */
+export function csvDocument(
+  headers: readonly string[],
+  rows: readonly (readonly string[])[]
+): string {
+  const lines = [headers.map(csvEscape).join(',')];
+
+  for (const row of rows) {
+    const cells = headers.map((_, index) => csvEscape(row[index] ?? ''));
+    lines.push(cells.join(','));
+  }
+
+  return `${lines.join('\r\n')}\r\n`;
+}

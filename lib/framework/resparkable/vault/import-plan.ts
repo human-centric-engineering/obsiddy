@@ -124,8 +124,15 @@ export const WRITABLE_KEYS: Record<string, readonly string[]> = {
 /** See the call site: a hub note must not become fifty connection suggestions. */
 const MAX_MENTIONS_PER_NOTE = 25;
 
-/** Types whose slug is unique per owner, and therefore usable as identity. */
-const SLUG_IDENTITY_TYPES = new Set<VaultNoteType>(['area', 'project', 'entity']);
+/**
+ * Types whose slug is unique per owner, and therefore usable as identity.
+ *
+ * Goals joined this list when they gained `@@unique([userId, slug])`. Until then
+ * a hand-written `Goals/…md` note created a second goal on every import, for
+ * ever — the exact failure this function exists to prevent, left in place for
+ * one type because the constraint behind it was missing.
+ */
+const SLUG_IDENTITY_TYPES = new Set<VaultNoteType>(['area', 'goal', 'project', 'entity']);
 
 /**
  * Identity for a note the vault authored, which has no `resparkable-id` yet.

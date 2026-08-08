@@ -46,6 +46,7 @@ vi.mock('@/lib/framework/resparkable/repo/entities', () => ({
 }));
 vi.mock('@/lib/framework/resparkable/repo/goals', () => ({
   createGoal: vi.fn(),
+  findGoalBySlug: vi.fn(),
   updateGoal: vi.fn(),
 }));
 vi.mock('@/lib/framework/resparkable/repo/links', () => ({ createSuggestedLinks: vi.fn() }));
@@ -74,6 +75,8 @@ vi.mock('@/lib/framework/resparkable/services/slug', () => ({
 }));
 vi.mock('@/lib/framework/resparkable/vault/export', () => ({ collectVaultNotes: vi.fn() }));
 vi.mock('@/lib/framework/resparkable/vault/zip', () => ({ readVaultZip: vi.fn() }));
+
+import { logger } from '@/lib/logging';
 
 import { createArea, updateArea } from '@/lib/framework/resparkable/repo/areas';
 import { createEntity, updateEntity } from '@/lib/framework/resparkable/repo/entities';
@@ -791,5 +794,326 @@ describe('regressions found by review', () => {
     // "3 tasks ticked" for three renames tells the user something untrue.
     expect(result.tasksTicked).toBe(1);
     expect(result.tasksRetitled).toBe(1);
+  });
+});
+
+// ─── Added: goal-slug identity join and the field coverage it exposed ────────
+//
+// Everything below was added alongside the goal-slug identity work. Two gaps
+// this closes:
+//
+//   1. `importVaultArchive` itself was only ever exercised with `apply`
+//      false-y — the real write path (`apply: true`, driving the *real*,
+//      unmocked planner end to end) had no test at all.
+//   2. The per-type field mapping in `writeNote` was tested for one or two
+//      fields per type (the ones each earlier feature happened to touch) and
+//      never for the rest — so an update to, say, a goal's `horizon` or a
+//      task's `estimate-minutes` could silently stop being written and every
+//      existing test would still pass.
+
+describe('importVaultArchive — apply writes through the real, unmocked plan', () => {
+  it('creates a new area end to end and reports it as created', async () => {
+    vi.mocked(readVaultZip).mockReturnValue({
+      notes: [
+        {
+          path: 'Areas/health.md',
+          content:
+            '---\nresparkable-type: area\ntitle: Health\n---\n\nEverything that keeps you well.\n',
+        },
+      ],
+      manifest: null,
+      ignoredCount: 0,
+    });
+    vi.mocked(collectVaultNotes).mockResolvedValue([] as never);
+
+    const result = await importVaultArchive(SCOPE, new Uint8Array(), { apply: true });
+
+    expect(result.outcome).not.toBeNull();
+    expect(result.outcome?.created).toBe(1);
+    expect(result.outcome?.failed).toEqual([]);
+    expect(createArea).toHaveBeenCalledWith(SCOPE, expect.objectContaining({ name: 'Health' }));
+    expect(logger.info).toHaveBeenCalledWith(
+      'Resparkable vault import applied',
+      expect.objectContaining({ created: 1, failed: 0 })
+    );
+  });
+});
+
+describe('applyImportPlan — failures beyond the first pass', () => {
+  it('collects a failure when resolving a goal parent errors, without losing the create it belongs to', async () => {
+    vi.mocked(createGoal).mockResolvedValue({ id: 'goal_child' } as never);
+    vi.mocked(updateGoal).mockRejectedValueOnce(new Error('parent vanished'));
+
+    const result = await applyImportPlan(
+      SCOPE,
+      plan({
+        notes: [
+          note({
+            type: 'goal',
+            path: 'Goals/quarter/child.md',
+            title: 'Child',
+            refs: { parent: { kind: 'existing', id: 'goal_parent' } },
+            changedKeys: ['parent'],
+          }),
+        ],
+        creates: 1,
+      })
+    );
+
+    // The create itself landed; only the second-pass parent write failed.
+    expect(result.created).toBe(1);
+    expect(result.failed).toEqual([{ path: 'Goals/quarter/child.md', message: 'parent vanished' }]);
+  });
+
+  it('collects the failure per path when a checkbox tick errors', async () => {
+    vi.mocked(updateTask).mockRejectedValueOnce(new Error('task vanished'));
+
+    const result = await applyImportPlan(
+      SCOPE,
+      plan({
+        taskUpdates: [{ taskId: 'task_gone', fromPath: 'Projects/p.md', status: 'done' }],
+      })
+    );
+
+    expect(result.failed).toEqual([{ path: 'Projects/p.md', message: 'task vanished' }]);
+    expect(result.tasksTicked).toBe(0);
+  });
+});
+
+describe('applyImportPlan — every declared field is written, not only the first one tested', () => {
+  it('updates every declared area field: title, target minutes and sort order', async () => {
+    await applyImportPlan(
+      SCOPE,
+      plan({
+        notes: [
+          note({
+            type: 'area',
+            targetId: 'area_1',
+            fields: { title: 'Renamed', 'target-weekly-minutes': 300, 'sort-order': 2 },
+            changedKeys: ['title', 'target-weekly-minutes', 'sort-order'],
+          }),
+        ],
+        updates: 1,
+      })
+    );
+
+    expect(updateArea).toHaveBeenCalledWith(SCOPE, 'area_1', {
+      name: 'Renamed',
+      targetWeeklyMinutes: 300,
+      sortOrder: 2,
+    });
+  });
+
+  it('updates every declared entity field: kind, status and website', async () => {
+    await applyImportPlan(
+      SCOPE,
+      plan({
+        notes: [
+          note({
+            type: 'entity',
+            targetId: 'entity_1',
+            fields: { kind: 'company', status: 'archived', website: 'https://example.test' },
+            changedKeys: ['kind', 'status', 'website'],
+          }),
+        ],
+        updates: 1,
+      })
+    );
+
+    expect(updateEntity).toHaveBeenCalledWith(SCOPE, 'entity_1', {
+      kind: 'company',
+      status: 'archived',
+      website: 'https://example.test',
+    });
+  });
+
+  it('updates the project title, not only its area reference', async () => {
+    await applyImportPlan(
+      SCOPE,
+      plan({
+        notes: [
+          note({
+            type: 'project',
+            targetId: 'project_1',
+            fields: { title: 'Renamed project' },
+            changedKeys: ['title'],
+          }),
+        ],
+        updates: 1,
+      })
+    );
+
+    expect(updateProject).toHaveBeenCalledWith(SCOPE, 'project_1', { name: 'Renamed project' });
+  });
+
+  it('updates every declared goal field: title, horizon, status, target date and area', async () => {
+    await applyImportPlan(
+      SCOPE,
+      plan({
+        notes: [
+          note({
+            type: 'goal',
+            targetId: 'goal_1',
+            fields: {
+              title: 'Ship it',
+              horizon: 'year',
+              status: 'paused',
+              'target-date': '2026-12-31T00:00:00.000Z',
+            },
+            refs: { area: { kind: 'existing', id: 'area_9' } },
+            changedKeys: ['title', 'horizon', 'status', 'target-date', 'area'],
+          }),
+        ],
+        updates: 1,
+      })
+    );
+
+    expect(updateGoal).toHaveBeenCalledWith(SCOPE, 'goal_1', {
+      title: 'Ship it',
+      horizon: 'year',
+      status: 'paused',
+      targetDate: new Date('2026-12-31T00:00:00.000Z'),
+      areaId: 'area_9',
+    });
+  });
+
+  it('resolves an unchanged goal to its id without writing', async () => {
+    const result = await applyImportPlan(
+      SCOPE,
+      plan({
+        notes: [note({ type: 'goal', targetId: 'goal_1', changedKeys: [], bodyChanged: false })],
+        unchanged: 1,
+      })
+    );
+
+    expect(result.updated).toBe(0);
+    expect(result.created).toBe(0);
+    expect(updateGoal).not.toHaveBeenCalled();
+  });
+
+  it('updates every declared task field beyond title and status', async () => {
+    await applyImportPlan(
+      SCOPE,
+      plan({
+        notes: [
+          note({
+            type: 'task',
+            targetId: 'task_1',
+            fields: {
+              status: 'doing',
+              due: '2026-08-20T00:00:00.000Z',
+              'defer-until': '2026-08-10T00:00:00.000Z',
+              'estimate-minutes': 45,
+              energy: 'low',
+              context: 'phone',
+            },
+            changedKeys: ['status', 'due', 'defer-until', 'estimate-minutes', 'energy', 'context'],
+          }),
+        ],
+        updates: 1,
+      })
+    );
+
+    expect(updateTask).toHaveBeenCalledWith(SCOPE, 'task_1', {
+      status: 'doing',
+      dueAt: new Date('2026-08-20T00:00:00.000Z'),
+      deferUntil: new Date('2026-08-10T00:00:00.000Z'),
+      estimateMinutes: 45,
+      energy: 'low',
+      contextTag: 'phone',
+    });
+  });
+
+  it('leaves a due date alone when the file declared one that will not parse', async () => {
+    // `date()` returns undefined (not null) for an unparseable value, which
+    // `when()` reads as "not declared" — the column is left alone rather than
+    // being nulled out by a typo.
+    await applyImportPlan(
+      SCOPE,
+      plan({
+        notes: [
+          note({
+            type: 'task',
+            targetId: 'task_1',
+            fields: { due: 'not-a-date' },
+            changedKeys: ['due'],
+          }),
+        ],
+      })
+    );
+
+    const payload = vi.mocked(updateTask).mock.calls[0]?.[2] as Record<string, unknown>;
+    expect(payload).not.toHaveProperty('dueAt');
+  });
+
+  it('clears a numeric field the file declared with something that is not a number', async () => {
+    await applyImportPlan(
+      SCOPE,
+      plan({
+        notes: [
+          note({
+            type: 'task',
+            targetId: 'task_1',
+            fields: { 'estimate-minutes': 'ninety' },
+            changedKeys: ['estimate-minutes'],
+          }),
+        ],
+      })
+    );
+
+    const payload = vi.mocked(updateTask).mock.calls[0]?.[2] as Record<string, unknown>;
+    expect(payload).toEqual({ estimateMinutes: null });
+  });
+
+  it('clears a nullable string field the file declared with something that is not a string', async () => {
+    await applyImportPlan(
+      SCOPE,
+      plan({
+        notes: [
+          note({
+            type: 'area',
+            targetId: 'area_1',
+            fields: { colour: 42 },
+            changedKeys: ['colour'],
+          }),
+        ],
+      })
+    );
+
+    expect(updateArea).toHaveBeenCalledWith(SCOPE, 'area_1', { colour: null });
+  });
+
+  it('updates a thought status', async () => {
+    await applyImportPlan(
+      SCOPE,
+      plan({
+        notes: [
+          note({
+            type: 'thought',
+            targetId: 'thought_1',
+            fields: { status: 'done' },
+            changedKeys: ['status'],
+          }),
+        ],
+        updates: 1,
+      })
+    );
+
+    expect(updateThought).toHaveBeenCalledWith(SCOPE, 'thought_1', { status: 'done' });
+  });
+
+  it('resolves an unchanged thought to its id without writing', async () => {
+    const result = await applyImportPlan(
+      SCOPE,
+      plan({
+        notes: [
+          note({ type: 'thought', targetId: 'thought_1', changedKeys: [], bodyChanged: false }),
+        ],
+        unchanged: 1,
+      })
+    );
+
+    expect(result.updated).toBe(0);
+    expect(updateThought).not.toHaveBeenCalled();
   });
 });

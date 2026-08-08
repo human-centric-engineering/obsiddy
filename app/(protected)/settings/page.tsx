@@ -20,6 +20,8 @@ import { prisma } from '@/lib/db/client';
 import { parseUserPreferences } from '@/lib/validations/user';
 import { SettingsTabs } from '@/components/settings/settings-tabs';
 import { getInitials } from '@/lib/utils/initials';
+import { transferFormatSummaries } from '@/lib/portability/format';
+import { transferGroupSummaries } from '@/lib/portability/registry';
 
 export const metadata: Metadata = {
   title: 'Settings',
@@ -102,6 +104,8 @@ export default async function SettingsPage() {
         hasPasswordAccount={hasPasswordAccount}
         oauthProviders={oauthProviders}
         initials={initials}
+        transferGroups={transferGroupSummaries()}
+        transferFormats={transferFormatSummaries()}
       />
     </div>
   );

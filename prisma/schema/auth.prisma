@@ -70,6 +70,10 @@ model User {
   mcpApiKeys        McpApiKey[]        @relation("McpApiKeyCreator")
   mcpExposedPrompts McpExposedPrompt[] @relation("McpPromptCreator")
 
+  // Account transfer
+  transferJobs        TransferJob[] @relation("TransferJobUser")
+  transferJobsStarted TransferJob[] @relation("TransferJobInitiator")
+
   @@unique([email])
   @@index([role])
   @@index([role, accountType])

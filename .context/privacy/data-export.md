@@ -94,6 +94,31 @@ assertion, so a source added later without an `omit` fails there even if nobody
 wrote a test for it. Two counter-assertions (the subject's own IP address and
 their message text _are_ present) stop the sweep from passing on an empty export.
 
+## There Are Now Two Manifests, and They Disagree on Purpose
+
+This manifest answers **"what is this person owed?"** (Art. 15), and
+`GET /api/v1/users/me/export` serves it as JSON. A second one,
+`lib/portability/` + `lib/framework/resparkable/transfer/policy.ts`, answers
+**"what moves?"** for account transfer, and
+`GET /api/v1/users/me/transfer/export` serves it as a zip built to be imported.
+Those are different questions and the answers legitimately differ:
+
+|                       | Art. 15 export                                                      | Account transfer                                                               |
+| --------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `Session`             | exported, minus `token` — a person may see where they are signed in | `skip` — importing a session is takeover, not portability                      |
+| `AiAdminAuditLog`     | exported                                                            | `export-only` — an audit log you can create by importing a file proves nothing |
+| `AiWorkflowExecution` | exported                                                            | `export-only` — inbound runs store third-party trigger payloads verbatim       |
+| `ContactSubmission`   | exported, matched by email                                          | not in transfer — it belongs to the site inbox, not to an account              |
+
+Those divergences are **pinned by a test** (`policy-coverage.test.ts`, the
+"divergence from the Art. 15 manifest" block). The observation that the two
+manifests overlap is a real one, and merging them would be the wrong fix for it.
+
+The transfer side also has something this one does not: a _generated_ model
+graph, which gives its coverage guard a cross-tier source of truth. That is the
+real answer to the `HANDLED_OUTSIDE_MANIFEST` workaround below — see
+[`.context/database/model-graph.md`](../database/model-graph.md).
+
 ## The Three Dispositions
 
 Every `User`-linked model carries exactly one:

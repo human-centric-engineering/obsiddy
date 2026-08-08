@@ -12,10 +12,11 @@
  *      `userId` link but not the IP, so we null it before the link is gone.
  *   2. Write an append-only `DataErasureReceipt` for accountability
  *      (Art. 5(2)) without re-introducing PII (opaque id + email hash).
- *   3. Remove the user's stored avatar blobs (object storage, not the DB).
+ *   3. Remove the user's stored blobs — avatars, and any prepared account
+ *      transfer archives (object storage, not the DB).
  *
  * The scrub, receipt, and delete run in one transaction so they commit or
- * roll back together. Avatar cleanup runs first as a best-effort side effect
+ * roll back together. Blob cleanup runs first as a best-effort side effect
  * (object storage cannot enlist in the DB transaction).
  */
 
@@ -59,6 +60,15 @@ export async function eraseUser(params: EraseUserParams): Promise<EraseUserResul
   const { deleteByPrefix, isStorageEnabled } = await import('@/lib/storage/upload');
   if (isStorageEnabled()) {
     await deleteByPrefix(`avatars/${userId}/`);
+
+    // Prepared account transfers. The `TransferJob` rows cascade with the user,
+    // but the archives they name do not — and each one is a complete copy of the
+    // account being erased. Deleting the rows without these would leave the most
+    // concentrated version of somebody's data sitting in a bucket with nothing
+    // left pointing at it, which is the worst of both outcomes: unreachable
+    // through the app, and entirely present.
+    const { deleteUserArchives } = await import('@/lib/portability/jobs/archive-store');
+    await deleteUserArchives(userId);
   }
 
   // 1b. App-registered external cleanup (object storage, search indexes, …).

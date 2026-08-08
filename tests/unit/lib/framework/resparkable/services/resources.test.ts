@@ -47,6 +47,7 @@ vi.mock('@/lib/framework/resparkable/repo/goals', () => ({
   listGoals: vi.fn(),
   countGoals: vi.fn(),
   findGoal: vi.fn(),
+  findGoalBySlug: vi.fn(),
   createGoal: vi.fn(),
   updateGoal: vi.fn(),
   archiveGoal: vi.fn(),
@@ -203,7 +204,12 @@ function fakeProject(overrides: Partial<ResparkableProject> = {}): ResparkablePr
   } as unknown as ResparkableProject;
 }
 function fakeGoal(overrides: Partial<ResparkableGoal> = {}): ResparkableGoal {
-  return { id: 'goal_1', status: 'active', ...overrides } as unknown as ResparkableGoal;
+  return {
+    id: 'goal_1',
+    slug: 'ship-the-beta',
+    status: 'active',
+    ...overrides,
+  } as unknown as ResparkableGoal;
 }
 function fakeArea(overrides: Partial<ResparkableArea> = {}): ResparkableArea {
   return { id: 'area_1', slug: 'health', ...overrides } as unknown as ResparkableArea;
@@ -421,10 +427,32 @@ describe('resolveUniqueSlug — which creates touch it', () => {
     );
   });
 
-  it('never calls resolveUniqueSlug when creating a task, goal, thought, or time block', async () => {
+  it('calls resolveUniqueSlug when creating a goal, falling back to its title', async () => {
+    // Arrange — goals joined the slug-bearing types when they gained
+    // `@@unique([userId, slug])`. A goal is addressed by slug in the vault
+    // (`Goals/<horizon>/<slug>.md`), and both importers now match on it.
+    vi.mocked(goals.createGoal).mockResolvedValue(fakeGoal());
+
+    // Act
+    await goalResource.create(scope, {
+      title: 'Ship the beta',
+      horizon: 'quarter',
+    } as unknown as GoalCreate);
+
+    // Assert
+    expect(resolveUniqueSlug).toHaveBeenCalledWith(
+      scope,
+      expect.objectContaining({ fallbackFrom: 'Ship the beta' })
+    );
+    expect(goals.createGoal).toHaveBeenCalledWith(
+      scope,
+      expect.objectContaining({ slug: 'generated-slug' })
+    );
+  });
+
+  it('never calls resolveUniqueSlug when creating a task, thought, or time block', async () => {
     // Arrange
     vi.mocked(tasks.createTask).mockResolvedValue(fakeTask({ projectId: null }));
-    vi.mocked(goals.createGoal).mockResolvedValue(fakeGoal());
     vi.mocked(thoughts.captureThought).mockResolvedValue({
       thought: fakeThought(),
       deduped: false,
@@ -433,7 +461,6 @@ describe('resolveUniqueSlug — which creates touch it', () => {
 
     // Act
     await taskResource.create(scope, { title: 'x' } as unknown as TaskCreate);
-    await goalResource.create(scope, { title: 'y', horizon: 'week' } as unknown as GoalCreate);
     await thoughtResource.create(scope, { content: 'z' } as unknown as ThoughtCreate);
     await timeBlockResource.create(scope, {
       startAt: new Date('2026-01-01T09:00:00Z'),
@@ -492,19 +519,33 @@ describe('resolveSlugOnUpdate — which updates touch it', () => {
     );
   });
 
-  it('never calls resolveSlugOnUpdate when updating a task, goal, thought, or time block', async () => {
+  it('calls resolveSlugOnUpdate when updating a goal, passing the slug it already has', async () => {
+    // Arrange — a retitle must not move the slug: the vault files the goal at
+    // `Goals/<horizon>/<slug>.md`, so moving it would rename the user's file
+    // underneath them. `resolveSlugOnUpdate` is what encodes that.
+    vi.mocked(goals.findGoal).mockResolvedValue(fakeGoal({ slug: 'ship-the-beta' }));
+    vi.mocked(goals.updateGoal).mockResolvedValue(fakeGoal());
+
+    // Act
+    await goalResource.update(scope, 'goal_1', { title: 'Ship the beta, properly' });
+
+    // Assert
+    expect(resolveSlugOnUpdate).toHaveBeenCalledWith(
+      scope,
+      expect.objectContaining({ current: 'ship-the-beta' })
+    );
+  });
+
+  it('never calls resolveSlugOnUpdate when updating a task, thought, or time block', async () => {
     // Arrange
     vi.mocked(tasks.findTask).mockResolvedValue(fakeTask());
     vi.mocked(tasks.updateTask).mockResolvedValue(fakeTask());
-    vi.mocked(goals.findGoal).mockResolvedValue(fakeGoal());
-    vi.mocked(goals.updateGoal).mockResolvedValue(fakeGoal());
     vi.mocked(thoughts.findThought).mockResolvedValue(fakeThought());
     vi.mocked(thoughts.updateThought).mockResolvedValue(fakeThought());
     vi.mocked(timeBlocks.updateTimeBlock).mockResolvedValue(fakeTimeBlock());
 
     // Act
     await taskResource.update(scope, 'task_1', {});
-    await goalResource.update(scope, 'goal_1', {});
     await thoughtResource.update(scope, 'thought_1', {});
     await timeBlockResource.update(scope, 'tb_1', {});
 
@@ -1211,10 +1252,10 @@ describe('create() — full wiring for project, area, entity, and goal', () => {
     );
   });
 
-  it('creates a goal with no slug field at all and records a created event', async () => {
-    // Arrange — goal.create is the one create path with neither a slug
-    // resolver nor a lastActivityAt stamp; definedOnly(input) passes straight
-    // through.
+  it('creates a goal with a resolved slug and no lastActivityAt stamp, and records a created event', async () => {
+    // Arrange — goal.create resolves a slug like a project does, but unlike a
+    // project it does not stamp `lastActivityAt`: a goal's activity is derived
+    // from the work beneath it, not from having been created.
     vi.mocked(goals.createGoal).mockResolvedValue(fakeGoal({ id: 'goal_2' }));
 
     // Act
@@ -1225,7 +1266,8 @@ describe('create() — full wiring for project, area, entity, and goal', () => {
 
     // Assert
     const passedData = vi.mocked(goals.createGoal).mock.calls[0]?.[1];
-    expect(passedData).not.toHaveProperty('slug');
+    expect(passedData).toMatchObject({ slug: 'generated-slug' });
+    expect(passedData).not.toHaveProperty('lastActivityAt');
     expect(recordResparkableEvent).toHaveBeenCalledWith(
       scope,
       expect.objectContaining({ kind: 'created', entityType: 'goal', entityId: 'goal_2' })

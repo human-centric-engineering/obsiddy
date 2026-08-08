@@ -176,6 +176,7 @@ export type UpdateProjectInput = z.infer<typeof updateProjectSchema>;
 export const createGoalSchema = z
   .object({
     title: titleSchema,
+    slug: slugSchema.optional(),
     description: noteBodySchema.optional(),
     horizon: z.enum(GOAL_HORIZONS),
     parentGoalId: cuidSchema.nullish(),
@@ -1014,8 +1015,15 @@ export const agentUpsertProjectSchema = upsertSchema(createProjectSchema.omit({ 
 
 export type AgentUpsertProjectInput = z.infer<typeof agentUpsertProjectSchema>;
 
-/** `resparkable_upsert_goal`. `horizon` has no default, so creating without one is an error. */
-export const agentUpsertGoalSchema = upsertSchema(createGoalSchema, ['title', 'horizon']);
+/**
+ * `resparkable_upsert_goal`. `horizon` has no default, so creating without one is
+ * an error, and `slug` is omitted — the service derives it from the title, as for
+ * projects and entities.
+ */
+export const agentUpsertGoalSchema = upsertSchema(createGoalSchema.omit({ slug: true }), [
+  'title',
+  'horizon',
+]);
 
 export type AgentUpsertGoalInput = z.infer<typeof agentUpsertGoalSchema>;
 

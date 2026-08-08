@@ -81,6 +81,8 @@ vi.mock('@/lib/orchestration/retention', () => ({
 vi.mock('@/lib/orchestration/evaluations/run-worker', () => ({
   processPendingEvaluationRuns: vi.fn(),
 }));
+vi.mock('@/lib/portability/jobs/worker', () => ({ processTransferJobs: vi.fn() }));
+vi.mock('@/lib/portability/jobs/expiry', () => ({ expireTransferArchives: vi.fn() }));
 
 // ─── Imports ─────────────────────────────────────────────────────────────────
 
@@ -97,6 +99,8 @@ import { reapZombieExecutions } from '@/lib/orchestration/engine/execution-reape
 import { backfillMissingEmbeddings } from '@/lib/orchestration/chat/message-embedder';
 import { enforceRetentionPolicies } from '@/lib/orchestration/retention';
 import { processPendingEvaluationRuns } from '@/lib/orchestration/evaluations/run-worker';
+import { processTransferJobs } from '@/lib/portability/jobs/worker';
+import { expireTransferArchives } from '@/lib/portability/jobs/expiry';
 import { __resetPlatformJobsForTests } from '@/lib/orchestration/maintenance/platform-jobs';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -166,6 +170,13 @@ describe('POST /api/v1/admin/orchestration/maintenance/tick', () => {
       exhausted: 0,
       errors: [],
     });
+    vi.mocked(processTransferJobs).mockResolvedValue({
+      jobId: null,
+      kind: null,
+      status: null,
+      orphaned: 0,
+    });
+    vi.mocked(expireTransferArchives).mockResolvedValue({ expired: 0, failed: 0 });
   });
 
   it('returns 401 when unauthenticated', async () => {
@@ -206,6 +217,8 @@ describe('POST /api/v1/admin/orchestration/maintenance/tick', () => {
       'retention',
       'pendingExecutionRecovery',
       'evaluationRuns',
+      'transferJobs',
+      'transferArchiveExpiry',
     ]);
     expect(body.data.durationMs).toEqual(expect.any(Number));
   });

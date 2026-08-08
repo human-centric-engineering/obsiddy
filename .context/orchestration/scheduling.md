@@ -163,6 +163,8 @@ Called automatically by the unified maintenance tick **before** `reapZombieExecu
 | `retention`                | 1 hour     | windows are measured in days                                        |
 | `pendingExecutionRecovery` | 2 min      | its own stale-pending threshold is 2 min                            |
 | `evaluationRuns`           | every tick | the worker drives one time-slice per tick, so cadence is throughput |
+| `transferJobs`             | every tick | one account transfer per tick, so the cadence _is_ the throughput   |
+| `transferArchiveExpiry`    | 1 hour     | the stored-archive TTL is measured in days                          |
 
 A task held back by its interval reports the string `'skipped'` under its own key in the completion log line — reported rather than omitted, so "did the sweep run?" is answerable from the logs. Intervals are **start-to-start** and held **in process memory**: persisting them would cost a DB round-trip per task per tick, which is the cost the throttle exists to remove. Consequences, both benign because every throttled task is idempotent: each instance in a multi-instance deployment keeps its own clock (so a task runs roughly once per instance per interval), and a restart re-arms everything immediately.
 
@@ -186,6 +188,8 @@ Forks add their own recurring work through `registerAppJob`, which shares the th
       "retention",
       "pendingExecutionRecovery",
       "evaluationRuns",
+      "transferJobs",
+      "transferArchiveExpiry",
     ],
     "durationMs": 47,
   },

@@ -260,6 +260,7 @@ export async function collectVaultNotes(
       type: 'goal',
       id: goal.id,
       title: goal.title,
+      slug: goal.slug,
       horizon: goal.horizon,
       note: encodeGoal(goal, {
         parentTitle: goal.parentGoalId ? goalTitleById.get(goal.parentGoalId) : null,

@@ -1,0 +1,1164 @@
+/**
+ * Unit tests for lib/portability/apply-import.ts
+ *
+ * Contract under test:
+ *   applyImportPlan({ plan, userId, conflictMode })
+ *   1. every row lands on the importing account, whatever the bundle said
+ *   2. references point at the minted ids, not the bundle's
+ *   3. a matched row is not written, and what referred to it points at it
+ *   4. the policy is obeyed per column — reset, regenerate, clamp, drop
+ *   5. values are coerced back out of JSON into what the column holds
+ *   6. self-references are filled in after the table exists
+ *   7. it refuses rather than half-writing
+ *
+ * These assert **the arguments that reach Prisma**, as `collect.test.ts` and
+ * `import-lookup.test.ts` do. What a mock returns proves nothing; what the
+ * applier asked it to write is the entire behaviour.
+ *
+ * The plans are built by the real planner rather than hand-written. A
+ * hand-written plan would let a test assert that the applier does the right
+ * thing with a shape the planner never produces — and the pairing of those two
+ * is the thing Phase E is.
+ *
+ * @see lib/portability/apply-import.ts
+ */
+
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const { mockPrisma, delegateFor, resetDelegates, transactions } = vi.hoisted(() => {
+  interface Delegate {
+    createMany: ReturnType<typeof vi.fn>;
+    update: ReturnType<typeof vi.fn>;
+    findMany: ReturnType<typeof vi.fn>;
+  }
+
+  const delegates = new Map<string, Delegate>();
+  const delegateFor = (name: string): Delegate => {
+    let delegate = delegates.get(name);
+    if (!delegate) {
+      delegate = {
+        createMany: vi.fn().mockResolvedValue({ count: 0 }),
+        update: vi.fn().mockResolvedValue({}),
+        findMany: vi.fn().mockResolvedValue([]),
+      };
+      delegates.set(name, delegate);
+    }
+    return delegate;
+  };
+
+  const resetDelegates = (): void => {
+    for (const delegate of delegates.values()) {
+      delegate.createMany.mockReset().mockResolvedValue({ count: 0 });
+      delegate.update.mockReset().mockResolvedValue({});
+      delegate.findMany.mockReset().mockResolvedValue([]);
+    }
+  };
+
+  const transactions: { options: unknown }[] = [];
+
+  const prisma = new Proxy(
+    {
+      // The transaction client the applier writes through is the same proxy, so
+      // a test asserting on a delegate sees the writes wherever they were made.
+      $transaction: vi.fn(async (callback: (tx: unknown) => Promise<unknown>, options: unknown) => {
+        transactions.push({ options });
+        return callback(prismaRef.value);
+      }),
+    },
+    {
+      get(target: Record<string, unknown>, property) {
+        if (typeof property !== 'string') return undefined;
+        if (property in target) return target[property];
+        return delegateFor(property);
+      },
+    }
+  );
+
+  const prismaRef = { value: prisma };
+
+  return { mockPrisma: prisma, delegateFor, resetDelegates, transactions };
+});
+
+const { mockStorage, mockGetStorageClient, mockFindSettings } = vi.hoisted(() => ({
+  mockStorage: {
+    name: 'test-provider',
+    capabilities: { privateObjects: true, signedUrls: true, download: true },
+    upload: vi.fn(),
+    download: vi.fn(),
+    delete: vi.fn(),
+    deletePrefix: vi.fn(),
+    getSignedUrl: vi.fn(),
+  },
+  mockGetStorageClient: vi.fn(),
+  mockFindSettings: vi.fn(),
+}));
+
+vi.mock('@/lib/db/client', () => ({ prisma: mockPrisma }));
+vi.mock('@/lib/storage/client', () => ({ getStorageClient: mockGetStorageClient }));
+vi.mock('@/lib/framework/resparkable/repo/settings', () => ({
+  findResparkableSettings: mockFindSettings,
+}));
+vi.mock('@/lib/logging', () => ({
+  logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+}));
+
+// ---------------------------------------------------------------------------
+
+import {
+  applyImportPlan,
+  APPLY_CAPS,
+  TransferApplyError,
+  type ConflictMode,
+} from '@/lib/portability/apply-import';
+import { buildImportPlan, mergeKeyOf, type ExistingLookup } from '@/lib/portability/import-plan';
+import type { ArrivingOriginal } from '@/lib/portability/originals';
+import { SCHEMA_FINGERPRINT } from '@/lib/portability/model-graph.generated';
+import type { IncomingBundle } from '@/lib/portability/read-bundle';
+
+const TARGET = 'user-importing';
+const SOURCE = 'user-source';
+
+type Rows = Record<string, Record<string, unknown>[]>;
+
+function bundleOf(tables: Rows): IncomingBundle {
+  const entries = Object.entries(tables);
+  return {
+    manifest: {
+      formatVersion: 1,
+      generatedAt: '2026-08-07T09:30:00.000Z',
+      schemaFingerprint: SCHEMA_FINGERPRINT,
+      subjectUserId: SOURCE,
+      groups: ['brain'],
+      totalRows: entries.reduce((total, [, rows]) => total + rows.length, 0),
+      models: entries.map(([model, rows]) => ({
+        model,
+        group: 'brain',
+        disposition: 'transfer',
+        note: '',
+        file: `data/${model}.json`,
+        rows: rows.length,
+      })),
+      originals: { requested: false, files: [], totalBytes: 0 },
+    },
+    tables: new Map(
+      entries.map(([model, rows]) => [model, { model, file: `data/${model}.json`, rows }])
+    ),
+    originals: new Map(),
+    totalRows: entries.reduce((total, [, rows]) => total + rows.length, 0),
+    ignoredCount: 0,
+    discrepancies: [],
+  };
+}
+
+/** A lookup onto an account holding these rows. Matches on the columns it is given. */
+function lookupOver(existing: Rows = {}): ExistingLookup {
+  return {
+    async byMergeKey(model, columns, tuples) {
+      // Keyed through the real helper rather than a second copy of its
+      // separator, so a test cannot pass because the fake and the planner agree
+      // on something the database would not.
+      const wanted = new Set(tuples.map((values) => mergeKeyOf(values)).filter(Boolean));
+      const found = new Map<string, string>();
+      for (const row of existing[model] ?? []) {
+        const key = mergeKeyOf(columns.map((column) => row[column]));
+        if (key === null || !wanted.has(key) || found.has(key)) continue;
+        if (typeof row.id === 'string') found.set(key, row.id);
+      }
+      return found;
+    },
+    async softCandidates(model) {
+      return existing[model] ?? [];
+    },
+  };
+}
+
+/** Plan a bundle and write it, the way the route does. */
+async function planAndApply(
+  tables: Rows,
+  existing: Rows = {},
+  conflictMode: ConflictMode = 'skip',
+  originals?: ReadonlyMap<string, ArrivingOriginal>
+) {
+  const plan = await buildImportPlan({
+    bundle: bundleOf(tables),
+    targetUserId: TARGET,
+    lookup: lookupOver(existing),
+  });
+  const result = await applyImportPlan({ plan, userId: TARGET, conflictMode, originals });
+  return { plan, result };
+}
+
+/** Every row one delegate was asked to create, flattened across batches. */
+function created(delegate: string): Record<string, unknown>[] {
+  return delegateFor(delegate).createMany.mock.calls.flatMap(
+    (call: unknown[]) => (call[0] as { data: Record<string, unknown>[] }).data
+  );
+}
+
+/** Every update one delegate was asked to make. */
+function updates(delegate: string): { where: unknown; data: unknown }[] {
+  return delegateFor(delegate).update.mock.calls.map(
+    (call: unknown[]) => call[0] as { where: unknown; data: unknown }
+  );
+}
+
+const SPACE = { id: 'space-old', userId: SOURCE };
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  resetDelegates();
+  transactions.length = 0;
+  mockGetStorageClient.mockReturnValue(mockStorage);
+  mockStorage.upload.mockImplementation(async (_file: Buffer, options: { key: string }) => ({
+    key: options.key,
+    url: `https://example.test/${options.key}`,
+    size: 3,
+  }));
+  mockFindSettings.mockResolvedValue({ documentOriginals: 'retain' });
+});
+
+describe('applyImportPlan', () => {
+  describe('the owner column', () => {
+    it('writes every row under the importing account, not the bundle’s', async () => {
+      await planAndApply({
+        ResparkableSpace: [SPACE],
+        ResparkableArea: [
+          { id: 'area-old', userId: 'somebody-else', slug: 'health', name: 'health' },
+        ],
+      });
+
+      expect(created('resparkableArea')[0]).toMatchObject({ userId: TARGET });
+    });
+
+    it('refuses a plan prepared for a different account', async () => {
+      const plan = await buildImportPlan({
+        bundle: bundleOf({ ResparkableSpace: [SPACE] }),
+        targetUserId: TARGET,
+        lookup: lookupOver(),
+      });
+
+      await expect(
+        applyImportPlan({ plan, userId: 'someone-else', conflictMode: 'skip' })
+      ).rejects.toThrow(expect.objectContaining({ reason: 'plan-account-mismatch' }));
+    });
+  });
+
+  describe('ids', () => {
+    it('never writes the id the bundle carried', async () => {
+      await planAndApply({
+        ResparkableSpace: [SPACE],
+        ResparkableArea: [{ id: 'area-old', userId: SOURCE, slug: 'health', name: 'health' }],
+      });
+
+      const row = created('resparkableArea')[0];
+
+      expect(row.id).toBeDefined();
+      expect(row.id).not.toBe('area-old');
+    });
+
+    it('points a reference at the minted id of the row it names', async () => {
+      // The property everything else rests on: a project's `areaId` has to name
+      // the area this import just wrote, not the one in the account it left.
+      await planAndApply({
+        ResparkableSpace: [SPACE],
+        ResparkableArea: [{ id: 'area-old', userId: SOURCE, slug: 'health', name: 'health' }],
+        ResparkableProject: [
+          { id: 'proj-old', userId: SOURCE, slug: 'rebuild', name: 'rebuild', areaId: 'area-old' },
+        ],
+      });
+
+      const area = created('resparkableArea')[0];
+      const project = created('resparkableProject')[0];
+
+      expect(project.areaId).toBe(area.id);
+    });
+
+    it('gives every row a distinct id', async () => {
+      await planAndApply({
+        ResparkableSpace: [SPACE],
+        ResparkableArea: [
+          { id: 'a1', userId: SOURCE, slug: 'health', name: 'health' },
+          { id: 'a2', userId: SOURCE, slug: 'work', name: 'work' },
+          { id: 'a3', userId: SOURCE, slug: 'home', name: 'home' },
+        ],
+      });
+
+      const ids = created('resparkableArea').map((row) => row.id);
+
+      expect(new Set(ids).size).toBe(3);
+    });
+  });
+
+  describe('a record the account already has', () => {
+    it('does not write it', async () => {
+      await planAndApply(
+        {
+          ResparkableSpace: [SPACE],
+          ResparkableArea: [{ id: 'area-old', userId: SOURCE, slug: 'health', name: 'health' }],
+        },
+        { ResparkableArea: [{ id: 'area-here', userId: TARGET, slug: 'health', name: 'health' }] }
+      );
+
+      expect(created('resparkableArea')).toEqual([]);
+    });
+
+    it('points what referred to it at the record already here', async () => {
+      // Importing an export into an account that already has a Health area files
+      // the bundle's projects under the existing one, rather than orphaning them
+      // or creating a second Health.
+      await planAndApply(
+        {
+          ResparkableSpace: [SPACE],
+          ResparkableArea: [{ id: 'area-old', userId: SOURCE, slug: 'health', name: 'health' }],
+          ResparkableProject: [
+            {
+              id: 'proj-old',
+              userId: SOURCE,
+              slug: 'rebuild',
+              name: 'rebuild',
+              areaId: 'area-old',
+            },
+          ],
+        },
+        { ResparkableArea: [{ id: 'area-here', userId: TARGET, slug: 'health', name: 'health' }] }
+      );
+
+      expect(created('resparkableProject')[0].areaId).toBe('area-here');
+    });
+
+    it('counts it as skipped rather than created', async () => {
+      const { result } = await planAndApply(
+        {
+          ResparkableSpace: [SPACE],
+          ResparkableArea: [{ id: 'area-old', userId: SOURCE, slug: 'health', name: 'health' }],
+        },
+        { ResparkableArea: [{ id: 'area-here', userId: TARGET, slug: 'health', name: 'health' }] }
+      );
+
+      expect(result.totals).toMatchObject({ created: 1, skipped: 1 });
+      expect(result.warnings.join('\n')).toMatch(/left exactly as they were/);
+    });
+  });
+
+  describe('what the policy says about a column', () => {
+    it('forces a reset column to the value the manifest names', async () => {
+      // `connectionStrengthFloor` is tuned against whichever embedding model
+      // produced this brain's vectors, so it is re-learned rather than carried.
+      await planAndApply({
+        ResparkableSpace: [{ ...SPACE, connectionStrengthFloor: 0.42, lastSweptAt: '2026-01-01' }],
+      });
+
+      expect(created('resparkableSpace')[0]).toMatchObject({
+        connectionStrengthFloor: null,
+        lastSweptAt: null,
+      });
+    });
+
+    it('never creates a person, even when nothing matched', async () => {
+      // `User.ownerColumn` is its own primary key, which is how the manifest
+      // says "land on the account doing the importing rather than create
+      // somebody". Writing a row here would carry the importer's own id and
+      // collide with them — so it is not attempted, matched or not.
+      const { result } = await planAndApply({
+        User: [{ id: SOURCE, email: 'someone@example.com', role: 'admin', name: 'Someone' }],
+      });
+
+      expect(created('user')).toEqual([]);
+      expect(result.totals).toMatchObject({ created: 0, skipped: 1 });
+    });
+
+    it('points what referred to the bundle’s user at the importing account', async () => {
+      await planAndApply({
+        User: [{ id: SOURCE, email: 'someone@example.com', name: 'Someone' }],
+        AiAgent: [{ id: 'agent-old', createdBy: SOURCE, slug: 'triage', name: 'Triage' }],
+      });
+
+      expect(created('aiAgent')[0]).toMatchObject({ createdBy: TARGET });
+    });
+
+    it('drops a column this schema does not have', async () => {
+      await planAndApply({
+        ResparkableSpace: [{ ...SPACE, aColumnWeRemoved: 'x' }],
+      });
+
+      expect(created('resparkableSpace')[0]).not.toHaveProperty('aColumnWeRemoved');
+    });
+
+    it('issues a value for a column the bundle could never carry', async () => {
+      // `inboxToken` is a live bearer credential, so it is redacted on the way
+      // out — and it is required and undefaulted, so without something minting
+      // one here the space simply could not be written. The export side cannot
+      // see this gap; only the import can.
+      await planAndApply({ ResparkableSpace: [SPACE] });
+
+      const token = created('resparkableSpace')[0].inboxToken;
+
+      expect(typeof token).toBe('string');
+      expect(token).toMatch(/^[0-9a-f]{32}$/);
+    });
+
+    it('issues a different one for every row', async () => {
+      // The reason `mint` is a function and not a constant.
+      await planAndApply({
+        ResparkableSpace: [
+          { id: 's1', userId: SOURCE },
+          { id: 's2', userId: 'another' },
+        ],
+      });
+
+      const tokens = created('resparkableSpace').map((row) => row.inboxToken);
+
+      expect(tokens).toHaveLength(2);
+      expect(new Set(tokens).size).toBe(2);
+    });
+
+    it('clamps a value the column is not wide enough for', async () => {
+      // Truncated rather than refused: failing somebody's whole import over a
+      // string an older schema allowed to be longer is the wrong trade, and the
+      // plan already named the column.
+      await planAndApply({
+        ResparkableSpace: [{ ...SPACE, timezone: 'x'.repeat(200) }],
+      });
+
+      expect(created('resparkableSpace')[0].timezone).toHaveLength(64);
+    });
+  });
+
+  describe('getting values back out of JSON', () => {
+    it('turns an ISO string back into a date', async () => {
+      // The bundle went through JSON to get here, so every date is a string.
+      // Prisma wants a Date, and the column type is what says so — `"2026-08-07"`
+      // is a perfectly good string until the column disagrees.
+      await planAndApply({
+        ResparkableSpace: [SPACE],
+        ResparkableTask: [
+          { id: 't1', userId: SOURCE, title: 'Ship it', dueAt: '2026-09-30T00:00:00.000Z' },
+        ],
+      });
+
+      const row = created('resparkableTask')[0];
+
+      expect(row.dueAt).toBeInstanceOf(Date);
+      expect((row.dueAt as Date).toISOString()).toBe('2026-09-30T00:00:00.000Z');
+    });
+
+    it('leaves a string column as a string', async () => {
+      await planAndApply({
+        ResparkableSpace: [SPACE],
+        ResparkableTask: [{ id: 't1', userId: SOURCE, title: 'Ship it' }],
+      });
+
+      expect(created('resparkableTask')[0].title).toBe('Ship it');
+    });
+
+    it('passes a Json column through untouched', async () => {
+      await planAndApply({
+        ResparkableSpace: [SPACE],
+        ResparkableBoard: [
+          {
+            id: 'b1',
+            userId: SOURCE,
+            slug: 'work',
+            columns: [{ name: 'Doing', status: 'in-progress' }],
+          },
+        ],
+      });
+
+      expect(created('resparkableBoard')[0].columns).toEqual([
+        { name: 'Doing', status: 'in-progress' },
+      ]);
+    });
+  });
+
+  describe('a row pointing into its own table', () => {
+    it('writes the column after the table exists, not with it', async () => {
+      // A foreign key is checked as each row lands, so a child written before
+      // its parent fails even though both are in the same statement.
+      const { result } = await planAndApply({
+        ResparkableSpace: [SPACE],
+        ResparkableGoal: [
+          { id: 'goal-parent', userId: SOURCE, horizon: 'year', title: 'Get fit' },
+          {
+            id: 'goal-child',
+            userId: SOURCE,
+            horizon: 'quarter',
+            title: 'Run 10k',
+            parentGoalId: 'goal-parent',
+          },
+        ],
+      });
+
+      const goals = created('resparkableGoal');
+      expect(goals).toHaveLength(2);
+      expect(goals.every((row) => row.parentGoalId === undefined)).toBe(true);
+
+      const link = updates('resparkableGoal');
+      expect(link).toHaveLength(1);
+      expect(result.secondPass).toContain('ResparkableGoal');
+    });
+
+    it('links the child to the parent’s minted id', async () => {
+      await planAndApply({
+        ResparkableSpace: [SPACE],
+        ResparkableGoal: [
+          { id: 'goal-parent', userId: SOURCE, horizon: 'year', title: 'Get fit' },
+          {
+            id: 'goal-child',
+            userId: SOURCE,
+            horizon: 'quarter',
+            title: 'Run 10k',
+            parentGoalId: 'goal-parent',
+          },
+        ],
+      });
+
+      const goals = created('resparkableGoal');
+      const parent = goals.find((row) => row.title === 'Get fit');
+      const child = goals.find((row) => row.title === 'Run 10k');
+      const [link] = updates('resparkableGoal');
+
+      expect(link.where).toEqual({ id: child?.id });
+      expect(link.data).toEqual({ parentGoalId: parent?.id });
+    });
+
+    it('makes no second pass when nothing points at its own table', async () => {
+      const { result } = await planAndApply({
+        ResparkableSpace: [SPACE],
+        ResparkableGoal: [{ id: 'g1', userId: SOURCE, horizon: 'year', title: 'Get fit' }],
+      });
+
+      expect(updates('resparkableGoal')).toEqual([]);
+      expect(result.secondPass).toEqual([]);
+    });
+  });
+
+  describe('order and transaction', () => {
+    it('writes parents before children', async () => {
+      await planAndApply({
+        ResparkableProject: [
+          { id: 'p1', userId: SOURCE, slug: 'rebuild', name: 'rebuild', areaId: 'a1' },
+        ],
+        ResparkableArea: [{ id: 'a1', userId: SOURCE, slug: 'health', name: 'health' }],
+        ResparkableSpace: [SPACE],
+      });
+
+      // Read off the mocks' own call ordering rather than by instrumenting an
+      // implementation — the bundle above lists the tables child-first, so the
+      // order below can only come from the topological walk.
+      const at = (delegate: string): number =>
+        delegateFor(delegate).createMany.mock.invocationCallOrder[0];
+
+      expect(at('resparkableSpace')).toBeLessThan(at('resparkableArea'));
+      expect(at('resparkableArea')).toBeLessThan(at('resparkableProject'));
+    });
+
+    it('does everything in one transaction, with room to finish', async () => {
+      // A partially applied import is the worst artefact this could produce:
+      // rows attached to parents that exist, beside rows whose parents never
+      // arrived, with nothing to say which is which.
+      await planAndApply({
+        ResparkableSpace: [SPACE],
+        ResparkableArea: [{ id: 'a1', userId: SOURCE, slug: 'health', name: 'health' }],
+      });
+
+      expect(transactions).toHaveLength(1);
+      expect(transactions[0].options).toMatchObject({ timeout: APPLY_CAPS.timeoutMs });
+    });
+
+    it('batches a long table rather than sending one enormous insert', async () => {
+      const areas = Array.from({ length: APPLY_CAPS.batchSize + 10 }, (_, i) => ({
+        id: `a${i}`,
+        userId: SOURCE,
+        slug: `area-${i}`,
+      }));
+
+      await planAndApply({ ResparkableSpace: [SPACE], ResparkableArea: areas });
+
+      expect(delegateFor('resparkableArea').createMany).toHaveBeenCalledTimes(2);
+      expect(created('resparkableArea')).toHaveLength(areas.length);
+    });
+  });
+
+  describe('what it refuses', () => {
+    it('refuses an import larger than one transaction carries, before writing any of it', async () => {
+      const areas = Array.from({ length: APPLY_CAPS.maxRows + 1 }, (_, i) => ({
+        id: `a${i}`,
+        userId: SOURCE,
+        slug: `area-${i}`,
+      }));
+
+      const plan = await buildImportPlan({
+        bundle: bundleOf({ ResparkableSpace: [SPACE], ResparkableArea: areas }),
+        targetUserId: TARGET,
+        lookup: lookupOver(),
+      });
+
+      await expect(applyImportPlan({ plan, userId: TARGET, conflictMode: 'skip' })).rejects.toThrow(
+        expect.objectContaining({ reason: 'too-many-rows' })
+      );
+      expect(transactions).toHaveLength(0);
+      expect(created('resparkableArea')).toEqual([]);
+    });
+
+    it('is a TransferApplyError, so the route can turn it into a 400', async () => {
+      const plan = await buildImportPlan({
+        bundle: bundleOf({ ResparkableSpace: [SPACE] }),
+        targetUserId: TARGET,
+        lookup: lookupOver(),
+      });
+
+      await expect(
+        applyImportPlan({ plan, userId: 'somebody-else', conflictMode: 'skip' })
+      ).rejects.toBeInstanceOf(TransferApplyError);
+    });
+
+    it('counts overwrites against the same row cap as inserts', async () => {
+      // The cap bounds how long one transaction holds a connection, and an
+      // overwrite is the more expensive of the two — each is its own round trip
+      // where inserts go a thousand at a time. A cap that only counted inserts
+      // would let the more expensive operation through unbounded.
+      const areas = Array.from({ length: APPLY_CAPS.maxRows + 1 }, (_, i) => ({
+        id: `a${i}`,
+        userId: SOURCE,
+        slug: `area-${i}`,
+        name: `Area ${i}`,
+      }));
+      const here = areas.map((area) => ({ ...area, id: `here-${area.id}`, userId: TARGET }));
+
+      const plan = await buildImportPlan({
+        bundle: bundleOf({ ResparkableSpace: [SPACE], ResparkableArea: areas }),
+        targetUserId: TARGET,
+        lookup: lookupOver({ ResparkableArea: here }),
+      });
+
+      // Every one of these is a match, so nothing would be inserted at all —
+      // only `overwriting` can push this over the limit.
+      expect(plan.totals.creates).toBe(1); // the space
+      await expect(
+        applyImportPlan({ plan, userId: TARGET, conflictMode: 'overwrite' })
+      ).rejects.toThrow(expect.objectContaining({ reason: 'too-many-rows' }));
+      expect(transactions).toHaveLength(0);
+      expect(updates('resparkableArea')).toEqual([]);
+    });
+  });
+
+  describe('conflictMode: overwrite', () => {
+    it('writes the bundle’s values into a row matched through a unique constraint', async () => {
+      const { result } = await planAndApply(
+        {
+          ResparkableSpace: [SPACE],
+          ResparkableArea: [
+            { id: 'area-old', userId: SOURCE, slug: 'health', name: 'Health, renamed' },
+          ],
+        },
+        { ResparkableArea: [{ id: 'area-here', userId: TARGET, slug: 'health', name: 'Health' }] },
+        'overwrite'
+      );
+
+      expect(created('resparkableArea')).toEqual([]);
+      expect(updates('resparkableArea')).toEqual([
+        { where: { id: 'area-here' }, data: expect.objectContaining({ name: 'Health, renamed' }) },
+      ]);
+      expect(result.totals).toMatchObject({ overwritten: 1, created: 1 });
+      expect(result.warnings.join('\n')).toMatch(/written into/);
+    });
+
+    it('leaves a row matched on a guessed key exactly as it is', async () => {
+      // The reason the `ResparkableGoal` unique constraint had to land first. A
+      // soft match is a considered opinion; under `skip` a wrong one costs a
+      // duplicate, and under `overwrite` it would cost the row it wrote over.
+      const { result } = await planAndApply(
+        {
+          ResparkableSpace: [SPACE],
+          ResparkableReview: [
+            {
+              id: 'review-old',
+              userId: SOURCE,
+              horizon: 'weekly',
+              title: 'Week 39',
+              body: 'The imported copy.',
+              generatedAt: '2026-09-30T06:00:00.000Z',
+            },
+          ],
+        },
+        {
+          ResparkableReview: [
+            {
+              id: 'review-here',
+              userId: TARGET,
+              horizon: 'weekly',
+              title: 'Week 39',
+              body: 'The copy already here.',
+              generatedAt: new Date('2026-09-30T18:00:00.000Z'),
+            },
+          ],
+        },
+        'overwrite'
+      );
+
+      expect(updates('resparkableReview')).toEqual([]);
+      expect(created('resparkableReview')).toEqual([]);
+      expect(result.totals.overwritten).toBe(0);
+      expect(result.warnings.join('\n')).toMatch(/guessed key/);
+    });
+
+    it('does not re-issue a minted column into a row that already has one', async () => {
+      // `inboxToken` is redacted on the way out and minted on the way in, so a
+      // create has to invent one. Doing that to an existing row would rotate a
+      // live bearer token and silently change where the user's email capture
+      // arrives.
+      await planAndApply(
+        { ResparkableSpace: [SPACE] },
+        { ResparkableSpace: [{ id: 'space-here', userId: TARGET }] },
+        'overwrite'
+      );
+
+      const [update] = updates('resparkableSpace');
+      expect(update?.where).toEqual({ id: 'space-here' });
+      expect(update?.data).not.toHaveProperty('inboxToken');
+    });
+
+    it('does not write the owner column, or the columns the target supplies itself', async () => {
+      // Without `regenerate` this mode would be a one-file privilege escalation:
+      // hand-edit `role`, import your own bundle, done.
+      await planAndApply(
+        {
+          User: [
+            {
+              id: 'user-old',
+              name: 'Imported Name',
+              email: 'attacker@example.com',
+              emailVerified: true,
+              role: 'ADMIN',
+              timezone: 'Europe/London',
+            },
+          ],
+        },
+        { User: [{ id: TARGET, name: 'Real Name', email: 'real@example.com', role: 'USER' }] },
+        'overwrite'
+      );
+
+      const [update] = updates('user');
+      expect(update?.data).toMatchObject({ name: 'Imported Name', timezone: 'Europe/London' });
+      expect(update?.data).not.toHaveProperty('role');
+      expect(update?.data).not.toHaveProperty('email');
+      expect(update?.data).not.toHaveProperty('emailVerified');
+      // The row was found through an owner-scoped read, and here the owner column
+      // *is* the primary key — writing it would be an attempt to move the row.
+      expect(update?.data).not.toHaveProperty('id');
+      expect(created('user')).toEqual([]);
+    });
+
+    it('still forces the reset columns, so a rewritten row is re-indexed', async () => {
+      await planAndApply(
+        {
+          ResparkableSpace: [SPACE],
+          ResparkableArea: [
+            {
+              id: 'area-old',
+              userId: SOURCE,
+              slug: 'health',
+              name: 'Health',
+              indexedHash: 'stale-digest',
+            },
+          ],
+        },
+        { ResparkableArea: [{ id: 'area-here', userId: TARGET, slug: 'health', name: 'Health' }] },
+        'overwrite'
+      );
+
+      expect(updates('resparkableArea')[0]?.data).toMatchObject({ indexedHash: null });
+    });
+
+    it('writes nothing into a matched row under skip, which is the default', async () => {
+      const { result } = await planAndApply(
+        {
+          ResparkableSpace: [SPACE],
+          ResparkableArea: [
+            { id: 'area-old', userId: SOURCE, slug: 'health', name: 'Health, renamed' },
+          ],
+        },
+        { ResparkableArea: [{ id: 'area-here', userId: TARGET, slug: 'health', name: 'Health' }] }
+      );
+
+      expect(updates('resparkableArea')).toEqual([]);
+      expect(result.totals).toMatchObject({ overwritten: 0, skipped: 1 });
+    });
+
+    it('points a created row at the matched row it was overwritten into', async () => {
+      // The property `skip` already has, and overwriting must not lose: the
+      // bundle's children attach to the row that is here, not to a second copy.
+      await planAndApply(
+        {
+          ResparkableSpace: [SPACE],
+          ResparkableArea: [{ id: 'area-old', userId: SOURCE, slug: 'health', name: 'Health' }],
+          ResparkableProject: [
+            {
+              id: 'project-old',
+              userId: SOURCE,
+              slug: 'run-a-marathon',
+              name: 'Run a marathon',
+              areaId: 'area-old',
+            },
+          ],
+        },
+        { ResparkableArea: [{ id: 'area-here', userId: TARGET, slug: 'health', name: 'Health' }] },
+        'overwrite'
+      );
+
+      expect(created('resparkableProject')[0]).toMatchObject({ areaId: 'area-here' });
+    });
+  });
+
+  describe('ids inside Json columns', () => {
+    // `ResparkableBoard.filter.projectId` is a single declared path,
+    // `onUnresolved: 'null'`. `ResparkableReview.payload` is a whole-value
+    // `'**'` scan, `onUnresolved: 'keep'`. These are the two live policies —
+    // see lib/framework/resparkable/transfer/policy.ts.
+
+    it('rewrites a resolvable id at a declared path to the target account’s minted id', async () => {
+      await planAndApply({
+        ResparkableSpace: [SPACE],
+        ResparkableProject: [{ id: 'proj-old', userId: SOURCE, slug: 'rebuild', name: 'Rebuild' }],
+        ResparkableBoard: [
+          {
+            id: 'board-1',
+            userId: SOURCE,
+            slug: 'work',
+            name: 'Work',
+            columns: [{ name: 'Doing', status: 'in-progress' }],
+            filter: { projectId: 'proj-old' },
+          },
+        ],
+      });
+
+      const project = created('resparkableProject')[0];
+      const board = created('resparkableBoard')[0];
+
+      // Anti-green-bar: this asserts the value the code computed by rewriting
+      // the Json column, not the id `filter.projectId` arrived with — the bug
+      // this fixes is exactly a test that would have passed on the literal
+      // bundle value `'proj-old'`, which names nothing in the target account.
+      expect(project.id).toBeDefined();
+      expect(project.id).not.toBe('proj-old');
+      expect(board.filter).toEqual({ projectId: project.id });
+    });
+
+    it('nulls an unresolvable id at a declared path, per its onUnresolved: null', async () => {
+      await planAndApply({
+        ResparkableSpace: [SPACE],
+        // No ResparkableProject in the bundle at all — 'proj-missing' cannot
+        // resolve, in the plan or after it.
+        ResparkableBoard: [
+          {
+            id: 'board-1',
+            userId: SOURCE,
+            slug: 'work',
+            name: 'Work',
+            columns: [{ name: 'Doing', status: 'in-progress' }],
+            filter: { projectId: 'proj-missing' },
+          },
+        ],
+      });
+
+      const board = created('resparkableBoard')[0];
+
+      expect(board.filter).toEqual({ projectId: null });
+    });
+
+    it('leaves a matched project’s id resolving to the row already in the target account', async () => {
+      // The board's filter should follow the same identity the rest of the
+      // import follows: a project that matched something already here points
+      // at the existing row's id, not at a newly minted one.
+      await planAndApply(
+        {
+          ResparkableSpace: [SPACE],
+          ResparkableProject: [
+            { id: 'proj-old', userId: SOURCE, slug: 'rebuild', name: 'Rebuild' },
+          ],
+          ResparkableBoard: [
+            {
+              id: 'board-1',
+              userId: SOURCE,
+              slug: 'work',
+              name: 'Work',
+              columns: [{ name: 'Doing', status: 'in-progress' }],
+              filter: { projectId: 'proj-old' },
+            },
+          ],
+        },
+        {
+          ResparkableProject: [
+            { id: 'proj-here', userId: TARGET, slug: 'rebuild', name: 'Rebuild' },
+          ],
+        }
+      );
+
+      expect(created('resparkableProject')).toEqual([]);
+      const board = created('resparkableBoard')[0];
+      expect(board.filter).toEqual({ projectId: 'proj-here' });
+    });
+
+    it('rewrites a resolvable id found anywhere in a whole-value `**` scan', async () => {
+      // ResparkableReview.payload is typed `unknown` and scanned in full
+      // rather than at a fixed path, because its shape varies by horizon.
+      await planAndApply({
+        ResparkableSpace: [SPACE],
+        ResparkableTask: [{ id: 'task-old', userId: SOURCE, title: 'Ship it' }],
+        ResparkableReview: [
+          {
+            id: 'review-1',
+            userId: SOURCE,
+            horizon: 'weekly',
+            title: 'Week 39',
+            body: 'Body text.',
+            payload: { staleItems: [{ taskId: 'task-old', label: 'Ship it' }], count: 1 },
+          },
+        ],
+      });
+
+      const task = created('resparkableTask')[0];
+      const review = created('resparkableReview')[0];
+
+      expect(task.id).toBeDefined();
+      expect(review.payload).toEqual({
+        staleItems: [{ taskId: task.id, label: 'Ship it' }],
+        count: 1,
+      });
+    });
+
+    it('keeps an unresolvable id in a `**` scan exactly as it arrived, per onUnresolved: keep', async () => {
+      // No ResparkableTask in the bundle — 'task-missing' cannot resolve. The
+      // review's payload is typed `unknown` and writable by an agent, so the
+      // policy declares 'keep' rather than nulling or dropping content out of
+      // a column the product renders directly.
+      await planAndApply({
+        ResparkableSpace: [SPACE],
+        ResparkableReview: [
+          {
+            id: 'review-1',
+            userId: SOURCE,
+            horizon: 'weekly',
+            title: 'Week 39',
+            body: 'Body text.',
+            payload: { staleItems: [{ taskId: 'task-missing', label: 'Ship it' }], count: 1 },
+          },
+        ],
+      });
+
+      const review = created('resparkableReview')[0];
+
+      expect(review.payload).toEqual({
+        staleItems: [{ taskId: 'task-missing', label: 'Ship it' }],
+        count: 1,
+      });
+    });
+
+    it('leaves a Json column with nothing to remap untouched', async () => {
+      await planAndApply({
+        ResparkableSpace: [SPACE],
+        ResparkableBoard: [
+          {
+            id: 'board-1',
+            userId: SOURCE,
+            slug: 'work',
+            name: 'Work',
+            columns: [{ name: 'Doing', status: 'in-progress' }],
+            filter: null,
+          },
+        ],
+      });
+
+      expect(created('resparkableBoard')[0].filter).toBeNull();
+    });
+  });
+
+  describe('rows the plan dropped', () => {
+    it('does not write them, and says how many', async () => {
+      const { result } = await planAndApply({
+        ResparkableSpace: [SPACE],
+        ResparkableTask: [{ id: 't1', userId: SOURCE, title: 'Ship it' }],
+        ResparkableBoardCard: [
+          { id: 'c1', userId: SOURCE, boardId: 'board-missing', taskId: 't1' },
+        ],
+      });
+
+      expect(created('resparkableBoardCard')).toEqual([]);
+      expect(result.totals.dropped).toBe(1);
+      expect(result.warnings.join('\n')).toMatch(/not written/);
+    });
+  });
+
+  describe('an empty bundle', () => {
+    it('writes nothing and says nothing alarming', async () => {
+      const { result } = await planAndApply({});
+
+      expect(result.totals).toEqual({
+        created: 0,
+        overwritten: 0,
+        skipped: 0,
+        dropped: 0,
+        linked: 0,
+      });
+      expect(result.models).toEqual([]);
+      expect(result.warnings).toEqual([]);
+    });
+  });
+
+  describe('uploaded files', () => {
+    const HASH = 'a'.repeat(64);
+
+    const DOCUMENT = {
+      id: 'doc-1',
+      userId: SOURCE,
+      fileHash: HASH,
+      mimeType: 'application/pdf',
+      // The source account's key. It addresses a bucket that is not ours, and
+      // must never reach a column.
+      storageKey: `framework-resparkable/${SOURCE}/${HASH}.pdf`,
+      extractedText: 'The text pulled out of it.',
+    };
+
+    const arriving = (): Map<string, ArrivingOriginal> =>
+      new Map([
+        [
+          'doc-1',
+          {
+            model: 'ResparkableDocument',
+            row: 'doc-1',
+            bytes: new Uint8Array([1, 2, 3]),
+            contentType: 'application/pdf',
+          },
+        ],
+      ]);
+
+    it('writes the key it stored the file under, not the one the bundle carried', async () => {
+      const { result } = await planAndApply(
+        { ResparkableSpace: [SPACE], ResparkableDocument: [DOCUMENT] },
+        {},
+        'skip',
+        arriving()
+      );
+
+      const [row] = created('resparkableDocument');
+      expect(row.storageKey).toBe(`framework-resparkable/${TARGET}/${HASH}.pdf`);
+      expect(row.storageKey).not.toContain(SOURCE);
+      expect(result.originals).toEqual({ stored: 1, skipped: 0, bytes: 3 });
+    });
+
+    it('uploads before the transaction opens, never inside it', async () => {
+      // A blob upload inside the transaction would hold a database connection
+      // open across a call to another system, and could not be rolled back with
+      // the rows it belongs to. The order is the whole reason the key is known
+      // at insert time.
+      let openWhenUploaded = -1;
+      mockStorage.upload.mockImplementation(async (_file: Buffer, options: { key: string }) => {
+        openWhenUploaded = transactions.length;
+        return { key: options.key, url: 'https://example.test/x', size: 3 };
+      });
+
+      await planAndApply(
+        { ResparkableSpace: [SPACE], ResparkableDocument: [DOCUMENT] },
+        {},
+        'skip',
+        arriving()
+      );
+
+      // No transaction had been opened at the moment the file was written, and
+      // one was opened afterwards. Asserting the count rather than a call order
+      // is what makes this fail if the upload is ever moved inside.
+      expect(openWhenUploaded).toBe(0);
+      expect(transactions).toHaveLength(1);
+    });
+
+    it('nulls the key when no file travelled', async () => {
+      // The `reset` default, and what every bundle written without originals
+      // produces. A row pointing at the source account's bucket would look
+      // complete and resolve to nothing.
+      await planAndApply({ ResparkableSpace: [SPACE], ResparkableDocument: [DOCUMENT] });
+
+      const [row] = created('resparkableDocument');
+      expect(row.storageKey).toBeNull();
+      expect(mockStorage.upload).not.toHaveBeenCalled();
+    });
+
+    it('leaves a matched record’s original alone', async () => {
+      // The document merges on `[userId, fileHash]`, so the same bytes are the
+      // same row. Writing a new key into it would strand the object the existing
+      // key already names — and would do it under `skip`, which promises the
+      // existing row is untouched.
+      const { result } = await planAndApply(
+        { ResparkableSpace: [SPACE], ResparkableDocument: [DOCUMENT] },
+        { ResparkableDocument: [{ ...DOCUMENT, id: 'doc-here', userId: TARGET }] },
+        'skip',
+        arriving()
+      );
+
+      expect(mockStorage.upload).not.toHaveBeenCalled();
+      expect(created('resparkableDocument')).toEqual([]);
+      expect(result.originals.stored).toBe(0);
+    });
+
+    it('imports the record without its file when the installation discards originals', async () => {
+      mockFindSettings.mockResolvedValue({ documentOriginals: 'discard' });
+
+      const { result } = await planAndApply(
+        { ResparkableSpace: [SPACE], ResparkableDocument: [DOCUMENT] },
+        {},
+        'skip',
+        arriving()
+      );
+
+      const [row] = created('resparkableDocument');
+      expect(row.extractedText).toBe('The text pulled out of it.');
+      expect(row.storageKey).toBeNull();
+      expect(mockStorage.upload).not.toHaveBeenCalled();
+      expect(result.warnings.join(' ')).toMatch(/set to discard/i);
+    });
+
+    it('imports the record without its file when storage refuses the upload', async () => {
+      mockStorage.upload.mockRejectedValue(new Error('bucket on fire'));
+
+      const { result } = await planAndApply(
+        { ResparkableSpace: [SPACE], ResparkableDocument: [DOCUMENT] },
+        {},
+        'skip',
+        arriving()
+      );
+
+      const [row] = created('resparkableDocument');
+      expect(row.extractedText).toBe('The text pulled out of it.');
+      expect(row.storageKey).toBeNull();
+      expect(result.originals).toEqual({ stored: 0, skipped: 1, bytes: 0 });
+      expect(result.warnings.join(' ')).toMatch(/could not be stored/i);
+    });
+
+    it('ignores a file claiming a table that does not take files', async () => {
+      // The manifest is a claim like any other in an uploaded bundle.
+      const smuggled = new Map<string, ArrivingOriginal>([
+        [
+          'task-1',
+          {
+            model: 'ResparkableTask',
+            row: 'task-1',
+            bytes: new Uint8Array([1, 2, 3]),
+            contentType: 'application/pdf',
+          },
+        ],
+      ]);
+
+      const { result } = await planAndApply(
+        {
+          ResparkableSpace: [SPACE],
+          ResparkableTask: [{ id: 'task-1', userId: SOURCE, title: 'x' }],
+        },
+        {},
+        'skip',
+        smuggled
+      );
+
+      expect(mockStorage.upload).not.toHaveBeenCalled();
+      expect(result.originals.stored).toBe(0);
+    });
+  });
+});

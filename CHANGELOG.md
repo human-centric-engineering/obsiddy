@@ -18,6 +18,371 @@ release process.
 
 ### Added
 
+- **Administrators can transfer an account on its owner's behalf.** `POST
+  /api/v1/admin/users/[id]/transfer` queues an export (JSON body) or an import
+  (multipart with `file`) for the named user; `GET` lists that account's
+  transfers; `GET /api/v1/admin/transfer/jobs/[id]` polls one and mints the
+  signed download; `DELETE` drops the archive early.
+
+  Legitimate operator work — fulfilling a subject access request, moving an
+  account to a new install, rescuing a botched import — and the most sensitive
+  thing this subsystem can do. Three controls, none optional:
+
+  **API keys are refused**, even though `withAdminAuth` accepts an admin-scoped
+  one for headless use. Keys are self-service and long-lived, and "read out any
+  user's entire account" should not be reachable from one left in a CI config.
+
+  **Every request writes an audit entry**, before the response and for the
+  request rather than its outcome: `transfer.export`, `transfer.import`,
+  `transfer.download`, `transfer.discard`. The download is audited separately
+  from the export that produced it, because queueing one and never fetching it is
+  a different fact from taking it away — and only the second moved anybody's
+  data.
+
+  **`TransferJob.initiatedBy`** (new column, `SetNull`) is returned on the
+  *subject's* own transfer list. An audit log answers to the operator and the
+  subject cannot see it; this is what makes "an administrator exported your
+  account on the 3rd" visible to the person it happened to. `DELETE` marks the
+  job `expired` rather than removing the row, so that evidence cannot be tidied
+  away, and `SetNull` means erasing the administrator de-attributes it rather
+  than destroying it.
+
+  The poll route is scoped to jobs **this administrator started**, not to "any
+  job, because you are an admin" — so reading another account's data stays
+  something you have to start, and starting it is what gets recorded. There is
+  deliberately no synchronous admin export: that shape has no expiry, no audit of
+  the download as distinct from the request, and nothing to point at afterwards.
+  The one-in-flight limit is scoped by subject rather than by caller.
+
+  Changed public surface: `TransferJob` gains `initiatedBy` and a
+  `TransferJobInitiator` relation on `User`; `EnqueueExportParams` and
+  `EnqueueImportParams` gain an optional `initiatedBy` (the new `OnBehalfOf`
+  interface); the self-service job list and single-job routes now return
+  `initiatedBy`. `scripts/smoke/erasure.ts` covers both policies on the model —
+  a subject's own transfer cascades, one they started for somebody else is
+  retained and de-attributed.
+
+- **Account transfers can be prepared in the background.** `POST
+  /api/v1/users/me/transfer/jobs` queues an export (JSON body) or an import
+  (multipart body with a `file` field); `GET` lists your own; `GET …/[id]` polls
+  one and, for a finished export, returns a short-lived signed download link;
+  `DELETE …/[id]` drops the stored archive early.
+
+  Both synchronous endpoints have a ceiling set by how long a request may stay
+  open rather than by anything about the data, which means a large account cannot
+  move at all — failing exactly the people with the most to move. The worker runs
+  **the same functions** those routes run, with the same arguments; the only
+  difference is `BACKGROUND_APPLY_CAPS` (500,000 rows and a ten-minute
+  transaction, against 50,000 and one minute).
+
+  **The single transaction is unchanged.** A background import still refuses
+  rather than half-writing. Chunking it into a resumable job would trade away the
+  guarantee that makes this safe to point at a real account, in exchange for a
+  ceiling almost nobody reaches.
+
+  The archive lives in private blob storage, never in the job row — a `Bytes`
+  column would put every export into Postgres, its backups and every replica. The
+  download link is signed and minted per poll (15 minutes), never stored. The
+  object is deleted after 7 days and the job marked `expired`; an import's
+  uploaded bundle is deleted as soon as its job is terminal. `eraseUser()` now
+  drops the whole `transfer-jobs/<userId>/` prefix, because the rows cascade and
+  the archives would not.
+
+  Refusals happen at enqueue rather than at run: an installation without private,
+  signable blob storage is told immediately, and one transfer per person at a
+  time.
+
+  New model: `TransferJob` (`transfer_job`), `onDelete: Cascade`, `skip` in the
+  transfer manifest (importing one would resurrect a job pointing at another
+  installation's bucket) and `export` in the Art. 15 manifest with `storageKey`
+  omitted.
+
+  Two new maintenance-tick tasks, appended to `PLATFORM_JOB_NAMES` and therefore
+  to the tick route's published `backgroundTasks`: `transferJobs` (every tick —
+  one job per tick, so cadence is throughput) and `transferArchiveExpiry`
+  (hourly). A job whose lease goes stale is **failed, not re-claimed** — unlike
+  the evaluation-run worker, there is no cursor to resume an apply from, and
+  re-running one could duplicate an account.
+
+  New public surface: `BACKGROUND_APPLY_CAPS` and the `ApplyCaps` type;
+  `ApplyImportParams.caps` and `ApplyAccountImportParams.caps`;
+  `enqueueExportJob`, `enqueueImportJob`, `TransferJobError`;
+  `processTransferJobs`, `expireTransferArchives`; the `archive-store` helpers;
+  `transferExportJobSchema` and `transferImportJobSchema`.
+
+- **Uploaded files travel with an account export.** `GET
+  /api/v1/users/me/transfer/export?originals=true` now carries the documents
+  themselves, not only the text extracted from them, and `POST
+  /api/v1/users/me/transfer/import` stores them at the far end and writes the row's
+  storage key from where they actually landed.
+
+  A storage key is the one column that cannot simply be copied: it addresses an
+  object in a bucket the importing installation may have no credentials for, under
+  a path built from another account's user id. Copied across it yields a row that
+  looks complete and resolves to nothing, so the key stays `reset` to null and only
+  the **bytes** travel.
+
+  Opt-in on the way out — originals are the only incompressible part of a bundle,
+  and including them by default would make the ordinary export of a
+  document-heavy account a download that times out. The manifest records the
+  choice either way (`originals.requested`), because "not asked for", "none here"
+  and "dropped" otherwise produce identical directory listings and only one of
+  them means something is missing. Every file that was asked for and could not
+  travel is listed with its reason.
+
+  Refusable on the way in, independently: an installation whose operator set
+  `documentOriginals: discard` has decided not to hold people's files, and an
+  import is not a way around that. Files are written only for rows the plan is
+  **creating** — a record matching one already here keeps the original it already
+  had — and are uploaded **before** the transaction opens, so no row is ever
+  inserted with a key that is missing or wrong. A failed upload costs its own file
+  and a warning, never the import.
+
+  New public surface: `OriginalsPolicy` on `TransferPolicy` (`keyColumn`,
+  `contentTypeColumn`); `OriginalsStore` and the `ORIGINALS_STORES` registry in
+  `lib/portability/originals-io.ts`, which a fork implements to say where its own
+  model's files go; `ORIGINALS_CAPS`; `TransferFormatSpec.carriesOriginals` and
+  the matching field on `TransferFormatSummary`.
+
+  Changed public surface: `BundleManifest` gains `originals`; `TransferBundle`
+  gains `blobs`; `Rendering`'s archive variant gains an optional `blobs`;
+  `IncomingBundle` gains `originals`; `buildTransferArchive` takes a third `blobs`
+  argument; `ApplyImportParams` takes an optional `originals`; `ApplyResult` gains
+  `originals`; `AccountExport` gains `originals`; `AccountImportPlan` gains
+  `originalsAvailable`. The bundle format version is **unchanged at 1** — a
+  manifest without an `originals` block reads as "carried none", which is exactly
+  what every bundle written before this was.
+
+  Two new response headers on the export route: `X-Transfer-Originals` and
+  `X-Transfer-Originals-Omitted`, so a UI can report a partial answer as partial
+  without unzipping the download.
+
+  The coverage guard now fails for a model that declares `originals` without
+  resetting its key column to null, and for one that declares it with no
+  `OriginalsStore` registered — a policy claiming files travel with nothing at the
+  far end would export the bytes and drop every one of them, reporting nothing.
+
+- **`conflictMode: 'overwrite'` on account import.** `POST
+  /api/v1/users/me/transfer/import` now honours both modes. `skip` remains the
+  default and remains unchanged: a record matching one the account already has is
+  left exactly as it is. `overwrite` writes the bundle's values into the row it
+  matched — **but only where the match came from a real unique constraint.** A row
+  found through a `softMergeKey` is left alone exactly as `skip` leaves it,
+  because that key is a guess and the plan has no way yet to say yes to one
+  individually.
+
+  Three things a create writes that an overwrite does not. `mint` columns are
+  **not re-issued** — minting is how a redacted column gets a value at all, and
+  doing it to an existing row would rotate a live credential and silently move
+  where somebody's email capture arrives. The owner column is not written: the row
+  was found through an owner-scoped read, and where the owner column _is_ the
+  primary key (`User`) writing it would be an attempt to move the row. `reset`
+  columns _are_ still forced, so a row that was written into is re-indexed rather
+  than left with a digest of its old text. `regenerate` is excluded in both modes,
+  which is what keeps this from being a one-file privilege escalation.
+
+  Both modes share one column-mapping function, so "an overwrite writes the values
+  a create would" holds by construction rather than by two functions agreeing.
+  Overwrites count against the same `APPLY_CAPS.maxRows` as inserts — each is its
+  own round trip where inserts go a thousand at a time.
+
+  Changed public surface: `AppliedModel` and `ApplyResult.totals` gain
+  `overwritten`.
+
+- **`ResparkableGoal.slug`, with `@@unique([userId, slug])`.** Goals were the last
+  named type in the brain without one, and it was not cosmetic. `vault/`'s
+  importer excluded goals from `SLUG_IDENTITY_TYPES` for want of a constraint, so
+  a hand-written `Goals/…md` note created a **second** goal on every import, for
+  ever; and the account importer had to fall back to a guessed key, which is what
+  blocked `overwrite` above. The vault had always filed a goal at
+  `Goals/<horizon>/<slug>.md`, deriving that slug from the title on the way out and
+  discarding it — so the address existed and was simply not stored.
+
+  Migration `20260807220000_resparkable_goal_slug` backfills with the same rule
+  `services/slug.ts` mints by and de-duplicates the way `resolveUniqueSlug` does
+  (oldest keeps the bare slug, later ones take `-2`, `-3`), then adds the index.
+  Matching the other three named types: `createGoalSchema` accepts an optional
+  `slug`, `goalResource.create` resolves one from the title, a retitle does **not**
+  move it (`resolveSlugOnUpdate`), and the agent-facing
+  `resparkable_upsert_goal` does not accept one at all.
+
+  New public surface: `findGoalBySlug()` in
+  `lib/framework/resparkable/repo/goals.ts`. Changed: `ResparkableGoal` gains a
+  required `slug`; `GoalSource` in `vault/notes.ts` gains `slug`, and a goal note's
+  frontmatter now carries it; `ResparkableGoal`'s transfer policy trades its
+  `softMergeKey` for `mergeKeys: [['userId', 'slug']]`.
+
+- **Account import can now write.** `POST /api/v1/users/me/transfer/import`
+  takes `apply=true` and `conflictMode`, and writes the plan it just produced.
+  Dry run remains the default — an import is not reversible and the plan is
+  free, so the safe reading of silence is "show me".
+
+  `conflictMode: 'skip'` is the only mode this version honours: a record matching
+  one the account already has is **left exactly as it is**, and everything that
+  referred to the bundle's copy is pointed at the record already here — so
+  importing an export into an account that already has an area called Health
+  files the bundle's projects under the existing one. `overwrite` (Phase F) is
+  refused by the applier with a reason rather than by a validator. Both values
+  are `importAgentsSchema`'s, so there is one vocabulary for this question across
+  the codebase; note that `mergeKeys` is how a collision is *found* and
+  `conflictMode` is what is *done* about it.
+
+  The applier makes no decisions — every one arrives on `ImportPlan.resolved`
+  from the planner, so the dry run and the write cannot disagree. **Every id is
+  minted before anything is written**, rather than reading generated ids back
+  from a bulk insert, because matching returned rows to input rows means trusting
+  a result ordering no database promises — and a permutation would attach
+  somebody's tasks to the wrong project while violating nothing. The whole import
+  runs in **one transaction** with a row cap that refuses rather than
+  half-writing, and a row pointing into its own table is written with that column
+  empty and linked afterwards.
+
+  A model whose owner column *is* its primary key (`User`) is never created,
+  matched or not — an import lands on the account doing it rather than creating a
+  person.
+
+  New public surface: `lib/portability/apply-import.ts` (`applyImportPlan()`,
+  `ApplyResult`, `ConflictMode`, `TransferApplyError`, `APPLY_CAPS`),
+  `applyAccountImport()` in `lib/portability/import-account.ts`,
+  `accountImportSchema` in `lib/portability/validation.ts`, and
+  `isWritableScalar()` plus `ImportPlan.resolved` / `ResolvedRow` in
+  `lib/portability/import-plan.ts`.
+
+### Fixed
+
+- **`redact` could produce a table an import cannot write.** A column dropped on
+  the way out that is required and undefaulted on the way in leaves nothing to
+  write — `ResparkableSpace.inboxToken`, a bearer token routing email capture,
+  was exactly that, so no import could create a space. `TransferPolicy` gains
+  **`mint`**, a per-column generator declared in the tier that owns the column,
+  and the coverage guard now fails for any column that is redacted, required and
+  undefaulted without one. `ImportPlan` also reports `missingRequired` per table,
+  so a dry run says which records could not be written rather than leaving the
+  apply to discover it.
+
+- **Account import, dry run: what would this bundle do?** New
+  `POST /api/v1/users/me/transfer/import` takes a bundle produced by the export
+  endpoint and returns a plan. **Nothing is written** — an `apply` field is
+  refused rather than ignored, because a caller who sends it believes rows are
+  being written. Browser sessions only (an API key of any scope gets a 403,
+  matching the export endpoint), with an `uploadLimiter` sub-cap and a 64 MB
+  upload ceiling checked before the body is read.
+
+  A bundle's **owner column is overwritten, never read**, so every row lands on
+  the account doing the importing whatever the file says; ids in a bundle are
+  claims resolved through an owner-scoped read, never addresses. Identity goes
+  `mergeKeys` → `softMergeKey` → create, and a match made on a guessed key is
+  named individually in the plan so it can be vetoed. Two records never merge
+  onto one existing row — the second becomes a new row and is reported.
+
+  Tables are visited in a topological order over the generated model graph in
+  which **soft and `Json` references count as dependencies**, so a row dropped
+  for want of a reference it cannot do without takes its dependents with it
+  without a second pass. References into a row's own table, edges deferred to
+  break a cycle, and whole-value `Json` references are resolved in a final
+  read-only sweep, alongside the **cuid canary** — which reports ids sitting in
+  `Json` positions the policy manifest does not declare, and never rewrites
+  them. Every capped detail list carries its true total.
+
+  Reading is defended where the cost lands: caps run inside the fflate filter
+  callback before any entry is inflated, only `manifest.json` and `data/*.json`
+  are ever decompressed, and a cap breach rejects the whole archive rather than
+  truncating it. A data file the manifest does not vouch for is ignored and
+  reported, so "models opt in" survives somebody editing the zip.
+
+  New public surface: `lib/portability/read-bundle.ts`
+  (`readTransferBundle()`, `TransferBundleError`, `BUNDLE_READ_CAPS`),
+  `lib/portability/write-order.ts` (`writeOrder()`, `WriteOrder`,
+  `DependencyEdge`), `lib/portability/json-paths.ts` (`walkJsonStrings()`,
+  `jsonStringsAt()`, `jsonPathCovers()`, `canaryScan()`, `JSON_WALK_CAPS`),
+  `lib/portability/import-plan.ts` (`buildImportPlan()`, `ImportPlan`,
+  `ExistingLookup`, `mergeKeyOf()`, `PLAN_CAPS`),
+  `lib/portability/import-lookup.ts` (`createExistingLookup()`,
+  `TransferLookupError`, `LOOKUP_CAPS`) and
+  `lib/portability/import-account.ts` (`planAccountImport()`).
+  `lib/portability/collect.ts` now exports `orderById()`, previously private, so
+  the export and import paths share one definition of a stable row order.
+
+- **Export formats: Logseq, Notion, CSV and a one-page digest.**
+  `GET /api/v1/users/me/transfer/export` takes a new `?format=` — `bundle`
+  (default, unchanged), `logseq`, `notion`, `csv` or `digest` — and the **Your
+  data** tab offers them as a picker. A renderer receives the rows the collector
+  already gathered and returns files; it never touches the database, so no
+  format can widen what leaves an account.
+
+  `bundle` remains the only format an import will be able to read back. The
+  others are one-way renderings for other tools and each says so in its own
+  README: `logseq` writes a graph (`pages/`, `journals/`, `logseq/config.edn`)
+  with tasks as `TODO` blocks under their project rather than as pages, because
+  that is what Logseq's agenda and queries read; `notion` writes CSV databases
+  and markdown pages laid out for Notion's importer, with every reference as the
+  target's **name** rather than an id, since Notion creates no relations on
+  import; `csv` writes one spreadsheet per table alongside the same manifest and
+  README the JSON bundle carries; `digest` is a single Markdown document, sent as
+  itself rather than as a zip of one file.
+
+  A format that covers only part of an account — `logseq` and `notion` render
+  the brain — **refuses** a `?groups=` asking for the rest rather than quietly
+  narrowing it, and the UI disables those sections so the refusal is a backstop
+  rather than the way somebody finds out. The digest prints every table's true
+  row count and says how many records it is not showing.
+
+  New public surface: `lib/portability/format.ts` (`TransferFormatSpec`,
+  `TRANSFER_FORMATS`, `transferFormatSummaries()`, `resolveFormatGroups()`,
+  `TransferFormatError`), `lib/portability/formats/{json-bundle,csv,digest}.ts`,
+  and `lib/framework/resparkable/transfer/{brain-view,formats/logseq,formats/notion}.ts`.
+  `lib/api/csv.ts` gains `csvDocument()`. `AccountExportPanel` gains a required
+  `formats` prop and `SettingsTabs` a required `transferFormats`.
+
+- **Account export: take your data with you.** New
+  `GET /api/v1/users/me/transfer/export` returns the calling account as a zip —
+  `manifest.json`, a plain-English `README.md`, and one `data/<Model>.json` per
+  table. `?groups=brain,conversations` narrows it; a new **Your data** tab in
+  Settings offers the same choice as checkboxes. Browser sessions only (an API
+  key of any scope gets a 403, matching the Art. 15 endpoint), with an
+  `exportLimiter` sub-cap. Archives are reproducible — one `mtime` across every
+  entry — so two exports of an unchanged account differ only where the account
+  differs.
+
+  New `lib/portability/collect.ts` finds the rows, which is the hard half: only
+  39 of the 57 exportable models carry an owner column. It runs a repeated
+  **down** pass from the owner columns along foreign keys, then a single
+  terminal **up** pass that pulls in the shared rows collected data points at.
+  The up pass does not walk back down, because one step down from a shared row
+  is other accounts' data — and for the same reason a model that declares an
+  `ownerColumn` is only ever collected by asking for that owner's rows, never
+  reached by an edge. Anything neither pass reaches is named in the manifest
+  with a reason, because a missing table and an empty table look identical in a
+  file listing. Also new: `bundle.ts` (pure — manifest and README),
+  `archive.ts` (zip, fails before allocating when over cap),
+  `export-account.ts`, and `transferGroupSummaries()` on the registry.
+
+- **A generated model graph, and the transfer-policy vocabulary built on it.**
+  Groundwork for account export/import — moving one person's data into a
+  different account or a self-hosted install. New `generator portability` block
+  emits `lib/portability/model-graph.generated.ts` on every `prisma generate`: a
+  machine-readable description of all ~80 models — foreign keys, uniques,
+  nullability, `Json` columns, `Unsupported()` columns, and reference-shaped
+  columns with no foreign key behind them. It has to be generated rather than
+  read at runtime because Prisma 7's `Prisma.dmmf` is pruned to
+  `{name, kind, type, relationName}` and carries no foreign-key metadata at all.
+  New `lib/portability/policy.ts` declares the vocabulary (`transfer` /
+  `export-only` / `skip`, redactions, merge keys, soft references, `Json` id
+  paths); `core-policies.ts` and `lib/framework/resparkable/transfer/policy.ts`
+  classify every existing table. New fork seam `lib/app/data-transfer.ts` ships
+  empty and is wired through `lib/portability/registry.ts`. New dev dependency
+  `@prisma/generator-helper`, declared directly rather than relied on
+  transitively. No export or import route yet — see
+  `.context/framework/resparkable/transfer.md` for the phase plan.
+
+  The rule the whole thing runs on is deliberately asymmetric: **columns opt
+  out, models opt in.** A new column joins the bundle by default (the same
+  reason `export-sources.ts` uses Prisma `omit` and never `select`); a new model
+  fails `tests/unit/lib/portability/policy-coverage.test.ts` until somebody
+  classifies it, with the failure naming the exact file to edit. A second guard
+  fails on any `String` column whose name looks like credential material and
+  which has not been explicitly redacted, regenerated, or excused in writing.
+
 - **`PublicSection` and `LandingHero`: the marketing pages' own layout units.**
   New `components/marketing/resparkable/`, a fork-owned subfolder that upstream
   never writes to, so `components/marketing/` stays free to keep improving.
@@ -605,6 +970,20 @@ release process.
 
 ### Security
 
+- **Live credentials are now dropped from transfer bundles, not merely left
+  unwritten.** `ResparkableSpace.inboxToken`,
+  `AiWorkflowTrigger.signingSecret`, `AiEventHook.secret` and
+  `AiWebhookSubscription.secret` moved from `regenerate` to `redact`. The two
+  fields answer different questions — `regenerate` stops a value being written
+  on the way *in*, while a secret's problem is on the way *out*: these still
+  authenticate traffic against the installation the bundle came **from**, and a
+  bundle is a file that gets emailed, synced and forgotten. This is the call
+  `repo/subject-export.ts` already made when it omitted `inboxToken` from the
+  Art. 15 export "even though the subject owns it". The coverage guard no longer
+  accepts `regenerate` as an answer for a secret-shaped column, and a second
+  assertion fails any policy that tries. No release has shipped an export route,
+  so no bundle containing these values was ever produced.
+
 - **Resparkable schedules are deleted when their owner is erased.**
   `AiWorkflowSchedule.createdBy` is `onDelete: SetNull`, so per-user schedules would
   otherwise outlive the account — enabled, with a live `nextRunAt`, firing for ever
@@ -675,6 +1054,21 @@ release process.
   the route logs its length and the hit count instead.
 
 ### Changed
+
+- **`exportAccount()` returns a format-neutral result.** `AccountExport` drops
+  `manifest` — which only the JSON bundle has — and gains `contentType`,
+  `format` and `totalRows`. The route reads `totalRows` for its
+  `X-Transfer-Rows` header and `contentType` for the response, so a format that
+  is not a zip is sent as itself. `exportAccount()` also takes an optional
+  `format`.
+
+- **`lib/portability/bundle.ts` exports its manifest and README builders.**
+  `buildBundleManifest()`, `renderBundleReadme()`, `jsonDataPath`, the
+  `DataPathFor` type and `isoDate()` are now public so the CSV rendering shares
+  them rather than writing a second copy of the four omission lists — redacted
+  columns, reissued columns, unreachable tables, excluded tables. A second copy
+  would drift, and it would drift silently: both manifests would still look
+  complete. `buildTransferBundle()` is unchanged.
 
 - **BREAKING — the project is renamed Obsiddy → Resparkable, and the fork's own
   brand name goes with it.** Every public identifier moves: the 19 Prisma models
